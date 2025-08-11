@@ -19,14 +19,14 @@
             "name": "Person-1",
             "type": "Pedestrian",
             "ontology_uid": 0
-        },
-        "actions" : {
-            "0": {
-                "name": "Action-0",
-                "type": "Overtake",
-                "ontology_uid": 0,
-                "frame_intervals": [{ "frame_start": 5, "frame_end": 8 }]
-            }
+        }
+    },
+    "actions" : {
+        "0": {
+            "name": "Action-0",
+            "type": "Overtake",
+            "ontology_uid": 0,
+            "frame_intervals": [{ "frame_start": 5, "frame_end": 8 }]
         }
     },
     "frames": {
