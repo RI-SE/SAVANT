@@ -43,7 +43,7 @@
         "objects": {
           "0": {
             "object_data": {
-              "bbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }]
+              "rbbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }]
             }
           }
         }
