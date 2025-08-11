@@ -78,8 +78,6 @@ Frames hold dynamic information, i.e. information that changes between frames. W
         }
       }
     }
-  }
-}
 ```
 
 ![RBBOX](rbbox.svg)
