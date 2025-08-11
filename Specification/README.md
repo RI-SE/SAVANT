@@ -11,7 +11,6 @@ The tag file adheres to the ASAM OpenLabel format, but we only use a subset of t
 
 Only OpenLabel schema version is required in the metadata section. We use tagged_file to indicate the source video file, and annotator to initially add which version of the auto annotator is used or if it was annotated using the UI.
 ```json
-{
     "metadata": { 
         "schema_version": "1.0.0",
         "tagged_file": "filename.mp4",
