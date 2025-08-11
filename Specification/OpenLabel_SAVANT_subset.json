@@ -1,0 +1,53 @@
+{
+  "openlabel": {
+    "metadata": { 
+        "schema_version": "1.0.0",
+        "tagged_file": "filename.mp4",
+        "annotator": "SAVANT autoanno v0.1",
+    },
+    "ontologies" : {
+        "0" : "https://savant.ri.se/savant_ontology_1.0.0.ttl"
+    },
+    "objects": {
+        "0": {
+            "name": "Car-0",
+            "type": "Car",
+            "ontology_uid" : "0",
+            "frame_intervals": [{ "frame_start": 0, "frame_end": 10 }]
+        } ,
+        "1": {
+            "name": "Person-1",
+            "type": "Pedestrian",
+            "ontology_uid": 0
+        },
+        "actions" : {
+            "0": {
+                "name": "Action-0",
+                "type": "Overtake",
+                "ontology_uid": 0,
+                "frame_intervals": [{ "frame_start": 5, "frame_end": 8 }]
+            }
+        }
+    },
+    "frames": {
+      "0": {
+        "objects": {
+          "0": {
+            "object_data": {
+              "rbbox": [{ "name": "shape", "val": [x_px, y_px, width_px, height_px, alpha_rad] }]
+            }
+          }
+        }
+      },
+      "1": {
+        "objects": {
+          "0": {
+            "object_data": {
+              "bbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }]
+            }
+          }
+        }
+      }
+    }
+  }
+}
