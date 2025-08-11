@@ -2,9 +2,10 @@
 
 ```json
 {
-{
   "openlabel": {
-}
+```
+
+
 ```json
 {
     "metadata": { 
@@ -58,6 +59,6 @@
     }
   }
 }
-}
+```
 
 ![RBBOX](rbbox.svg)
