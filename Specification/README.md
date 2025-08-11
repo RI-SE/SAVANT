@@ -1,5 +1,6 @@
 # SAVANT file formats
 
+## SAVANT OpenLabel Subset
 The tag file adheres to the ASAM OpenLabel format, but we only use a subset of the tags for SAVANT.
 *Subject to change during development, this is an initial guess*
 
@@ -83,3 +84,15 @@ Frames hold dynamic information, i.e. information that changes between frames. W
 ```
 
 ![RBBOX](rbbox.svg)
+
+## SAVANT Ontology
+
+This part is TBD. There is an Ontology provided by openlabel, called openlabel_ontology_scenario_tags.ttl, mainly for the scenario tags part of OpenLabel and not the . It does contain most of what we need in terms of objects, behaviours and ODD information, so maybe we should use it, but we must make sure it can be meaningfully converted to OSI and OpenScenario as well. It may be necessary to add something in this regard. Also, again we should define a subset to be used within SAVANT. This can be defined when specifying an ontology in the ontologies section by using include and exclude sections, e.g.:
+```json
+    "ontologies": {
+      "0": {
+        "uri": "[https://code.asam.net/simulation/standard/openxontology/ontologies/openlabel](https://openlabel.asam.net/V1-0-0/ontologies/openlabel_ontology_scenario_tags.ttl)",
+        "boundary_list": ["motorway", "road"],
+        "boundary_mode": "include"
+      }
+```
