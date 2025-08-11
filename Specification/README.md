@@ -91,7 +91,7 @@ This part is TBD. There is an Ontology provided by openlabel, called openlabel_o
 ```json
     "ontologies": {
       "0": {
-        "uri": "[https://code.asam.net/simulation/standard/openxontology/ontologies/openlabel](https://openlabel.asam.net/V1-0-0/ontologies/openlabel_ontology_scenario_tags.ttl)",
+        "uri": "https://openlabel.asam.net/V1-0-0/ontologies/openlabel_ontology_scenario_tags.ttl",
         "boundary_list": ["motorway", "road"],
         "boundary_mode": "include"
       }
