@@ -87,7 +87,9 @@ Frames hold dynamic information, i.e. information that changes between frames. W
 
 ## SAVANT Ontology
 
-This part is TBD. There is an Ontology provided by openlabel, called openlabel_ontology_scenario_tags.ttl, mainly for the scenario tags part of OpenLabel and not the . It does contain most of what we need in terms of objects, behaviours and ODD information, so maybe we should use it, but we must make sure it can be meaningfully converted to OSI and OpenScenario as well. It may be necessary to add something in this regard. Also, again we should define a subset to be used within SAVANT. This can be defined when specifying an ontology in the ontologies section by using include and exclude sections, e.g.:
+This part is TBD. There is an Ontology provided by openlabel, called openlabel_ontology_scenario_tags.ttl, mainly for the scenario tags part of OpenLabel and not the . It does contain most of what we need in terms of objects, behaviours and ODD information, so maybe we should use it, but we must make sure it can be meaningfully converted to OSI and OpenScenario as well. It may be necessary to add something in this regard which means we need an own ontology anyway.
+
+Also, if we use the ASAM one, again we should define a subset to be used within SAVANT. Which terms to be included (or excluded) can be defined when specifying an ontology in the ontologies section by using include and exclude sections, e.g.:
 ```json
     "ontologies": {
       "0": {
