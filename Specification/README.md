@@ -95,3 +95,45 @@ Also, if we use the ASAM one, again we should define a subset to be used within 
         "boundary_mode": "include"
       }
 ```
+We can start with a fixed set of tags defineg e.g. in a vector in the UI. However, the architecture should be such that it will later be possible to read a set of tags from a file, i.e. the tags should not be hardcoded throughout the application.
+
+### Starting set of object tags for UI
+* VehicleCar
+* VehicleVan
+* VehicleTruck
+* VehicleTrailer
+* VehicleMotorcycle
+* VehicleCycle
+* VehicleBus
+* VehicleTram
+* VehicleTrain
+* VehicleAgricultural
+* VehicleConstruction
+* VehicleEmergency
+* VehicleCaravan
+* VehicleSlowMoving
+* VehicleStandupScooter
+* RoadUserVehicle (other/unknown vehicle type)
+* RoadUserAnimal
+* HumanPedestrian
+* HumanWheelchairUser
+
+### Starting set of tags for AutoAnnotate (TBD)
+* VehicleCar
+* VehicleTruck
+* VehicleTrailer
+* VehicleVan
+* VehicleMotorcycle
+
+### Starting set of action tags
+* MotionTurnLeft
+* MotionTurnRight
+* MotionCross
+* MotionCutIn
+* MotionCutOut
+* MotionOvertake
+* MotionAccelerate
+* MotionDecelerate
+* MotionLaneChangeRight
+* MotionLaneChangeLeft
+
