@@ -56,14 +56,20 @@ There are also events (similar to actions but instantaneous) and context (e.g. s
     },
 ```
 
-Frames hold dynamic information, i.e. information that changes between frames. We use this for the bounding boxes of dynamic objects. The format allows for different types like 2d bounding boxes, polygons, and 3d boxes. We only use one type, which is rotated bounding box which is a rectangle with an angle (see image below). The x and y coordinates are to the center of the object and rotation is also calculated relative this center.
+Frames hold dynamic information, i.e. information that changes between frames. We use this for the bounding boxes of dynamic objects. The format allows for different types like 2d bounding boxes, polygons, and 3d boxes. 
+
+We only use one type, which is rotated bounding box which is a rectangle with an angle (see image below). The x and y coordinates are to the center of the object and rotation is also calculated relative this center. We also add two custom fields with "vec", which is the name (or tool + version) of the annotator, and an associated confidence value.
 ```json
     "frames": {
       "0": {
         "objects": {
           "0": {
             "object_data": {
-              "rbbox": [{ "name": "shape", "val": [x_px, y_px, width_px, height_px, alpha_rad] }]
+              "rbbox": [{ "name": "shape", "val": [x_px, y_px, width_px, height_px, alpha_rad] }],
+              "vec": [
+                { "name": "annotator", "val": [string, ...] },
+                { "name": "confidence",   "val": [number, ...] }
+              ]
             }
           }
         }
@@ -72,12 +78,16 @@ Frames hold dynamic information, i.e. information that changes between frames. W
         "objects": {
           "0": {
             "object_data": {
-              "rbbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }]
+              "rbbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }],
+              "vec": [
+                { "name": "annotator", "val": ["auto v1.2", "thanh"] },
+                { "name": "confidence",   "val": [0.87, 0.91] }
+              ]
             }
           }
         }
       }
-    }
+    } 
 ```
 
 ![RBBOX](rbbox.svg)
