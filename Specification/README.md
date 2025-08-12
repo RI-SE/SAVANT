@@ -14,7 +14,7 @@ Only OpenLabel schema version is required in the metadata section. We use tagged
     "metadata": { 
         "schema_version": "1.0.0",
         "tagged_file": "filename.mp4",
-        "annotator": "SAVANT autoanno v0.1",
+        "annotator": "SAVANT AutoAnno v0.1, SAVANT AnnoUI v0.1",
     },
 ```
 
@@ -80,7 +80,7 @@ We only use one type, which is rotated bounding box which is a rectangle with an
             "object_data": {
               "rbbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }],
               "vec": [
-                { "name": "annotator", "val": ["auto v1.2", "thanh"] },
+                { "name": "annotator", "val": ["SAVANT AutoAnno v0.1", "thanh"] },
                 { "name": "confidence",   "val": [0.87, 0.91] }
               ]
             }
