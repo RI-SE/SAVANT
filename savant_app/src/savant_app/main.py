@@ -1,4 +1,11 @@
-"""Entry point for the SAVANT application."""
+from PyQt6.QtWidgets import QApplication
+from savant_app.frontend.main_window import MainWindow
+
+def main():
+    app = QApplication([])
+    window = MainWindow()
+    window.show()
+    app.exec()
 
 if __name__ == "__main__":
-    print("hello world")
+    main()
