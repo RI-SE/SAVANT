@@ -14,7 +14,7 @@ Only OpenLabel schema version is required in the metadata section. We use tagged
     "metadata": { 
         "schema_version": "1.0.0",
         "tagged_file": "filename.mp4",
-        "annotator": "SAVANT autoanno v0.1",
+        "annotator": "SAVANT AutoAnno v0.1, SAVANT AnnoUI v0.1",
     },
 ```
 
@@ -56,14 +56,20 @@ There are also events (similar to actions but instantaneous) and context (e.g. s
     },
 ```
 
-Frames hold dynamic information, i.e. information that changes between frames. We use this for the bounding boxes of dynamic objects. The format allows for different types like 2d bounding boxes, polygons, and 3d boxes. We only use one type, which is rotated bounding box which is a rectangle with an angle (see image below). The x and y coordinates are to the center of the object and rotation is also calculated relative this center.
+Frames hold dynamic information, i.e. information that changes between frames. We use this for the bounding boxes of dynamic objects. The format allows for different types like 2d bounding boxes, polygons, and 3d boxes. 
+
+We only use one type, which is rotated bounding box which is a rectangle with an angle (see image below). The x and y coordinates are to the center of the object and rotation is also calculated relative this center. We also add two custom fields with "vec", which is the name (or tool + version) of the annotator, and an associated confidence value.
 ```json
     "frames": {
       "0": {
         "objects": {
           "0": {
             "object_data": {
-              "rbbox": [{ "name": "shape", "val": [x_px, y_px, width_px, height_px, alpha_rad] }]
+              "rbbox": [{ "name": "shape", "val": [x_px, y_px, width_px, height_px, alpha_rad] }],
+              "vec": [
+                { "name": "annotator", "val": [string, ...] },
+                { "name": "confidence",   "val": [number, ...] }
+              ]
             }
           }
         }
@@ -72,12 +78,16 @@ Frames hold dynamic information, i.e. information that changes between frames. W
         "objects": {
           "0": {
             "object_data": {
-              "rbbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }]
+              "rbbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }],
+              "vec": [
+                { "name": "annotator", "val": ["SAVANT AutoAnno v0.1", "thanh"] },
+                { "name": "confidence",   "val": [0.87, 0.91] }
+              ]
             }
           }
         }
       }
-    }
+    } 
 ```
 
 ![RBBOX](rbbox.svg)
@@ -95,3 +105,45 @@ Also, if we use the ASAM one, again we should define a subset to be used within 
         "boundary_mode": "include"
       }
 ```
+We can start with a fixed set of tags defineg e.g. in a vector in the UI. However, the architecture should be such that it will later be possible to read a set of tags from a file, i.e. the tags should not be hardcoded throughout the application.
+
+### Starting set of object tags for UI
+* VehicleCar
+* VehicleVan
+* VehicleTruck
+* VehicleTrailer
+* VehicleMotorcycle
+* VehicleCycle
+* VehicleBus
+* VehicleTram
+* VehicleTrain
+* VehicleAgricultural
+* VehicleConstruction
+* VehicleEmergency
+* VehicleCaravan
+* VehicleSlowMoving
+* VehicleStandupScooter
+* RoadUserVehicle (other/unknown vehicle type)
+* RoadUserAnimal
+* HumanPedestrian
+* HumanWheelchairUser
+
+### Starting set of tags for AutoAnnotate (TBD)
+* VehicleCar
+* VehicleTruck
+* VehicleTrailer
+* VehicleVan
+* VehicleMotorcycle
+
+### Starting set of action tags
+* MotionTurnLeft
+* MotionTurnRight
+* MotionCross
+* MotionCutIn
+* MotionCutOut
+* MotionOvertake
+* MotionAccelerate
+* MotionDecelerate
+* MotionLaneChangeRight
+* MotionLaneChangeLeft
+

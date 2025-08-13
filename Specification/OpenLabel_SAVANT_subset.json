@@ -34,7 +34,11 @@
         "objects": {
           "0": {
             "object_data": {
-              "rbbox": [{ "name": "shape", "val": [x_px, y_px, width_px, height_px, alpha_rad] }]
+              "rbbox": [{ "name": "shape", "val": [x_px, y_px, width_px, height_px, alpha_rad] }],
+              "vec": [
+                { "name": "annotator", "val": [string, ...] },
+                { "name": "confidence",   "val": [number, ...] }
+              ]
             }
           }
         }
@@ -43,7 +47,11 @@
         "objects": {
           "0": {
             "object_data": {
-              "rbbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }]
+              "rbbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }],
+              "vec": [
+                { "name": "annotator", "val": ["auto v1.2", "thanh"] },
+                { "name": "confidence",   "val": [0.87, 0.91] }
+              ]
             }
           }
         }
