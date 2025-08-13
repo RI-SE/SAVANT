@@ -21,11 +21,11 @@ jobs:
           enable-cache: true
 
       - name: Sync dependencies (prod only)
-        run: cd ./savant_app/
+        working-directory: ./savant_app/
         run: rye sync --no-lock --no-dev
 
       - name: Build
-        run: cd ./savant_app/
+        working-directory: ./savant_app/
         run: |
           # Use your real entry point here
           rye run pyinstaller --onefile --windowed --name SAVANT main.py
