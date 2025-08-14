@@ -24,7 +24,7 @@ jobs:
         working-directory: ./savant_app/
         run: rye sync --no-lock --no-dev
 
-      - name: Build
+      - name: build
         working-directory: ./savant_app/
         run: |
           # Use your real entry point here
