@@ -37,7 +37,7 @@ jobs:
           path: dist/*
 
   release:
-    needs: build
+    needs: deploy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
