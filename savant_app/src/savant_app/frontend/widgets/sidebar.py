@@ -1,6 +1,14 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton, QListWidget, QLabel, QMenu,
-    QDialog, QDialogButtonBox, QLineEdit, QFormLayout, QHBoxLayout
+    QWidget,
+    QVBoxLayout,
+    QPushButton,
+    QListWidget,
+    QLabel,
+    QMenu,
+    QDialog,
+    QDialogButtonBox,
+    QLineEdit,
+    QHBoxLayout,
 )
 from PyQt6.QtGui import QAction
 from PyQt6.QtGui import QIcon
@@ -20,11 +28,11 @@ class Sidebar(QWidget):
             btn = QPushButton()
             btn.setIcon(QIcon.fromTheme(icon_name))
             btn.setIconSize(QSize(30, 30))
-            btn.setFlat(True)  
+            btn.setFlat(True)
             btn.setToolTip(tooltip)
             return btn
-        
-        # TODO - Change icons to our own 
+
+        # TODO - Change icons to our own
         new_btn = make_icon_btn("document-new", "New Project")
         load_btn = make_icon_btn("document-open", "Load Project")
         save_btn = make_icon_btn("document-save", "Save Project")
@@ -38,14 +46,18 @@ class Sidebar(QWidget):
         # --- New BBox Button with dropdown ---
         new_bbox_btn = QPushButton("New BBox")
         bbox_menu = QMenu()
-        
+
         # TODO - Get labels from config file
         for label in ["Car", "Truck", "Pedestrian", "Bicycle"]:
             action = QAction(label, self)
-            action.triggered.connect(lambda checked, l=label: self.open_object_options_popup(l))
+            action.triggered.connect(
+                lambda checked, l=label: self.open_object_options_popup(l)  # noqa: E741
+            )
             bbox_menu.addAction(action)
 
-        bbox_menu.aboutToShow.connect(lambda: bbox_menu.setMinimumWidth(new_bbox_btn.width()))
+        bbox_menu.aboutToShow.connect(
+            lambda: bbox_menu.setMinimumWidth(new_bbox_btn.width())
+        )
         new_bbox_btn.setMenu(bbox_menu)
         main_layout.addWidget(new_bbox_btn)
 
@@ -101,7 +113,9 @@ class Sidebar(QWidget):
         layout.addWidget(id_input)
 
         # Link button logic
-        link_btn.clicked.connect(lambda: self.link_to_existing(dialog, object_type, id_input.text()))
+        link_btn.clicked.connect(
+            lambda: self.link_to_existing(dialog, object_type, id_input.text())
+        )
 
         # Cancel button
         cancel_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)

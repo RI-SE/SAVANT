@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import QLabel, QSizePolicy
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
 
+
 class VideoDisplay(QLabel):
     def __init__(self):
         super().__init__()

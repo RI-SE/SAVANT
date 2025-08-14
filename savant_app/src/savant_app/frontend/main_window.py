@@ -2,7 +2,6 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout
 from frontend.widgets.video_display import VideoDisplay
 from frontend.widgets.playback_controls import PlaybackControls
 from frontend.widgets.sidebar import Sidebar
-from PyQt6.QtGui import QIcon
 
 
 class MainWindow(QMainWindow):
