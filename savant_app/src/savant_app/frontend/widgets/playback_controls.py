@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QPushButton
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QSize
 
+
 class PlaybackControls(QHBoxLayout):
     def __init__(self):
         super().__init__()
@@ -16,7 +17,9 @@ class PlaybackControls(QHBoxLayout):
             btn.setFlat(True)
             return btn
 
-        self.addStretch(1) # TODO - Change icons for our own assets (System icons wont work across platforms)
+        self.addStretch(
+            1
+        )  # TODO - Change icons for our own assets (System icons wont work across platforms)
         self.addWidget(make_btn("media-skip-backward", "Previous Frame"))
         self.addWidget(make_btn("media-seek-backward", "Rewind"))
         self.addWidget(make_btn("media-playback-start", "Play"))
