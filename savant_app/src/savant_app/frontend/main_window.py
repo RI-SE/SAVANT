@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout
-from savant_app.src.savant_app.frontend.widgets.video_display import VideoDisplay
-from savant_app.src.savant_app.frontend.widgets.playback_controls import PlaybackControls
-from savant_app.src.savant_app.frontend.widgets.sidebar import Sidebar
+from frontend.widgets.video_display import VideoDisplay
+from frontend.widgets.playback_controls import PlaybackControls
+from frontend.widgets.sidebar import Sidebar
 from PyQt6.QtGui import QIcon
 
 

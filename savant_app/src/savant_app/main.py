@@ -1,6 +1,6 @@
 import sys
 from PyQt6.QtWidgets import QApplication
-from savant_app.src.savant_app.frontend.main_window import MainWindow
+from frontend.main_window import MainWindow
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
