@@ -1,45 +1,35 @@
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QMenuBar
-from PyQt6.QtGui import QAction
-from ..controllers.example_controller import CounterController
-from .widgets.counter_widget import CounterWidget
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout
+from frontend.widgets.video_display import VideoDisplay
+from frontend.widgets.playback_controls import PlaybackControls
+from frontend.widgets.sidebar import Sidebar
+from PyQt6.QtGui import QIcon
+
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, project_name):
         super().__init__()
-        self.setWindowTitle("SAVANT - Main Window")
-        self.resize(1280, 720)
+        self.project_name = project_name
+        self.update_title()
+        self.resize(1600, 800)
 
-        self.example_controller = CounterController()  # store controller reference
+        # Video + playback
+        video_layout = QVBoxLayout()
+        video_widget = VideoDisplay()
+        video_layout.addWidget(video_widget, stretch=1)
+        video_layout.addLayout(PlaybackControls())
 
-        # Central widget and layout
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        self.main_layout = QVBoxLayout(central_widget)
+        # Sidebar
+        sidebar = Sidebar()
 
-        # Counter widget
-        self.counter_widget = CounterWidget()
-        self.main_layout.addWidget(self.counter_widget)
+        # Main layout
+        main_layout = QHBoxLayout()
+        main_layout.addLayout(video_layout, stretch=1)
+        main_layout.addWidget(sidebar)
 
-        # Connect widget signal to MainWindow slot
-        self.counter_widget.increment_requested.connect(self.on_increment_requested)
+        container = QWidget()
+        container.setLayout(main_layout)
+        self.setCentralWidget(container)
 
-        # Initialize menu bar
-        self._create_menu_bar()
-
-    def _create_menu_bar(self):
-        menu_bar = QMenuBar(self)
-        file_menu = menu_bar.addMenu("&File")
-
-        exit_action = QAction("&Exit", self)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-
-        self.setMenuBar(menu_bar)
-
-    # Slot to handle increment signal
-    def on_increment_requested(self):
-        # Ask controller to increment the counter
-        new_value = self.example_controller.increment_counter()
-        # Update the widget display
-        self.counter_widget.update_display(new_value)
+    def update_title(self):
+        self.setWindowTitle(f"SAVANT {self.project_name}")
