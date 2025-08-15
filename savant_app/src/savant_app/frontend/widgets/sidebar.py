@@ -1,0 +1,149 @@
+from PyQt6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QPushButton,
+    QListWidget,
+    QLabel,
+    QMenu,
+    QDialog,
+    QDialogButtonBox,
+    QLineEdit,
+    QHBoxLayout,
+)
+from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QSize
+
+
+class Sidebar(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setFixedWidth(200)
+        main_layout = QVBoxLayout()
+
+        # --- Horizontal layout for New / Load / Save ---
+        top_buttons_layout = QHBoxLayout()
+
+        def make_icon_btn(icon_name, tooltip):
+            btn = QPushButton()
+            btn.setIcon(QIcon.fromTheme(icon_name))
+            btn.setIconSize(QSize(30, 30))
+            btn.setFlat(True)
+            btn.setToolTip(tooltip)
+            return btn
+
+        # TODO - Change icons to our own
+        new_btn = make_icon_btn("document-new", "New Project")
+        load_btn = make_icon_btn("document-open", "Load Project")
+        save_btn = make_icon_btn("document-save", "Save Project")
+
+        top_buttons_layout.addWidget(new_btn)
+        top_buttons_layout.addWidget(load_btn)
+        top_buttons_layout.addWidget(save_btn)
+
+        main_layout.addLayout(top_buttons_layout)
+
+        # --- New BBox Button with dropdown ---
+        new_bbox_btn = QPushButton("New BBox")
+        bbox_menu = QMenu()
+
+        # TODO - Get labels from config file
+        for label in ["Car", "Truck", "Pedestrian", "Bicycle"]:
+            action = QAction(label, self)
+            action.triggered.connect(
+                lambda checked, l=label: self.open_object_options_popup(l)  # noqa: E741
+            )
+            bbox_menu.addAction(action)
+
+        bbox_menu.aboutToShow.connect(
+            lambda: bbox_menu.setMinimumWidth(new_bbox_btn.width())
+        )
+        new_bbox_btn.setMenu(bbox_menu)
+        main_layout.addWidget(new_bbox_btn)
+
+        # --- New Frame Tag Button ---
+        main_layout.addWidget(QPushButton("New frame tag"))
+
+        # --- Active Objects ---
+        main_layout.addWidget(QLabel("Active Objects:"))
+        self.active_objects = QListWidget()
+        self.active_objects.setMinimumHeight(100)
+        self.active_objects.model().rowsInserted.connect(self.adjust_list_sizes)
+        self.active_objects.model().rowsRemoved.connect(self.adjust_list_sizes)
+        main_layout.addWidget(self.active_objects)
+
+        # --- Frame ID ---
+        main_layout.addWidget(QLabel("Frame ID:"))
+        self.frame_id = QListWidget()
+        self.frame_id.setFixedHeight(40)
+        main_layout.addWidget(self.frame_id)
+
+        # --- Active Manoeuvre ---
+        main_layout.addWidget(QLabel("Active Manoeuvre:"))
+        self.active_manoeuvre = QListWidget()
+        self.active_manoeuvre.setMinimumHeight(60)
+        self.active_manoeuvre.model().rowsInserted.connect(self.adjust_list_sizes)
+        self.active_manoeuvre.model().rowsRemoved.connect(self.adjust_list_sizes)
+        main_layout.addWidget(self.active_manoeuvre)
+
+        self.setLayout(main_layout)
+
+    def open_object_options_popup(self, object_type):
+        """Popup with 'New Object' and 'Link to Existing ID' options."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Object Options")
+
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel(f"Selected Type: {object_type}"))
+
+        # Buttons for new object and linking
+        button_layout = QHBoxLayout()
+
+        new_btn = QPushButton("New Object")
+        new_btn.clicked.connect(lambda: self.add_new_object(dialog, object_type))
+        button_layout.addWidget(new_btn)
+
+        link_btn = QPushButton("Link to ID")
+        button_layout.addWidget(link_btn)
+        layout.addLayout(button_layout)
+
+        # ID input field (only used for linking)
+        id_input = QLineEdit()
+        id_input.setPlaceholderText("Type object ID")
+        layout.addWidget(id_input)
+
+        # Link button logic
+        link_btn.clicked.connect(
+            lambda: self.link_to_existing(dialog, object_type, id_input.text())
+        )
+
+        # Cancel button
+        cancel_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
+        cancel_box.rejected.connect(dialog.reject)
+        layout.addWidget(cancel_box)
+
+        dialog.exec()
+
+    def add_new_object(self, dialog, object_type):
+        """Add a new unnamed object to Active Objects."""
+        self.active_objects.addItem(f"{object_type} (New)")
+        dialog.accept()
+
+    def link_to_existing(self, dialog, object_type, object_id):
+        """Link object to an existing ID."""
+        object_id = object_id.strip()
+        if object_id:
+            self.active_objects.addItem(f"{object_type} (ID: {object_id})")
+        dialog.accept()
+
+    def adjust_list_sizes(self):
+        """Keep lists at min height when empty, let them expand when populated."""
+        for widget in [self.active_objects, self.active_manoeuvre]:
+            rows = widget.count()
+            if rows == 0:
+                widget.setMinimumHeight(widget.minimumHeight())
+                widget.setMaximumHeight(16777215)
+            else:
+                content_height = widget.sizeHintForRow(0) * rows + 6
+                widget.setMinimumHeight(max(widget.minimumHeight(), content_height))
+                widget.setMaximumHeight(16777215)
