@@ -46,11 +46,15 @@ class AnnotatorData(BaseModel):
 class ObjectData(BaseModel):
     """Container for object's geometric and confidence data"""
     rbbox: List[GeometryData]
-    vec: List[ConfidenceData]
+    vec: List[Union[ConfidenceData, AnnotatorData]]
 
-class FrameObject(BaseModel):
+class FrameLevelObject(BaseModel):
     """Represents an object's data within a specific frame"""
-    objects: Dict[str, Dict[str, ObjectData]] # "0": {"objects": {"1": { "object_data": ....}}}
+    object_data: ObjectData
+
+class FrameObjects(BaseModel):
+    """Represents all objects within a specific frame"""
+    objects: Dict[str, FrameLevelObject]  # "0": {"objects": {"1": { "object_data": ....}}}
 
 class FrameInterval(BaseModel):
     """Represents the frames in which the object exists"""
@@ -61,20 +65,24 @@ class ObjectMetadata(BaseModel):
     """Metadata for tracked objects across all frames"""
     name: str
     type: str
-    ontology_uid: str
+    ontology_uid: Optional[Union[int, str]] = None
+    frame_intervals: Optional[List[FrameInterval]] = None
+    ontology_uid: Optional[Union[int, str]] = None
+    frame_intervals: Optional[List[FrameInterval]] = None
+
 
 class OpenLabelMetadata(BaseModel):
     """Top-level metadata for the OpenLabel annotation file"""
     schema_version: str
-    tagged_file: Optional[str] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
-    annotator: Optional[str] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
+    tagged_file: Optional[str] = None
+    annotator: Optional[str] = None
 
 class ActionMetadata(BaseModel):
     """Action metadata"""
     name: str
     type: str
-    ontology_uid: Optional[Union[int, str]] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
-    frame_intervals: Optional[List[FrameInterval]] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
+    ontology_uid: Optional[Union[int, str]] = Field(default=None, json_schema_extra={'exclude_if': lambda v: v is None})
+    frame_intervals: Optional[List[FrameInterval]] = Field(default=None, json_schema_extra={'exclude_if': lambda v: v is None})
 
 class OntologyDetails(BaseModel):
     """ 
@@ -82,13 +90,21 @@ class OntologyDetails(BaseModel):
     Refer to the following section in the readme: https://github.com/fwrise/SAVANT/tree/main/Specification#savant-ontology
     """
     uri: str
-    boundary_list: Optional[List[str]] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
-    boundary_mode: Optional[Literal["include", "exclude"]] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
+    boundary_list: Optional[List[str]] = None
+    boundary_mode: Optional[Literal["include", "exclude"]] = None
 
 class OpenLabel(BaseModel):
     """Main model representing the complete OpenLabel structure"""
     metadata: OpenLabelMetadata
     ontologies: Dict[str, Union[str, OntologyDetails]]
     objects: Dict[str, ObjectMetadata]
-    actions: Optional[Dict[str, ActionMetadata]] = Field(json_schema_extra={'exclude_if': lambda v: v is None}) # Made optional as they are not being used yet according to the spec.
-    frames: Dict[str, FrameObject]
+    actions: Optional[Dict[str, ActionMetadata]] = None  # Made optional as they are not being used yet according to the spec.
+    frames: Dict[str, FrameObjects]
+
+    def model_dump(self, *args, **kwargs):
+        """"
+        This overrides Pydantic's default model_dump, such that
+        we exclude fields with a None value. 
+        """
+        kwargs.setdefault("exclude_none", True)
+        return super().model_dump(*args, **kwargs)
