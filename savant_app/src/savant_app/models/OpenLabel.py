@@ -1,5 +1,5 @@
-from pydantic import BaseModel, confloat, model_serializer, model_validator
-from typing import Dict, List, Literal, Union
+from pydantic import BaseModel, conint, confloat, model_serializer, model_validator, Field
+from typing import Dict, List, Literal, Union, Optional
 
 class RotatedBBox(BaseModel):
     """Rotated bounding box coordinates (x_center, y_center, width, height, rotation)"""
@@ -69,6 +69,11 @@ class FrameObject(BaseModel):
     """Represents an object's data within a specific frame"""
     objects: Dict[str, Dict[str, ObjectData]] # "0": {"objects": {"1": { "object_data": ....}}}
 
+class FrameInterval(BaseModel):
+    """Represents the frames in which the object exists"""
+    frame_start: conint(ge=0)
+    frame_end: conint(ge=0)
+
 class ObjectMetadata(BaseModel):
     """Metadata for tracked objects across all frames"""
     name: str
@@ -81,10 +86,18 @@ class OpenLabelMetadata(BaseModel):
     tagged_file: str
     annotator: str
 
+class ActionMetadata(BaseModel):
+    """Action metadata"""
+    name: str
+    type: str
+    ontology_uid: Optional[Union[int, str]] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
+    frame_intervals: Optional[List[FrameInterval]] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
+
+
 class OpenLabel(BaseModel):
     """Main model representing the complete OpenLabel structure"""
     metadata: OpenLabelMetadata
     ontologies: Dict[str, str]
     objects: Dict[str, ObjectMetadata]
-    actions: Dict = {}
+    actions: Optional[Dict[str, ActionMetadata]] = Field(json_schema_extra={'exclude_if': lambda v: v is None}) # Made optional as they are not being used yet according to the spec.
     frames: Dict[str, FrameObject]
