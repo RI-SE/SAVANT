@@ -93,11 +93,19 @@ class ActionMetadata(BaseModel):
     ontology_uid: Optional[Union[int, str]] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
     frame_intervals: Optional[List[FrameInterval]] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
 
+class OntologyDetails(BaseModel):
+    """ 
+    Ontology details which are not yet in use, but are ready for when needed.
+    Refer to the following section in the readme: https://github.com/fwrise/SAVANT/tree/main/Specification#savant-ontology
+    """
+    uri: str
+    boundary_list: Optional[List[str]] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
+    boundary_mode: Optional[Literal["include", "exclude"]] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
 
 class OpenLabel(BaseModel):
     """Main model representing the complete OpenLabel structure"""
     metadata: OpenLabelMetadata
-    ontologies: Dict[str, str]
+    ontologies: Dict[str, Union[str, OntologyDetails]]
     objects: Dict[str, ObjectMetadata]
     actions: Optional[Dict[str, ActionMetadata]] = Field(json_schema_extra={'exclude_if': lambda v: v is None}) # Made optional as they are not being used yet according to the spec.
     frames: Dict[str, FrameObject]
