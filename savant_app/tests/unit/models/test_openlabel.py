@@ -1,5 +1,5 @@
 import pytest
-from savant_app.models.OpenLabel import OpenLabel, ObjectMetadata, FrameObject, ObjectData, GeometryData, ConfidenceData, RotatedBBox, ConfidenceScore
+from savant_app.models.OpenLabel import OpenLabel
 from pydantic import ValidationError
 
 class TestOpenLabel:

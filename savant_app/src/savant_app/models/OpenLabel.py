@@ -33,27 +33,10 @@ class GeometryData(BaseModel):
     name: Literal['shape']
     val: RotatedBBox
 
-class ConfidenceScore(BaseModel):
-    """Single confidence value between 0 and 1"""
-    value: confloat(ge=0, le=1)
-    
-    @model_serializer
-    def serialize(self) -> list:
-        return [self.value]
-
-    @model_validator(mode='before')
-    @classmethod
-    def validate_deserialize(cls, data):
-        if isinstance(data, list):
-            if len(data) != 1:
-                raise ValueError("ConfidenceScore requires exactly 1 element for deserialization")
-            return {'value': data[0]}
-        return data
-
 class ConfidenceData(BaseModel):
     """Contains confidence score for detection"""
     name: Literal['confidence']
-    val: ConfidenceScore
+    val: List[confloat(ge=0, le=1)]  # List of confidence scores
 
 class AnnotatorData(BaseModel):
     """Contains annotator information"""
@@ -83,8 +66,8 @@ class ObjectMetadata(BaseModel):
 class OpenLabelMetadata(BaseModel):
     """Top-level metadata for the OpenLabel annotation file"""
     schema_version: str
-    tagged_file: str
-    annotator: str
+    tagged_file: Optional[str] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
+    annotator: Optional[str] = Field(json_schema_extra={'exclude_if': lambda v: v is None})
 
 class ActionMetadata(BaseModel):
     """Action metadata"""
