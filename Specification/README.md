@@ -108,29 +108,29 @@ Also, if we use the ASAM one, again we should define a subset to be used within 
 We can start with a fixed set of tags defineg e.g. in a vector in the UI. However, the architecture should be such that it will later be possible to read a set of tags from a file, i.e. the tags should not be hardcoded throughout the application.
 
 ### Starting set of object tags for UI
-| Tag | UID | Description
-|:---:|:---:|:---:|
-| Car | 1 | Passenger car |
-
-* VehicleCar
-* VehicleVan
-* VehicleTruck
-* VehicleTrailer
-* VehicleMotorcycle
-* VehicleCycle
-* VehicleBus
-* VehicleTram
-* VehicleTrain
-* VehicleAgricultural
-* VehicleConstruction
-* VehicleEmergency
-* VehicleCaravan
-* VehicleSlowMoving
-* VehicleStandupScooter
-* RoadUserVehicle (other/unknown vehicle type)
-* RoadUserAnimal
-* HumanPedestrian
-* HumanWheelchairUser
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
+| RoadUser | 0 | n/a |  | |
+| Vehicle | 1 | RoadUser | ||
+| Car | 100 | Vehicle | ||
+| Van | 101 | Vehicle | ||
+| Truck | 102 | Vehicle | ||
+| Trailer | 103 | Vehicle | ||
+| Motorbike | 104 | Vehicle | ||
+| Bicycle | 105 | Vehicle | ||
+| Bus | 106 | Passenger car ||
+| Tram | 107 | Vehicle | ||
+| Train | 108 | Vehicle | ||
+| Caravan | 109 | Vehicle | ||
+| StandupScooter | 110 | Vehicle | ||
+| AgriculturalVehicle | 111 | Vehicle | ||
+| ConstructionVehicle | 112 | Vehicle | ||
+| EmergencyVehicle | 113 | Vehicle | ||
+| SlowMovingVehicle | 114 | Vehicle | ||
+| Human | 2 | RoadUser | ||
+| Pedestrian | 200 | Human | ||
+| WheelChairUser | 201 | ||
+| Animal | 3 | RoadUser | ||
 
 ### Starting set of tags for AutoAnnotate (TBD)
 * VehicleCar
