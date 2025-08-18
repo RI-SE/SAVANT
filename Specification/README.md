@@ -114,7 +114,7 @@ We can start with a fixed set of tags defineg e.g. in a vector in the UI. Howeve
 | Tag | 0 |||
 | DynamicObject | 1 | Tag | | |
 | StaticObject | 2 | Tag |||
-| Action | 3 |||
+| Action | 3 | Tag ||
 
 ### Set of object tags for UI
 Y in the "Auto" column means this tag can be set by the auto annotator. Remaining tags are only available in the UI.
@@ -143,6 +143,8 @@ Y in the "Auto" column means this tag can be set by the auto annotator. Remainin
 | Animal | 14 | RoadUser | ||
 
 ### Action tags
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
 | Motion | 30 |Action |||
 | TurnLeft | Motion |||
 | TurnRight | Motion |||
@@ -154,20 +156,4 @@ Y in the "Auto" column means this tag can be set by the auto annotator. Remainin
 | Decelerate | Motion |||
 | LaneChangeRight | Motion |||
 | LaneChangeLeft | Motion |||
-
-### Base tags
-
-| Tag | UID | Parent | Auto | Description |
-|:---:|:---:|:---:|:---:|:---:|
-| Tag | 0 |||
-* MotionTurnLeft
-* MotionTurnRight
-* MotionCross
-* MotionCutIn
-* MotionCutOut
-* MotionOvertake
-* MotionAccelerate
-* MotionDecelerate
-* MotionLaneChangeRight
-* MotionLaneChangeLeft
 
