@@ -110,7 +110,7 @@ We can start with a fixed set of tags defineg e.g. in a vector in the UI. Howeve
 ### Base tags
 
 | Tag | UID | Parent | Description |
-|:---:|:---:|:---:|:---:|:---:|
+|:---:|:---:|:---:|:---:|
 | Tag | 0 |||
 | DynamicObject | 1 | Tag ||
 | StaticObject | 2 | Tag ||
