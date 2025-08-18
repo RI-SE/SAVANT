@@ -107,43 +107,53 @@ Also, if we use the ASAM one, again we should define a subset to be used within 
 ```
 We can start with a fixed set of tags defineg e.g. in a vector in the UI. However, the architecture should be such that it will later be possible to read a set of tags from a file, i.e. the tags should not be hardcoded throughout the application.
 
-### Starting set of object tags for UI
-* VehicleCar
-* VehicleVan
-* VehicleTruck
-* VehicleTrailer
-* VehicleMotorcycle
-* VehicleCycle
-* VehicleBus
-* VehicleTram
-* VehicleTrain
-* VehicleAgricultural
-* VehicleConstruction
-* VehicleEmergency
-* VehicleCaravan
-* VehicleSlowMoving
-* VehicleStandupScooter
-* RoadUserVehicle (other/unknown vehicle type)
-* RoadUserAnimal
-* HumanPedestrian
-* HumanWheelchairUser
+### Base tags
 
-### Starting set of tags for AutoAnnotate (TBD)
-* VehicleCar
-* VehicleTruck
-* VehicleTrailer
-* VehicleVan
-* VehicleMotorcycle
+| Tag | UID | Parent | Description |
+|:---:|:---:|:---:|:---:|
+| Tag | 0 |||
+| DynamicObject | 1 | Tag ||
+| StaticObject | 2 | Tag ||
+| Action | 3 | Tag ||
 
-### Starting set of action tags
-* MotionTurnLeft
-* MotionTurnRight
-* MotionCross
-* MotionCutIn
-* MotionCutOut
-* MotionOvertake
-* MotionAccelerate
-* MotionDecelerate
-* MotionLaneChangeRight
-* MotionLaneChangeLeft
+### Set of object tags for UI
+_Y in the "Auto" column means this tag can be set by the auto annotator. Remaining tags are only available in the UI._
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
+| RoadUser | 10 | DynamicObject | | |
+| Vehicle | 11 | RoadUser | ||
+| Car | 110 | Vehicle | Y ||
+| Van | 111 | Vehicle | Y ||
+| Truck | 112 | Vehicle | Y ||
+| Trailer | 113 | Vehicle | Y ||
+| Motorbike | 114 | Vehicle | Y ||
+| Bicycle | 115 | Vehicle | ||
+| Bus | 116 | Vehicle | Y ||
+| Tram | 117 | Vehicle | ||
+| Train | 118 | Vehicle | ||
+| Caravan | 119 | Vehicle | ||
+| StandupScooter | 120 | Vehicle | ||
+| AgriculturalVehicle | 121 | Vehicle | ||
+| ConstructionVehicle | 122 | Vehicle | ||
+| EmergencyVehicle | 123 | Vehicle | ||
+| SlowMovingVehicle | 124 | Vehicle | ||
+| Human | 13 | RoadUser | ||
+| Pedestrian | 130 | Human | ||
+| WheelChairUser | 131 | ||
+| Animal | 14 | RoadUser | ||
+
+### Action tags
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
+| Motion | 30 |Action |||
+| TurnLeft | 300 | Motion |||
+| TurnRight | 301 | Motion |||
+| Cross | 302 | Motion |||
+| CutIn | 303 | Motion |||
+| CutOut | 304 | Motion |||
+| Overtake | 305 | Motion |||
+| Accelerate | 306 | Motion |||
+| Decelerate | 307 | Motion |||
+| LaneChangeRight | 308 | Motion |||
+| LaneChangeLeft | 309 | Motion |||
 
