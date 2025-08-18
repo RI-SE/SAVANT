@@ -54,7 +54,7 @@ class FrameLevelObject(BaseModel):
 
 class FrameObjects(BaseModel):
     """Represents all objects within a specific frame"""
-    objects: Dict[str, FrameLevelObject]  # "0": {"objects": {"1": { "object_data": ....}}}
+    objects: Dict[str, FrameLevelObject]
 
 class FrameInterval(BaseModel):
     """Represents the frames in which the object exists"""
@@ -67,9 +67,6 @@ class ObjectMetadata(BaseModel):
     type: str
     ontology_uid: Optional[Union[int, str]] = None
     frame_intervals: Optional[List[FrameInterval]] = None
-    ontology_uid: Optional[Union[int, str]] = None
-    frame_intervals: Optional[List[FrameInterval]] = None
-
 
 class OpenLabelMetadata(BaseModel):
     """Top-level metadata for the OpenLabel annotation file"""
@@ -81,8 +78,8 @@ class ActionMetadata(BaseModel):
     """Action metadata"""
     name: str
     type: str
-    ontology_uid: Optional[Union[int, str]] = Field(default=None, json_schema_extra={'exclude_if': lambda v: v is None})
-    frame_intervals: Optional[List[FrameInterval]] = Field(default=None, json_schema_extra={'exclude_if': lambda v: v is None})
+    ontology_uid: Optional[Union[int, str]] = None
+    frame_intervals: Optional[List[FrameInterval]] = None
 
 class OntologyDetails(BaseModel):
     """ 
@@ -101,7 +98,7 @@ class OpenLabel(BaseModel):
     actions: Optional[Dict[str, ActionMetadata]] = None  # Made optional as they are not being used yet according to the spec.
     frames: Dict[str, FrameObjects]
 
-    def model_dump(self, *args, **kwargs):
+    def model_dump(self, *args, **kwargs) -> dict:
         """"
         This overrides Pydantic's default model_dump, such that
         we exclude fields with a None value. 
