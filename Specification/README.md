@@ -108,6 +108,10 @@ Also, if we use the ASAM one, again we should define a subset to be used within 
 We can start with a fixed set of tags defineg e.g. in a vector in the UI. However, the architecture should be such that it will later be possible to read a set of tags from a file, i.e. the tags should not be hardcoded throughout the application.
 
 ### Starting set of object tags for UI
+| Tag | UID | Description
+|:---:|:---:|:---:|
+| Car | 1 | Passenger car |
+
 * VehicleCar
 * VehicleVan
 * VehicleTruck
