@@ -117,7 +117,7 @@ We can start with a fixed set of tags defineg e.g. in a vector in the UI. Howeve
 | Action | 3 | Tag ||
 
 ### Set of object tags for UI
-Y in the "Auto" column means this tag can be set by the auto annotator. Remaining tags are only available in the UI.
+_Y in the "Auto" column means this tag can be set by the auto annotator. Remaining tags are only available in the UI._
 | Tag | UID | Parent | Auto | Description |
 |:---:|:---:|:---:|:---:|:---:|
 | RoadUser | 10 | DynamicObject | | |
@@ -146,14 +146,14 @@ Y in the "Auto" column means this tag can be set by the auto annotator. Remainin
 | Tag | UID | Parent | Auto | Description |
 |:---:|:---:|:---:|:---:|:---:|
 | Motion | 30 |Action |||
-| TurnLeft | Motion |||
-| TurnRight | Motion |||
-| Cross | Motion |||
-| CutIn | Motion |||
-| CutOut | Motion |||
-| Overtake | Motion |||
-| Accelerate | Motion |||
-| Decelerate | Motion |||
-| LaneChangeRight | Motion |||
-| LaneChangeLeft | Motion |||
+| TurnLeft | 300 | Motion |||
+| TurnRight | 301 | Motion |||
+| Cross | 302 | Motion |||
+| CutIn | 303 | Motion |||
+| CutOut | 304 | Motion |||
+| Overtake | 305 | Motion |||
+| Accelerate | 306 | Motion |||
+| Decelerate | 307 | Motion |||
+| LaneChangeRight | 308 | Motion |||
+| LaneChangeLeft | 309 | Motion |||
 
