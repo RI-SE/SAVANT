@@ -10,6 +10,8 @@
 #   universal: false
 
 -e file:.
+annotated-types==0.7.0
+    # via pydantic
 black==25.1.0
 click==8.2.1
     # via black
@@ -31,6 +33,10 @@ pluggy==1.6.0
     # via pytest
 pycodestyle==2.14.0
     # via flake8
+pydantic==2.11.7
+    # via savant-app
+pydantic-core==2.33.2
+    # via pydantic
 pyflakes==3.4.0
     # via flake8
 pygments==2.19.2
@@ -46,3 +52,9 @@ pytest==8.4.1
     # via savant-app
 pytest-mock==3.14.1
     # via savant-app
+typing-extensions==4.14.1
+    # via pydantic
+    # via pydantic-core
+    # via typing-inspection
+typing-inspection==0.4.1
+    # via pydantic
