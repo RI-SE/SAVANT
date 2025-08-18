@@ -65,7 +65,7 @@ class ObjectMetadata(BaseModel):
     """Metadata for tracked objects across all frames"""
     name: str
     type: str
-    ontology_uid: Optional[Union[int, str]] = None
+    ontology_uid: Optional[str] = None
     frame_intervals: Optional[List[FrameInterval]] = None
 
 class OpenLabelMetadata(BaseModel):
@@ -78,7 +78,7 @@ class ActionMetadata(BaseModel):
     """Action metadata"""
     name: str
     type: str
-    ontology_uid: Optional[Union[int, str]] = None
+    ontology_uid: Optional[str] = None
     frame_intervals: Optional[List[FrameInterval]] = None
 
 class OntologyDetails(BaseModel):
