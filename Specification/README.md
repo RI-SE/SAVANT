@@ -107,39 +107,59 @@ Also, if we use the ASAM one, again we should define a subset to be used within 
 ```
 We can start with a fixed set of tags defineg e.g. in a vector in the UI. However, the architecture should be such that it will later be possible to read a set of tags from a file, i.e. the tags should not be hardcoded throughout the application.
 
-### Starting set of object tags for UI
+### Base tags
+
 | Tag | UID | Parent | Auto | Description |
 |:---:|:---:|:---:|:---:|:---:|
-| RoadUser | 0 | n/a |  | |
-| Vehicle | 1 | RoadUser | ||
-| Car | 100 | Vehicle | ||
-| Van | 101 | Vehicle | ||
-| Truck | 102 | Vehicle | ||
-| Trailer | 103 | Vehicle | ||
-| Motorbike | 104 | Vehicle | ||
-| Bicycle | 105 | Vehicle | ||
-| Bus | 106 | Passenger car ||
-| Tram | 107 | Vehicle | ||
-| Train | 108 | Vehicle | ||
-| Caravan | 109 | Vehicle | ||
-| StandupScooter | 110 | Vehicle | ||
-| AgriculturalVehicle | 111 | Vehicle | ||
-| ConstructionVehicle | 112 | Vehicle | ||
-| EmergencyVehicle | 113 | Vehicle | ||
-| SlowMovingVehicle | 114 | Vehicle | ||
-| Human | 2 | RoadUser | ||
-| Pedestrian | 200 | Human | ||
-| WheelChairUser | 201 | ||
-| Animal | 3 | RoadUser | ||
+| Tag | 0 |||
+| DynamicObject | 1 | Tag | | |
+| StaticObject | 2 | Tag |||
+| Action | 3 |||
 
-### Starting set of tags for AutoAnnotate (TBD)
-* VehicleCar
-* VehicleTruck
-* VehicleTrailer
-* VehicleVan
-* VehicleMotorcycle
+### Set of object tags for UI
+Y in the "Auto" column means this tag can be set by the auto annotator. Remaining tags are only available in the UI.
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
+| RoadUser | 10 | DynamicObject | | |
+| Vehicle | 11 | RoadUser | ||
+| Car | 110 | Vehicle | Y ||
+| Van | 111 | Vehicle | Y ||
+| Truck | 112 | Vehicle | Y ||
+| Trailer | 113 | Vehicle | Y ||
+| Motorbike | 114 | Vehicle | Y ||
+| Bicycle | 115 | Vehicle | ||
+| Bus | 116 | Vehicle | Y ||
+| Tram | 117 | Vehicle | ||
+| Train | 118 | Vehicle | ||
+| Caravan | 119 | Vehicle | ||
+| StandupScooter | 120 | Vehicle | ||
+| AgriculturalVehicle | 121 | Vehicle | ||
+| ConstructionVehicle | 122 | Vehicle | ||
+| EmergencyVehicle | 123 | Vehicle | ||
+| SlowMovingVehicle | 124 | Vehicle | ||
+| Human | 13 | RoadUser | ||
+| Pedestrian | 130 | Human | ||
+| WheelChairUser | 131 | ||
+| Animal | 14 | RoadUser | ||
 
-### Starting set of action tags
+### Action tags
+| Motion | 30 |Action |||
+| TurnLeft | Motion |||
+| TurnRight | Motion |||
+| Cross | Motion |||
+| CutIn | Motion |||
+| CutOut | Motion |||
+| Overtake | Motion |||
+| Accelerate | Motion |||
+| Decelerate | Motion |||
+| LaneChangeRight | Motion |||
+| LaneChangeLeft | Motion |||
+
+### Base tags
+
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
+| Tag | 0 |||
 * MotionTurnLeft
 * MotionTurnRight
 * MotionCross
