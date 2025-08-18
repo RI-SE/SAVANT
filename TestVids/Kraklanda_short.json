@@ -12,27 +12,27 @@
       "1": {
         "name": "Object-1",
         "type": "car",
-        "ontology_uid": 0
+        "ontology_uid": "0"
       },
       "2": {
         "name": "Object-2",
         "type": "car",
-        "ontology_uid": 0
+        "ontology_uid": "0"
       },
       "3": {
         "name": "Object-3",
         "type": "car",
-        "ontology_uid": 0
+        "ontology_uid": "0"
       },
       "4": {
         "name": "Object-4",
         "type": "car",
-        "ontology_uid": 0
+        "ontology_uid": "0"
       },
       "9": {
         "name": "Object-9",
         "type": "truck",
-        "ontology_uid": 0
+        "ontology_uid": "0"
       }
     },
     "actions": {},
