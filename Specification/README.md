@@ -150,6 +150,8 @@ All dynamic objects are marked with the OpenLabel type rbbox - rotated bounding 
 |:---:|:---:|:---:|:---:|:---:|
 | Aruca | 20 | StaticObject | Y ||
 
+_We will use and record absolute coordinates for Aruca markers. This object could have coordinates as a parameter?_
+
 ### Action tags
 | Tag | UID | Parent | Auto | Description |
 |:---:|:---:|:---:|:---:|:---:|
