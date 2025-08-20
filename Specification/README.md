@@ -38,7 +38,7 @@ frame_intervals in not required. ontology_uid is not required, but points to whi
         "1": {
             "name": "Person-1",
             "type": "Pedestrian",
-            "ontology_uid": 0
+            "ontology_uid": "0"
         }
      },
 ```
