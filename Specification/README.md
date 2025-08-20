@@ -115,8 +115,9 @@ We can start with a fixed set of tags defineg e.g. in a vector in the UI. Howeve
 | DynamicObject | 1 | Tag ||
 | StaticObject | 2 | Tag ||
 | Action | 3 | Tag ||
+| Map | 4 | Tag ||
 
-### Set of object tags for UI
+### Dynamic object tags
 _Y in the "Auto" column means this tag can be set by the auto annotator. Remaining tags are only available in the UI._
 | Tag | UID | Parent | Auto | Description |
 |:---:|:---:|:---:|:---:|:---:|
@@ -141,6 +142,12 @@ _Y in the "Auto" column means this tag can be set by the auto annotator. Remaini
 | Pedestrian | 130 | Human | ||
 | WheelChairUser | 131 | ||
 | Animal | 14 | RoadUser | ||
+All dynamic objects are marked with the OpenLabel type rbbox - rotated bounding box, i.e. a rectangle with arbitrary rotation with parameters xywha.
+
+### Static objects
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
+| Aruca | 20 | StaticObject | Y ||
 
 ### Action tags
 | Tag | UID | Parent | Auto | Description |
@@ -157,3 +164,11 @@ _Y in the "Auto" column means this tag can be set by the auto annotator. Remaini
 | LaneChangeRight | 308 | Motion |||
 | LaneChangeLeft | 309 | Motion |||
 
+### Map tags
+_NOTE: THIS IS NOT FINALIZED
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
+| Lane | 40 | Map | ||
+| BikeLane | 41 | Map | ||
+| Pavement | 42 | Map | ||
+_We may need to be able to mark lanes to be able to create OpenDrive and to place objects relative to the lane. Still TBD how to handle this, e.g. direction of lane, how to mark lanes in crossing or roundabout etc. Lanes could be marked with 2Dpolyline (intead of rbbox like dynamic objects)._
