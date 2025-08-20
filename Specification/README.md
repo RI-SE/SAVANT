@@ -50,7 +50,7 @@ There are also events (similar to actions but instantaneous) and context (e.g. s
         "0": {
             "name": "Action-0",
             "type": "Overtake",
-            "ontology_uid": 0,
+            "ontology_uid": "0",
             "frame_intervals": [{ "frame_start": 5, "frame_end": 8 }]
         }
     },
