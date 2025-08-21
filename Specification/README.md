@@ -26,7 +26,7 @@ Ontologies is a definition of types. We may use our own, or the one used for ope
 ```
 Objects carry static information about objects in the project, i.e. the type and name of objects appearing in the sequence can be held here. It may be static information about dynamic objects (where the dynamic information is in the frame tags, see below) or static information about static objects (like a sign) which only need to appear once.
 
-frame_intervals in not required. ontology_uid is not required, but points to which ontology defines the type (there may be several ontologies used in the project). Every object has a uniquq uid. 
+frame_intervals in not required. ontology_uid is not required, but points to which ontology defines the type (there may be several ontologies used in the project). Every object has a unique uid. There are special object_data for aruca markers as described in the listing below: 
 ```json
     "objects": {
         "0": {
@@ -39,7 +39,19 @@ frame_intervals in not required. ontology_uid is not required, but points to whi
             "name": "Person-1",
             "type": "Pedestrian",
             "ontology_uid": "0"
-        }
+        },
+        "2" : {
+          "name": "Zurich_24",
+          "type": "Aruca",
+          "ontology_uid": "0",
+          "object_data": {
+            "vec": [
+              { "name": "arucaID", "val": ["24a", "24c"] },
+              { "name": "long", "val": ["47.3769", "47.3771"]},
+              { "name": "lat", "val": ["8.5417", "8.5419"]},
+              { "name": "description", "val": "Zurich"}
+            ]
+          }
      },
 ```
 
