@@ -19,7 +19,7 @@
             "name": "Person-1",
             "type": "Pedestrian",
             "ontology_uid": 0
-        }
+        },
         "2" : {
           "name": "Zurich_24",
           "type": "Aruca",
