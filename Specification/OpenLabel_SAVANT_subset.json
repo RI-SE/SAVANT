@@ -26,7 +26,7 @@
           "ontology_uid": "0",
           "object_data": {
             "vec": [
-              { "name": "id", "val": ["24a", "24c"] },
+              { "name": "arucaID", "val": ["24a", "24c"] },
               { "name": "long", "val": ["47.3769", "47.3771"]},
               { "name": "lat", "val": ["8.5417", "8.5419"]},
               { "name": "identifier", "val": "Zurich"}
