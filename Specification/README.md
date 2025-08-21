@@ -26,7 +26,7 @@ Ontologies is a definition of types. We may use our own, or the one used for ope
 ```
 Objects carry static information about objects in the project, i.e. the type and name of objects appearing in the sequence can be held here. It may be static information about dynamic objects (where the dynamic information is in the frame tags, see below) or static information about static objects (like a sign) which only need to appear once.
 
-frame_intervals in not required. ontology_uid is not required, but points to which ontology defines the type (there may be several ontologies used in the project). Every object has a uniquq uid. 
+frame_intervals in not required. ontology_uid is not required, but points to which ontology defines the type (there may be several ontologies used in the project). Every object has a unique uid. There are special object_data for aruca markers as described in the listing below: 
 ```json
     "objects": {
         "0": {
@@ -38,8 +38,20 @@ frame_intervals in not required. ontology_uid is not required, but points to whi
         "1": {
             "name": "Person-1",
             "type": "Pedestrian",
-            "ontology_uid": 0
-        }
+            "ontology_uid": "0"
+        },
+        "2" : {
+          "name": "Zurich_24",
+          "type": "Aruca",
+          "ontology_uid": "0",
+          "object_data": {
+            "vec": [
+              { "name": "arucaID", "val": ["24a", "24c"] },
+              { "name": "long", "val": ["47.3769", "47.3771"]},
+              { "name": "lat", "val": ["8.5417", "8.5419"]},
+              { "name": "description", "val": "Zurich"}
+            ]
+          }
      },
 ```
 
@@ -50,7 +62,7 @@ There are also events (similar to actions but instantaneous) and context (e.g. s
         "0": {
             "name": "Action-0",
             "type": "Overtake",
-            "ontology_uid": 0,
+            "ontology_uid": "0",
             "frame_intervals": [{ "frame_start": 5, "frame_end": 8 }]
         }
     },
@@ -107,43 +119,72 @@ Also, if we use the ASAM one, again we should define a subset to be used within 
 ```
 We can start with a fixed set of tags defineg e.g. in a vector in the UI. However, the architecture should be such that it will later be possible to read a set of tags from a file, i.e. the tags should not be hardcoded throughout the application.
 
-### Starting set of object tags for UI
-* VehicleCar
-* VehicleVan
-* VehicleTruck
-* VehicleTrailer
-* VehicleMotorcycle
-* VehicleCycle
-* VehicleBus
-* VehicleTram
-* VehicleTrain
-* VehicleAgricultural
-* VehicleConstruction
-* VehicleEmergency
-* VehicleCaravan
-* VehicleSlowMoving
-* VehicleStandupScooter
-* RoadUserVehicle (other/unknown vehicle type)
-* RoadUserAnimal
-* HumanPedestrian
-* HumanWheelchairUser
+### Base tags
 
-### Starting set of tags for AutoAnnotate (TBD)
-* VehicleCar
-* VehicleTruck
-* VehicleTrailer
-* VehicleVan
-* VehicleMotorcycle
+| Tag | UID | Parent | Description |
+|:---:|:---:|:---:|:---:|
+| Tag | 0 |||
+| DynamicObject | 1 | Tag ||
+| StaticObject | 2 | Tag ||
+| Action | 3 | Tag ||
+| Map | 4 | Tag ||
 
-### Starting set of action tags
-* MotionTurnLeft
-* MotionTurnRight
-* MotionCross
-* MotionCutIn
-* MotionCutOut
-* MotionOvertake
-* MotionAccelerate
-* MotionDecelerate
-* MotionLaneChangeRight
-* MotionLaneChangeLeft
+### Dynamic object tags
+_Y in the "Auto" column means this tag can be set by the auto annotator. Remaining tags are only available in the UI._
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
+| RoadUser | 10 | DynamicObject | | |
+| Vehicle | 11 | RoadUser | ||
+| Car | 110 | Vehicle | Y ||
+| Van | 111 | Vehicle | Y ||
+| Truck | 112 | Vehicle | Y ||
+| Trailer | 113 | Vehicle | Y ||
+| Motorbike | 114 | Vehicle | Y ||
+| Bicycle | 115 | Vehicle | ||
+| Bus | 116 | Vehicle | Y ||
+| Tram | 117 | Vehicle | ||
+| Train | 118 | Vehicle | ||
+| Caravan | 119 | Vehicle | ||
+| StandupScooter | 120 | Vehicle | ||
+| AgriculturalVehicle | 121 | Vehicle | ||
+| ConstructionVehicle | 122 | Vehicle | ||
+| EmergencyVehicle | 123 | Vehicle | ||
+| SlowMovingVehicle | 124 | Vehicle | ||
+| Human | 13 | RoadUser | ||
+| Pedestrian | 130 | Human | ||
+| WheelChairUser | 131 | ||
+| Animal | 14 | RoadUser | ||
 
+All dynamic objects are marked with the OpenLabel type rbbox - rotated bounding box, i.e. a rectangle with arbitrary rotation with parameters xywha.
+
+### Static objects
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
+| Aruca | 20 | StaticObject | Y ||
+
+_We will use and record absolute coordinates for Aruca markers. This object could have coordinates as a parameter?_
+
+### Action tags
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
+| Motion | 30 |Action |||
+| TurnLeft | 300 | Motion |||
+| TurnRight | 301 | Motion |||
+| Cross | 302 | Motion |||
+| CutIn | 303 | Motion |||
+| CutOut | 304 | Motion |||
+| Overtake | 305 | Motion |||
+| Accelerate | 306 | Motion |||
+| Decelerate | 307 | Motion |||
+| LaneChangeRight | 308 | Motion |||
+| LaneChangeLeft | 309 | Motion |||
+
+### Map tags
+_NOTE: THIS IS NOT FINALIZED_
+| Tag | UID | Parent | Auto | Description |
+|:---:|:---:|:---:|:---:|:---:|
+| Lane | 40 | Map | ||
+| BikeLane | 41 | Map | ||
+| Pavement | 42 | Map | ||
+
+_We may need to be able to mark lanes to be able to create OpenDrive and to place objects relative to the lane. Still TBD how to handle this, e.g. direction of lane, how to mark lanes in crossing or roundabout etc. Lanes could be marked with 2Dpolyline (intead of rbbox like dynamic objects)._

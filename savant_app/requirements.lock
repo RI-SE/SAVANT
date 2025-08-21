@@ -10,6 +10,8 @@
 #   universal: false
 
 -e file:.
+annotated-types==0.7.0
+    # via pydantic
 iniconfig==2.1.0
     # via pytest
 numpy==2.2.6
@@ -21,6 +23,10 @@ packaging==25.0
     # via pytest
 pluggy==1.6.0
     # via pytest
+pydantic==2.11.7
+    # via savant-app
+pydantic-core==2.33.2
+    # via pydantic
 pygments==2.19.2
     # via pytest
 pyqt6==6.7.1
@@ -34,3 +40,9 @@ pytest==8.4.1
     # via savant-app
 pytest-mock==3.14.1
     # via savant-app
+typing-extensions==4.14.1
+    # via pydantic
+    # via pydantic-core
+    # via typing-inspection
+typing-inspection==0.4.1
+    # via pydantic

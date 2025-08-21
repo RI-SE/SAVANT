@@ -19,6 +19,19 @@
             "name": "Person-1",
             "type": "Pedestrian",
             "ontology_uid": 0
+        },
+        "2" : {
+          "name": "Zurich_24",
+          "type": "Aruca",
+          "ontology_uid": "0",
+          "object_data": {
+            "vec": [
+              { "name": "arucaID", "val": ["24a", "24c"] },
+              { "name": "long", "val": ["47.3769", "47.3771"]},
+              { "name": "lat", "val": ["8.5417", "8.5419"]},
+              { "name": "description", "val": "Zurich"}
+            ]
+          }
         }
     },
     "actions" : {
@@ -34,10 +47,10 @@
         "objects": {
           "0": {
             "object_data": {
-              "rbbox": [{ "name": "shape", "val": [x_px, y_px, width_px, height_px, alpha_rad] }],
+              "rbbox": [{ "name": "shape", "val": [300, 180, 9, 4, 0.03] }],
               "vec": [
-                { "name": "annotator", "val": [string, ...] },
-                { "name": "confidence",   "val": [number, ...] }
+                { "name": "annotator", "val": ["markit v1.2"] },
+                { "name": "confidence",   "val": [0.92] }
               ]
             }
           }
@@ -49,7 +62,7 @@
             "object_data": {
               "rbbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }],
               "vec": [
-                { "name": "annotator", "val": ["auto v1.2", "thanh"] },
+                { "name": "annotator", "val": ["markit v1.2", "thanh"] },
                 { "name": "confidence",   "val": [0.87, 0.91] }
               ]
             }
