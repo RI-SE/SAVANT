@@ -5,11 +5,11 @@ from PyQt6.QtGui import QIcon
 
 
 class PlaybackControls(QWidget):
-    
+
     prev_frame_clicked = pyqtSignal()
     next_frame_clicked = pyqtSignal()
     play_clicked = pyqtSignal()
-    skip_backward_clicked = pyqtSignal(int) 
+    skip_backward_clicked = pyqtSignal(int)
     skip_forward_clicked = pyqtSignal(int)
 
     def __init__(self):
@@ -29,10 +29,10 @@ class PlaybackControls(QWidget):
         self.btn_skip_forward = make_btn("media-seek-forward", "Next Frame")
         self.btn_next_frame = make_btn("media-skip-forward", "Skip +30")
 
-        self.btn_skip_back.clicked.connect(self.prev_frame_clicked.emit)          
+        self.btn_skip_back.clicked.connect(self.prev_frame_clicked.emit)
         self.btn_prev_frame.clicked.connect(
             lambda: self.skip_backward_clicked.emit(30))
-        self.btn_skip_forward.clicked.connect(self.next_frame_clicked.emit)       
+        self.btn_skip_forward.clicked.connect(self.next_frame_clicked.emit)
         self.btn_next_frame.clicked.connect(
             lambda: self.skip_forward_clicked.emit(30))
 
