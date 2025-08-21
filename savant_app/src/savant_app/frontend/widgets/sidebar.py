@@ -26,7 +26,7 @@ class Sidebar(QWidget):
             btn.setToolTip(tooltip)
             return btn
 
-        # TODO - Change icons to our own
+        # TODO - Change icons to our own icons
         new_btn = make_icon_btn("document-new", "New Project")
         load_btn = make_icon_btn("document-open", "Load Project")
         save_btn = make_icon_btn("document-save", "Save Project")
