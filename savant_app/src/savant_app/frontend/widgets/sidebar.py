@@ -1,21 +1,15 @@
 from PyQt6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QPushButton,
-    QListWidget,
-    QLabel,
-    QMenu,
-    QDialog,
-    QDialogButtonBox,
-    QLineEdit,
-    QHBoxLayout,
+    QWidget, QVBoxLayout, QPushButton, QListWidget, QLabel, QMenu,
+    QDialog, QDialogButtonBox, QLineEdit, QHBoxLayout, QFileDialog
 )
-from PyQt6.QtGui import QAction
-from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import QSize
+from PyQt6.QtCore import QSize, pyqtSignal
+from PyQt6.QtGui import QAction, QIcon
 
 
 class Sidebar(QWidget):
+
+    open_video = pyqtSignal(str)
+
     def __init__(self):
         super().__init__()
         self.setFixedWidth(200)
@@ -36,6 +30,8 @@ class Sidebar(QWidget):
         new_btn = make_icon_btn("document-new", "New Project")
         load_btn = make_icon_btn("document-open", "Load Project")
         save_btn = make_icon_btn("document-save", "Save Project")
+
+        load_btn.clicked.connect(self._choose_video_file)
 
         top_buttons_layout.addWidget(new_btn)
         top_buttons_layout.addWidget(load_btn)
@@ -87,6 +83,16 @@ class Sidebar(QWidget):
         main_layout.addWidget(self.active_manoeuvre)
 
         self.setLayout(main_layout)
+
+    def _choose_video_file(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Video",
+            "",
+            "Videos (*.mp4 *.avi *.mov *.mkv);;All Files (*)",
+        )
+        if path:
+            self.open_video.emit(path)
 
     def open_object_options_popup(self, object_type):
         """Popup with 'New Object' and 'Link to Existing ID' options."""

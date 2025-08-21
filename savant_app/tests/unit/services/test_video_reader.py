@@ -27,20 +27,17 @@ def test_init_metadata_and_position(test_video_path: str):
     assert vr.frame_count > 0
     assert vr.width > 0
     assert vr.height > 0
-    assert vr.fps >= 0  # some containers report 0
-    assert vr.current_index == -1  # nothing read yet
+    assert vr.fps >= 0
+    assert vr.current_index == -1
     vr.release()
 
 
 def test_next_advances_and_updates_current_index(test_video_path: str):
     """__next__: returns frames and advances OpenCV's internal position."""
     vr = VideoReader(test_video_path)
-
     f0 = next(vr)
     assert isinstance(f0, np.ndarray)
     assert vr.current_index == 0
-
-    # we don't need the second frame object; we only care that index advanced
     next(vr)
     assert vr.current_index == 1
 
@@ -59,9 +56,8 @@ def test_get_frame_and_updates_current_index(test_video_path: str):
 def test_previous_frame_steps_back_when_possible(test_video_path: str):
     """previous_frame(): steps back one frame when not at the first frame."""
     vr = VideoReader(test_video_path)
-    # move to frame 1 (current_index == 1)
-    next(vr)  # -> 0
-    next(vr)  # -> 1
+    next(vr)
+    next(vr)
     prev = vr.previous_frame()
     assert isinstance(prev, np.ndarray)
     assert vr.current_index == 0
@@ -71,7 +67,7 @@ def test_previous_frame_steps_back_when_possible(test_video_path: str):
 def test_previous_frame_raises_at_first_frame(test_video_path: str):
     """previous_frame(): raises IndexError if we're at the first frame (no previous)."""
     vr = VideoReader(test_video_path)
-    next(vr)  # now at index 0
+    next(vr)
     with pytest.raises(IndexError):
         vr.previous_frame()
     vr.release()
