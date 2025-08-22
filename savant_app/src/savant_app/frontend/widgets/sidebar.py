@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QDialog, QDialogButtonBox, QLineEdit, QHBoxLayout, QFileDialog
 )
 from PyQt6.QtCore import QSize, pyqtSignal
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtGui import QAction
 from frontend.utils.assets import icon
 
 
@@ -27,7 +27,6 @@ class Sidebar(QWidget):
             btn.setToolTip(tooltip)
             return btn
 
-        # TODO - Change icons to our own icons
         new_btn = make_icon_btn("new_file.svg", "New Project")
         load_btn = make_icon_btn("open_file.svg", "Load Project")
         save_btn = make_icon_btn("save_file.svg", "Save Project")
