@@ -22,11 +22,11 @@
         },
         "2" : {
           "name": "Zurich_24",
-          "type": "Aruca",
+          "type": "ArUco",
           "ontology_uid": "0",
           "object_data": {
             "vec": [
-              { "name": "arucaID", "val": ["24a", "24c"] },
+              { "name": "arucoID", "val": ["24a", "24c"] },
               { "name": "long", "val": ["47.3769", "47.3771"]},
               { "name": "lat", "val": ["8.5417", "8.5419"]},
               { "name": "description", "val": "Zurich"}
