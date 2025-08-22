@@ -180,7 +180,7 @@ _We will use and record absolute coordinates for Aruca markers. This object coul
 | LaneChangeLeft | 309 | Motion |||
 
 ### Map tags
-_NOTE: THIS IS NOT FINALIZED_
+_NOTE: DONT KNOW IF WE WANT AND NEED THIS FOR MAP CREATION OR IF WE DO THIS SEPARATELY FROM THE ANNOTATION_
 | Tag | UID | Parent | Auto | Description |
 |:---:|:---:|:---:|:---:|:---:|
 | Lane | 40 | Map | ||
