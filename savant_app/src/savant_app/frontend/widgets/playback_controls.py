@@ -2,6 +2,7 @@
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton
 from PyQt6.QtCore import QSize, pyqtSignal
 from PyQt6.QtGui import QIcon
+from frontend.utils.assets import icon
 
 
 class PlaybackControls(QWidget):
@@ -15,19 +16,19 @@ class PlaybackControls(QWidget):
     def __init__(self):
         super().__init__()
 
-        def make_btn(icon_name: str, tooltip: str) -> QPushButton:
+        def make_btn(filename: str, tooltip: str) -> QPushButton:
             btn = QPushButton()
-            btn.setIcon(QIcon.fromTheme(icon_name))
-            btn.setIconSize(QSize(32, 32))
+            btn.setIcon(icon(filename))
+            btn.setIconSize(QSize(36, 36))
             btn.setToolTip(tooltip)
             btn.setFlat(True)
             return btn
 
-        self.btn_prev_frame = make_btn("media-skip-backward", "Skip -30")
-        self.btn_skip_back = make_btn("media-seek-backward", "Previous Frame")
-        self.btn_play = make_btn("media-playback-start", "Play")
-        self.btn_skip_forward = make_btn("media-seek-forward", "Next Frame")
-        self.btn_next_frame = make_btn("media-skip-forward", "Skip +30")
+        self.btn_prev_frame = make_btn("skip_backward.svg", "Skip -30")
+        self.btn_skip_back = make_btn("seek_backward.svg", "Previous Frame")
+        self.btn_play = make_btn("play.svg", "Play")
+        self.btn_skip_forward = make_btn("seek_forward.svg", "Next Frame")
+        self.btn_next_frame = make_btn("skip_forward.svg", "Skip +30")
 
         self.btn_skip_back.clicked.connect(self.prev_frame_clicked.emit)
         self.btn_prev_frame.clicked.connect(
@@ -65,7 +66,7 @@ class PlaybackControls(QWidget):
         """
         if playing:
             self.btn_play.setToolTip("Pause")
-            self.btn_play.setIcon(QIcon.fromTheme("media-playback-pause"))
+            self.btn_play.setIcon(icon("pause.svg"))
         else:
             self.btn_play.setToolTip("Play")
-            self.btn_play.setIcon(QIcon.fromTheme("media-playback-start"))
+            self.btn_play.setIcon(icon("play.svg"))
