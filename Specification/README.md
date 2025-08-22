@@ -42,11 +42,11 @@ frame_intervals in not required. ontology_uid is not required, but points to whi
         },
         "2" : {
           "name": "Zurich_24",
-          "type": "Aruca",
+          "type": "ArUco",
           "ontology_uid": "0",
           "object_data": {
             "vec": [
-              { "name": "arucaID", "val": ["24a", "24c"] },
+              { "name": "arucoID", "val": ["24a", "24c"] },
               { "name": "long", "val": ["47.3769", "47.3771"]},
               { "name": "lat", "val": ["8.5417", "8.5419"]},
               { "name": "description", "val": "Zurich"}
@@ -160,7 +160,7 @@ All dynamic objects are marked with the OpenLabel type rbbox - rotated bounding 
 ### Static objects
 | Tag | UID | Parent | Auto | Description |
 |:---:|:---:|:---:|:---:|:---:|
-| Aruca | 20 | StaticObject | Y ||
+| ArUco | 20 | StaticObject | Y ||
 
 _We will use and record absolute coordinates for Aruca markers. This object could have coordinates as a parameter?_
 
