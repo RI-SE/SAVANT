@@ -3,7 +3,8 @@ from PyQt6.QtWidgets import (
     QDialog, QDialogButtonBox, QLineEdit, QHBoxLayout, QFileDialog
 )
 from PyQt6.QtCore import QSize, pyqtSignal
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtGui import QAction
+from frontend.utils.assets import icon
 
 
 class Sidebar(QWidget):
@@ -18,18 +19,17 @@ class Sidebar(QWidget):
         # --- Horizontal layout for New / Load / Save ---
         top_buttons_layout = QHBoxLayout()
 
-        def make_icon_btn(icon_name, tooltip):
+        def make_icon_btn(filename: str, tooltip: str) -> QPushButton:
             btn = QPushButton()
-            btn.setIcon(QIcon.fromTheme(icon_name))
+            btn.setIcon(icon(filename))
             btn.setIconSize(QSize(30, 30))
             btn.setFlat(True)
             btn.setToolTip(tooltip)
             return btn
 
-        # TODO - Change icons to our own icons
-        new_btn = make_icon_btn("document-new", "New Project")
-        load_btn = make_icon_btn("document-open", "Load Project")
-        save_btn = make_icon_btn("document-save", "Save Project")
+        new_btn = make_icon_btn("new_file.svg", "New Project")
+        load_btn = make_icon_btn("open_file.svg", "Load Project")
+        save_btn = make_icon_btn("save_file.svg", "Save Project")
 
         load_btn.clicked.connect(self._choose_video_file)
 
