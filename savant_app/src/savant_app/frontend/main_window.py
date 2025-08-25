@@ -6,19 +6,18 @@ from PyQt6.QtWidgets import (
 from frontend.widgets.video_display import VideoDisplay
 from frontend.widgets.playback_controls import PlaybackControls
 from frontend.widgets.sidebar import Sidebar
-from controllers.video_controller import VideoController
 import os
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, project_name):
+    def __init__(self, project_name, video_controller):
         super().__init__()
         self.project_name = project_name
         self.update_title()
         self.resize(1600, 800)
 
         # Controller
-        self.controller = VideoController()
+        self.video_controller = video_controller
 
         # Video + playback
         self.video_widget = VideoDisplay()
@@ -66,8 +65,8 @@ class MainWindow(QMainWindow):
     # File open
     def on_open_video(self, path: str):
         try:
-            self.controller.load_video(path)
-            pm = self.controller.jump_to_frame(0)
+            self.video_controller.load_video(path)
+            pm = self.video_controller.jump_to_frame(0)
             self.video_widget.show_frame(pm)
             self._stop_playback()
             filename = os.path.basename(path)
@@ -78,7 +77,7 @@ class MainWindow(QMainWindow):
     # Navigation
     def on_next(self):
         try:
-            pm = self.controller.next_frame()
+            pm = self.video_controller.next_frame()
             self.video_widget.show_frame(pm)
         except StopIteration:
             self._stop_playback()
@@ -89,7 +88,7 @@ class MainWindow(QMainWindow):
 
     def on_prev(self):
         try:
-            pm = self.controller.previous_frame()
+            pm = self.video_controller.previous_frame()
             self.video_widget.show_frame(pm)
         except IndexError:
             QMessageBox.information(
@@ -101,30 +100,30 @@ class MainWindow(QMainWindow):
     def on_play(self):
         """Toggle play/pause and handle edge cases (no video, end-of-video, fps=0)."""
         try:
-            _ = self.controller.total_frames()
+            _ = self.video_controller.total_frames()
         except Exception:
             QMessageBox.information(self, "No video", "Load a video first.")
             return
 
         if not self._is_playing:
             try:
-                if self.controller.current_index() < 0:
-                    pm = self.controller.jump_to_frame(0)
+                if self.video_controller.current_index() < 0:
+                    pm = self.video_controller.jump_to_frame(0)
                     self.video_widget.show_frame(pm)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Cannot start playback: {e}")
                 return
 
             try:
-                if self.controller.current_index() >= self.controller.total_frames() - 1:
-                    pm = self.controller.jump_to_frame(0)
+                if self.video_controller.current_index() >= self.video_controller.total_frames() - 1:
+                    pm = self.video_controller.jump_to_frame(0)
                     self.video_widget.show_frame(pm)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Cannot start playback: {e}")
                 return
 
             try:
-                fps = self.controller.fps()
+                fps = self.video_controller.fps()
                 interval_ms = max(1, int(1000 / (fps if fps and fps > 0 else 30)))
                 self._play_timer.start(interval_ms)
                 self._is_playing = True
@@ -138,7 +137,7 @@ class MainWindow(QMainWindow):
     def _step_playback(self):
         """Advance one frame per tick while playing."""
         try:
-            pm = self.controller.next_frame()
+            pm = self.video_controller.next_frame()
             self.video_widget.show_frame(pm)
         except StopIteration:
             self._stop_playback()
@@ -156,14 +155,14 @@ class MainWindow(QMainWindow):
     # Skip handlers
     def on_skip_back(self, n: int):
         try:
-            pm = self.controller.skip_frames(-n)
+            pm = self.video_controller.skip_frames(-n)
             self.video_widget.show_frame(pm)
         except Exception as e:
             QMessageBox.critical(self, "Skip backward failed", str(e))
 
     def on_skip_forward(self, n: int):
         try:
-            pm = self.controller.skip_frames(n)
+            pm = self.video_controller.skip_frames(n)
             self.video_widget.show_frame(pm)
         except Exception as e:
             QMessageBox.critical(self, "Skip forward failed", str(e))

@@ -7,32 +7,26 @@ from savant_app.services.video_reader import VideoReader
 
 
 class VideoController:
-    def __init__(self) -> None:
-        self.reader: VideoReader | None = None
+    def __init__(self, reader: VideoReader) -> None:
+        self.reader: VideoReader = reader
 
     # lifecycle
     def load_video(self, path: str) -> None:
-        self.close_video()
-        self.reader = VideoReader(path)
+        self.reader.load_video(path)
 
     def close_video(self) -> None:
-        if self.reader:
-            self.reader.release()
-            self.reader = None
+        self.reader.release()
 
     # frames / navigation
     def next_frame(self) -> QPixmap:
-        self._ensure()
         frame = next(self.reader)
         return self._to_qpixmap(frame)
 
     def previous_frame(self) -> QPixmap:
-        self._ensure()
         frame = self.reader.previous_frame()
         return self._to_qpixmap(frame)
 
     def jump_to_frame(self, index: int) -> QPixmap:
-        self._ensure()
         frame = self.reader.get_frame(index)
         return self._to_qpixmap(frame)
 
@@ -41,34 +35,24 @@ class VideoController:
         Move delta frames from current position, clamped to [0, frame_count-1].
         Uses OpenCV's current position (current_index property).
         """
-        self._ensure()
         cur = max(self.reader.current_index, 0)
-        last = self.reader.frame_count - 1
+        last = self.reader.metadata['frame_count'] - 1
         target = min(max(cur + delta, 0), last)
         frame = self.reader.get_frame(target)
         return self._to_qpixmap(frame)
 
     # metadata
     def total_frames(self) -> int:
-        self._ensure()
-        return self.reader.frame_count
+        return self.reader.metadata['frame_count']
 
     def current_index(self) -> int:
-        self._ensure()
         return self.reader.current_index
 
     def fps(self) -> float:
-        self._ensure()
-        return float(self.reader.fps)
+        return float(self.reader.metadata['fps'])
 
     def size(self) -> tuple[int, int]:
-        self._ensure()
-        return (self.reader.width, self.reader.height)
-
-    # helpers
-    def _ensure(self) -> None:
-        if self.reader is None:
-            raise RuntimeError("No video loaded")
+        return (self.reader.metadata['width'], self.reader.metadata['height'])
 
     def _to_qpixmap(self, bgr: np.ndarray) -> QPixmap:
         """Convert OpenCV BGR ndarray to QPixmap."""
