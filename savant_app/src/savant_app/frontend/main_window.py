@@ -8,9 +8,13 @@ from frontend.widgets.playback_controls import PlaybackControls
 from frontend.widgets.sidebar import Sidebar
 import os
 
+from controllers.project_state_controller import ProjectStateController
+from controllers.video_controller import VideoController
+
 
 class MainWindow(QMainWindow):
-    def __init__(self, project_name, video_controller):
+    def __init__(self, project_name, video_controller: VideoController,
+                 project_state_controller: ProjectStateController):
         super().__init__()
         self.project_name = project_name
         self.update_title()
@@ -18,6 +22,7 @@ class MainWindow(QMainWindow):
 
         # Controller
         self.video_controller = video_controller
+        self.project_state_controller = project_state_controller
 
         # Video + playback
         self.video_widget = VideoDisplay()
@@ -44,8 +49,9 @@ class MainWindow(QMainWindow):
         self._play_timer.timeout.connect(self._step_playback)
         self._is_playing = False
 
-        # Sidebar signal
+        # Sidebar signals
         self.sidebar.open_video.connect(self.on_open_video)
+        self.sidebar.open_config.connect(self.open_openlabel_config)
 
         # Playback controls signals
         self.playback_controls.next_frame_clicked.connect(self.on_next)
@@ -73,6 +79,13 @@ class MainWindow(QMainWindow):
             self.setWindowTitle(f"SAVANT {self.project_name} — {filename}")
         except Exception as e:
             QMessageBox.critical(self, "Failed to open video", str(e))
+            
+    def open_openlabel_config(self, path: str):
+        try:
+            self.project_state_controller.load_openlabel_config(path)
+            QMessageBox.information(self, "Config Loaded", "OpenLabel configuration loaded successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Failed to load config", str(e))
 
     # Navigation
     def on_next(self):
