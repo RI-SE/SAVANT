@@ -1,7 +1,7 @@
 """Class representing and managing the complete state of an annotation project."""
 import json
-from src.savant_app.models.OpenLabel import OpenLabel 
-from src.savant_app.utils import read_json
+from savant_app.models.OpenLabel import OpenLabel 
+from savant_app.utils import read_json
 
 
 class ProjectState:

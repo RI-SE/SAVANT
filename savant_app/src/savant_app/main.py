@@ -2,7 +2,7 @@ import sys
 from PyQt6.QtWidgets import QApplication
 from frontend.main_window import MainWindow
 from .controllers.project_state_controller import ProjectStateController
-from .project_state import ProjectState
+from .services.project_state import ProjectState
 from .controllers.video_controller import VideoController
 from .services.video_reader import VideoReader
 

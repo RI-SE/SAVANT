@@ -4,7 +4,7 @@ Class representing the controller to the project state.
 The purpose of this controller is to facilitate frontend<->project_state
 communication while maintaining separation of concerns, and a decoupled frontend.
 """
-from project_state import ProjectState
+from savant_app.services.project_state import ProjectState
 
 
 class ProjectStateController:
