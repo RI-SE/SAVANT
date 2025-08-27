@@ -1,8 +1,6 @@
 # main_window.py
 from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox
-)
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox
 from frontend.widgets.video_display import VideoDisplay
 from frontend.widgets.playback_controls import PlaybackControls
 from frontend.widgets.sidebar import Sidebar
@@ -13,8 +11,12 @@ from controllers.video_controller import VideoController
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, project_name, video_controller: VideoController,
-                 project_state_controller: ProjectStateController):
+    def __init__(
+        self,
+        project_name,
+        video_controller: VideoController,
+        project_state_controller: ProjectStateController,
+    ):
         super().__init__()
         self.project_name = project_name
         self.update_title()
@@ -59,11 +61,9 @@ class MainWindow(QMainWindow):
         self.playback_controls.play_clicked.connect(self.on_play)
 
         if hasattr(self.playback_controls, "skip_backward_clicked"):
-            self.playback_controls.skip_backward_clicked.connect(
-                self.on_skip_back)
+            self.playback_controls.skip_backward_clicked.connect(self.on_skip_back)
         if hasattr(self.playback_controls, "skip_forward_clicked"):
-            self.playback_controls.skip_forward_clicked.connect(
-                self.on_skip_forward)
+            self.playback_controls.skip_forward_clicked.connect(self.on_skip_forward)
 
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")
@@ -79,11 +79,13 @@ class MainWindow(QMainWindow):
             self.setWindowTitle(f"SAVANT {self.project_name} — {filename}")
         except Exception as e:
             QMessageBox.critical(self, "Failed to open video", str(e))
-            
+
     def open_openlabel_config(self, path: str):
         try:
             self.project_state_controller.load_openlabel_config(path)
-            QMessageBox.information(self, "Config Loaded", "OpenLabel configuration loaded successfully.")
+            QMessageBox.information(
+                self, "Config Loaded", "OpenLabel configuration loaded successfully."
+            )
         except Exception as e:
             QMessageBox.critical(self, "Failed to load config", str(e))
 
@@ -104,8 +106,7 @@ class MainWindow(QMainWindow):
             pm = self.video_controller.previous_frame()
             self.video_widget.show_frame(pm)
         except IndexError:
-            QMessageBox.information(
-                self, "At start", "Already at the first frame.")
+            QMessageBox.information(self, "At start", "Already at the first frame.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -128,7 +129,10 @@ class MainWindow(QMainWindow):
                 return
 
             try:
-                if self.video_controller.current_index() >= self.video_controller.total_frames() - 1:
+                if (
+                    self.video_controller.current_index()
+                    >= self.video_controller.total_frames() - 1
+                ):
                     pm = self.video_controller.jump_to_frame(0)
                     self.video_widget.show_frame(pm)
             except Exception as e:

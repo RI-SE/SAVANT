@@ -36,23 +36,23 @@ class VideoController:
         Uses OpenCV's current position (current_index property).
         """
         cur = max(self.reader.current_index, 0)
-        last = self.reader.metadata['frame_count'] - 1
+        last = self.reader.metadata["frame_count"] - 1
         target = min(max(cur + delta, 0), last)
         frame = self.reader.get_frame(target)
         return self._to_qpixmap(frame)
 
     # metadata
     def total_frames(self) -> int:
-        return self.reader.metadata['frame_count']
+        return self.reader.metadata["frame_count"]
 
     def current_index(self) -> int:
         return self.reader.current_index
 
     def fps(self) -> float:
-        return float(self.reader.metadata['fps'])
+        return float(self.reader.metadata["fps"])
 
     def size(self) -> tuple[int, int]:
-        return (self.reader.metadata['width'], self.reader.metadata['height'])
+        return (self.reader.metadata["width"], self.reader.metadata["height"])
 
     def _to_qpixmap(self, bgr: np.ndarray) -> QPixmap:
         """Convert OpenCV BGR ndarray to QPixmap."""

@@ -1,6 +1,7 @@
 """Class representing and managing the complete state of an annotation project."""
+
 import json
-from savant_app.models.OpenLabel import OpenLabel 
+from savant_app.models.OpenLabel import OpenLabel
 from savant_app.utils import read_json
 
 
@@ -37,4 +38,8 @@ class ProjectState:
         """
         # Save the configuration to a JSON file
         with open(self.open_label_path, "w") as f:
-            f.write(json.dumps({"openlabel": self.annotation_config.model_dump(mode="json")}))
+            f.write(
+                json.dumps(
+                    {"openlabel": self.annotation_config.model_dump(mode="json")}
+                )
+            )

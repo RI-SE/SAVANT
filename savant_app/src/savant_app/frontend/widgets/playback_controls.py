@@ -31,11 +31,9 @@ class PlaybackControls(QWidget):
         self.btn_next_frame = make_btn("skip_forward.svg", "Skip +30")
 
         self.btn_skip_back.clicked.connect(self.prev_frame_clicked.emit)
-        self.btn_prev_frame.clicked.connect(
-            lambda: self.skip_backward_clicked.emit(30))
+        self.btn_prev_frame.clicked.connect(lambda: self.skip_backward_clicked.emit(30))
         self.btn_skip_forward.clicked.connect(self.next_frame_clicked.emit)
-        self.btn_next_frame.clicked.connect(
-            lambda: self.skip_forward_clicked.emit(30))
+        self.btn_next_frame.clicked.connect(lambda: self.skip_forward_clicked.emit(30))
 
         self.btn_play.clicked.connect(self.play_clicked.emit)
 
@@ -51,8 +49,8 @@ class PlaybackControls(QWidget):
         layout.addStretch(1)
 
     def set_icon_paths(
-            self, *, prev: str, skip_back: str, play: str,
-            skip_forward: str, next_: str) -> None:
+        self, *, prev: str, skip_back: str, play: str, skip_forward: str, next_: str
+    ) -> None:
         self.btn_prev_frame.setIcon(QIcon(prev))
         self.btn_skip_back.setIcon(QIcon(skip_back))
         self.btn_play.setIcon(QIcon(play))

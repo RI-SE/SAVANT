@@ -2,7 +2,8 @@ import pytest
 from savant_app.models.OpenLabel import OpenLabel
 from pydantic import ValidationError
 from tests.unit.test_utils import read_json
-from pathlib import Path 
+from pathlib import Path
+
 
 class TestOpenLabel:
     """Unit tests for OpenLabel model validation and serialization"""
@@ -192,7 +193,9 @@ class TestOpenLabel:
 
     def test_real_world_json_validation(self):
         """Test validation of actual JSON file from TestVids directory"""
-        json_path = str(Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json")
+        json_path = str(
+            Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json"
+        )
         test_data = read_json(json_path)
         # Validate against Pydantic model
         ol = OpenLabel(**test_data["openlabel"])

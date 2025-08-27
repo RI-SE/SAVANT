@@ -1,6 +1,15 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton, QListWidget, QLabel, QMenu,
-    QDialog, QDialogButtonBox, QLineEdit, QHBoxLayout, QFileDialog
+    QWidget,
+    QVBoxLayout,
+    QPushButton,
+    QListWidget,
+    QLabel,
+    QMenu,
+    QDialog,
+    QDialogButtonBox,
+    QLineEdit,
+    QHBoxLayout,
+    QFileDialog,
 )
 from PyQt6.QtCore import QSize, pyqtSignal
 from PyQt6.QtGui import QAction
@@ -31,7 +40,9 @@ class Sidebar(QWidget):
         new_btn = make_icon_btn("new_file.svg", "New Project")
         load_btn = make_icon_btn("open_file.svg", "Load Project")
         save_btn = make_icon_btn("save_file.svg", "Save Project")
-        load_config_btn = make_icon_btn("open_file.svg", "Load project") # Same save as the load project as this will be removed in a future ticket when config dir is made.
+        load_config_btn = make_icon_btn(
+            "open_file.svg", "Load project"
+        )  # same icon as loading video. Will be removed in a future ticket when config dir is made.
 
         load_btn.clicked.connect(self._choose_video_file)
         load_config_btn.clicked.connect(self._choose_openlabel_file)
@@ -39,7 +50,9 @@ class Sidebar(QWidget):
         top_buttons_layout.addWidget(new_btn)
         top_buttons_layout.addWidget(load_btn)
         top_buttons_layout.addWidget(save_btn)
-        top_buttons_layout.addWidget(load_config_btn) # to be removed when refactor to config dir
+        top_buttons_layout.addWidget(
+            load_config_btn
+        )  # to be removed when refactor to config dir
 
         main_layout.addLayout(top_buttons_layout)
 
@@ -97,7 +110,7 @@ class Sidebar(QWidget):
         )
         if path:
             self.open_video.emit(path)
-    
+
     def _choose_openlabel_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self,

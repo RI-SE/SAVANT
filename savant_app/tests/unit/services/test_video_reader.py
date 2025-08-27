@@ -25,10 +25,10 @@ def test_init_metadata_and_position(test_video_path: str):
     """__init__: opens the video, exposes metadata, and current_index starts at -1."""
     vr = VideoReader()
     vr.load_video(test_video_path)
-    assert vr.metadata['frame_count'] > 0
-    assert vr.metadata['width'] > 0
-    assert vr.metadata['height'] > 0
-    assert vr.metadata['fps'] >= 0
+    assert vr.metadata["frame_count"] > 0
+    assert vr.metadata["width"] > 0
+    assert vr.metadata["height"] > 0
+    assert vr.metadata["fps"] >= 0
     assert vr.current_index == -1
     vr.release()
 
@@ -82,7 +82,7 @@ def test_stop_iteration_at_end(test_video_path: str):
     """__next__: raises StopIteration after the last frame."""
     vr = VideoReader()
     vr.load_video(test_video_path)
-    for _ in range(vr.metadata['frame_count']):
+    for _ in range(vr.metadata["frame_count"]):
         frame = next(vr)
         assert isinstance(frame, np.ndarray)
     with pytest.raises(StopIteration):
@@ -97,7 +97,7 @@ def test_get_frame_out_of_bounds_raises(test_video_path: str):
     with pytest.raises(IndexError):
         vr.get_frame(-1)
     with pytest.raises(IndexError):
-        vr.get_frame(vr.metadata['frame_count'])
+        vr.get_frame(vr.metadata["frame_count"])
     vr.release()
 
 

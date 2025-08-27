@@ -8,26 +8,23 @@ class VideoReader:
     def __init__(self) -> None:
         """Initialize the video reader."""
         self.capture: cv2.VideoCapture = None
-        self.metadata = {
-            'frame_count': 0,
-            'width': 0,
-            'height': 0,
-            'fps': 0.0
-        }
-    
+        self.metadata = {"frame_count": 0, "width": 0, "height": 0, "fps": 0.0}
+
     def load_video(self, path: str) -> None:
         if self.capture and self.capture.isOpened():
             self.release()
         self.capture = cv2.VideoCapture(path)
         if not self.capture.isOpened():
             raise ValueError(f"Could not open video file: {path}")
-        
-        self.metadata.update({
-            'frame_count': int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT)),
-            'width': int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
-            'height': int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-            'fps': self.capture.get(cv2.CAP_PROP_FPS)
-        })
+
+        self.metadata.update(
+            {
+                "frame_count": int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT)),
+                "width": int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                "height": int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                "fps": self.capture.get(cv2.CAP_PROP_FPS),
+            }
+        )
 
     @property
     def current_index(self) -> int:
@@ -67,7 +64,7 @@ class VideoReader:
             IndexError: If the index is out of range.
         """
         self._validate_video_loaded()
-        if not (0 <= index < self.metadata['frame_count']):
+        if not (0 <= index < self.metadata["frame_count"]):
             raise IndexError("Frame index out of range")
 
         self.capture.set(cv2.CAP_PROP_POS_FRAMES, index)
@@ -96,12 +93,7 @@ class VideoReader:
         """Release the video capture resource."""
         if self.capture:
             self.capture.release()
-        self.metadata.update({
-            'frame_count': 0,
-            'width': 0,
-            'height': 0,
-            'fps': 0.0
-        })
+        self.metadata.update({"frame_count": 0, "width": 0, "height": 0, "fps": 0.0})
 
     def _validate_video_loaded(self):
         """Ensure a video is loaded before performing operations."""
