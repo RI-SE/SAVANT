@@ -8,8 +8,7 @@ class VideoDisplay(QLabel):
         super().__init__()
         self.setPixmap(QPixmap())
         self.setMinimumSize(320, 240)
-        self.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setStyleSheet("background-color: black; border: 1px solid #444;")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setScaledContents(True)

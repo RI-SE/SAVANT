@@ -5,24 +5,26 @@ import numpy as np
 class VideoReader:
     """Wrapper around OpenCV VideoCapture for frame iteration and random access."""
 
-    def __init__(self, video_path: str) -> None:
-        """
-        Initialize the video reader.
+    def __init__(self) -> None:
+        """Initialize the video reader."""
+        self.capture: cv2.VideoCapture = None
+        self.metadata = {"frame_count": 0, "width": 0, "height": 0, "fps": 0.0}
 
-        Args:
-            video_path (str): Path to the video file.
-        """
-        self.video_path: str = video_path
-        self.capture: cv2.VideoCapture = cv2.VideoCapture(video_path)
-
+    def load_video(self, path: str) -> None:
+        if self.capture and self.capture.isOpened():
+            self.release()
+        self.capture = cv2.VideoCapture(path)
         if not self.capture.isOpened():
-            raise ValueError(f"Could not open video file: {video_path}")
+            raise ValueError(f"Could not open video file: {path}")
 
-        # Video metadata
-        self.frame_count: int = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.width: int = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.height: int = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.fps: float = self.capture.get(cv2.CAP_PROP_FPS)
+        self.metadata.update(
+            {
+                "frame_count": int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT)),
+                "width": int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                "height": int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                "fps": self.capture.get(cv2.CAP_PROP_FPS),
+            }
+        )
 
     @property
     def current_index(self) -> int:
@@ -32,6 +34,7 @@ class VideoReader:
         OpenCV points CAP_PROP_POS_FRAMES to the *next* frame,
         so subtract 1 to get the last successfully returned frame.
         """
+        self._validate_video_loaded()
         pos = int(self.capture.get(cv2.CAP_PROP_POS_FRAMES))
         return pos - 1
 
@@ -41,6 +44,7 @@ class VideoReader:
 
     def __next__(self) -> np.ndarray:
         """Return the next frame, or raise StopIteration at end of video."""
+        self._validate_video_loaded()
         success, frame = self.capture.read()
         if not success:
             raise StopIteration
@@ -59,7 +63,8 @@ class VideoReader:
         Raises:
             IndexError: If the index is out of range.
         """
-        if not (0 <= index < self.frame_count):
+        self._validate_video_loaded()
+        if not (0 <= index < self.metadata["frame_count"]):
             raise IndexError("Frame index out of range")
 
         self.capture.set(cv2.CAP_PROP_POS_FRAMES, index)
@@ -78,6 +83,7 @@ class VideoReader:
         Raises:
             IndexError: If already at the first frame.
         """
+        self._validate_video_loaded()
         target = self.current_index - 1
         if target < 0:
             raise IndexError("Already at the first frame")
@@ -85,4 +91,11 @@ class VideoReader:
 
     def release(self) -> None:
         """Release the video capture resource."""
-        self.capture.release()
+        if self.capture:
+            self.capture.release()
+        self.metadata.update({"frame_count": 0, "width": 0, "height": 0, "fps": 0.0})
+
+    def _validate_video_loaded(self):
+        """Ensure a video is loaded before performing operations."""
+        if not self.capture or not self.capture.isOpened():
+            raise RuntimeError("No video loaded - call load_video() first")

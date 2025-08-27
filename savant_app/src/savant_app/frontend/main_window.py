@@ -5,19 +5,26 @@ from savant_app.frontend.widgets.video_display import VideoDisplay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
 from savant_app.frontend.widgets.sidebar import Sidebar
 from savant_app.frontend.widgets.seek_bar import SeekBar
-from savant_app.controllers.video_controller import VideoController
 import os
+from controllers.project_state_controller import ProjectStateController
+from controllers.video_controller import VideoController
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, project_name):
+    def __init__(
+        self,
+        project_name,
+        video_controller: VideoController,
+        project_state_controller: ProjectStateController,
+    ):
         super().__init__()
         self.project_name = project_name
         self.update_title()
         self.resize(1600, 800)
 
         # Controller
-        self.controller = VideoController()
+        self.video_controller = video_controller
+        self.project_state_controller = project_state_controller
 
         # Video + playback
         self.video_widget = VideoDisplay()
@@ -46,8 +53,9 @@ class MainWindow(QMainWindow):
         self._play_timer.timeout.connect(self._step_playback)
         self._is_playing = False
 
-        # Sidebar signal
+        # Sidebar signals
         self.sidebar.open_video.connect(self.on_open_video)
+        self.sidebar.open_config.connect(self.open_openlabel_config)
 
         # Playback controls signals
         self.playback_controls.next_frame_clicked.connect(self.on_next)
@@ -89,26 +97,35 @@ class MainWindow(QMainWindow):
             - If the video cannot be loaded, shows a critical error message.
         """
         try:
-            self.controller.load_video(path)
-            pixmap, idx = self.controller.jump_to_frame(0)
+            self.video_controller.load_video(path)
+            pixmap, idx = self.video_controller.jump_to_frame(0)
             if pixmap:
                 self.video_widget.show_frame(pixmap)
-            total = self.controller.total_frames()
+            total = self.video_controller.total_frames()
             self.seek_bar.update_range(total)
             self.seek_bar.set_position(idx if pixmap else 0)
             if hasattr(self.playback_controls, "set_fps"):
-                self.playback_controls.set_fps(self.controller.fps())
+                self.playback_controls.set_fps(self.video_controller.fps())
             self._stop_playback()
             filename = os.path.basename(path)
             self.setWindowTitle(f"SAVANT {self.project_name} — {filename}")
         except Exception as e:
             QMessageBox.critical(self, "Failed to open video", str(e))
 
+    def open_openlabel_config(self, path: str):
+        try:
+            self.project_state_controller.load_openlabel_config(path)
+            QMessageBox.information(
+                self, "Config Loaded", "OpenLabel configuration loaded successfully."
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Failed to load config", str(e))
+
     # Navigation
     def on_next(self):
         """Navigates to the next frame if possible."""
         try:
-            pixmap, idx = self.controller.next_frame()
+            pixmap, idx = self.video_controller.next_frame()
             if pixmap:
                 self.video_widget.show_frame(pixmap)
                 self.seek_bar.set_position(idx)
@@ -122,7 +139,9 @@ class MainWindow(QMainWindow):
     def on_prev(self):
         """Navigates to the previous frame if possible."""
         try:
-            pixmap, idx = self.controller.previous_frame()
+            pm = self.video_controller.previous_frame()
+            self.video_widget.show_frame(pm)
+            pixmap, idx = self.video_controller.previous_frame()
             if pixmap:
                 self.video_widget.show_frame(pixmap)
                 self.seek_bar.set_position(idx)
@@ -135,24 +154,24 @@ class MainWindow(QMainWindow):
     def on_play(self):
         """Toggle play/pause and handle edge cases (no video, end-of-video, fps=0)."""
         try:
-            total = self.controller.total_frames()
+            total = self.video_controller.total_frames()
         except Exception:
             QMessageBox.information(self, "No video", "Load a video first.")
             return
 
         if not self._is_playing:
             try:
-                if self.controller.current_index() < 0:
+                if self.video_controller.current_index() < 0:
                     pixmap, idx = self.controller.jump_to_frame(0)
                     if pixmap:
                         self.video_widget.show_frame(pixmap)
                         self.seek_bar.set_position(idx)
-                if self.controller.current_index() >= total - 1:
-                    pixmap, idx = self.controller.jump_to_frame(0)
+                if self.video_controller.current_index() >= total - 1:
+                    pixmap, idx = self.video_controller.jump_to_frame(0)
                     if pixmap:
                         self.video_widget.show_frame(pixmap)
                         self.seek_bar.set_position(idx)
-                fps = self.controller.fps()
+                fps = self.video_controller.fps()
                 interval_ms = max(1, int(1000 / (fps if fps and fps > 0 else 30)))
                 self._play_timer.start(interval_ms)
                 self._is_playing = True
@@ -166,7 +185,7 @@ class MainWindow(QMainWindow):
     def _step_playback(self):
         """Advance one frame per tick while playing."""
         try:
-            pixmap, idx = self.controller.next_frame()
+            pixmap, idx = self.video_controller.next_frame()
             if pixmap:
                 self.video_widget.show_frame(pixmap)
                 self.seek_bar.set_position(idx)
@@ -195,7 +214,7 @@ class MainWindow(QMainWindow):
             n (int): Number of frames to move back.
         """
         try:
-            pixmap, idx = self.controller.skip_frames(-n)
+            pixmap, idx = self.video_controller.skip_frames(-n)
             if pixmap:
                 self.video_widget.show_frame(pixmap)
                 self.seek_bar.set_position(idx)
@@ -210,7 +229,7 @@ class MainWindow(QMainWindow):
             n (int): Number of frames to move forward.
         """
         try:
-            pixmap, idx = self.controller.skip_frames(n)
+            pixmap, idx = self.video_controller.skip_frames(n)
             if pixmap:
                 self.video_widget.show_frame(pixmap)
                 self.seek_bar.set_position(idx)
