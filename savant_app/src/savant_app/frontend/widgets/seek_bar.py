@@ -1,5 +1,12 @@
 # frontend/widgets/seek_bar.py
-from PyQt6.QtWidgets import QWidget, QSlider, QHBoxLayout, QLabel, QStyle, QStyleOptionSlider
+from PyQt6.QtWidgets import (
+    QWidget,
+    QSlider,
+    QHBoxLayout,
+    QLabel,
+    QStyle,
+    QStyleOptionSlider,
+)
 from PyQt6.QtCore import Qt, pyqtSignal
 
 
@@ -20,18 +27,27 @@ class SeekSlider(QSlider):
         if event.button() == Qt.MouseButton.LeftButton:
             opt = QStyleOptionSlider()
             self.initStyleOption(opt)
-            groove = self.style().subControlRect(QStyle.ComplexControl.CC_Slider, opt,
-                                                 QStyle.SubControl.SC_SliderGroove, self)
-            handle = self.style().subControlRect(QStyle.ComplexControl.CC_Slider, opt,
-                                                 QStyle.SubControl.SC_SliderHandle, self)
+            groove = self.style().subControlRect(
+                QStyle.ComplexControl.CC_Slider,
+                opt,
+                QStyle.SubControl.SC_SliderGroove,
+                self,
+            )
+            handle = self.style().subControlRect(
+                QStyle.ComplexControl.CC_Slider,
+                opt,
+                QStyle.SubControl.SC_SliderHandle,
+                self,
+            )
             if self.orientation() == Qt.Orientation.Horizontal:
                 groove_w = groove.width()
                 click_x = event.position().x()
                 handle_w = handle.width()
                 pos = int(click_x - groove.x() - handle_w / 2)
                 pos = max(0, min(pos, groove_w - 1))
-                value = QStyle.sliderValueFromPosition(self.minimum(),
-                                                       self.maximum(), pos, groove_w - 1)
+                value = QStyle.sliderValueFromPosition(
+                    self.minimum(), self.maximum(), pos, groove_w - 1
+                )
                 self.setValue(value)
                 event.accept()
                 return
@@ -41,8 +57,9 @@ class SeekSlider(QSlider):
                 handle_h = handle.height()
                 pos = int(click_y - groove.y() - handle_h / 2)
                 pos = max(0, min(pos, groove_h - 1))
-                value = QStyle.sliderValueFromPosition(self.minimum(),
-                                                       self.maximum(), pos, groove_h - 1)
+                value = QStyle.sliderValueFromPosition(
+                    self.minimum(), self.maximum(), pos, groove_h - 1
+                )
                 self.setValue(value)
                 event.accept()
                 return
@@ -57,6 +74,7 @@ class SeekBar(QWidget):
         frame_changed (int): Emitted whenever the slider position changes,
                              carrying the new frame index.
     """
+
     frame_changed = pyqtSignal(int)
 
     def __init__(self, frame_count: int = 0):

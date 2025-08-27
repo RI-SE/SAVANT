@@ -5,9 +5,7 @@ from savant_app.frontend.widgets.video_display import VideoDisplay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
 from savant_app.frontend.widgets.sidebar import Sidebar
 from savant_app.frontend.widgets.seek_bar import SeekBar
-from savant_app.controllers.video_controller import VideoController
 import os
-
 from controllers.project_state_controller import ProjectStateController
 from controllers.video_controller import VideoController
 
