@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton
 from PyQt6.QtCore import QSize, pyqtSignal
 from PyQt6.QtGui import QIcon
-from frontend.utils.assets import icon
+from savant_app.frontend.utils.assets import icon
 
 
 class PlaybackControls(QWidget):

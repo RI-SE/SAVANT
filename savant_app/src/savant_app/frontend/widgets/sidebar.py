@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QSize, pyqtSignal
 from PyQt6.QtGui import QAction
-from frontend.utils.assets import icon
+from savant_app.frontend.utils.assets import icon
 
 
 class Sidebar(QWidget):
@@ -86,10 +86,10 @@ class Sidebar(QWidget):
         main_layout.addWidget(self.active_objects)
 
         # --- Frame ID ---
-        main_layout.addWidget(QLabel("Frame ID:"))
-        self.frame_id = QListWidget()
-        self.frame_id.setFixedHeight(40)
-        main_layout.addWidget(self.frame_id)
+        # main_layout.addWidget(QLabel("Frame ID:"))
+        # self.frame_id = QListWidget()
+        # self.frame_id.setFixedHeight(40)
+        # main_layout.addWidget(self.frame_id)
 
         # --- Active Manoeuvre ---
         main_layout.addWidget(QLabel("Active Manoeuvre:"))
