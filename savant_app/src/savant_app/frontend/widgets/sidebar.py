@@ -21,7 +21,7 @@ class Sidebar(QWidget):
     open_video = pyqtSignal(str)
     open_config = pyqtSignal(str)
 
-    def __init__(self):
+    def __init__(self, video_actors: list[str]):
         super().__init__()
         self.setFixedWidth(200)
         main_layout = QVBoxLayout()
@@ -61,7 +61,7 @@ class Sidebar(QWidget):
         bbox_menu = QMenu()
 
         # TODO - Get labels from config file
-        for label in ["Car", "Truck", "Pedestrian", "Bicycle"]:
+        for label in video_actors:
             action = QAction(label, self)
             action.triggered.connect(
                 lambda checked, l=label: self.open_object_options_popup(l)  # noqa: E741

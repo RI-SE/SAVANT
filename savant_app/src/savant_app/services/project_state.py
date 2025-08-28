@@ -10,6 +10,32 @@ class ProjectState:
         self.annotation_config: OpenLabel = None
         self.open_label_path: str = None
 
+        # Temporary list that denotes all possible actor types.
+        # To be replaced by an onotology (or something else). 
+        self.__ACTORS: list[str] = [
+            "RoadUser",
+            "Vehicle",
+            "Car",
+            "Van",
+            "Truck",
+            "Trailer",
+            "Motorbike",
+            "Bicycle",
+            "Bus",
+            "Tram",
+            "Train",
+            "Caravan",
+            "StandupScooter",
+            "AgriculturalVehicle",
+            "ConstructionVehicle",
+            "EmergencyVehicle",
+            "SlowMovingVehicle",
+            "Human",
+            "Pedestrian",
+            "WheelChairUser",
+            "Animal"
+        ]
+
     def load_openlabel_config(self, path: str) -> None:
         """Load and validate OpenLabel configuration from JSON file.
         Args:
@@ -43,3 +69,11 @@ class ProjectState:
                     {"openlabel": self.annotation_config.model_dump(mode="json")}
                 )
             )
+
+    def get_actor_types(self) -> list[str]:
+        """Get the list of all possible actor types.
+
+        Returns:
+            A list of actor type strings.
+        """
+        return self.__ACTORS.copy()

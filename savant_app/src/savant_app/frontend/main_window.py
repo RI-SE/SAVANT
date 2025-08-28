@@ -6,8 +6,9 @@ from savant_app.frontend.widgets.playback_controls import PlaybackControls
 from savant_app.frontend.widgets.sidebar import Sidebar
 from savant_app.frontend.widgets.seek_bar import SeekBar
 import os
-from controllers.project_state_controller import ProjectStateController
-from controllers.video_controller import VideoController
+from savant_app.controllers.project_state_controller import ProjectStateController
+from savant_app.controllers.video_controller import VideoController
+from savant_app.controllers.annotation_controller import AnnotationController
 
 
 class MainWindow(QMainWindow):
@@ -16,6 +17,7 @@ class MainWindow(QMainWindow):
         project_name,
         video_controller: VideoController,
         project_state_controller: ProjectStateController,
+        annotation_controller: AnnotationController
     ):
         super().__init__()
         self.project_name = project_name
@@ -37,7 +39,8 @@ class MainWindow(QMainWindow):
         video_layout.addWidget(self.playback_controls)
 
         # Sidebar
-        self.sidebar = Sidebar()
+        actors = self.project_state_controller.get_actor_types()
+        self.sidebar = Sidebar(video_actors=actors)
 
         # Main layout
         main_layout = QHBoxLayout()
