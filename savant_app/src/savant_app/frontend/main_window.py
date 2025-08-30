@@ -26,6 +26,7 @@ class MainWindow(QMainWindow):
 
         # Controller
         self.video_controller = video_controller
+        self.annotation_controller = annotation_controller
         self.project_state_controller = project_state_controller
 
         # Video + playback
@@ -59,11 +60,17 @@ class MainWindow(QMainWindow):
         # Sidebar signals
         self.sidebar.open_video.connect(self.on_open_video)
         self.sidebar.open_config.connect(self.open_openlabel_config)
+        self.sidebar.start_bbox_drawing.connect(self.video_widget.start_drawing_mode)
 
         # Playback controls signals
         self.playback_controls.next_frame_clicked.connect(self.on_next)
         self.playback_controls.prev_frame_clicked.connect(self.on_prev)
         self.playback_controls.play_clicked.connect(self.on_play)
+        
+        # Connect annotation signals
+        self.sidebar.add_new_object.connect(self.annotation_controller.add_new_object)
+        self.video_widget.bbox_drawn.connect(self.handle_drawn_bbox)
+
         if hasattr(self.playback_controls, "skip_backward_clicked"):
             self.playback_controls.skip_backward_clicked.connect(self.on_skip_back)
         if hasattr(self.playback_controls, "skip_forward_clicked"):
@@ -238,3 +245,13 @@ class MainWindow(QMainWindow):
                 self.seek_bar.set_position(idx)
         except Exception as e:
             QMessageBox.critical(self, "Skip forward failed", str(e))
+
+    def handle_drawn_bbox(self, bbox_coords):
+        """Handle newly drawn bounding box coordinates from video widget."""
+        frame_idx = self.video_controller.current_index()
+        self.annotation_controller.add_annotation(
+            frame_number=frame_idx,
+            coordinates=bbox_coords
+        )
+        # Update UI elements as needed
+        self.sidebar.refresh_annotations_list()

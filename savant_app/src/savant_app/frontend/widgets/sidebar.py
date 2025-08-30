@@ -20,6 +20,8 @@ class Sidebar(QWidget):
 
     open_video = pyqtSignal(str)
     open_config = pyqtSignal(str)
+    add_new_object = pyqtSignal(dict)
+    start_bbox_drawing = pyqtSignal(str)
 
     def __init__(self, video_actors: list[str]):
         super().__init__()
@@ -133,7 +135,12 @@ class Sidebar(QWidget):
         button_layout = QHBoxLayout()
 
         new_btn = QPushButton("New Object")
-        new_btn.clicked.connect(lambda: self.add_new_object(dialog, object_type))
+
+        # Drawing logic comes after the bbox selected
+
+        # Connect new object button to start drawing
+        new_btn.clicked.connect(lambda: self.start_bbox_drawing.emit(object_type))
+        new_btn.clicked.connect(dialog.accept)
         button_layout.addWidget(new_btn)
 
         link_btn = QPushButton("Link to ID")
@@ -157,10 +164,8 @@ class Sidebar(QWidget):
 
         dialog.exec()
 
-    def add_new_object(self, dialog, object_type):
-        """Add a new unnamed object to Active Objects."""
-        self.active_objects.addItem(f"{object_type} (New)")
-        dialog.accept()
+    # Method removed to resolve naming conflict with signal
+    # Actual object creation now handled via drawing workflow
 
     def link_to_existing(self, dialog, object_type, object_id):
         """Link object to an existing ID."""
@@ -180,3 +185,9 @@ class Sidebar(QWidget):
                 content_height = widget.sizeHintForRow(0) * rows + 6
                 widget.setMinimumHeight(max(widget.minimumHeight(), content_height))
                 widget.setMaximumHeight(16777215)
+
+    def refresh_annotations_list(self):
+        """Refresh the list of active annotations."""
+        self.active_objects.clear()
+        # TODO: Implement annotation data loading from controller
+        # self.active_objects.addItems(annotations)
