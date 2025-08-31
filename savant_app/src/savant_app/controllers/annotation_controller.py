@@ -9,11 +9,6 @@ class AnnotationController:
         """Get the list of all possible actor types."""
         return self.annotation_service.get_actor_types()
     
-    # TODO: Refactor so add new object is called as a 
-    # result of adding a new box.
-    def add_new_object(self):
-        print("new object")
-
-    def add_annotation(self, frame_number: int, coordinates: tuple) -> None:
-        print("frame number: ", frame_number)
-        print("coordinates: ", coordinates)
+    def add_new_object_annotation(self, frame_number: int, bbox_info: dict) -> None:
+        self.annotation_service.add_new_object(obj_type=bbox_info["type"])
+        self.annotation_service.add_new_object_bbox(frame_number=frame_number, bbox_info=bbox_info)

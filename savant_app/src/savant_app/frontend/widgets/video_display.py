@@ -31,6 +31,7 @@ class VideoDisplay(QLabel):
         self.setCursor(Qt.CursorShape.CrossCursor)
 
     def mousePressEvent(self, event):
+        """Override pyqt function for drawing bboxes."""
         if self.current_object_type and event.button() == Qt.MouseButton.LeftButton:
             self.drawing = True
             self.start_point = event.position()
@@ -38,11 +39,13 @@ class VideoDisplay(QLabel):
             self.update()
 
     def mouseMoveEvent(self, event):
+        """Override pyqt function for drawing bboxes."""
         if self.drawing:
             self.end_point = event.position()
             self.update()
 
     def mouseReleaseEvent(self, event):
+        """Override pyqt function for drawing bboxes."""
         if self.drawing:
             self.drawing = False
             self.setCursor(Qt.CursorShape.ArrowCursor)
@@ -61,7 +64,12 @@ class VideoDisplay(QLabel):
             self.update()
 
     def paintEvent(self, event):
-        super().paintEvent(event)
+        """
+        Override pyqt function for drawing bboxes.
+        This function is called by PyQT whenever the
+        widget needs to be redrawn.
+        """
+        super().paintEvent(event) # Ensures the video is rendered.
         if self.drawing:
             painter = QPainter(self)
             painter.setPen(QPen(Qt.GlobalColor.red, 2, Qt.PenStyle.SolidLine))

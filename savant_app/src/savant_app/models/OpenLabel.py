@@ -42,21 +42,21 @@ class RotatedBBox(BaseModel):
 class GeometryData(BaseModel):
     """Represents geometric data for rotated bounding boxes"""
 
-    name: Literal["shape"]
+    name: Literal["shape"] = "shape"
     val: RotatedBBox
 
 
 class ConfidenceData(BaseModel):
     """Contains confidence score for detection"""
 
-    name: Literal["confidence"]
+    name: Literal["confidence"] = "confidence"
     val: List[confloat(ge=0, le=1)]  # List of confidence scores
 
 
 class AnnotatorData(BaseModel):
     """Contains annotator information"""
 
-    name: Literal["annotator"]
+    name: Literal["annotator"] = "annotator"
     val: List[str]
 
 
@@ -142,3 +142,41 @@ class OpenLabel(BaseModel):
         """
         kwargs.setdefault("exclude_none", True)
         return super().model_dump(*args, **kwargs)
+    
+    def add_new_object(self, obj_type: str):
+        new_object_id = str(int(list(self.objects.keys())[-1]) + 1) # Retreive and add to the last current object key for the new object 
+
+        new_obj_metadata = ObjectMetadata(
+            name=f'object-{new_object_id}',
+            type = obj_type,
+        )
+
+        self.objects[new_object_id] = new_obj_metadata
+
+    def append_new_object_bbox(self, frame_id: int, bbox_info: dict, confidence_data: dict, annotater_data: dict):
+        """
+        Adds a new bounding box for an object with no existing
+        annotations.
+        """
+        # Get the new object ID 
+        new_bbox_key = str(int(list(self.frames[str(frame_id)].objects.keys())[-1]) + 1)
+
+        bbox_coordinates = bbox_info["coordinates"]
+
+        # TODO: Add rotation. Hard coded to 0 for now.
+        rbbox = RotatedBBox(x_center=bbox_coordinates[0], y_center=bbox_coordinates[1], width=bbox_coordinates[2], height=bbox_coordinates[3], rotation=0)
+
+        bbox_geometry_data = GeometryData(val=rbbox)
+        new_obj_data = ObjectData(rbbox=[bbox_geometry_data], vec=[annotater_data, confidence_data])
+        new_frame_obj = FrameLevelObject(object_data=new_obj_data)
+
+
+        # Adds a NEW bounding box.
+        # Will overwrite if a bounding box ID already exists.
+        self.frames[str(frame_id)].objects[new_bbox_key] = new_frame_obj
+        """
+        frame number:  0
+
+        coordinates:  {'type': 'Car', 'coordinates': (0.9206695778748181, 0.5519765739385066, 0.950509461426492, 0.527086383601757)}
+        """
+##

@@ -20,7 +20,6 @@ class Sidebar(QWidget):
 
     open_video = pyqtSignal(str)
     open_config = pyqtSignal(str)
-    add_new_object = pyqtSignal(dict)
     start_bbox_drawing = pyqtSignal(str)
 
     def __init__(self, video_actors: list[str]):
