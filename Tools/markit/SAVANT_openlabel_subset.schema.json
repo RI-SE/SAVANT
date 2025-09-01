@@ -9,7 +9,7 @@
         "metadata": {
           "type": "object",
           "properties": {
-            "schema_version": { "type": "string"},
+            "schema_version": { "type": "string", "const" : "0.1" },
             "tagged_file": { "type": "string" },
             "annotator": { "type": "string" }
           },
@@ -29,7 +29,7 @@
               "properties": {
                 "name": { "type": "string" },
                 "type": { "type": "string" },
-                "ontology_uid": { "type": ["string", "number"] },
+                "ontology_uid": { "type": ["string"] },
                 "frame_intervals": {
                   "type": "array",
                   "items": {

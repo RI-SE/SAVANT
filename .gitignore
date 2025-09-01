@@ -208,6 +208,3 @@ __marimo__/
 
 # FW added
 **/.venv/
-**/datasets/
-**/runs/
-*.pt
