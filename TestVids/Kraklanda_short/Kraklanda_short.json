@@ -1,0 +1,7070 @@
+{
+  "openlabel": {
+    "metadata": {
+      "schema_version": "0.1",
+      "tagged_file": "datasets/videos/Kraklanda_short.mp4",
+      "annotator": "SAVANT Markit v0.1"
+    },
+    "ontologies": {
+      "0": "https://savant.ri.se/savant_ontology_1.0.0.ttl"
+    },
+    "objects": {
+      "1": {
+        "name": "Object-1",
+        "type": "car",
+        "ontology_uid": "0"
+      },
+      "2": {
+        "name": "Object-2",
+        "type": "car",
+        "ontology_uid": "0"
+      },
+      "3": {
+        "name": "Object-3",
+        "type": "car",
+        "ontology_uid": "0"
+      },
+      "4": {
+        "name": "Object-4",
+        "type": "car",
+        "ontology_uid": "0"
+      },
+      "9": {
+        "name": "Object-9",
+        "type": "truck",
+        "ontology_uid": "0"
+      }
+    },
+    "actions": {},
+    "frames": {
+      "0": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3594,
+                    1159,
+                    125,
+                    67,
+                    0.0019
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9142142534255981
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3678,
+                    1031,
+                    134,
+                    70,
+                    0.0016
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9118316769599915
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    454,
+                    1128,
+                    68,
+                    120,
+                    1.5703
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9070354700088501
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "1": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3603,
+                    1158,
+                    75,
+                    118,
+                    1.57
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9127626419067383
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3664,
+                    1031,
+                    135,
+                    69,
+                    0.0012
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.905584454536438
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    473,
+                    1129,
+                    114,
+                    74,
+                    0.0003
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8935688138008118
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "2": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3618,
+                    1158,
+                    65,
+                    125,
+                    1.57
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9137364029884338
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3651,
+                    1031,
+                    134,
+                    71,
+                    0.0138
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8985240459442139
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    488,
+                    1132,
+                    122,
+                    66,
+                    0.0037
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9032099843025208
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "3": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3637,
+                    1157,
+                    115,
+                    89,
+                    0.0011
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9141256213188171
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3638,
+                    1032,
+                    133,
+                    68,
+                    0.002
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8940134644508362
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    508,
+                    1132,
+                    123,
+                    64,
+                    0.0007
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9111986756324768
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "4": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3652,
+                    1157,
+                    130,
+                    71,
+                    0.0036
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9136402606964111
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3621,
+                    1033,
+                    134,
+                    67,
+                    0.0016
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9038843512535095
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    528,
+                    1131,
+                    122,
+                    64,
+                    0.0012
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.899849534034729
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "5": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3668,
+                    1157,
+                    98,
+                    110,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9135671854019165
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3606,
+                    1033,
+                    135,
+                    66,
+                    0.0017
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9116374850273132
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    548,
+                    1131,
+                    122,
+                    66,
+                    0.0015
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9071832299232483
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "6": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3684,
+                    1157,
+                    118,
+                    86,
+                    0.0017
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9135616421699524
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3593,
+                    1034,
+                    88,
+                    112,
+                    1.5659
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9137802720069885
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    567,
+                    1131,
+                    89,
+                    103,
+                    1.5654
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9108977913856506
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "7": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3701,
+                    1157,
+                    124,
+                    72,
+                    0.0035
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.913244366645813
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3581,
+                    1035,
+                    126,
+                    91,
+                    0.0004
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9056456685066223
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    588,
+                    1132,
+                    110,
+                    86,
+                    0.004
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9154458045959473
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "8": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3719,
+                    1157,
+                    126,
+                    68,
+                    0.0001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9140310883522034
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3568,
+                    1035,
+                    131,
+                    78,
+                    0.0026
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9129268527030945
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    605,
+                    1133,
+                    84,
+                    108,
+                    1.57
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9165877103805542
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "9": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3738,
+                    1157,
+                    128,
+                    66,
+                    0.0029
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9117234349250793
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3553,
+                    1035,
+                    133,
+                    74,
+                    0.0081
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9022178649902344
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    621,
+                    1133,
+                    72,
+                    115,
+                    1.5641
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9089764356613159
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    28,
+                    1107,
+                    77,
+                    55,
+                    1.568
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8789135813713074
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "10": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3755,
+                    1157,
+                    127,
+                    67,
+                    0.0041
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9109841585159302
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3539,
+                    1036,
+                    93,
+                    116,
+                    1.5691
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9064425230026245
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    638,
+                    1134,
+                    107,
+                    88,
+                    0.0026
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9158812761306763
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    36,
+                    1107,
+                    76,
+                    68,
+                    1.5695
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8997631669044495
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "11": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3772,
+                    1157,
+                    125,
+                    69,
+                    0.0005
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.917414128780365
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3525,
+                    1036,
+                    74,
+                    131,
+                    1.5705
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9109743237495422
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    655,
+                    1135,
+                    85,
+                    110,
+                    1.5696
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9150556325912476
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    45,
+                    1109,
+                    89,
+                    77,
+                    0.0004
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9136710166931152
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "12": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3785,
+                    1157,
+                    116,
+                    70,
+                    0.0019
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9124624133110046
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3510,
+                    1037,
+                    121,
+                    99,
+                    0.0005
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9143612384796143
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    675,
+                    1136,
+                    73,
+                    117,
+                    1.5634
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9067398905754089
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    54,
+                    1109,
+                    104,
+                    82,
+                    0.0001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9124742746353149
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "13": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3793,
+                    1157,
+                    104,
+                    69,
+                    0.0016
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9014011025428772
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3496,
+                    1037,
+                    131,
+                    81,
+                    0.0004
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.915282666683197
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    694,
+                    1137,
+                    104,
+                    87,
+                    0.0002
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9162077903747559
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    63,
+                    1110,
+                    120,
+                    84,
+                    0.0
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9095920324325562
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "14": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3802,
+                    1156,
+                    85,
+                    68,
+                    0.0032
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8893652558326721
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3483,
+                    1037,
+                    96,
+                    120,
+                    1.5698
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9111979007720947
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    713,
+                    1136,
+                    82,
+                    109,
+                    1.5653
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9065434336662292
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    72,
+                    1110,
+                    99,
+                    122,
+                    1.5677
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9121778011322021
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "15": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3811,
+                    1155,
+                    68,
+                    68,
+                    0.005
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.885948121547699
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3472,
+                    1037,
+                    128,
+                    96,
+                    0.0013
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9138907790184021
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    733,
+                    1136,
+                    109,
+                    85,
+                    0.0022
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9168369770050049
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    81,
+                    1110,
+                    93,
+                    144,
+                    1.5684
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8938043117523193
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "16": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3817,
+                    1154,
+                    53,
+                    69,
+                    0.0014
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8698882460594177
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3456,
+                    1039,
+                    134,
+                    80,
+                    0.0046
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9139698147773743
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    752,
+                    1136,
+                    86,
+                    109,
+                    1.5691
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9176726341247559
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    90,
+                    1111,
+                    88,
+                    162,
+                    1.5694
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9013497829437256
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "17": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3823,
+                    1157,
+                    61,
+                    46,
+                    1.5653
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.5487603545188904
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3444,
+                    1040,
+                    136,
+                    74,
+                    0.0061
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.914512574672699
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    771,
+                    1136,
+                    108,
+                    87,
+                    0.0041
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9146312475204468
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    106,
+                    1113,
+                    87,
+                    174,
+                    1.5683
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9154565930366516
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "18": {
+        "objects": {
+          "1": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3828,
+                    1152,
+                    63,
+                    30,
+                    1.5694
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.10048680752515793
+                  ]
+                }
+              ]
+            }
+          },
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3429,
+                    1040,
+                    136,
+                    71,
+                    0.0004
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9149057269096375
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    788,
+                    1137,
+                    116,
+                    74,
+                    0.0011
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9157218933105469
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    121,
+                    1115,
+                    86,
+                    180,
+                    1.5692
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9106289148330688
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "19": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3415,
+                    1041,
+                    138,
+                    70,
+                    0.0022
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.918433427810669
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    806,
+                    1138,
+                    87,
+                    105,
+                    1.5683
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.921326220035553
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    138,
+                    1116,
+                    149,
+                    127,
+                    0.0003
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9094563722610474
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "20": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3401,
+                    1042,
+                    136,
+                    71,
+                    0.0047
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9200741052627563
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    826,
+                    1139,
+                    109,
+                    84,
+                    0.0017
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9055838584899902
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    155,
+                    1116,
+                    170,
+                    100,
+                    0.0005
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9168668389320374
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "21": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3389,
+                    1043,
+                    137,
+                    72,
+                    0.0065
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9172682762145996
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    845,
+                    1140,
+                    85,
+                    108,
+                    1.57
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9169580936431885
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    172,
+                    1117,
+                    125,
+                    158,
+                    1.5694
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9117002487182617
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "22": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3375,
+                    1042,
+                    138,
+                    71,
+                    0.0008
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9179793000221252
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    862,
+                    1140,
+                    73,
+                    115,
+                    1.5672
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9049073457717896
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    190,
+                    1118,
+                    99,
+                    173,
+                    1.5692
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9143904447555542
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "23": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3360,
+                    1043,
+                    136,
+                    70,
+                    0.0033
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9157556891441345
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    880,
+                    1140,
+                    106,
+                    87,
+                    0.0008
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9082711338996887
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    209,
+                    1119,
+                    153,
+                    124,
+                    0.0001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9169871211051941
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "24": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3345,
+                    1043,
+                    93,
+                    112,
+                    1.5702
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9095123410224915
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    899,
+                    1141,
+                    85,
+                    109,
+                    1.5688
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9168338775634766
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    225,
+                    1120,
+                    172,
+                    97,
+                    0.0025
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.914482593536377
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "25": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3331,
+                    1043,
+                    74,
+                    127,
+                    1.5633
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9101604223251343
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    918,
+                    1141,
+                    109,
+                    85,
+                    0.0014
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9119189381599426
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    242,
+                    1121,
+                    179,
+                    87,
+                    0.0004
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9168089032173157
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "26": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3316,
+                    1044,
+                    117,
+                    95,
+                    0.002
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.916202962398529
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    937,
+                    1140,
+                    85,
+                    107,
+                    1.5703
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.918588399887085
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    258,
+                    1121,
+                    182,
+                    84,
+                    0.0001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9136817455291748
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "27": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3302,
+                    1045,
+                    91,
+                    121,
+                    1.5694
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9157055020332336
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    955,
+                    1140,
+                    73,
+                    115,
+                    1.5679
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9170207977294922
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    274,
+                    1122,
+                    183,
+                    84,
+                    0.0027
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9086198210716248
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "28": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3289,
+                    1046,
+                    122,
+                    92,
+                    0.0041
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9160047173500061
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    971,
+                    1140,
+                    104,
+                    86,
+                    0.0013
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.91462641954422
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    290,
+                    1123,
+                    124,
+                    148,
+                    1.5686
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9063933491706848
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "29": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3274,
+                    1048,
+                    91,
+                    121,
+                    1.5669
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9130519032478333
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    990,
+                    1140,
+                    83,
+                    106,
+                    1.57
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9246339201927185
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    309,
+                    1124,
+                    161,
+                    117,
+                    0.0005
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9075575470924377
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "30": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3259,
+                    1048,
+                    75,
+                    130,
+                    1.5689
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9150763154029846
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1007,
+                    1141,
+                    72,
+                    110,
+                    1.5671
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9138352274894714
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    326,
+                    1125,
+                    170,
+                    95,
+                    0.0011
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.905223548412323
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "31": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3246,
+                    1048,
+                    71,
+                    135,
+                    1.5703
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9155580997467041
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1024,
+                    1141,
+                    100,
+                    83,
+                    0.0011
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9077081084251404
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    342,
+                    1125,
+                    176,
+                    87,
+                    0.0005
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9086645841598511
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "32": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3233,
+                    1047,
+                    116,
+                    97,
+                    0.0002
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9102118611335754
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1041,
+                    1141,
+                    83,
+                    103,
+                    1.5698
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9252230525016785
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    360,
+                    1125,
+                    178,
+                    85,
+                    0.002
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9046323895454407
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "33": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3219,
+                    1048,
+                    93,
+                    124,
+                    1.5684
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.913077175617218
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1060,
+                    1141,
+                    72,
+                    109,
+                    1.5667
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9082987904548645
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    377,
+                    1126,
+                    122,
+                    145,
+                    1.5657
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9045335650444031
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "34": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3205,
+                    1048,
+                    79,
+                    133,
+                    1.5698
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9174590706825256
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1078,
+                    1142,
+                    98,
+                    82,
+                    0.0006
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9073483347892761
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    395,
+                    1126,
+                    96,
+                    166,
+                    1.5688
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8992891907691956
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "35": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3192,
+                    1048,
+                    74,
+                    136,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9111441373825073
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1096,
+                    1143,
+                    80,
+                    103,
+                    1.5695
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9160940051078796
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    411,
+                    1127,
+                    156,
+                    126,
+                    0.0003
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8969406485557556
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "36": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3178,
+                    1049,
+                    116,
+                    95,
+                    0.0009
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9088872671127319
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1115,
+                    1143,
+                    70,
+                    108,
+                    1.5673
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9005069136619568
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    426,
+                    1128,
+                    172,
+                    102,
+                    0.0
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8773992657661438
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "37": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3163,
+                    1050,
+                    94,
+                    122,
+                    1.5698
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9133776426315308
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1135,
+                    1144,
+                    67,
+                    111,
+                    1.57
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9209656119346619
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    444,
+                    1129,
+                    123,
+                    157,
+                    1.5708
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8910093307495117
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "38": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3149,
+                    1050,
+                    121,
+                    92,
+                    0.0001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9033829569816589
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1153,
+                    1144,
+                    65,
+                    111,
+                    1.5682
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8993580937385559
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    460,
+                    1130,
+                    160,
+                    122,
+                    0.0003
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.7974599599838257
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "39": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3134,
+                    1051,
+                    131,
+                    76,
+                    0.0006
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8999285101890564
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1171,
+                    1145,
+                    95,
+                    80,
+                    0.0003
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8840920925140381
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    476,
+                    1131,
+                    171,
+                    102,
+                    0.0049
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8778216242790222
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "40": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3120,
+                    1051,
+                    95,
+                    115,
+                    1.5702
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.907340407371521
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1188,
+                    1145,
+                    78,
+                    101,
+                    1.5705
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9181829690933228
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    493,
+                    1132,
+                    176,
+                    94,
+                    0.0033
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9032426476478577
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "41": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3107,
+                    1052,
+                    122,
+                    90,
+                    0.0005
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9079834222793579
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1204,
+                    1145,
+                    70,
+                    108,
+                    1.5682
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9081072211265564
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    509,
+                    1132,
+                    123,
+                    150,
+                    1.5706
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8801612854003906
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "42": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3093,
+                    1052,
+                    130,
+                    76,
+                    0.0008
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8957022428512573
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1222,
+                    1145,
+                    96,
+                    80,
+                    0.0001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9152432680130005
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    524,
+                    1132,
+                    161,
+                    117,
+                    0.0129
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.7997757792472839
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "43": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3079,
+                    1052,
+                    134,
+                    69,
+                    0.0019
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9001923203468323
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1239,
+                    1145,
+                    79,
+                    101,
+                    1.5697
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9196784496307373
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    541,
+                    1133,
+                    172,
+                    96,
+                    0.01
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8603852391242981
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "44": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3064,
+                    1052,
+                    135,
+                    70,
+                    0.001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9066689610481262
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1256,
+                    1145,
+                    70,
+                    109,
+                    1.5677
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9109908938407898
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    557,
+                    1133,
+                    120,
+                    150,
+                    1.5708
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8590114712715149
+                  ]
+                }
+              ]
+            }
+          },
+          "9": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    554,
+                    1132,
+                    176,
+                    86,
+                    0.0212
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.4735000431537628
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "45": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3051,
+                    1051,
+                    134,
+                    69,
+                    0.0009
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8884897828102112
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1275,
+                    1145,
+                    66,
+                    109,
+                    1.5706
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9225777387619019
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    573,
+                    1133,
+                    159,
+                    118,
+                    0.0273
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.3626512885093689
+                  ]
+                }
+              ]
+            }
+          },
+          "9": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    569,
+                    1133,
+                    173,
+                    84,
+                    0.0042
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8757911324501038
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "46": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3038,
+                    1052,
+                    135,
+                    68,
+                    0.0005
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8908564448356628
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1293,
+                    1145,
+                    65,
+                    111,
+                    1.5693
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9159219861030579
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "47": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3024,
+                    1052,
+                    135,
+                    67,
+                    0.0018
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8811918497085571
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1313,
+                    1145,
+                    96,
+                    81,
+                    0.0
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9016746282577515
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    605,
+                    1135,
+                    168,
+                    93,
+                    0.0002
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9042779803276062
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "48": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    3012,
+                    1052,
+                    135,
+                    66,
+                    0.0025
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8953480124473572
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1332,
+                    1145,
+                    80,
+                    104,
+                    1.5702
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9177383780479431
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    620,
+                    1136,
+                    113,
+                    151,
+                    1.5687
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9185483455657959
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "49": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2998,
+                    1052,
+                    93,
+                    112,
+                    1.5674
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8350415825843811
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1349,
+                    1145,
+                    72,
+                    111,
+                    1.5683
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9081324338912964
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    637,
+                    1136,
+                    158,
+                    116,
+                    0.0023
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9190300107002258
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "50": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2984,
+                    1051,
+                    73,
+                    127,
+                    1.5674
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.7886095643043518
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1368,
+                    1145,
+                    67,
+                    111,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9080319404602051
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    654,
+                    1136,
+                    165,
+                    95,
+                    0.0
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9199913144111633
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "51": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2969,
+                    1052,
+                    71,
+                    134,
+                    1.5702
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.7279641032218933
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1384,
+                    1145,
+                    66,
+                    112,
+                    1.5697
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9134483337402344
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    669,
+                    1137,
+                    116,
+                    149,
+                    1.5686
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9189768433570862
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "52": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2955,
+                    1051,
+                    69,
+                    136,
+                    1.5703
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.7735974192619324
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1401,
+                    1145,
+                    67,
+                    115,
+                    1.5677
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9102587699890137
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    686,
+                    1137,
+                    158,
+                    118,
+                    0.0018
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9179081916809082
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "53": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2940,
+                    1052,
+                    118,
+                    97,
+                    0.0003
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.849314272403717
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1419,
+                    1145,
+                    68,
+                    112,
+                    1.5703
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9196555018424988
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    701,
+                    1138,
+                    168,
+                    97,
+                    0.0006
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8996235132217407
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "54": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2925,
+                    1052,
+                    95,
+                    126,
+                    1.5694
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.7877441048622131
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1437,
+                    1145,
+                    68,
+                    114,
+                    1.5689
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9192175269126892
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    717,
+                    1138,
+                    170,
+                    89,
+                    0.0007
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9132811427116394
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "55": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2911,
+                    1053,
+                    80,
+                    135,
+                    1.5705
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.857901930809021
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1454,
+                    1145,
+                    68,
+                    115,
+                    1.567
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9050728678703308
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    732,
+                    1138,
+                    116,
+                    150,
+                    1.5706
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8915205001831055
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "56": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2897,
+                    1053,
+                    74,
+                    139,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.6336573362350464
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1473,
+                    1146,
+                    68,
+                    117,
+                    1.5703
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9224909543991089
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    749,
+                    1139,
+                    154,
+                    116,
+                    0.0038
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9058535695075989
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "57": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2882,
+                    1053,
+                    118,
+                    98,
+                    0.0013
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.47107505798339844
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1491,
+                    1146,
+                    68,
+                    116,
+                    1.5693
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9110732674598694
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    764,
+                    1139,
+                    164,
+                    95,
+                    0.0026
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9089300632476807
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "58": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2869,
+                    1054,
+                    94,
+                    127,
+                    1.57
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.7700832486152649
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1510,
+                    1145,
+                    69,
+                    115,
+                    1.5704
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9162912368774414
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    780,
+                    1140,
+                    168,
+                    87,
+                    0.0014
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9142186641693115
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "59": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2856,
+                    1055,
+                    80,
+                    137,
+                    1.57
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.739142119884491
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1529,
+                    1145,
+                    70,
+                    119,
+                    1.5702
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9236618280410767
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    795,
+                    1141,
+                    115,
+                    144,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.916641891002655
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "60": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2842,
+                    1055,
+                    119,
+                    96,
+                    0.0001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.622576117515564
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1546,
+                    1147,
+                    69,
+                    119,
+                    1.5697
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8927322030067444
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    810,
+                    1141,
+                    153,
+                    115,
+                    0.001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9188038110733032
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "61": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2828,
+                    1056,
+                    133,
+                    77,
+                    0.0001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8076565861701965
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1564,
+                    1147,
+                    68,
+                    115,
+                    1.5705
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9030494689941406
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    826,
+                    1142,
+                    167,
+                    97,
+                    0.0006
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9169886708259583
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "62": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2815,
+                    1057,
+                    99,
+                    121,
+                    1.5708
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8291774988174438
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1582,
+                    1147,
+                    67,
+                    115,
+                    1.5703
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8882208466529846
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    842,
+                    1143,
+                    119,
+                    149,
+                    1.5701
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9159438014030457
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "63": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2800,
+                    1056,
+                    79,
+                    132,
+                    1.5705
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8913151621818542
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1599,
+                    1147,
+                    67,
+                    114,
+                    1.5703
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8962242603302002
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    858,
+                    1143,
+                    96,
+                    163,
+                    1.5696
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9123830199241638
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "64": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2786,
+                    1057,
+                    121,
+                    98,
+                    0.0009
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8968487977981567
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1616,
+                    1147,
+                    69,
+                    114,
+                    1.5704
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9163724184036255
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    874,
+                    1144,
+                    151,
+                    121,
+                    0.003
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9156480431556702
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "65": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2774,
+                    1057,
+                    131,
+                    79,
+                    0.0006
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8932211399078369
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1633,
+                    1148,
+                    69,
+                    116,
+                    1.5704
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.913895845413208
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    890,
+                    1145,
+                    117,
+                    156,
+                    1.5705
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9163540005683899
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "66": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2760,
+                    1056,
+                    97,
+                    120,
+                    1.5705
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8784434795379639
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1651,
+                    1148,
+                    67,
+                    113,
+                    1.5702
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8991255164146423
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    905,
+                    1145,
+                    92,
+                    165,
+                    1.5698
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.917364239692688
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "67": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2744,
+                    1057,
+                    123,
+                    94,
+                    0.0005
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8769862055778503
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1668,
+                    1148,
+                    67,
+                    116,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9225218296051025
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    922,
+                    1145,
+                    84,
+                    170,
+                    1.5702
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9140116572380066
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "68": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2730,
+                    1057,
+                    131,
+                    79,
+                    0.0015
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8928329944610596
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1685,
+                    1149,
+                    101,
+                    84,
+                    0.0003
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9090181589126587
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    938,
+                    1145,
+                    83,
+                    170,
+                    1.5698
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9026049375534058
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "69": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2716,
+                    1057,
+                    136,
+                    75,
+                    0.0002
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8859115839004517
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1704,
+                    1149,
+                    83,
+                    106,
+                    1.5704
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9063822031021118
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    953,
+                    1145,
+                    82,
+                    170,
+                    1.5698
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9060277938842773
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "70": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2700,
+                    1056,
+                    137,
+                    72,
+                    0.0009
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8888112902641296
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1723,
+                    1149,
+                    72,
+                    114,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9102368354797363
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    969,
+                    1145,
+                    138,
+                    117,
+                    0.0036
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9120996594429016
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "71": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2687,
+                    1057,
+                    137,
+                    72,
+                    0.0014
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8975890874862671
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1740,
+                    1149,
+                    67,
+                    117,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8941493630409241
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    984,
+                    1145,
+                    111,
+                    153,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9114736318588257
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "72": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2673,
+                    1057,
+                    135,
+                    72,
+                    0.0008
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8649441599845886
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1759,
+                    1149,
+                    64,
+                    115,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9017505049705505
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    998,
+                    1146,
+                    148,
+                    113,
+                    0.0
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9215793609619141
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "73": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2658,
+                    1057,
+                    135,
+                    72,
+                    0.0004
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9034408330917358
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1775,
+                    1150,
+                    99,
+                    81,
+                    0.0005
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.905302107334137
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1014,
+                    1146,
+                    161,
+                    91,
+                    0.001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9200224280357361
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "74": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2644,
+                    1058,
+                    135,
+                    72,
+                    0.0001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9060841798782349
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1793,
+                    1151,
+                    80,
+                    103,
+                    1.5702
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9032690525054932
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1031,
+                    1147,
+                    168,
+                    84,
+                    0.0006
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.902830958366394
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "75": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2629,
+                    1058,
+                    135,
+                    72,
+                    0.001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9053157567977905
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1810,
+                    1151,
+                    71,
+                    111,
+                    1.5708
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9224594235420227
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1045,
+                    1148,
+                    168,
+                    83,
+                    0.0002
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9125410318374634
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "76": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2614,
+                    1057,
+                    96,
+                    113,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9108973145484924
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1826,
+                    1151,
+                    100,
+                    81,
+                    0.0013
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9148682355880737
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1062,
+                    1149,
+                    166,
+                    81,
+                    0.0015
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9097356796264648
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "77": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2597,
+                    1057,
+                    122,
+                    92,
+                    0.0016
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9121140241622925
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1843,
+                    1152,
+                    79,
+                    101,
+                    1.57
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9053769707679749
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1076,
+                    1151,
+                    167,
+                    81,
+                    0.0007
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9132382869720459
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "78": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2583,
+                    1058,
+                    127,
+                    79,
+                    0.0015
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9156533479690552
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1860,
+                    1152,
+                    105,
+                    78,
+                    0.0003
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9207394123077393
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1092,
+                    1151,
+                    114,
+                    135,
+                    1.5694
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8802948594093323
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "79": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2569,
+                    1057,
+                    92,
+                    113,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9057378768920898
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1877,
+                    1152,
+                    113,
+                    67,
+                    0.0018
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9122531414031982
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1108,
+                    1151,
+                    147,
+                    107,
+                    0.0
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8913251757621765
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "80": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2553,
+                    1056,
+                    118,
+                    90,
+                    0.0013
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.903789222240448
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1894,
+                    1152,
+                    84,
+                    98,
+                    1.57
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9137197732925415
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1124,
+                    1152,
+                    159,
+                    90,
+                    0.0008
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8926751613616943
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "81": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2537,
+                    1057,
+                    125,
+                    77,
+                    0.0013
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9110985398292542
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1912,
+                    1153,
+                    105,
+                    79,
+                    0.0007
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9157166481018066
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1139,
+                    1152,
+                    112,
+                    138,
+                    1.5643
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8354441523551941
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "82": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2524,
+                    1057,
+                    128,
+                    72,
+                    0.0001
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9064682126045227
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1929,
+                    1153,
+                    111,
+                    68,
+                    0.0026
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9089231491088867
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1155,
+                    1152,
+                    150,
+                    109,
+                    0.0003
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8989964723587036
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "83": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2508,
+                    1057,
+                    129,
+                    71,
+                    0.0017
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9136701822280884
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1948,
+                    1154,
+                    83,
+                    97,
+                    1.5704
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9050359129905701
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1169,
+                    1152,
+                    158,
+                    90,
+                    0.0004
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9060271978378296
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "84": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2494,
+                    1057,
+                    130,
+                    71,
+                    0.0014
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.915415346622467
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1965,
+                    1154,
+                    103,
+                    79,
+                    0.0014
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.8947001099586487
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1183,
+                    1152,
+                    113,
+                    140,
+                    1.5694
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9100149869918823
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "85": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2481,
+                    1057,
+                    129,
+                    70,
+                    0.0008
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9110628962516785
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1982,
+                    1155,
+                    111,
+                    71,
+                    0.0027
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9069586992263794
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1198,
+                    1152,
+                    90,
+                    154,
+                    1.5704
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9144725799560547
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "86": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2465,
+                    1058,
+                    129,
+                    70,
+                    0.002
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9117336869239807
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1999,
+                    1155,
+                    86,
+                    101,
+                    1.5708
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9028708338737488
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1212,
+                    1153,
+                    84,
+                    163,
+                    1.5707
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.91438227891922
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "87": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2452,
+                    1058,
+                    129,
+                    70,
+                    0.0022
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9160478115081787
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2014,
+                    1155,
+                    108,
+                    83,
+                    0.002
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.917414128780365
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1227,
+                    1153,
+                    140,
+                    119,
+                    0.0016
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.915595293045044
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "88": {
+        "objects": {
+          "2": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2438,
+                    1057,
+                    130,
+                    70,
+                    0.0012
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9103573560714722
+                  ]
+                }
+              ]
+            }
+          },
+          "3": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    2031,
+                    1155,
+                    113,
+                    72,
+                    0.0025
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9092985391616821
+                  ]
+                }
+              ]
+            }
+          },
+          "4": {
+            "object_data": {
+              "rbbox": [
+                {
+                  "name": "shape",
+                  "val": [
+                    1243,
+                    1153,
+                    156,
+                    96,
+                    0.0005
+                  ]
+                }
+              ],
+              "vec": [
+                {
+                  "name": "confidence",
+                  "val": [
+                    0.9176721572875977
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

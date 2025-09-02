@@ -21,6 +21,7 @@ class Sidebar(QWidget):
     open_video = pyqtSignal(str)
     open_config = pyqtSignal(str)
     start_bbox_drawing = pyqtSignal(str)
+    open_project_dir = pyqtSignal(str)
 
     def __init__(self, video_actors: list[str]):
         super().__init__()
@@ -41,19 +42,20 @@ class Sidebar(QWidget):
         new_btn = make_icon_btn("new_file.svg", "New Project")
         load_btn = make_icon_btn("open_file.svg", "Load Project")
         save_btn = make_icon_btn("save_file.svg", "Save Project")
-        load_config_btn = make_icon_btn(
-            "open_file.svg", "Load project"
-        )  # same icon as loading video. Will be removed in a future ticket when config dir is made.
+        # load_config_btn = make_icon_btn(
+        #     "open_file.svg", "Load project"
+        # )  # same icon as loading video. Will be removed in a
+        #           future ticket when config dir is made.
 
-        load_btn.clicked.connect(self._choose_video_file)
-        load_config_btn.clicked.connect(self._choose_openlabel_file)
+        load_btn.clicked.connect(self._choose_project_dir)
+        # load_config_btn.clicked.connect(self._choose_openlabel_file)
 
         top_buttons_layout.addWidget(new_btn)
         top_buttons_layout.addWidget(load_btn)
         top_buttons_layout.addWidget(save_btn)
-        top_buttons_layout.addWidget(
-            load_config_btn
-        )  # to be removed when refactor to config dir
+        # top_buttons_layout.addWidget(
+        #     load_config_btn
+        # )  # to be removed when refactor to config dir
 
         main_layout.addLayout(top_buttons_layout)
 
@@ -101,6 +103,12 @@ class Sidebar(QWidget):
         main_layout.addWidget(self.active_manoeuvre)
 
         self.setLayout(main_layout)
+
+    def _choose_project_dir(self):
+        """Let the user pick a folder containing the video + OpenLabel JSON."""
+        path = QFileDialog.getExistingDirectory(self, "Open Project Folder", "")
+        if path:
+            self.open_project_dir.emit(path)
 
     def _choose_video_file(self):
         path, _ = QFileDialog.getOpenFileName(

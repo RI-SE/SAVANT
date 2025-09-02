@@ -33,7 +33,9 @@ class TestProjectState:
         expected_data_dict = read_json(test_config_path)
         expected_result = OpenLabel(**expected_data_dict["openlabel"])
 
-        assert expected_result.model_dump() == project_state.annotation_config.model_dump()
+        assert (
+            expected_result.model_dump() == project_state.annotation_config.model_dump()
+        )
 
     def test_save_config(self):
 
@@ -75,11 +77,27 @@ class TestProjectState:
         project_state = ProjectState()
         actors = project_state.get_actor_types()
         expected = [
-            "RoadUser", "Vehicle", "Car", "Van", "Truck", "Trailer",
-            "Motorbike", "Bicycle", "Bus", "Tram", "Train", "Caravan",
-            "StandupScooter", "AgriculturalVehicle", "ConstructionVehicle",
-            "EmergencyVehicle", "SlowMovingVehicle", "Human", "Pedestrian",
-            "WheelChairUser", "Animal"
+            "RoadUser",
+            "Vehicle",
+            "Car",
+            "Van",
+            "Truck",
+            "Trailer",
+            "Motorbike",
+            "Bicycle",
+            "Bus",
+            "Tram",
+            "Train",
+            "Caravan",
+            "StandupScooter",
+            "AgriculturalVehicle",
+            "ConstructionVehicle",
+            "EmergencyVehicle",
+            "SlowMovingVehicle",
+            "Human",
+            "Pedestrian",
+            "WheelChairUser",
+            "Animal",
         ]
         assert actors == expected
         assert len(actors) == 21

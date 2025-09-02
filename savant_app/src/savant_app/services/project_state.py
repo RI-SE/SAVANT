@@ -3,6 +3,7 @@
 import json
 from savant_app.models.OpenLabel import OpenLabel
 from savant_app.utils import read_json
+from typing import List, Tuple
 
 
 class ProjectState:
@@ -11,7 +12,7 @@ class ProjectState:
         self.open_label_path: str = None
 
         # Temporary list that denotes all possible actor types.
-        # To be replaced by an onotology (or something else). 
+        # To be replaced by an onotology (or something else).
         self.__ACTORS: list[str] = [
             "RoadUser",
             "Vehicle",
@@ -33,7 +34,7 @@ class ProjectState:
             "Human",
             "Pedestrian",
             "WheelChairUser",
-            "Animal"
+            "Animal",
         ]
 
     def load_openlabel_config(self, path: str) -> None:
@@ -77,3 +78,38 @@ class ProjectState:
             A list of actor type strings.
         """
         return self.__ACTORS.copy()
+
+    def boxes_for_frame(
+        self, frame_idx: int
+    ) -> List[Tuple[float, float, float, float, float]]:
+        """
+        Return list of rotated boxes for a frame in video pixel coords:
+        (cx, cy, w, h, theta_radians).
+        """
+        if not self.annotation_config or not self.annotation_config.frames:
+            return []
+
+        fkey = str(frame_idx)
+        if fkey not in self.annotation_config.frames:
+            alt = str(frame_idx + 1)
+            if alt not in self.annotation_config.frames:
+                return []
+            fkey = alt
+
+        out: List[Tuple[float, float, float, float, float]] = []
+        frame = self.annotation_config.frames[fkey]
+        for _obj_id, fobj in frame.objects.items():
+            for geom in fobj.object_data.rbbox:
+                if geom.name != "shape":
+                    continue
+                rb = geom.val
+                out.append(
+                    (
+                        float(rb.x_center),
+                        float(rb.y_center),
+                        float(rb.width),
+                        float(rb.height),
+                        float(rb.rotation),
+                    )
+                )
+        return out

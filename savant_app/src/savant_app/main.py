@@ -19,7 +19,9 @@ if __name__ == "__main__":
     annotation_service = AnnotationService(project_state)
 
     # Initialize controllers
-    project_state_controller = ProjectStateController(project_state) # The only controller with project state.
+    project_state_controller = ProjectStateController(
+        project_state
+    )  # The only controller with project state.
     video_controller = VideoController(video_service)
     annotation_controller = AnnotationController(annotation_service)
 

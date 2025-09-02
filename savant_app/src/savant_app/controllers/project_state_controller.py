@@ -21,3 +21,6 @@ class ProjectStateController:
 
     def get_actor_types(self) -> list[str]:
         return self.project_state.get_actor_types()
+
+    def boxes_for_frame(self, frame_idx: int):
+        return self.project_state.boxes_for_frame(frame_idx)
