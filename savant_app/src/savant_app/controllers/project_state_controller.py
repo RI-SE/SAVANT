@@ -18,3 +18,6 @@ class ProjectStateController:
 
     def save_openlabel_config(self) -> None:
         self.project_state.save_openlabel_config()
+
+    def boxes_for_frame(self, frame_idx: int):
+        return self.project_state.boxes_for_frame(frame_idx)

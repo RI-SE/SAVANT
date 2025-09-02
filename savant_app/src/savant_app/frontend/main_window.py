@@ -1,13 +1,15 @@
 # main_window.py
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox
 from savant_app.frontend.widgets.video_display import VideoDisplay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
 from savant_app.frontend.widgets.sidebar import Sidebar
 from savant_app.frontend.widgets.seek_bar import SeekBar
+from savant_app.frontend.widgets.overlay import Overlay
 import os
-from controllers.project_state_controller import ProjectStateController
-from controllers.video_controller import VideoController
+from savant_app.controllers.project_state_controller import ProjectStateController
+from savant_app.controllers.video_controller import VideoController
+from pathlib import Path
 
 
 class MainWindow(QMainWindow):
@@ -22,19 +24,40 @@ class MainWindow(QMainWindow):
         self.update_title()
         self.resize(1600, 800)
 
-        # Controller
+        # Controllers
         self.video_controller = video_controller
         self.project_state_controller = project_state_controller
 
-        # Video + playback
+        # Video display + overlay layered
         self.video_widget = VideoDisplay()
+        self.overlay = Overlay(self.video_widget)
+
+        video_container = QWidget()
+        video_container_layout = QVBoxLayout(video_container)
+        video_container_layout.setContentsMargins(0, 0, 0, 0)
+        video_container_layout.addWidget(self.video_widget)
+
+        self.overlay.raise_()
+        self.overlay.resize(self.video_widget.size())
+        self.video_widget.resizeEvent = lambda e: self.overlay.resize(e.size())
+
+        # Seek bar + playback
         self.seek_bar = SeekBar()
         self.playback_controls = PlaybackControls()
 
         video_layout = QVBoxLayout()
-        video_layout.addWidget(self.video_widget, stretch=1)
+        video_layout.addWidget(video_container, stretch=1)
         video_layout.addWidget(self.seek_bar)
         video_layout.addWidget(self.playback_controls)
+
+        video_container_layout.setContentsMargins(0, 0, 0, 0)
+        video_container_layout.setSpacing(0)
+
+        video_layout.setContentsMargins(0, 0, 0, 0)
+        video_layout.setSpacing(0)
+
+        self._sync_overlay_geometry()
+        self.video_widget.resizeEvent = self._on_video_resized
 
         # Sidebar
         self.sidebar = Sidebar()
@@ -56,6 +79,7 @@ class MainWindow(QMainWindow):
         # Sidebar signals
         self.sidebar.open_video.connect(self.on_open_video)
         self.sidebar.open_config.connect(self.open_openlabel_config)
+        self.sidebar.open_project_dir.connect(self.on_open_project_dir)
 
         # Playback controls signals
         self.playback_controls.next_frame_clicked.connect(self.on_next)
@@ -68,42 +92,107 @@ class MainWindow(QMainWindow):
 
         # Seek bar → jump directly
         self.seek_bar.frame_changed.connect(self.on_seek)
+        # TODO add to settings menu
+        self._zoom = 1.15
+        self.video_widget.set_zoom(self._zoom)
+        self.overlay.set_zoom(self._zoom)
+
+        self.video_widget.pan_changed.connect(self.overlay.set_pan)
+
+        from PyQt6.QtGui import QShortcut, QKeySequence
+        QShortcut(QKeySequence(QKeySequence.StandardKey.ZoomIn),  self, activated=self.zoom_in)
+        QShortcut(QKeySequence(QKeySequence.StandardKey.ZoomOut), self, activated=self.zoom_out)
+        QShortcut(QKeySequence("Ctrl+0"), self, activated=self.zoom_fit)
+
+        video_container.setMouseTracking(True)
+        video_container.wheelEvent = self._wheel_zoom
 
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")
 
+    def _show_frame(self, pixmap, frame_idx):
+        """Render a frame + overlay; safely handles None at end-of-video."""
+        if pixmap is not None:
+            self.video_widget.show_frame(pixmap)
+        else:
+            self.overlay.set_rotated_boxes([])
+            return
+
+        if frame_idx is not None:
+            self.seek_bar.set_position(int(frame_idx))
+
+        try:
+            if frame_idx is not None:
+                w, h = self.video_controller.size()
+                self.overlay.set_frame_size(w, h)
+                rot_boxes = self.project_state_controller.boxes_for_frame(int(frame_idx))
+                self.overlay.set_rotated_boxes(rot_boxes)
+        except Exception:
+            self.overlay.set_rotated_boxes([])
+
     # seek (slider)
     def on_seek(self, index: int):
-        """
-        Handle seek bar interaction (user clicked or dragged the slider).
+        try:
+            pixmap, idx = self.video_controller.jump_to_frame(index)
+            self._show_frame(pixmap, idx)
+        except Exception as e:
+            QMessageBox.critical(self, "Seek failed", str(e))
 
-        Args:
-        index (int): The target frame index selected on the seek bar.
+    def on_open_project_dir(self, dir_path: str):
         """
-        pixmap, idx = self.controller.jump_to_frame(index)
-        if pixmap:
-            self.video_widget.show_frame(pixmap)
-            self.seek_bar.set_position(idx)
+        Given a directory, find 1 video and 1 OpenLabel JSON, then load both.
+        """
+        try:
+            folder = Path(dir_path)
+            if not folder.is_dir():
+                raise ValueError(f"Not a directory: {dir_path}")
+
+            video_exts = {".mp4", ".avi", ".mov", ".mkv", ".mpg", ".mpeg", ".m4v"}
+            json_exts = {".json"}
+
+            videos = sorted([p for p in folder.iterdir()
+                            if p.is_file() and p.suffix.lower() in video_exts])
+            jsons = sorted([p for p in folder.iterdir()
+                            if p.is_file() and p.suffix.lower() in json_exts])
+
+            # TODO: Allow users to open a video only and create a new config
+            if not videos:
+                raise FileNotFoundError("No video found in folder.")
+            if not jsons:
+                raise FileNotFoundError("No JSON (OpenLabel) found in folder.")
+
+            preferred_jsons = [p for p in jsons if "openlabel" in p.stem.lower()]
+            json_path = preferred_jsons[0] if preferred_jsons else jsons[0]
+            video_path = videos[0]
+
+            self.open_openlabel_config(str(json_path))
+
+            if getattr(self.project_state_controller, "project_state", None) and \
+                    getattr(self.project_state_controller.project_state,
+                            "annotation_config", None) is None:
+                return
+
+            self.on_open_video(str(video_path))
+
+            self.setWindowTitle(
+                f"SAVANT {self.project_name} — {video_path.name} ({folder.name})"
+            )
+            QMessageBox.information(
+                self, "Project Loaded",
+                "Project video and OpenLabel configuration loaded successfully."
+            )
+
+        except Exception as e:
+            QMessageBox.critical(self, "Open Folder Failed", str(e))
 
     # File open
     def on_open_video(self, path: str):
-        """
-        Handle loading of a new video file.
-
-        Args:
-            path (str): Path to the video file selected by the user.
-
-        Error Handling:
-            - If the video cannot be loaded, shows a critical error message.
-        """
         try:
             self.video_controller.load_video(path)
             pixmap, idx = self.video_controller.jump_to_frame(0)
-            if pixmap:
-                self.video_widget.show_frame(pixmap)
+            self._show_frame(pixmap, idx)
             total = self.video_controller.total_frames()
             self.seek_bar.update_range(total)
-            self.seek_bar.set_position(idx if pixmap else 0)
             if hasattr(self.playback_controls, "set_fps"):
                 self.playback_controls.set_fps(self.video_controller.fps())
             self._stop_playback()
@@ -115,20 +204,14 @@ class MainWindow(QMainWindow):
     def open_openlabel_config(self, path: str):
         try:
             self.project_state_controller.load_openlabel_config(path)
-            QMessageBox.information(
-                self, "Config Loaded", "OpenLabel configuration loaded successfully."
-            )
         except Exception as e:
             QMessageBox.critical(self, "Failed to load config", str(e))
 
     # Navigation
     def on_next(self):
-        """Navigates to the next frame if possible."""
         try:
             pixmap, idx = self.video_controller.next_frame()
-            if pixmap:
-                self.video_widget.show_frame(pixmap)
-                self.seek_bar.set_position(idx)
+            self._show_frame(pixmap, idx)
         except StopIteration:
             self._stop_playback()
             QMessageBox.information(self, "End of video", "No more frames.")
@@ -137,14 +220,9 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", str(e))
 
     def on_prev(self):
-        """Navigates to the previous frame if possible."""
         try:
-            pm = self.video_controller.previous_frame()
-            self.video_widget.show_frame(pm)
             pixmap, idx = self.video_controller.previous_frame()
-            if pixmap:
-                self.video_widget.show_frame(pixmap)
-                self.seek_bar.set_position(idx)
+            self._show_frame(pixmap, idx)
         except IndexError:
             QMessageBox.information(self, "At start", "Already at the first frame.")
         except Exception as e:
@@ -152,7 +230,6 @@ class MainWindow(QMainWindow):
 
     # Play/Pause
     def on_play(self):
-        """Toggle play/pause and handle edge cases (no video, end-of-video, fps=0)."""
         try:
             total = self.video_controller.total_frames()
         except Exception:
@@ -162,15 +239,11 @@ class MainWindow(QMainWindow):
         if not self._is_playing:
             try:
                 if self.video_controller.current_index() < 0:
-                    pixmap, idx = self.controller.jump_to_frame(0)
-                    if pixmap:
-                        self.video_widget.show_frame(pixmap)
-                        self.seek_bar.set_position(idx)
+                    pixmap, idx = self.video_controller.jump_to_frame(0)
+                    self._show_frame(pixmap, idx)
                 if self.video_controller.current_index() >= total - 1:
                     pixmap, idx = self.video_controller.jump_to_frame(0)
-                    if pixmap:
-                        self.video_widget.show_frame(pixmap)
-                        self.seek_bar.set_position(idx)
+                    self._show_frame(pixmap, idx)
                 fps = self.video_controller.fps()
                 interval_ms = max(1, int(1000 / (fps if fps and fps > 0 else 30)))
                 self._play_timer.start(interval_ms)
@@ -186,11 +259,9 @@ class MainWindow(QMainWindow):
         """Advance one frame per tick while playing."""
         try:
             pixmap, idx = self.video_controller.next_frame()
-            if pixmap:
-                self.video_widget.show_frame(pixmap)
-                self.seek_bar.set_position(idx)
-            else:
-                self._stop_playback()
+            if pixmap is None or idx is None:
+                raise StopIteration
+            self._show_frame(pixmap, idx)
         except StopIteration:
             self._stop_playback()
         except Exception as e:
@@ -198,7 +269,6 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Playback error", str(e))
 
     def _stop_playback(self):
-        """Stop video playback."""
         if self._play_timer.isActive():
             self._play_timer.stop()
         if self._is_playing and hasattr(self.playback_controls, "set_playing"):
@@ -207,31 +277,69 @@ class MainWindow(QMainWindow):
 
     # Skip handlers
     def on_skip_back(self, n: int):
-        """
-        Skip backward by `n` frames.
-
-        Args:
-            n (int): Number of frames to move back.
-        """
         try:
             pixmap, idx = self.video_controller.skip_frames(-n)
-            if pixmap:
-                self.video_widget.show_frame(pixmap)
-                self.seek_bar.set_position(idx)
+            self._show_frame(pixmap, idx)
         except Exception as e:
             QMessageBox.critical(self, "Skip backward failed", str(e))
 
     def on_skip_forward(self, n: int):
-        """
-        Skip forward by `n` frames.
-
-        Args:
-            n (int): Number of frames to move forward.
-        """
         try:
             pixmap, idx = self.video_controller.skip_frames(n)
-            if pixmap:
-                self.video_widget.show_frame(pixmap)
-                self.seek_bar.set_position(idx)
+            self._show_frame(pixmap, idx)
         except Exception as e:
             QMessageBox.critical(self, "Skip forward failed", str(e))
+
+    def _sync_overlay_geometry(self):
+        """Ensure overlay matches video widget area exactly (parented to video_widget)."""
+        self.overlay.setGeometry(self.video_widget.rect())
+        self.overlay.raise_()
+
+    def _on_video_resized(self, e):
+        """When video widget resizes, update overlay geometry too."""
+        from PyQt6.QtWidgets import QLabel
+        QLabel.resizeEvent(self.video_widget, e)
+        self._sync_overlay_geometry()
+
+    def _apply_zoom(self, z: float):
+        """Apply zoom to both video & overlay and refresh overlay math."""
+        self._zoom = max(0.05, min(z, 20.0))
+        self.video_widget.set_zoom(self._zoom)
+        self.overlay.set_zoom(self._zoom)
+
+        try:
+            idx = self.video_controller.current_index()
+            if idx >= 0:
+                w, h = self.video_controller.size()
+                rot_boxes = self.project_state_controller.boxes_for_frame(idx)
+                self.overlay.set_frame_size(w, h)
+                self.overlay.set_rotated_boxes(rot_boxes)
+            else:
+                self.overlay.update()
+        except Exception:
+            self.overlay.update()
+
+    def zoom_fit(self):
+        """Reset user zoom to 1.0 (i.e., pure 'fit to window')."""
+        self._apply_zoom(1.0)
+
+    def zoom_in(self):
+        """Zoom in by 10%."""
+        self._apply_zoom(self._zoom * 1.1)
+
+    def zoom_out(self):
+        """Zoom out by ~9% (inverse of 1.1)."""
+        self._apply_zoom(self._zoom / 1.1)
+
+    def _wheel_zoom(self, event):
+        """Ctrl + mouse wheel to zoom in/out."""
+        modifiers = event.modifiers()
+        if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
+            delta = event.angleDelta().y()
+            if delta > 0:
+                self.zoom_in()
+            elif delta < 0:
+                self.zoom_out()
+            event.accept()
+        else:
+            event.ignore()
