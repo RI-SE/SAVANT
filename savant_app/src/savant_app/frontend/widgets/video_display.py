@@ -1,18 +1,122 @@
-from PyQt6.QtWidgets import QLabel, QSizePolicy
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt
+# frontend/widgets/video_display.py
+from PyQt6.QtWidgets import QLabel
+from PyQt6.QtGui import QPainter, QMouseEvent, QCursor
+from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
 
 
 class VideoDisplay(QLabel):
+    pan_changed = pyqtSignal(float, float)
+
     def __init__(self):
         super().__init__()
-        self.setPixmap(QPixmap())
-        self.setMinimumSize(320, 240)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setStyleSheet("background-color: black; border: 1px solid #444;")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setScaledContents(True)
+        self._pixmap = None
+        self._zoom = 1.0
+        self._pan = QPointF(0.0, 0.0)
+        self._dragging = False
+        self._drag_start_pos = QPointF()
+        self._pan_start = QPointF()
 
-    def show_frame(self, pixmap: QPixmap) -> None:
-        if pixmap and not pixmap.isNull():
-            self.setPixmap(pixmap)
+    def set_zoom(self, zoom: float) -> None:
+        self._zoom = max(0.05, min(zoom, 20.0))
+        self._clamp_pan()
+        self.update()
+        self.pan_changed.emit(self._pan.x(), self._pan.y())
+
+    def zoom(self) -> float:
+        return self._zoom
+
+    def set_pan(self, pan_x: float, pan_y: float) -> None:
+        self._pan = QPointF(pan_x, pan_y)
+        self._clamp_pan()
+        self.update()
+        self.pan_changed.emit(self._pan.x(), self._pan.y())
+
+    def show_frame(self, pixmap):
+        self._pixmap = pixmap
+        self._clamp_pan()
+        self.update()
+        self.pan_changed.emit(self._pan.x(), self._pan.y())
+
+    def _fit_scale(self) -> float:
+        if not self._pixmap or self._pixmap.isNull():
+            return 1.0
+        fw, fh = self._pixmap.width(), self._pixmap.height()
+        vw, vh = self.width(), self.height()
+        return min(vw / fw, vh / fh)
+
+    def _draw_rect(self) -> QRectF:
+        if not self._pixmap or self._pixmap.isNull():
+            return QRectF()
+        fw, fh = self._pixmap.width(), self._pixmap.height()
+        vw, vh = self.width(), self.height()
+        base = self._fit_scale()
+        scale = base * self._zoom
+        draw_w, draw_h = fw * scale, fh * scale
+        off_x = (vw - draw_w) / 2 + self._pan.x()
+        off_y = (vh - draw_h) / 2 + self._pan.y()
+        return QRectF(off_x, off_y, draw_w, draw_h)
+
+    def _clamp_pan(self) -> None:
+        """Keep image from drifting too far off-screen."""
+        if not self._pixmap or self._pixmap.isNull():
+            self._pan = QPointF(0, 0)
+            return
+        fw, fh = self._pixmap.width(), self._pixmap.height()
+        vw, vh = self.width(), self.height()
+        base = self._fit_scale()
+        scale = base * self._zoom
+        draw_w, draw_h = fw * scale, fh * scale
+
+        max_x = max(0.0, (draw_w - vw) / 2)
+        max_y = max(0.0, (draw_h - vh) / 2)
+        x = max(-max_x, min(self._pan.x(), max_x))
+        y = max(-max_y, min(self._pan.y(), max_y))
+        self._pan = QPointF(x, y)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.fillRect(self.rect(), Qt.GlobalColor.black)
+
+        if self._pixmap and not self._pixmap.isNull():
+            target = self._draw_rect()
+            source = QRectF(0, 0, self._pixmap.width(), self._pixmap.height())
+            p.drawPixmap(target, self._pixmap, source)
+
+        p.end()
+
+    def mousePressEvent(self, e: QMouseEvent):
+        if e.button() == Qt.MouseButton.LeftButton and self._zoom > 1.0:
+            self._dragging = True
+            self._drag_start_pos = e.position()
+            self._pan_start = QPointF(self._pan)
+            self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
+            e.accept()
+            return
+        super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e: QMouseEvent):
+        if self._dragging:
+            delta = e.position() - self._drag_start_pos
+            self._pan = QPointF(self._pan_start.x() + delta.x(),
+                                self._pan_start.y() + delta.y())
+            self._clamp_pan()
+            self.update()
+            self.pan_changed.emit(self._pan.x(), self._pan.y())
+            e.accept()
+            return
+        super().mouseMoveEvent(e)
+
+    def mouseReleaseEvent(self, e: QMouseEvent):
+        if self._dragging and e.button() == Qt.MouseButton.LeftButton:
+            self._dragging = False
+            self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+            e.accept()
+            return
+        super().mouseReleaseEvent(e)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._clamp_pan()
+        self.pan_changed.emit(self._pan.x(), self._pan.y())

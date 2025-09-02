@@ -62,6 +62,11 @@ class VideoController:
 
     def size(self) -> tuple[int, int]:
         return (self.reader.metadata["width"], self.reader.metadata["height"])
+    
+    def _ensure(self) -> None:
+        """Ensure a video is loaded before using the reader."""
+        if self.reader is None:
+            raise RuntimeError("No video loaded")
 
     def _to_qpixmap(self, bgr: np.ndarray) -> QPixmap:
         """Convert OpenCV BGR ndarray to QPixmap."""
