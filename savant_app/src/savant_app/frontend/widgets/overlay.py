@@ -8,7 +8,7 @@ import math
 class Overlay(QWidget):
     """
     Draws rotated bounding boxes over the video. Boxes are expected as
-    (center_x_vid, center_y_vid, width_vid, height_vid, theta_radians) 
+    (center_x_vid, center_y_vid, width_vid, height_vid, theta_radians)
     in ORIGINAL VIDEO PIXELS (not scaled).
 
     Rotation is applied manually via cos/sin so it will ALWAYS be visible

@@ -154,7 +154,7 @@ class MainWindow(QMainWindow):
                             if p.is_file() and p.suffix.lower() in video_exts])
             jsons = sorted([p for p in folder.iterdir()
                             if p.is_file() and p.suffix.lower() in json_exts])
-            
+
             # TODO: Allow users to open a video only and create a new config
             if not videos:
                 raise FileNotFoundError("No video found in folder.")
