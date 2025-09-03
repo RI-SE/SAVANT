@@ -72,6 +72,7 @@ class Overlay(QWidget):
         self._show_axes = enabled
         self.update()
 
+    # TODO: Move to utils (or something similar)
     def _compute_transform(self) -> tuple[float, float, float, float]:
         """
         Returns (scale, off_x, off_y, base) where:

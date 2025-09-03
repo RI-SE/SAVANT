@@ -26,7 +26,7 @@ class VideoDisplay(QLabel):
         self._dragging = False
         self._drag_start_pos = QPointF()
         self._pan_start = QPointF()
-
+    
     def start_drawing_mode(self, object_type: str):
         """Enable bounding box drawing mode for specific object type."""
         self.current_object_type = object_type
@@ -80,15 +80,39 @@ class VideoDisplay(QLabel):
         """Handle drawing mode mouse release."""
         self.drawing = False
         self.setCursor(Qt.CursorShape.ArrowCursor)
-        # Emit normalized coordinates (0-1 relative to video size)
+        
+        if self._pixmap is None or self._pixmap.isNull():
+            # Fallback to current behavior if no pixmap available
+            scale_factor = 1.0
+        else:
+            base_scale = self._fit_scale()
+            scale_factor = base_scale * self._zoom
+
         rect = self.contentsRect()
-        x1 = min(max(self.start_point.x() / rect.width(), 0.0), 1.0)
-        y1 = min(max(self.start_point.y() / rect.height(), 0.0), 1.0)
-        x2 = min(max(self.end_point.x() / rect.width(), 0.0), 1.0)
-        y2 = min(max(self.end_point.y() / rect.height(), 0.0), 1.0)
+        target_rect = self._draw_rect()
+        
+        # Calculate scaling factors for coordinate conversion
+        width_ratio = self._pixmap.width() / target_rect.width() if target_rect.width() > 0 else 1
+        height_ratio = self._pixmap.height() / target_rect.height() if target_rect.height() > 0 else 1
+        
+        # Convert display coordinates to absolute pixel positions
+        # Adjust for image position within widget
+        x1_abs = (self.start_point.x() - target_rect.left()) * width_ratio
+        y1_abs = (self.start_point.y() - target_rect.top()) * height_ratio
+        x2_abs = (self.end_point.x() - target_rect.left()) * width_ratio
+        y2_abs = (self.end_point.y() - target_rect.top()) * height_ratio
+        
+        # Convert to center/width/height format (YOLO OBB format)
+        center_x = (x1_abs + x2_abs) / 2
+        center_y = (y1_abs + y2_abs) / 2
+        width = abs(x2_abs - x1_abs)
+        height = abs(y2_abs - y1_abs)
+        
+        # Rotation is currently 0 as per specification
+        rotation = 0.0
 
         self.bbox_drawn.emit(
-            {"type": self.current_object_type, "coordinates": (x1, y1, x2, y2)}
+            {"type": self.current_object_type, "coordinates": (center_x, center_y, width, height, rotation)}
         )
         self.current_object_type = ""
         self.update()
@@ -139,6 +163,13 @@ class VideoDisplay(QLabel):
         """Show a new frame in the video display."""
         if pixmap and not pixmap.isNull():
             self._pixmap = pixmap
+            self._clamp_pan()
+            self.update()
+            self.pan_changed.emit(self._pan.x(), self._pan.y())
+    
+    def refresh_frame(self) -> None:
+        """Refresh the current frame in the video display"""
+        if self._pixmap and not self._pixmap.isNull():
             self._clamp_pan()
             self.update()
             self.pan_changed.emit(self._pan.x(), self._pan.y())

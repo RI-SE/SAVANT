@@ -144,9 +144,18 @@ class MainWindow(QMainWindow):
                 rot_boxes = self.project_state_controller.boxes_for_frame(
                     int(frame_idx)
                 )
+                print(len(rot_boxes))
                 self.overlay.set_rotated_boxes(rot_boxes)
         except Exception:
             self.overlay.set_rotated_boxes([])
+            
+    def refresh_frame(self):
+        idx = self.video_controller.current_index()
+
+        # TODO Add check
+        pixmap, _ = self.video_controller.jump_to_frame(idx)
+        
+        self._show_frame(pixmap, idx)
 
     # seek (slider)
     def on_seek(self, index: int):
@@ -333,6 +342,8 @@ class MainWindow(QMainWindow):
         )
         # Update UI elements as needed
         self.sidebar.refresh_annotations_list()
+
+        self.refresh_frame()
 
     def _sync_overlay_geometry(self):
         """Ensure overlay matches video widget area exactly (parented to video_widget)."""
