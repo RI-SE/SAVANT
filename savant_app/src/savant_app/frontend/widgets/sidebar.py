@@ -111,11 +111,10 @@ class Sidebar(QWidget):
         path = QFileDialog.getExistingDirectory(self, "Open Project Folder", "")
         if path:
             self.open_project_dir.emit(path)
-    
+
     def _trigger_quick_save(self):
         """Trigger quick save signal."""
         self.quick_save.emit()
-
 
     def _choose_video_file(self):
         path, _ = QFileDialog.getOpenFileName(
