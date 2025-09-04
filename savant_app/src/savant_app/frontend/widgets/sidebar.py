@@ -22,6 +22,7 @@ class Sidebar(QWidget):
     open_config = pyqtSignal(str)
     start_bbox_drawing = pyqtSignal(str)
     open_project_dir = pyqtSignal(str)
+    quick_save = pyqtSignal()
 
     def __init__(self, video_actors: list[str]):
         super().__init__()
@@ -48,6 +49,7 @@ class Sidebar(QWidget):
         #           future ticket when config dir is made.
 
         load_btn.clicked.connect(self._choose_project_dir)
+        save_btn.clicked.connect(self._trigger_quick_save)
         # load_config_btn.clicked.connect(self._choose_openlabel_file)
 
         top_buttons_layout.addWidget(new_btn)
@@ -109,6 +111,10 @@ class Sidebar(QWidget):
         path = QFileDialog.getExistingDirectory(self, "Open Project Folder", "")
         if path:
             self.open_project_dir.emit(path)
+
+    def _trigger_quick_save(self):
+        """Trigger quick save signal."""
+        self.quick_save.emit()
 
     def _choose_video_file(self):
         path, _ = QFileDialog.getOpenFileName(

@@ -85,6 +85,7 @@ class MainWindow(QMainWindow):
         self.sidebar.open_config.connect(self.open_openlabel_config)
         self.sidebar.start_bbox_drawing.connect(self.video_widget.start_drawing_mode)
         self.sidebar.open_project_dir.connect(self.on_open_project_dir)
+        self.sidebar.quick_save.connect(self.quick_save)
 
         # Playback controls signals
         self.playback_controls.next_frame_clicked.connect(self.on_next)
@@ -141,7 +142,9 @@ class MainWindow(QMainWindow):
             if frame_idx is not None:
                 w, h = self.video_controller.size()
                 self.overlay.set_frame_size(w, h)
-                rot_boxes = self.project_state_controller.boxes_for_frame(int(frame_idx))
+                rot_boxes = self.project_state_controller.boxes_for_frame(
+                    int(frame_idx)
+                )
                 self.overlay.set_rotated_boxes(rot_boxes)
         except Exception:
             self.overlay.set_rotated_boxes([])
@@ -248,6 +251,15 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Failed to load config", str(e))
 
+    def quick_save(self):
+        try:
+            self.project_state_controller.save_openlabel_config()
+            QMessageBox.information(
+                self, "Save Successful", "Project saved successfully."
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Save Failed", str(e))
+
     # Navigation
     def on_next(self):
         try:
@@ -350,6 +362,7 @@ class MainWindow(QMainWindow):
     def _on_video_resized(self, e):
         """When video widget resizes, update overlay geometry too."""
         from PyQt6.QtWidgets import QLabel
+
         QLabel.resizeEvent(self.video_widget, e)
         self._sync_overlay_geometry()
 
