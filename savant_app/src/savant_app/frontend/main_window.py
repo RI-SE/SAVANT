@@ -85,6 +85,7 @@ class MainWindow(QMainWindow):
         self.sidebar.open_config.connect(self.open_openlabel_config)
         self.sidebar.start_bbox_drawing.connect(self.video_widget.start_drawing_mode)
         self.sidebar.open_project_dir.connect(self.on_open_project_dir)
+        self.sidebar.quick_save.connect(self.quick_save)
 
         # Playback controls signals
         self.playback_controls.next_frame_clicked.connect(self.on_next)
@@ -247,6 +248,13 @@ class MainWindow(QMainWindow):
             self.project_state_controller.load_openlabel_config(path)
         except Exception as e:
             QMessageBox.critical(self, "Failed to load config", str(e))
+    
+    def quick_save(self):
+        try:
+            self.project_state_controller.save_openlabel_config()
+            QMessageBox.information(self, "Save Successful", "Project saved successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Save Failed", str(e))
 
     # Navigation
     def on_next(self):
