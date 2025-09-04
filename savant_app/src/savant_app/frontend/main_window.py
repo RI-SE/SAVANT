@@ -148,13 +148,13 @@ class MainWindow(QMainWindow):
                 self.overlay.set_rotated_boxes(rot_boxes)
         except Exception:
             self.overlay.set_rotated_boxes([])
-            
+
     def refresh_frame(self):
         idx = self.video_controller.current_index()
 
         # TODO Add check
         pixmap, _ = self.video_controller.jump_to_frame(idx)
-        
+
         self._show_frame(pixmap, idx)
 
     # seek (slider)
