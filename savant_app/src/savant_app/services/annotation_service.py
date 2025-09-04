@@ -14,26 +14,19 @@ class AnnotationService:
     def add_new_object(self, obj_type: str):
         self.project_state.annotation_config.add_new_object(obj_type=obj_type)
 
+    # Refactor error handling to use pydantic.
     def add_new_object_bbox(self, frame_number: int, bbox_info: dict) -> None:
         """
         Service function to add new annotations to the config.
         """
         # Temporary hard code of annotater and confidence score.
         annotater_data = {"val": ["example_name"]}
-
         confidence_data = {"val": [0.9]}
 
-        # TODO: Append new bounding box (under frames)
+        # Append new bounding box (under frames)
         self.project_state.annotation_config.append_new_object_bbox(
             frame_id=frame_number,
             bbox_info=bbox_info,
             confidence_data=confidence_data,
             annotater_data=annotater_data,
         )
-
-        print(self.project_state.annotation_config.frames[str(frame_number)])
-        print("----------------------------")
-        print(self.project_state.annotation_config.objects)
-
-    # ID info.
-    # bbox
