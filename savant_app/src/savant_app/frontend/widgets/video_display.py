@@ -12,7 +12,12 @@ class VideoDisplay(QLabel):
         super().__init__()
         self.setStyleSheet("background-color: black; border: 1px solid #444;")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setScaledContents(True)
+        self._pixmap = None
+        self._zoom = 1.0
+        self._pan = QPointF(0.0, 0.0)
+        self._dragging = False
+        self._drag_start_pos = QPointF()
+        self._pan_start = QPointF()
 
         # Drawing state
         self.drawing = False
