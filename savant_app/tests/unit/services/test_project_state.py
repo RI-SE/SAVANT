@@ -33,7 +33,9 @@ class TestProjectState:
         expected_data_dict = read_json(test_config_path)
         expected_result = OpenLabel(**expected_data_dict["openlabel"])
 
-        assert expected_result.model_dump() == project_state.annotation_config.model_dump()
+        assert (
+            expected_result.model_dump() == project_state.annotation_config.model_dump()
+        )
 
     def test_save_config(self):
 
@@ -70,3 +72,39 @@ class TestProjectState:
 
         # Verify that the changes are persisted
         assert new_project_state.annotation_config.ontologies["0"] == "test"
+
+    def test_get_actor_types_returns_expected_list(self):
+        project_state = ProjectState()
+        actors = project_state.get_actor_types()
+        expected = [
+            "RoadUser",
+            "Vehicle",
+            "Car",
+            "Van",
+            "Truck",
+            "Trailer",
+            "Motorbike",
+            "Bicycle",
+            "Bus",
+            "Tram",
+            "Train",
+            "Caravan",
+            "StandupScooter",
+            "AgriculturalVehicle",
+            "ConstructionVehicle",
+            "EmergencyVehicle",
+            "SlowMovingVehicle",
+            "Human",
+            "Pedestrian",
+            "WheelChairUser",
+            "Animal",
+        ]
+        assert actors == expected
+        assert len(actors) == 21
+
+    def test_actor_list_encapsulation(self):
+        project_state = ProjectState()
+        original_actors = project_state.get_actor_types()
+        original_actors.append("TestActor")
+
+        assert "TestActor" not in project_state.get_actor_types()

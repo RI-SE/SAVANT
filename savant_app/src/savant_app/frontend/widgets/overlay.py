@@ -72,6 +72,7 @@ class Overlay(QWidget):
         self._show_axes = enabled
         self.update()
 
+    # TODO: Move to utils (or something similar)
     def _compute_transform(self) -> tuple[float, float, float, float]:
         """
         Returns (scale, off_x, off_y, base) where:
@@ -81,7 +82,12 @@ class Overlay(QWidget):
         """
         frame_width, frame_height = self._frame_size
         display_width, display_height = self.width(), self.height()
-        if frame_width <= 0 or frame_height <= 0 or display_width <= 0 or display_height <= 0:
+        if (
+            frame_width <= 0
+            or frame_height <= 0
+            or display_width <= 0
+            or display_height <= 0
+        ):
             return (1.0, 0.0, 0.0, 1.0)
 
         base = min(display_width / frame_width, display_height / frame_height)
@@ -114,11 +120,18 @@ class Overlay(QWidget):
 
             corners = []
             for local_offset_x, local_offset_y in [
-                (-half_w, -half_h), (half_w, -half_h),
-                    (half_w,  half_h), (-half_w,  half_h),]:
+                (-half_w, -half_h),
+                (half_w, -half_h),
+                (half_w, half_h),
+                (-half_w, half_h),
+            ]:
 
-                rotated_offset_x = local_offset_x * cos_angle - local_offset_y * sin_angle
-                rotated_offset_y = local_offset_x * sin_angle + local_offset_y * cos_angle
+                rotated_offset_x = (
+                    local_offset_x * cos_angle - local_offset_y * sin_angle
+                )
+                rotated_offset_y = (
+                    local_offset_x * sin_angle + local_offset_y * cos_angle
+                )
 
                 corner_x_disp = center_x_disp + rotated_offset_x
                 corner_y_disp = center_y_disp + rotated_offset_y
@@ -129,16 +142,21 @@ class Overlay(QWidget):
 
             if self._show_centers:
                 painter.setPen(self._pen_center)
-                painter.drawLine(QPointF(center_x_disp - 4, center_y_disp),
-                                 QPointF(center_x_disp + 4, center_y_disp))
-                painter.drawLine(QPointF(center_x_disp, center_y_disp - 4),
-                                 QPointF(center_x_disp, center_y_disp + 4))
+                painter.drawLine(
+                    QPointF(center_x_disp - 4, center_y_disp),
+                    QPointF(center_x_disp + 4, center_y_disp),
+                )
+                painter.drawLine(
+                    QPointF(center_x_disp, center_y_disp - 4),
+                    QPointF(center_x_disp, center_y_disp + 4),
+                )
 
             if self._show_axes:
                 painter.setPen(self._pen_axis)
                 axis_x = center_x_disp + half_w * cos_angle
                 axis_y = center_y_disp + half_h * sin_angle
-                painter.drawLine(QPointF(center_x_disp, center_y_disp),
-                                 QPointF(axis_x, axis_y))
+                painter.drawLine(
+                    QPointF(center_x_disp, center_y_disp), QPointF(axis_x, axis_y)
+                )
 
         painter.end()

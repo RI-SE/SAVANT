@@ -1,11 +1,12 @@
 # frontend/widgets/video_display.py
 from PyQt6.QtWidgets import QLabel
-from PyQt6.QtGui import QPainter, QMouseEvent, QCursor
+from PyQt6.QtGui import QPainter, QMouseEvent, QCursor, QPixmap, QPen
 from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
 
 
 class VideoDisplay(QLabel):
     pan_changed = pyqtSignal(float, float)
+    bbox_drawn = pyqtSignal(dict)  # Emits {"coordinates": (x1,y1,x2,y2)}
 
     def __init__(self):
         super().__init__()
@@ -17,6 +18,145 @@ class VideoDisplay(QLabel):
         self._dragging = False
         self._drag_start_pos = QPointF()
         self._pan_start = QPointF()
+
+        # Drawing state
+        self.drawing = False
+        self.start_point = QPointF()
+        self.end_point = QPointF()
+        self.current_object_type = ""
+
+        self._pixmap = None
+        self._zoom = 1.0
+        self._pan = QPointF(0.0, 0.0)
+        self._dragging = False
+        self._drag_start_pos = QPointF()
+        self._pan_start = QPointF()
+
+    def start_drawing_mode(self, object_type: str):
+        """Enable bounding box drawing mode for specific object type."""
+        self.current_object_type = object_type
+        self.setCursor(Qt.CursorShape.CrossCursor)
+
+    def mousePressEvent(self, e: QMouseEvent):
+        """Unified mouse press handler for both drawing and panning."""
+        if self.current_object_type and e.button() == Qt.MouseButton.LeftButton:
+            self._handle_drawing_press(e)
+        elif (
+            not self.drawing
+            and self._zoom > 1.0
+            and e.button() == Qt.MouseButton.LeftButton
+        ):
+            self._handle_panning_press(e)
+        else:
+            super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e: QMouseEvent):
+        """Unified mouse move handler for both drawing and panning."""
+        if self.drawing:
+            self._handle_drawing_move(e)
+        elif self._dragging:
+            self._handle_panning_move(e)
+        else:
+            super().mouseMoveEvent(e)
+
+    def mouseReleaseEvent(self, e: QMouseEvent):
+        """Unified mouse release handler for both drawing and panning."""
+        if self.drawing and e.button() == Qt.MouseButton.LeftButton:
+            self._handle_drawing_release(e)
+        elif self._dragging and e.button() == Qt.MouseButton.LeftButton:
+            self._handle_panning_release(e)
+        else:
+            super().mouseReleaseEvent(e)
+
+    def _handle_drawing_press(self, e: QMouseEvent):
+        """Handle drawing mode mouse press."""
+        self.drawing = True
+        self.start_point = e.position()
+        self.end_point = e.position()
+        self.update()
+
+    def _handle_drawing_move(self, e: QMouseEvent):
+        """Handle drawing mode mouse move."""
+        if self.drawing:
+            self.end_point = e.position()
+            self.update()
+
+    def _handle_drawing_release(self, e: QMouseEvent):
+        """Handle drawing mode mouse release."""
+        self.drawing = False
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+
+        if self._pixmap is None or self._pixmap.isNull():
+            # Fallback to current behavior if no pixmap available
+            scale_factor = 1.0  # noqa: F841
+        else:
+            base_scale = self._fit_scale()
+            scale_factor = base_scale * self._zoom  # noqa: F841
+
+        rect = self.contentsRect()  # noqa: F841
+        target_rect = self._draw_rect()
+
+        # Calculate scaling factors for coordinate conversion
+        width_ratio = (
+            self._pixmap.width() / target_rect.width() if target_rect.width() > 0 else 1
+        )
+        height_ratio = (
+            self._pixmap.height() / target_rect.height()
+            if target_rect.height() > 0
+            else 1
+        )
+
+        # Convert display coordinates to absolute pixel positions
+        # Adjust for image position within widget
+        x1_abs = (self.start_point.x() - target_rect.left()) * width_ratio
+        y1_abs = (self.start_point.y() - target_rect.top()) * height_ratio
+        x2_abs = (self.end_point.x() - target_rect.left()) * width_ratio
+        y2_abs = (self.end_point.y() - target_rect.top()) * height_ratio
+
+        # Convert to center/width/height format (YOLO OBB format)
+        center_x = (x1_abs + x2_abs) / 2
+        center_y = (y1_abs + y2_abs) / 2
+        width = abs(x2_abs - x1_abs)
+        height = abs(y2_abs - y1_abs)
+
+        # Rotation is currently 0 as per specification
+        rotation = 0.0
+
+        self.bbox_drawn.emit(
+            {
+                "type": self.current_object_type,
+                "coordinates": (center_x, center_y, width, height, rotation),
+            }
+        )
+        self.current_object_type = ""
+        self.update()
+
+    def _handle_panning_press(self, e: QMouseEvent):
+        """Handle panning mode mouse press."""
+        self._dragging = True
+        self._drag_start_pos = e.position()
+        self._pan_start = QPointF(self._pan)
+        self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
+        e.accept()
+
+    def _handle_panning_move(self, e: QMouseEvent):
+        """Handle panning mode mouse move."""
+        if self._dragging:
+            delta = e.position() - self._drag_start_pos
+            self._pan = QPointF(
+                self._pan_start.x() + delta.x(), self._pan_start.y() + delta.y()
+            )
+            self._clamp_pan()
+            self.update()
+            self.pan_changed.emit(self._pan.x(), self._pan.y())
+            e.accept()
+
+    def _handle_panning_release(self, e: QMouseEvent):
+        """Handle panning mode mouse release."""
+        if self._dragging and e.button() == Qt.MouseButton.LeftButton:
+            self._dragging = False
+            self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+            e.accept()
 
     def set_zoom(self, zoom: float) -> None:
         self._zoom = max(0.05, min(zoom, 20.0))
@@ -33,11 +173,20 @@ class VideoDisplay(QLabel):
         self.update()
         self.pan_changed.emit(self._pan.x(), self._pan.y())
 
-    def show_frame(self, pixmap):
-        self._pixmap = pixmap
-        self._clamp_pan()
-        self.update()
-        self.pan_changed.emit(self._pan.x(), self._pan.y())
+    def show_frame(self, pixmap: QPixmap) -> None:
+        """Show a new frame in the video display."""
+        if pixmap and not pixmap.isNull():
+            self._pixmap = pixmap
+            self._clamp_pan()
+            self.update()
+            self.pan_changed.emit(self._pan.x(), self._pan.y())
+
+    def refresh_frame(self) -> None:
+        """Refresh the current frame in the video display"""
+        if self._pixmap and not self._pixmap.isNull():
+            self._clamp_pan()
+            self.update()
+            self.pan_changed.emit(self._pan.x(), self._pan.y())
 
     def _fit_scale(self) -> float:
         if not self._pixmap or self._pixmap.isNull():
@@ -84,37 +233,13 @@ class VideoDisplay(QLabel):
             source = QRectF(0, 0, self._pixmap.width(), self._pixmap.height())
             p.drawPixmap(target, self._pixmap, source)
 
+        # Draw bounding box if in drawing mode
+        if self.drawing:
+            p.setPen(QPen(Qt.GlobalColor.red, 2, Qt.PenStyle.SolidLine))
+            rect = QRectF(self.start_point, self.end_point)
+            p.drawRect(rect)
+
         p.end()
-
-    def mousePressEvent(self, e: QMouseEvent):
-        if e.button() == Qt.MouseButton.LeftButton and self._zoom > 1.0:
-            self._dragging = True
-            self._drag_start_pos = e.position()
-            self._pan_start = QPointF(self._pan)
-            self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
-            e.accept()
-            return
-        super().mousePressEvent(e)
-
-    def mouseMoveEvent(self, e: QMouseEvent):
-        if self._dragging:
-            delta = e.position() - self._drag_start_pos
-            self._pan = QPointF(self._pan_start.x() + delta.x(),
-                                self._pan_start.y() + delta.y())
-            self._clamp_pan()
-            self.update()
-            self.pan_changed.emit(self._pan.x(), self._pan.y())
-            e.accept()
-            return
-        super().mouseMoveEvent(e)
-
-    def mouseReleaseEvent(self, e: QMouseEvent):
-        if self._dragging and e.button() == Qt.MouseButton.LeftButton:
-            self._dragging = False
-            self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
-            e.accept()
-            return
-        super().mouseReleaseEvent(e)
 
     def resizeEvent(self, e):
         super().resizeEvent(e)

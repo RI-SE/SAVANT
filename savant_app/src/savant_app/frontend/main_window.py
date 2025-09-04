@@ -9,6 +9,7 @@ from savant_app.frontend.widgets.overlay import Overlay
 import os
 from savant_app.controllers.project_state_controller import ProjectStateController
 from savant_app.controllers.video_controller import VideoController
+from savant_app.controllers.annotation_controller import AnnotationController
 from pathlib import Path
 
 
@@ -18,6 +19,7 @@ class MainWindow(QMainWindow):
         project_name,
         video_controller: VideoController,
         project_state_controller: ProjectStateController,
+        annotation_controller: AnnotationController,
     ):
         super().__init__()
         self.project_name = project_name
@@ -26,6 +28,7 @@ class MainWindow(QMainWindow):
 
         # Controllers
         self.video_controller = video_controller
+        self.annotation_controller = annotation_controller
         self.project_state_controller = project_state_controller
 
         # Video display + overlay layered
@@ -60,7 +63,8 @@ class MainWindow(QMainWindow):
         self.video_widget.resizeEvent = self._on_video_resized
 
         # Sidebar
-        self.sidebar = Sidebar()
+        actors = self.project_state_controller.get_actor_types()
+        self.sidebar = Sidebar(video_actors=actors)
 
         # Main layout
         main_layout = QHBoxLayout()
@@ -79,12 +83,17 @@ class MainWindow(QMainWindow):
         # Sidebar signals
         self.sidebar.open_video.connect(self.on_open_video)
         self.sidebar.open_config.connect(self.open_openlabel_config)
+        self.sidebar.start_bbox_drawing.connect(self.video_widget.start_drawing_mode)
         self.sidebar.open_project_dir.connect(self.on_open_project_dir)
 
         # Playback controls signals
         self.playback_controls.next_frame_clicked.connect(self.on_next)
         self.playback_controls.prev_frame_clicked.connect(self.on_prev)
         self.playback_controls.play_clicked.connect(self.on_play)
+
+        # Connect annotation signals
+        self.video_widget.bbox_drawn.connect(self.handle_drawn_bbox)
+
         if hasattr(self.playback_controls, "skip_backward_clicked"):
             self.playback_controls.skip_backward_clicked.connect(self.on_skip_back)
         if hasattr(self.playback_controls, "skip_forward_clicked"):
@@ -100,8 +109,15 @@ class MainWindow(QMainWindow):
         self.video_widget.pan_changed.connect(self.overlay.set_pan)
 
         from PyQt6.QtGui import QShortcut, QKeySequence
-        QShortcut(QKeySequence(QKeySequence.StandardKey.ZoomIn),  self, activated=self.zoom_in)
-        QShortcut(QKeySequence(QKeySequence.StandardKey.ZoomOut), self, activated=self.zoom_out)
+
+        QShortcut(
+            QKeySequence(QKeySequence.StandardKey.ZoomIn), self, activated=self.zoom_in
+        )
+        QShortcut(
+            QKeySequence(QKeySequence.StandardKey.ZoomOut),
+            self,
+            activated=self.zoom_out,
+        )
         QShortcut(QKeySequence("Ctrl+0"), self, activated=self.zoom_fit)
 
         video_container.setMouseTracking(True)
@@ -130,6 +146,14 @@ class MainWindow(QMainWindow):
         except Exception:
             self.overlay.set_rotated_boxes([])
 
+    def refresh_frame(self):
+        idx = self.video_controller.current_index()
+
+        # TODO Add check
+        pixmap, _ = self.video_controller.jump_to_frame(idx)
+
+        self._show_frame(pixmap, idx)
+
     # seek (slider)
     def on_seek(self, index: int):
         try:
@@ -150,10 +174,20 @@ class MainWindow(QMainWindow):
             video_exts = {".mp4", ".avi", ".mov", ".mkv", ".mpg", ".mpeg", ".m4v"}
             json_exts = {".json"}
 
-            videos = sorted([p for p in folder.iterdir()
-                            if p.is_file() and p.suffix.lower() in video_exts])
-            jsons = sorted([p for p in folder.iterdir()
-                            if p.is_file() and p.suffix.lower() in json_exts])
+            videos = sorted(
+                [
+                    p
+                    for p in folder.iterdir()
+                    if p.is_file() and p.suffix.lower() in video_exts
+                ]
+            )
+            jsons = sorted(
+                [
+                    p
+                    for p in folder.iterdir()
+                    if p.is_file() and p.suffix.lower() in json_exts
+                ]
+            )
 
             # TODO: Allow users to open a video only and create a new config
             if not videos:
@@ -167,9 +201,15 @@ class MainWindow(QMainWindow):
 
             self.open_openlabel_config(str(json_path))
 
-            if getattr(self.project_state_controller, "project_state", None) and \
-                    getattr(self.project_state_controller.project_state,
-                            "annotation_config", None) is None:
+            if (
+                getattr(self.project_state_controller, "project_state", None)
+                and getattr(
+                    self.project_state_controller.project_state,
+                    "annotation_config",
+                    None,
+                )
+                is None
+            ):
                 return
 
             self.on_open_video(str(video_path))
@@ -178,8 +218,9 @@ class MainWindow(QMainWindow):
                 f"SAVANT {self.project_name} — {video_path.name} ({folder.name})"
             )
             QMessageBox.information(
-                self, "Project Loaded",
-                "Project video and OpenLabel configuration loaded successfully."
+                self,
+                "Project Loaded",
+                "Project video and OpenLabel configuration loaded successfully.",
             )
 
         except Exception as e:
@@ -290,6 +331,17 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Skip forward failed", str(e))
 
+    def handle_drawn_bbox(self, bbox_info):
+        """Handle newly drawn bounding box coordinates from video widget."""
+        frame_idx = self.video_controller.current_index()
+        self.annotation_controller.add_new_object_annotation(
+            frame_number=frame_idx, bbox_info=bbox_info
+        )
+        # Update UI elements as needed
+        self.sidebar.refresh_annotations_list()
+
+        self.refresh_frame()
+
     def _sync_overlay_geometry(self):
         """Ensure overlay matches video widget area exactly (parented to video_widget)."""
         self.overlay.setGeometry(self.video_widget.rect())
@@ -334,7 +386,9 @@ class MainWindow(QMainWindow):
     def _wheel_zoom(self, event):
         """Ctrl + mouse wheel to zoom in/out."""
         modifiers = event.modifiers()
-        if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
+        if modifiers & (
+            Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier
+        ):
             delta = event.angleDelta().y()
             if delta > 0:
                 self.zoom_in()
