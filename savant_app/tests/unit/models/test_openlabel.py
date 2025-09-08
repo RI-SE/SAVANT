@@ -1,5 +1,5 @@
 import pytest
-from savant_app.models.OpenLabel import OpenLabel, ObjectMetadata, FrameObjects 
+from savant_app.models.OpenLabel import OpenLabel, ObjectMetadata, FrameObjects
 from pydantic import ValidationError
 from tests.unit.test_utils import read_json
 from pathlib import Path
@@ -175,9 +175,9 @@ class TestOpenLabel:
         ol = OpenLabel(**self.expected_output["openlabel"])
         new_object_id = "4"
         obj_type = "person"
-        
+
         ol.add_new_object(obj_type, new_object_id)
-        
+
         assert new_object_id in ol.objects
         obj = ol.objects[new_object_id]
         assert isinstance(obj, ObjectMetadata)
@@ -197,19 +197,15 @@ class TestOpenLabel:
         confidence_data = {"val": [0.95]}
         annotater_data = {"val": ["test_annotator"]}
         new_bbox_key = "10"
-        
+
         # Create frame if it doesn't exist
         if str(frame_id) not in ol.frames.keys():
             ol.frames[str(frame_id)] = FrameObjects(objects={})
-            
+
         ol.append_new_object_bbox(
-            frame_id, 
-            bbox_coordinates, 
-            confidence_data, 
-            annotater_data, 
-            new_bbox_key
+            frame_id, bbox_coordinates, confidence_data, annotater_data, new_bbox_key
         )
-        
+
         frame = ol.frames[str(frame_id)]
         assert new_bbox_key in frame.objects
         bbox = frame.objects[new_bbox_key].object_data.rbbox[0].val
@@ -226,15 +222,15 @@ class TestOpenLabel:
             "metadata": {
                 "schema_version": "0.1",
                 "tagged_file": None,  # Should be excluded
-                "annotator": None,    # Should be excluded
+                "annotator": None,  # Should be excluded
             },
             "ontologies": {"0": "https://example.com/ontology.ttl"},
             "objects": {},
-            "frames": {}
+            "frames": {},
         }
         ol = OpenLabel(**data)
         dumped = ol.model_dump()
-        
+
         # Verify None values are excluded
         assert "tagged_file" not in dumped["metadata"]
         assert "annotator" not in dumped["metadata"]

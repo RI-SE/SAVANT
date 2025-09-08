@@ -1,5 +1,5 @@
 # main_window.py
-from PyQt6.QtCore import QTimer, Qt, QMetaObject, Q_ARG
+from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox
 from savant_app.frontend.widgets.video_display import VideoDisplay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
@@ -150,11 +150,10 @@ class MainWindow(QMainWindow):
                 self.update_active_objects(frame_idx)
         except Exception:
             self.overlay.set_rotated_boxes([])
-    
+
     def update_active_objects(self, frame_idx):
         active_objects = self.annotation_controller.get_active_objects(frame_idx)
         self.sidebar.refresh_active_objects(active_objects)
-
 
     def refresh_frame(self):
         idx = self.video_controller.current_index()

@@ -20,7 +20,10 @@ class TestAnnotationController:
     ):
         """Test that controller delegates to service method"""
         frame_number = 42
-        bbox_info = {"type": "car", "coordinates": {"x": 10, "y": 20, "width": 30, "height": 40}}
+        bbox_info = {
+            "type": "car",
+            "coordinates": {"x": 10, "y": 20, "width": 30, "height": 40},
+        }
 
         annotation_controller.create_new_object_bbox(frame_number, bbox_info)
 
@@ -36,7 +39,7 @@ class TestAnnotationController:
         frame_number = 10
         mock_annotation_service.get_active_objects.return_value = [
             {"type": "car", "name": "car_1"},
-            {"type": "person", "name": "person_1"}
+            {"type": "person", "name": "person_1"},
         ]
 
         result = annotation_controller.get_active_objects(frame_number)
@@ -45,5 +48,5 @@ class TestAnnotationController:
         mock_annotation_service.get_active_objects.assert_called_once_with(frame_number)
         assert result == [
             {"type": "car", "name": "car_1"},
-            {"type": "person", "name": "person_1"}
+            {"type": "person", "name": "person_1"},
         ]

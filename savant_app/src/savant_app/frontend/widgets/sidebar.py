@@ -105,7 +105,7 @@ class Sidebar(QWidget):
         main_layout.addWidget(self.active_manoeuvre)
 
         self.setLayout(main_layout)
-    
+
     def refresh_active_objects(self, active_objects: list[str]):
         """Refresh the list of active objects."""
         self.active_objects.clear()
