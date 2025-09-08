@@ -9,8 +9,9 @@ class AnnotationController:
         """Get the list of all possible actor types."""
         return self.annotation_service.get_actor_types()
 
-    def add_new_object_annotation(self, frame_number: int, bbox_info: dict) -> None:
-        self.annotation_service.add_new_object(obj_type=bbox_info["type"])
-        self.annotation_service.add_new_object_bbox(
-            frame_number=frame_number, bbox_info=bbox_info
-        )
+    def create_new_object_bbox(self, frame_number: int, bbox_info: dict) -> None:
+        self.annotation_service.create_new_object_bbox(frame_number=frame_number, bbox_info=bbox_info)
+    
+    def get_active_objects(self, frame_number: int) -> list[str]:
+        """Get a list of active objects for the given frame number."""
+        return self.annotation_service.get_active_objects(frame_number)

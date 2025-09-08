@@ -143,10 +143,7 @@ class OpenLabel(BaseModel):
         kwargs.setdefault("exclude_none", True)
         return super().model_dump(*args, **kwargs)
 
-    def add_new_object(self, obj_type: str):
-        new_object_id = str(
-            int(list(self.objects.keys())[-1]) + 1
-        )  # Retreive and add to the last current object key for the new object
+    def add_new_object(self, obj_type: str, new_object_id: str):
 
         new_obj_metadata = ObjectMetadata(
             name=f"object-{new_object_id}",
@@ -158,19 +155,15 @@ class OpenLabel(BaseModel):
     def append_new_object_bbox(
         self,
         frame_id: int,
-        bbox_info: dict,
+        bbox_coordinates: dict,
         confidence_data: dict,
         annotater_data: dict,
+        new_bbox_key: str,
     ):
         """
         Adds a new bounding box for an object with no existing
         annotations.
         """
-        # Get the new object ID
-        new_bbox_key = str(int(list(self.frames[str(frame_id)].objects.keys())[-1]) + 1)
-
-        bbox_coordinates = bbox_info["coordinates"]
-
         # TODO: Add rotation. Hard coded to 0 for now.
         rbbox = RotatedBBox(
             x_center=bbox_coordinates[0],
