@@ -2,11 +2,13 @@
 from PyQt6.QtWidgets import QLabel
 from PyQt6.QtGui import QPainter, QMouseEvent, QCursor, QPixmap, QPen
 from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
+from typing import Optional
+from savant_app.frontend.states.annotation_state import AnnotationState
 
 
 class VideoDisplay(QLabel):
     pan_changed = pyqtSignal(float, float)
-    bbox_drawn = pyqtSignal(dict)  # Emits {"coordinates": (x1,y1,x2,y2)}
+    bbox_drawn = pyqtSignal(AnnotationState)
 
     def __init__(self):
         super().__init__()
@@ -23,7 +25,7 @@ class VideoDisplay(QLabel):
         self.drawing = False
         self.start_point = QPointF()
         self.end_point = QPointF()
-        self.current_object_type = ""
+        self.current_annotation_state: Optional[AnnotationState] = None
 
         self._pixmap = None
         self._zoom = 1.0
@@ -32,14 +34,18 @@ class VideoDisplay(QLabel):
         self._drag_start_pos = QPointF()
         self._pan_start = QPointF()
 
-    def start_drawing_mode(self, object_type: str):
+    def start_drawing_mode(self, annotation_state: AnnotationState):
         """Enable bounding box drawing mode for specific object type."""
-        self.current_object_type = object_type
+        self.current_annotation_state = annotation_state 
         self.setCursor(Qt.CursorShape.CrossCursor)
+        print(f"Starting drawing mode: {annotation_state.mode}, Type: {annotation_state.object_type}, ID: {annotation_state.object_id}")
+
 
     def mousePressEvent(self, e: QMouseEvent):
         """Unified mouse press handler for both drawing and panning."""
-        if self.current_object_type and e.button() == Qt.MouseButton.LeftButton:
+        print('mouse event')
+        if self.current_annotation_state and e.button() == Qt.MouseButton.LeftButton:
+            print("inside if")
             self._handle_drawing_press(e)
         elif (
             not self.drawing
@@ -122,13 +128,12 @@ class VideoDisplay(QLabel):
         # Rotation is currently 0 as per specification
         rotation = 0.0
 
+        self.current_annotation_state.coordinates = (center_x, center_y, width, height, rotation)
+
         self.bbox_drawn.emit(
-            {
-                "type": self.current_object_type,
-                "coordinates": (center_x, center_y, width, height, rotation),
-            }
+            self.current_annotation_state
         )
-        self.current_object_type = ""
+        self.current_annotation_state = None
         self.update()
 
     def _handle_panning_press(self, e: QMouseEvent):

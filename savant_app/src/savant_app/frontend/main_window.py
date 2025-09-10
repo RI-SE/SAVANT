@@ -10,6 +10,8 @@ import os
 from savant_app.controllers.project_state_controller import ProjectStateController
 from savant_app.controllers.video_controller import VideoController
 from savant_app.controllers.annotation_controller import AnnotationController
+from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
+from dataclasses import asdict
 from pathlib import Path
 
 
@@ -83,7 +85,8 @@ class MainWindow(QMainWindow):
         # Sidebar signals
         self.sidebar.open_video.connect(self.on_open_video)
         self.sidebar.open_config.connect(self.open_openlabel_config)
-        self.sidebar.start_bbox_drawing.connect(self.video_widget.start_drawing_mode)
+        self.sidebar.start_bbox_drawing.connect(self.on_new_object_bbox)
+        self.sidebar.add_new_bbox_existing_obj.connect(self.on_existing_object_bbox)
         self.sidebar.open_project_dir.connect(self.on_open_project_dir)
         self.sidebar.quick_save.connect(self.quick_save)
 
@@ -349,12 +352,45 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Skip forward failed", str(e))
 
-    def handle_drawn_bbox(self, bbox_info):
+    def on_new_object_bbox(self, object_type: str):
+        """Set up state for drawing a new bounding box for a new object."""
+        self.video_widget.start_drawing_mode(
+            AnnotationState(
+                mode=AnnotationMode.NEW,
+                  object_type=object_type
+            )
+        )
+
+    def on_existing_object_bbox(self, object_type: str, object_id: str):
+        """Set up state for drawing a new bounding box for an existing object."""
+        self.video_widget.start_drawing_mode(
+            AnnotationState(
+                mode=AnnotationMode.EXISTING, 
+                object_type=object_type, 
+                object_id=object_id
+            )
+        )
+
+    def handle_drawn_bbox(self, annotation: AnnotationState):
         """Handle newly drawn bounding box coordinates from video widget."""
         frame_idx = self.video_controller.current_index()
-        self.annotation_controller.create_new_object_bbox(
-            frame_number=frame_idx, bbox_info=bbox_info
-        )
+        
+        if annotation.mode == AnnotationMode.EXISTING:
+            print("here")
+            if not annotation.object_id:
+                QMessageBox.warning(self, "No ID", "No object ID provided for existing object.")
+                return
+            self.annotation_controller.add_bbox_to_existing_object(
+                frame_number=frame_idx, bbox_info=asdict(annotation)
+            )
+        elif annotation.mode == AnnotationMode.NEW:
+            self.annotation_controller.create_new_object_bbox(
+                frame_number=frame_idx, bbox_info=asdict(annotation)
+            )
+        else:
+            QMessageBox.warning(self, "Invalid State", "Annotation state is not set correctly.")
+            return
+
         # Update UI elements as needed
         self.update_active_objects(frame_idx=frame_idx)
 

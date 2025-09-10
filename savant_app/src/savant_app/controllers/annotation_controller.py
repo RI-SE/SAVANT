@@ -11,7 +11,9 @@ class AnnotationController:
 
     def create_new_object_bbox(self, frame_number: int, bbox_info: dict) -> None:
         self.annotation_service.create_new_object_bbox(
-            frame_number=frame_number, bbox_info=bbox_info
+            frame_number=frame_number,
+            obj_type=bbox_info["object_type"],
+            coordinates=bbox_info["coordinates"]
         )
 
     def get_active_objects(self, frame_number: int) -> list[str]:

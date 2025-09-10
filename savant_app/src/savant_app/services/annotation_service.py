@@ -11,13 +11,10 @@ class AnnotationService:
         # It may hold several annotations for a given user session.
         self.cached_annotations: list[dict] = []
 
-    def create_new_object_bbox(self, frame_number: int, bbox_info: dict) -> None:
+    def create_new_object_bbox(self, frame_number: int, obj_type: str, coordinates: tuple) -> None:
         """Handles both, the creation of a new object and adding a bbox for it."""
         # Generate ID
         obj_id = self._generate_new_object_id()
-        obj_type = bbox_info["type"]
-        coordinates = bbox_info["coordinates"]
-        print(f"here: {coordinates}")
 
         # Add new object and bbox
         self._add_new_object(obj_type=obj_type, new_object_id=obj_id)
