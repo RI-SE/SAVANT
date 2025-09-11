@@ -376,11 +376,10 @@ class MainWindow(QMainWindow):
         frame_idx = self.video_controller.current_index()
         
         if annotation.mode == AnnotationMode.EXISTING:
-            print("here")
             if not annotation.object_id:
                 QMessageBox.warning(self, "No ID", "No object ID provided for existing object.")
                 return
-            self.annotation_controller.add_bbox_to_existing_object(
+            self.annotation_controller.create_bbox_existing_object(
                 frame_number=frame_idx, bbox_info=asdict(annotation)
             )
         elif annotation.mode == AnnotationMode.NEW:

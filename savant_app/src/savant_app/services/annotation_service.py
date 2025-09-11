@@ -17,19 +17,19 @@ class AnnotationService:
         obj_id = self._generate_new_object_id()
 
         # Add new object and bbox
-        self._add_new_object(obj_type=obj_type, new_object_id=obj_id)
-        self._add_new_object_bbox(
-            frame_number=frame_number, bbox_coordinates=coordinates, new_bbox_key=obj_id
+        self._add_new_object(obj_type=obj_type, obj_id=obj_id)
+        self._add_object_bbox(
+            frame_number=frame_number, bbox_coordinates=coordinates, obj_id=obj_id
         )
 
-    def _add_new_object(self, obj_type: str, new_object_id: str) -> None:
+    def _add_new_object(self, obj_type: str, obj_id: str) -> None:
         self.project_state.annotation_config.add_new_object(
-            obj_type=obj_type, new_object_id=new_object_id
+            obj_type=obj_type, obj_id=obj_id
         )
 
     # Refactor error handling to use pydantic.
-    def _add_new_object_bbox(
-        self, frame_number: int, bbox_coordinates: dict, new_bbox_key: str
+    def _add_object_bbox(
+        self, frame_number: int, bbox_coordinates: dict, obj_id: str
     ) -> None:
         """
         Service function to add new annotations to the config.
@@ -39,13 +39,28 @@ class AnnotationService:
         confidence_data = {"val": [0.9]}
 
         # Append new bounding box (under frames)
-        self.project_state.annotation_config.append_new_object_bbox(
+        self.project_state.annotation_config.append_object_bbox(
             frame_id=frame_number,
             bbox_coordinates=bbox_coordinates,
             confidence_data=confidence_data,
             annotater_data=annotater_data,
-            new_bbox_key=new_bbox_key,
+            obj_id=obj_id,
         )
+    
+    def _does_object_exist(self, object_id: str) -> bool:
+        """Check if an object exists in the annotation config."""
+        existing_ids = [value.name for _, value in self.project_state.annotation_config.objects.items()] 
+        return object_id in existing_ids
+    
+    def create_existing_object_bbox(self, frame_number: int, obj_type: str, coordinates: tuple, object_id: str) -> None:
+        """Handles adding a bbox for an existing object."""
+
+        # verify the object exists
+        # TODO: Refactor error handling
+        if not self._does_object_exist(object_id):
+            raise ValueError(f"Object ID {object_id} does not exist.")
+
+        self._add_object_bbox(frame_number=frame_number, bbox_coordinates=coordinates, obj_id=object_id)
 
     def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number.
