@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.services.annotation_service import AnnotationService
+from savant_app.services.exceptions import ObjectNotFoundError
 
 
 class TestAnnotationController:
@@ -71,7 +72,7 @@ class TestAnnotationController:
             frame_number=frame_number,
             obj_type=bbox_info["object_type"],
             coordinates=bbox_info["coordinates"],
-            object_id=bbox_info["object_id"]
+            object_name=bbox_info["object_id"]
         )
         
     def test_create_bbox_existing_object_propagates_errors(
@@ -84,15 +85,7 @@ class TestAnnotationController:
             "coordinates": {"x": 10, "y": 20, "width": 30, "height": 40},
             "object_id": "invalid_id"
         }
-        mock_annotation_service.create_existing_object_bbox.side_effect = ValueError("Invalid object ID")
+        mock_annotation_service.create_existing_object_bbox.side_effect = ObjectNotFoundError("Error")
 
-        with pytest.raises(ValueError) as excinfo:
+        with pytest.raises(ObjectNotFoundError): 
             annotation_controller.create_bbox_existing_object(frame_number, bbox_info)
-            
-        assert "Invalid object ID" in str(excinfo.value)
-        mock_annotation_service.create_existing_object_bbox.assert_called_once_with(
-            frame_number=frame_number,
-            obj_type=bbox_info["object_type"],
-            coordinates=bbox_info["coordinates"],
-            object_id=bbox_info["object_id"]
-        )

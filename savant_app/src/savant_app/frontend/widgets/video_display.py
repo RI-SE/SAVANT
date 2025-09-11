@@ -38,14 +38,11 @@ class VideoDisplay(QLabel):
         """Enable bounding box drawing mode for specific object type."""
         self.current_annotation_state = annotation_state 
         self.setCursor(Qt.CursorShape.CrossCursor)
-        print(f"Starting drawing mode: {annotation_state.mode}, Type: {annotation_state.object_type}, ID: {annotation_state.object_id}")
 
 
     def mousePressEvent(self, e: QMouseEvent):
         """Unified mouse press handler for both drawing and panning."""
-        print('mouse event')
         if self.current_annotation_state and e.button() == Qt.MouseButton.LeftButton:
-            print("inside if")
             self._handle_drawing_press(e)
         elif (
             not self.drawing

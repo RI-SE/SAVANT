@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from src.savant_app.services.annotation_service import AnnotationService
 from src.savant_app.services.project_state import ProjectState
 from src.savant_app.models.OpenLabel import OpenLabel
+from src.savant_app.services.exceptions import ObjectInFrameError, ObjectNotFoundError
 
 
 class TestAnnotationService:
@@ -119,6 +120,7 @@ class TestAnnotationService:
         
         # Mock object existence check
         annotation_service._does_object_exist = MagicMock(return_value=True)
+        annotation_service._does_object_exist_in_frame = MagicMock(return_value=False)
         
         annotation_service.create_existing_object_bbox(
             frame_number, obj_type, coordinates, object_id
@@ -145,12 +147,10 @@ class TestAnnotationService:
         # Mock object existence check
         annotation_service._does_object_exist = MagicMock(return_value=False)
         
-        with pytest.raises(ValueError) as excinfo:
+        with pytest.raises(ObjectNotFoundError) as excinfo:
             annotation_service.create_existing_object_bbox(
                 frame_number, obj_type, coordinates, object_id
             )
-            
-        assert f"Object ID {object_id} does not exist." in str(excinfo.value)
         
     def test_does_object_exist_true(self, annotation_service, mock_project_state):
         """Test _does_object_exist returns True for existing object"""

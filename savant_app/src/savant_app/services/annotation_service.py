@@ -1,4 +1,5 @@
 from .project_state import ProjectState
+from .exceptions import ObjectInFrameError, ObjectNotFoundError
 
 
 class AnnotationService:
@@ -52,15 +53,37 @@ class AnnotationService:
         existing_ids = [value.name for _, value in self.project_state.annotation_config.objects.items()] 
         return object_id in existing_ids
     
-    def create_existing_object_bbox(self, frame_number: int, obj_type: str, coordinates: tuple, object_id: str) -> None:
+    def _does_object_exist_in_frame(self, frame_number: int, object_id: str) -> bool:
+        """Check if an object exists in a specific frame."""
+        frame = self.project_state.annotation_config.frames[str(frame_number)]
+        print(object_id)
+        print([key for key in frame.objects.keys()])
+
+        return object_id in [key for key in frame.objects.keys()]
+    
+    def _get_objectid_by_name(self, object_name: str):
+        """Get the object ID given the object name."""
+        for key, value in self.project_state.annotation_config.objects.items():
+            if value.name == object_name:
+                return key
+        return None
+    
+    def create_existing_object_bbox(self, frame_number: int, obj_type: str, coordinates: tuple, object_name: str) -> None:
         """Handles adding a bbox for an existing object."""
 
         # verify the object exists
         # TODO: Refactor error handling
-        if not self._does_object_exist(object_id):
-            raise ValueError(f"Object ID {object_id} does not exist.")
+        if not self._does_object_exist(object_name):
+            raise ObjectNotFoundError(f"Object: {object_name} does not exist.")
+        
 
-        self._add_object_bbox(frame_number=frame_number, bbox_coordinates=coordinates, obj_id=object_id)
+        
+        object_id = self._get_objectid_by_name(object_name)
+        # Verify if current frame already has the object
+        if self._does_object_exist_in_frame(frame_number, object_id):
+            raise ObjectInFrameError(f"Object ID {object_name} already has a bbox in frame {frame_number}.")
+
+        self._add_object_bbox(frame_number=frame_number, bbox_coordinates=coordinates, obj_id=object_name)
 
     def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number.

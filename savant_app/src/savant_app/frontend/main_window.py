@@ -375,19 +375,24 @@ class MainWindow(QMainWindow):
         """Handle newly drawn bounding box coordinates from video widget."""
         frame_idx = self.video_controller.current_index()
         
-        if annotation.mode == AnnotationMode.EXISTING:
-            if not annotation.object_id:
-                QMessageBox.warning(self, "No ID", "No object ID provided for existing object.")
+        try:
+            if annotation.mode == AnnotationMode.EXISTING:
+                if not annotation.object_id:
+                    QMessageBox.warning(self, "No ID", "No object ID provided for existing object.")
+                    return
+                self.annotation_controller.create_bbox_existing_object(
+                    frame_number=frame_idx, bbox_info=asdict(annotation)
+                )
+            elif annotation.mode == AnnotationMode.NEW:
+                self.annotation_controller.create_new_object_bbox(
+                    frame_number=frame_idx, bbox_info=asdict(annotation)
+                )
+            else:
+                QMessageBox.warning(self, "Invalid State", "Annotation state is not set correctly.")
                 return
-            self.annotation_controller.create_bbox_existing_object(
-                frame_number=frame_idx, bbox_info=asdict(annotation)
-            )
-        elif annotation.mode == AnnotationMode.NEW:
-            self.annotation_controller.create_new_object_bbox(
-                frame_number=frame_idx, bbox_info=asdict(annotation)
-            )
-        else:
-            QMessageBox.warning(self, "Invalid State", "Annotation state is not set correctly.")
+        # TODO: Refacftor error handling.
+        except Exception as e:
+            QMessageBox.critical(self, "Error adding bbox", str(e))
             return
 
         # Update UI elements as needed
