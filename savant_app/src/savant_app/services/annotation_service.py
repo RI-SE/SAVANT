@@ -56,8 +56,6 @@ class AnnotationService:
     def _does_object_exist_in_frame(self, frame_number: int, object_id: str) -> bool:
         """Check if an object exists in a specific frame."""
         frame = self.project_state.annotation_config.frames[str(frame_number)]
-        print(object_id)
-        print([key for key in frame.objects.keys()])
 
         return object_id in [key for key in frame.objects.keys()]
     
@@ -83,7 +81,7 @@ class AnnotationService:
         if self._does_object_exist_in_frame(frame_number, object_id):
             raise ObjectInFrameError(f"Object ID {object_name} already has a bbox in frame {frame_number}.")
 
-        self._add_object_bbox(frame_number=frame_number, bbox_coordinates=coordinates, obj_id=object_name)
+        self._add_object_bbox(frame_number=frame_number, bbox_coordinates=coordinates, obj_id=object_id)
 
     def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number.

@@ -390,15 +390,15 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, "Invalid State", "Annotation state is not set correctly.")
                 return
+            # Update UI elements as needed
+            self.update_active_objects(frame_idx=frame_idx)
+
+            self.refresh_frame()
         # TODO: Refacftor error handling.
         except Exception as e:
             QMessageBox.critical(self, "Error adding bbox", str(e))
             return
 
-        # Update UI elements as needed
-        self.update_active_objects(frame_idx=frame_idx)
-
-        self.refresh_frame()
 
     def _sync_overlay_geometry(self):
         """Ensure overlay matches video widget area exactly (parented to video_widget)."""

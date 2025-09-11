@@ -116,14 +116,16 @@ class TestAnnotationService:
         frame_number = 42
         obj_type = "car"
         coordinates = (10, 20, 30, 40)
-        object_id = "car_123"
+        object_id = "1"
+        object_name = "car_1"
         
         # Mock object existence check
         annotation_service._does_object_exist = MagicMock(return_value=True)
         annotation_service._does_object_exist_in_frame = MagicMock(return_value=False)
+        annotation_service._get_objectid_by_name = MagicMock(return_value=object_id)
         
         annotation_service.create_existing_object_bbox(
-            frame_number, obj_type, coordinates, object_id
+            frame_number, obj_type, coordinates, object_name 
         )
         
         # Verify config method was called
