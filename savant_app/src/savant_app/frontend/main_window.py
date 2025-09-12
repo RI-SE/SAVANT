@@ -142,12 +142,18 @@ class MainWindow(QMainWindow):
             if frame_idx is not None:
                 w, h = self.video_controller.size()
                 self.overlay.set_frame_size(w, h)
+                # TODO: Refactor to put in annotation controller
                 rot_boxes = self.project_state_controller.boxes_for_frame(
                     int(frame_idx)
                 )
                 self.overlay.set_rotated_boxes(rot_boxes)
+                self.update_active_objects(frame_idx)
         except Exception:
             self.overlay.set_rotated_boxes([])
+
+    def update_active_objects(self, frame_idx):
+        active_objects = self.annotation_controller.get_active_objects(frame_idx)
+        self.sidebar.refresh_active_objects(active_objects)
 
     def refresh_frame(self):
         idx = self.video_controller.current_index()
@@ -346,11 +352,11 @@ class MainWindow(QMainWindow):
     def handle_drawn_bbox(self, bbox_info):
         """Handle newly drawn bounding box coordinates from video widget."""
         frame_idx = self.video_controller.current_index()
-        self.annotation_controller.add_new_object_annotation(
+        self.annotation_controller.create_new_object_bbox(
             frame_number=frame_idx, bbox_info=bbox_info
         )
         # Update UI elements as needed
-        self.sidebar.refresh_annotations_list()
+        self.update_active_objects(frame_idx=frame_idx)
 
         self.refresh_frame()
 
