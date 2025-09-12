@@ -18,6 +18,7 @@ class VideoDisplay(QLabel):
         self._dragging = False
         self._drag_start_pos = QPointF()
         self._pan_start = QPointF()
+        self._pan_via_ctrl = False
 
         # Drawing state
         self.drawing = False
@@ -31,6 +32,8 @@ class VideoDisplay(QLabel):
         self._dragging = False
         self._drag_start_pos = QPointF()
         self._pan_start = QPointF()
+        self._pan_via_ctrl = False
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def start_drawing_mode(self, object_type: str):
         """Enable bounding box drawing mode for specific object type."""
@@ -38,35 +41,50 @@ class VideoDisplay(QLabel):
         self.setCursor(Qt.CursorShape.CrossCursor)
 
     def mousePressEvent(self, e: QMouseEvent):
-        """Unified mouse press handler for both drawing and panning."""
+        """Only start panning on Ctrl+Left or Middle; otherwise let overlay/UI handle it."""
+        # Drawing mode takes precedence
         if self.current_object_type and e.button() == Qt.MouseButton.LeftButton:
             self._handle_drawing_press(e)
-        elif (
-            not self.drawing
-            and self._zoom > 1.0
-            and e.button() == Qt.MouseButton.LeftButton
-        ):
+            return
+
+        ctrl_down = bool(e.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        is_pan_gesture = (
+            (e.button() == Qt.MouseButton.LeftButton and ctrl_down)
+            or e.button() == Qt.MouseButton.MiddleButton
+        )
+
+        if is_pan_gesture and self._zoom > 1.0:
+            self._pan_via_ctrl = (e.button() == Qt.MouseButton.LeftButton)
             self._handle_panning_press(e)
-        else:
-            super().mousePressEvent(e)
+            return
+        super().mousePressEvent(e)
 
     def mouseMoveEvent(self, e: QMouseEvent):
-        """Unified mouse move handler for both drawing and panning."""
+        """Route to drawing or panning if active; otherwise bubble up."""
         if self.drawing:
             self._handle_drawing_move(e)
-        elif self._dragging:
+            return
+        if self._dragging:
+            if self._pan_via_ctrl and not (e.modifiers() & Qt.KeyboardModifier.ControlModifier):
+                self._dragging = False
+                self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+                e.accept()
+                return
+
             self._handle_panning_move(e)
-        else:
-            super().mouseMoveEvent(e)
+            return
+        super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e: QMouseEvent):
-        """Unified mouse release handler for both drawing and panning."""
+        """End drawing/panning when appropriate; otherwise bubble up."""
         if self.drawing and e.button() == Qt.MouseButton.LeftButton:
             self._handle_drawing_release(e)
-        elif self._dragging and e.button() == Qt.MouseButton.LeftButton:
+            return
+        if self._dragging and e.button() in (Qt.MouseButton.LeftButton,
+                                             Qt.MouseButton.MiddleButton):
             self._handle_panning_release(e)
-        else:
-            super().mouseReleaseEvent(e)
+            return
+        super().mouseReleaseEvent(e)
 
     def _handle_drawing_press(self, e: QMouseEvent):
         """Handle drawing mode mouse press."""
@@ -137,10 +155,18 @@ class VideoDisplay(QLabel):
         self._drag_start_pos = e.position()
         self._pan_start = QPointF(self._pan)
         self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
+        self.grabMouse()
         e.accept()
 
     def _handle_panning_move(self, e: QMouseEvent):
         """Handle panning mode mouse move."""
+        if self._pan_via_ctrl and not (e.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            self._dragging = False
+            self._pan_via_ctrl = False
+            self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+            self.releaseMouse()
+            e.accept()
+            return
         if self._dragging:
             delta = e.position() - self._drag_start_pos
             self._pan = QPointF(
@@ -153,10 +179,12 @@ class VideoDisplay(QLabel):
 
     def _handle_panning_release(self, e: QMouseEvent):
         """Handle panning mode mouse release."""
-        if self._dragging and e.button() == Qt.MouseButton.LeftButton:
+        if self._dragging and e.button() in (
+                Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
             self._dragging = False
+            self._pan_via_ctrl = False
             self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
-            e.accept()
+            self.releaseMouse()
 
     def set_zoom(self, zoom: float) -> None:
         self._zoom = max(0.05, min(zoom, 20.0))
