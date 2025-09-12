@@ -17,8 +17,7 @@ class AnnotationService:
         obj_id = self._generate_new_object_id()
         obj_type = bbox_info["type"]
         coordinates = bbox_info["coordinates"]
-        print(f"here: {coordinates}")
-
+        
         # Add new object and bbox
         self._add_new_object(obj_type=obj_type, new_object_id=obj_id)
         self._add_new_object_bbox(
