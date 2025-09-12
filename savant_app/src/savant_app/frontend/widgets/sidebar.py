@@ -22,7 +22,7 @@ class Sidebar(QWidget):
     open_config = pyqtSignal(str)
     # TODO: Rename to add_new_bbox_new_obj
     start_bbox_drawing = pyqtSignal(str)
-    add_new_bbox_existing_obj = pyqtSignal(str, str) 
+    add_new_bbox_existing_obj = pyqtSignal(str, str)
     open_project_dir = pyqtSignal(str)
     quick_save = pyqtSignal()
 

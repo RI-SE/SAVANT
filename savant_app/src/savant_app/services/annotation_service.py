@@ -12,7 +12,9 @@ class AnnotationService:
         # It may hold several annotations for a given user session.
         self.cached_annotations: list[dict] = []
 
-    def create_new_object_bbox(self, frame_number: int, obj_type: str, coordinates: tuple) -> None:
+    def create_new_object_bbox(
+        self, frame_number: int, obj_type: str, coordinates: tuple
+    ) -> None:
         """Handles both, the creation of a new object and adding a bbox for it."""
         # Generate ID
         obj_id = self._generate_new_object_id()
@@ -47,41 +49,48 @@ class AnnotationService:
             annotater_data=annotater_data,
             obj_id=obj_id,
         )
-    
+
     def _does_object_exist(self, object_id: str) -> bool:
         """Check if an object exists in the annotation config."""
-        existing_ids = [value.name for _, value in self.project_state.annotation_config.objects.items()] 
+        existing_ids = [
+            value.name
+            for _, value in self.project_state.annotation_config.objects.items()
+        ]
         return object_id in existing_ids
-    
+
     def _does_object_exist_in_frame(self, frame_number: int, object_id: str) -> bool:
         """Check if an object exists in a specific frame."""
         frame = self.project_state.annotation_config.frames[str(frame_number)]
 
         return object_id in [key for key in frame.objects.keys()]
-    
+
     def _get_objectid_by_name(self, object_name: str):
         """Get the object ID given the object name."""
         for key, value in self.project_state.annotation_config.objects.items():
             if value.name == object_name:
                 return key
         return None
-    
-    def create_existing_object_bbox(self, frame_number: int, obj_type: str, coordinates: tuple, object_name: str) -> None:
+
+    def create_existing_object_bbox(
+        self, frame_number: int, obj_type: str, coordinates: tuple, object_name: str
+    ) -> None:
         """Handles adding a bbox for an existing object."""
 
         # verify the object exists
         # TODO: Refactor error handling
         if not self._does_object_exist(object_name):
             raise ObjectNotFoundError(f"Object: {object_name} does not exist.")
-        
 
-        
         object_id = self._get_objectid_by_name(object_name)
         # Verify if current frame already has the object
         if self._does_object_exist_in_frame(frame_number, object_id):
-            raise ObjectInFrameError(f"Object ID {object_name} already has a bbox in frame {frame_number}.")
+            raise ObjectInFrameError(
+                f"Object ID {object_name} already has a bbox in frame {frame_number}."
+            )
 
-        self._add_object_bbox(frame_number=frame_number, bbox_coordinates=coordinates, obj_id=object_id)
+        self._add_object_bbox(
+            frame_number=frame_number, bbox_coordinates=coordinates, obj_id=object_id
+        )
 
     def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number.

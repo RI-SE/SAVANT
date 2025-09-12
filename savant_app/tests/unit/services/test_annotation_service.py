@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from src.savant_app.services.annotation_service import AnnotationService
 from src.savant_app.services.project_state import ProjectState
 from src.savant_app.models.OpenLabel import OpenLabel
-from src.savant_app.services.exceptions import ObjectInFrameError, ObjectNotFoundError
+from src.savant_app.services.exceptions import ObjectNotFoundError
 
 
 class TestAnnotationService:
@@ -48,12 +48,10 @@ class TestAnnotationService:
         """Test create_new_object_bbox with valid inputs"""
         # Mock object ID generation
         mock_project_state.annotation_config.objects.keys.return_value = ["1", "2", "3"]
-    
+
         # Extract values from bbox_info and pass as separate arguments
         annotation_service.create_new_object_bbox(
-            frame_number,
-            bbox_info["type"],
-            bbox_info["coordinates"]
+            frame_number, bbox_info["type"], bbox_info["coordinates"]
         )
 
         # Verify config methods were called
@@ -108,7 +106,7 @@ class TestAnnotationService:
 
         result = annotation_service.get_active_objects(frame_number)
         assert result == []
-        
+
     def test_create_existing_object_bbox_valid(
         self, annotation_service, mock_project_state
     ):
@@ -118,25 +116,25 @@ class TestAnnotationService:
         coordinates = (10, 20, 30, 40)
         object_id = "1"
         object_name = "car_1"
-        
+
         # Mock object existence check
         annotation_service._does_object_exist = MagicMock(return_value=True)
         annotation_service._does_object_exist_in_frame = MagicMock(return_value=False)
         annotation_service._get_objectid_by_name = MagicMock(return_value=object_id)
-        
+
         annotation_service.create_existing_object_bbox(
-            frame_number, obj_type, coordinates, object_name 
+            frame_number, obj_type, coordinates, object_name
         )
-        
+
         # Verify config method was called
         mock_project_state.annotation_config.append_object_bbox.assert_called_once_with(
             frame_id=frame_number,
             bbox_coordinates=coordinates,
             confidence_data={"val": [0.9]},
             annotater_data={"val": ["example_name"]},
-            obj_id=object_id
+            obj_id=object_id,
         )
-        
+
     def test_create_existing_object_bbox_invalid_object(
         self, annotation_service, mock_project_state
     ):
@@ -145,15 +143,15 @@ class TestAnnotationService:
         obj_type = "car"
         coordinates = (10, 20, 30, 40)
         object_id = "invalid_id"
-        
+
         # Mock object existence check
         annotation_service._does_object_exist = MagicMock(return_value=False)
-        
-        with pytest.raises(ObjectNotFoundError) as excinfo:
+
+        with pytest.raises(ObjectNotFoundError):
             annotation_service.create_existing_object_bbox(
                 frame_number, obj_type, coordinates, object_id
             )
-        
+
     def test_does_object_exist_true(self, annotation_service, mock_project_state):
         """Test _does_object_exist returns True for existing object"""
         object_id = "car_123"
@@ -162,13 +160,10 @@ class TestAnnotationService:
         mock_obj1.name = "Object-1"
         mock_obj2 = MagicMock()
         mock_obj2.name = "car_123"
-        mock_project_state.annotation_config.objects = {
-            "1": mock_obj1,
-            "2": mock_obj2
-        }
-        
+        mock_project_state.annotation_config.objects = {"1": mock_obj1, "2": mock_obj2}
+
         assert annotation_service._does_object_exist(object_id) is True
-        
+
     def test_does_object_exist_false(self, annotation_service, mock_project_state):
         """Test _does_object_exist returns False for non-existent object"""
         object_id = "invalid_id"
@@ -177,9 +172,6 @@ class TestAnnotationService:
         mock_obj1.name = "Object-1"
         mock_obj2 = MagicMock()
         mock_obj2.name = "car_123"
-        mock_project_state.annotation_config.objects = {
-            "1": mock_obj1,
-            "2": mock_obj2
-        }
-        
+        mock_project_state.annotation_config.objects = {"1": mock_obj1, "2": mock_obj2}
+
         assert annotation_service._does_object_exist(object_id) is False

@@ -13,15 +13,15 @@ class AnnotationController:
         self.annotation_service.create_new_object_bbox(
             frame_number=frame_number,
             obj_type=bbox_info["object_type"],
-            coordinates=bbox_info["coordinates"]
+            coordinates=bbox_info["coordinates"],
         )
-    
+
     def create_bbox_existing_object(self, frame_number: int, bbox_info: dict) -> None:
         self.annotation_service.create_existing_object_bbox(
             frame_number=frame_number,
             obj_type=bbox_info["object_type"],
             coordinates=bbox_info["coordinates"],
-            object_name=bbox_info["object_id"]
+            object_name=bbox_info["object_id"],
         )
 
     def get_active_objects(self, frame_number: int) -> list[str]:

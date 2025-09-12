@@ -36,9 +36,8 @@ class VideoDisplay(QLabel):
 
     def start_drawing_mode(self, annotation_state: AnnotationState):
         """Enable bounding box drawing mode for specific object type."""
-        self.current_annotation_state = annotation_state 
+        self.current_annotation_state = annotation_state
         self.setCursor(Qt.CursorShape.CrossCursor)
-
 
     def mousePressEvent(self, e: QMouseEvent):
         """Unified mouse press handler for both drawing and panning."""
@@ -125,11 +124,15 @@ class VideoDisplay(QLabel):
         # Rotation is currently 0 as per specification
         rotation = 0.0
 
-        self.current_annotation_state.coordinates = (center_x, center_y, width, height, rotation)
-
-        self.bbox_drawn.emit(
-            self.current_annotation_state
+        self.current_annotation_state.coordinates = (
+            center_x,
+            center_y,
+            width,
+            height,
+            rotation,
         )
+
+        self.bbox_drawn.emit(self.current_annotation_state)
         self.current_annotation_state = None
         self.update()
 

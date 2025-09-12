@@ -355,30 +355,29 @@ class MainWindow(QMainWindow):
     def on_new_object_bbox(self, object_type: str):
         """Set up state for drawing a new bounding box for a new object."""
         self.video_widget.start_drawing_mode(
-            AnnotationState(
-                mode=AnnotationMode.NEW,
-                  object_type=object_type
-            )
+            AnnotationState(mode=AnnotationMode.NEW, object_type=object_type)
         )
 
     def on_existing_object_bbox(self, object_type: str, object_id: str):
         """Set up state for drawing a new bounding box for an existing object."""
         self.video_widget.start_drawing_mode(
             AnnotationState(
-                mode=AnnotationMode.EXISTING, 
-                object_type=object_type, 
-                object_id=object_id
+                mode=AnnotationMode.EXISTING,
+                object_type=object_type,
+                object_id=object_id,
             )
         )
 
     def handle_drawn_bbox(self, annotation: AnnotationState):
         """Handle newly drawn bounding box coordinates from video widget."""
         frame_idx = self.video_controller.current_index()
-        
+
         try:
             if annotation.mode == AnnotationMode.EXISTING:
                 if not annotation.object_id:
-                    QMessageBox.warning(self, "No ID", "No object ID provided for existing object.")
+                    QMessageBox.warning(
+                        self, "No ID", "No object ID provided for existing object."
+                    )
                     return
                 self.annotation_controller.create_bbox_existing_object(
                     frame_number=frame_idx, bbox_info=asdict(annotation)
@@ -388,7 +387,9 @@ class MainWindow(QMainWindow):
                     frame_number=frame_idx, bbox_info=asdict(annotation)
                 )
             else:
-                QMessageBox.warning(self, "Invalid State", "Annotation state is not set correctly.")
+                QMessageBox.warning(
+                    self, "Invalid State", "Annotation state is not set correctly."
+                )
                 return
             # Update UI elements as needed
             self.update_active_objects(frame_idx=frame_idx)
@@ -398,7 +399,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error adding bbox", str(e))
             return
-
 
     def _sync_overlay_geometry(self):
         """Ensure overlay matches video widget area exactly (parented to video_widget)."""
