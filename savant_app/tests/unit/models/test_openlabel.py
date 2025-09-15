@@ -328,7 +328,7 @@ class TestOpenLabel:
 
     def teardown_method(self):
         del self.expected_output
-    
+
     def test_get_bbox_happy_path(self):
         """get_bbox returns the expected RotatedBBox for an existing frame/object."""
         ol = OpenLabel(**self.expected_output["openlabel"])

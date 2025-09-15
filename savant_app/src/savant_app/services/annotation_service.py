@@ -4,7 +4,6 @@ from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
 from .exceptions import ObjectInFrameError, ObjectNotFoundError, FrameNotFoundError
 
 
-
 class AnnotationService:
     def __init__(self, project_state: ProjectState) -> None:
         # This is a temporary cache for unsaved annotations.

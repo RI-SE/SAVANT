@@ -182,7 +182,7 @@ class OpenLabel(BaseModel):
 
         # Adds a NEW bounding box.
         # Will overwrite if a bounding box ID already exists.
-        self.frames[str(frame_id)].objects[new_bbox_key] = new_frame_obj
+        self.frames[str(frame_id)].objects[obj_id] = new_frame_obj
 
     def _get_frame_object(
         self,
