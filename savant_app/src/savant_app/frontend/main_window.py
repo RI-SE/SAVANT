@@ -1,6 +1,6 @@
 # main_window.py
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QDialog
 from savant_app.frontend.widgets.video_display import VideoDisplay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
 from savant_app.frontend.widgets.sidebar import Sidebar
@@ -13,6 +13,9 @@ from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
 from dataclasses import asdict
 from pathlib import Path
+from savant_app.frontend.widgets.menu import AppMenu
+
+from savant_app.frontend.widgets.settings import SettingsDialog
 
 
 class MainWindow(QMainWindow):
@@ -27,6 +30,13 @@ class MainWindow(QMainWindow):
         self.project_name = project_name
         self.update_title()
         self.resize(1600, 800)
+        self.menu = AppMenu(
+            self,
+            on_new=self.noop,
+            on_load=self.noop,
+            on_save=self.noop,
+            on_settings=self.open_settings,
+        )
 
         # Controllers
         self.video_controller = video_controller
@@ -126,6 +136,17 @@ class MainWindow(QMainWindow):
 
         video_container.setMouseTracking(True)
         video_container.wheelEvent = self._wheel_zoom
+
+    # TODO: Remove once functions implemented
+    def noop(*args, **kwargs):
+        print("Not implemented yet")
+
+    def open_settings(self):
+        # Create the dialog, pass in current values
+        dlg = SettingsDialog(theme="Dark", zoom_rate=1.2, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            vals = dlg.values()
+            print("New settings:", vals)
 
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")
