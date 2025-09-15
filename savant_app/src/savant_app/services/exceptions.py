@@ -9,6 +9,7 @@ class ObjectNotFoundError(Exception):
 
     pass
 
+
 class FrameNotFoundError(Exception):
     """Raised when a frame number does not exist in the annotation config."""
 
