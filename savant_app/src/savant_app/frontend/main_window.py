@@ -46,15 +46,16 @@ class MainWindow(QMainWindow):
         # Video display + overlay layered
         self.video_widget = VideoDisplay()
         self.overlay = Overlay(self.video_widget)
+        self.overlay.set_interactive(True)
+        self.overlay.boxMoved.connect(self._on_overlay_box_moved)
+        self.overlay.boxResized.connect(self._on_overlay_box_resized)
+        self.overlay.boxRotated.connect(self._on_overlay_box_rotated)
+        self._overlay_ids: list[str] = []
 
         video_container = QWidget()
         video_container_layout = QVBoxLayout(video_container)
         video_container_layout.setContentsMargins(0, 0, 0, 0)
         video_container_layout.addWidget(self.video_widget)
-
-        self.overlay.raise_()
-        self.overlay.resize(self.video_widget.size())
-        self.video_widget.resizeEvent = lambda e: self.overlay.resize(e.size())
 
         # Seek bar + playback
         self.seek_bar = SeekBar()
@@ -164,6 +165,9 @@ class MainWindow(QMainWindow):
 
         try:
             if frame_idx is not None:
+
+                self._update_overlay_from_model()
+
                 w, h = self.video_controller.size()
                 self.overlay.set_frame_size(w, h)
                 # TODO: Refactor to put in annotation controller
@@ -172,6 +176,7 @@ class MainWindow(QMainWindow):
                 )
                 self.overlay.set_rotated_boxes(rot_boxes)
                 self.update_active_objects(frame_idx)
+
         except Exception:
             self.overlay.set_rotated_boxes([])
 
@@ -186,6 +191,22 @@ class MainWindow(QMainWindow):
         pixmap, _ = self.video_controller.jump_to_frame(idx)
 
         self._show_frame(pixmap, idx)
+
+    def _update_overlay_from_model(self) -> None:
+        """Update overlay boxes and the parallel object-id list for the current frame."""
+        frame_idx = self.video_controller.current_index()
+        try:
+            pairs = self.project_state_controller.boxes_with_ids_for_frame(frame_idx)
+            self._overlay_ids = [oid for (oid, _) in pairs]
+            boxes = [geom for (_, geom) in pairs]
+
+            # Ensure frame size is set before drawing
+            w, h = self.video_controller.size()
+            self.overlay.set_frame_size(w, h)
+            self.overlay.set_rotated_boxes(boxes)
+        except Exception:
+            self._overlay_ids = []
+            self.overlay.set_rotated_boxes([])
 
     # seek (slider)
     def on_seek(self, index: int):
@@ -289,6 +310,41 @@ class MainWindow(QMainWindow):
             )
         except Exception as e:
             QMessageBox.critical(self, "Save Failed", str(e))
+
+    def _on_overlay_box_moved(self, overlay_idx: int, x_center: float, y_center: float) -> None:
+        frame_key = self.video_controller.current_index()
+        object_key = self._overlay_ids[overlay_idx]
+        self.annotation_controller.move_resize_bbox(
+            frame_key=frame_key,
+            object_key=object_key,
+            x_center=x_center,
+            y_center=y_center,
+        )
+        self.refresh_frame()
+
+    def _on_overlay_box_resized(self, overlay_idx: int, x_center: float, y_center: float,
+                                width: float, height: float) -> None:
+        frame_key = self.video_controller.current_index()
+        object_key = self._overlay_ids[overlay_idx]
+        self.annotation_controller.move_resize_bbox(
+            frame_key=frame_key,
+            object_key=object_key,
+            x_center=x_center,
+            y_center=y_center,
+            width=width,
+            height=height,
+        )
+        self.refresh_frame()
+
+    def _on_overlay_box_rotated(self, overlay_idx: int, rotation: float) -> None:
+        frame_key = self.video_controller.current_index()
+        object_key = self.project_state_controller.object_id_for_frame_index(frame_key, overlay_idx)
+        self.annotation_controller.move_resize_bbox(
+            frame_key=frame_key,
+            object_key=object_key,
+            rotation=rotation,
+        )
+        self._update_overlay_from_model()
 
     # Navigation
     def on_next(self):
@@ -442,10 +498,7 @@ class MainWindow(QMainWindow):
         try:
             idx = self.video_controller.current_index()
             if idx >= 0:
-                w, h = self.video_controller.size()
-                rot_boxes = self.project_state_controller.boxes_for_frame(idx)
-                self.overlay.set_frame_size(w, h)
-                self.overlay.set_rotated_boxes(rot_boxes)
+                self._update_overlay_from_model()
             else:
                 self.overlay.update()
         except Exception:

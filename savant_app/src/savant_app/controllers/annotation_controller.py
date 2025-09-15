@@ -1,4 +1,5 @@
 from savant_app.services.annotation_service import AnnotationService
+from savant_app.models.OpenLabel import RotatedBBox
 
 
 class AnnotationController:
@@ -14,6 +15,59 @@ class AnnotationController:
             frame_number=frame_number,
             obj_type=bbox_info["object_type"],
             coordinates=bbox_info["coordinates"],
+        )
+
+    def get_bbox(
+        self,
+        frame_key: int | str,
+        object_key: int | str,
+        bbox_index: int = 0,
+    ) -> RotatedBBox:
+        """UI-level read of a bbox."""
+        return self.annotation_service.get_bbox(
+            frame_key=frame_key,
+            object_key=object_key,
+            bbox_index=bbox_index,
+        )
+
+    def move_resize_bbox(
+        self,
+        frame_key: int | str,
+        object_key: int | str,
+        *,
+        bbox_index: int = 0,
+        x_center: float | None = None,
+        y_center: float | None = None,
+        width:    float | None = None,
+        height:   float | None = None,
+        rotation: float | None = None,
+        delta_x: float = 0.0,
+        delta_y: float = 0.0,
+        delta_w: float = 0.0,
+        delta_h: float = 0.0,
+        delta_theta: float = 0.0,
+        min_width: float = 1e-6,
+        min_height: float = 1e-6,
+    ) -> RotatedBBox:
+        """
+        UI-level update for bbox geometry; delegates to the service.
+        """
+        return self.annotation_service.move_resize_bbox(
+            frame_key=frame_key,
+            object_key=object_key,
+            bbox_index=bbox_index,
+            x_center=x_center,
+            y_center=y_center,
+            width=width,
+            height=height,
+            rotation=rotation,
+            delta_x=delta_x,
+            delta_y=delta_y,
+            delta_w=delta_w,
+            delta_h=delta_h,
+            delta_theta=delta_theta,
+            min_width=min_width,
+            min_height=min_height,
         )
 
     def create_bbox_existing_object(self, frame_number: int, bbox_info: dict) -> None:

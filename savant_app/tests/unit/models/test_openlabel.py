@@ -3,6 +3,7 @@ from savant_app.models.OpenLabel import OpenLabel, ObjectMetadata, FrameObjects
 from pydantic import ValidationError
 from tests.unit.test_utils import read_json
 from pathlib import Path
+from savant_app.models.OpenLabel import GeometryData, RotatedBBox as RB
 
 
 class TestOpenLabel:
@@ -327,3 +328,123 @@ class TestOpenLabel:
 
     def teardown_method(self):
         del self.expected_output
+
+    def test_get_bbox_happy_path(self):
+        """get_bbox returns the expected RotatedBBox for an existing frame/object."""
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        bbox = ol.get_bbox(frame_key=1, object_key=1)
+        assert bbox.x_center == 3603.0
+        assert bbox.y_center == 1158.0
+        assert bbox.width == 75.0
+        assert bbox.height == 118.0
+        assert bbox.rotation == 1.57
+
+    def test_get_bbox_missing_frame_raises(self):
+        """get_bbox should raise a clear KeyError for a missing frame."""
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        with pytest.raises(KeyError, match="Frame '99' not found"):
+            ol.get_bbox(frame_key=99, object_key=1)
+
+    def test_get_bbox_missing_object_raises(self):
+        """get_bbox should raise a clear KeyError for a missing object in a frame."""
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        with pytest.raises(KeyError, match="Object '999' not found"):
+            ol.get_bbox(frame_key=1, object_key=999)
+
+    def test_get_bbox_index_out_of_range_raises(self):
+        """get_bbox should raise IndexError if bbox_index is out of range."""
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        with pytest.raises(IndexError, match="rbbox index 1 out of range"):
+            ol.get_bbox(frame_key=1, object_key=1, bbox_index=1)
+
+    def test_update_bbox_absolute_replacement(self):
+        """update_bbox replaces values when absolute args are provided."""
+
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        updated = ol.update_bbox(
+            frame_key=1,
+            object_key=1,
+            x_center=200.0,
+            y_center=80.0,
+            width=50.0,
+            height=30.0,
+            rotation=0.1,
+        )
+        assert (updated.x_center, updated.y_center, updated.width,
+                updated.height, updated.rotation) == (
+            200.0, 80.0, 50.0, 30.0, 0.1
+        )
+        again = ol.get_bbox(frame_key=1, object_key=1)
+        assert again == updated
+
+    def test_update_bbox_deltas_add_to_current(self):
+        """update_bbox applies deltas relative to current values."""
+
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        updated = ol.update_bbox(
+            frame_key=1,
+            object_key=1,
+            delta_x=5.0,
+            delta_y=-2.0,
+            delta_w=10.0,
+            delta_h=4.0,
+            delta_theta=0.25,
+        )
+        assert updated.x_center == 3608.0
+        assert updated.y_center == 1156.0
+        assert updated.width == 85.0
+        assert updated.height == 122.0
+        assert updated.rotation == pytest.approx(1.57 + 0.25)
+
+    def test_update_bbox_mix_absolute_and_delta(self):
+        """Absolute values override current; deltas then apply on top of that."""
+
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        updated = ol.update_bbox(frame_key=1, object_key=1, width=50.0, delta_y=10.0)
+        assert updated.width == 50.0
+        assert updated.y_center == 1158.0 + 10.0
+
+    def test_update_bbox_clamps_min_size(self):
+        """Clamps prevent non-positive sizes."""
+
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        updated = ol.update_bbox(
+            frame_key=1,
+            object_key=1,
+            width=1e-9,
+            height=1e-9,
+            min_width=1e-6,
+            min_height=1e-6,
+        )
+        assert updated.width == pytest.approx(1e-6)
+        assert updated.height == pytest.approx(1e-6)
+
+    def test_update_bbox_validation_error_if_forced_invalid(self):
+        """If clamping is disabled and width/height are forced invalid, Pydantic should raise."""
+
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        with pytest.raises(ValidationError):
+            ol.update_bbox(
+                frame_key=1,
+                object_key=1,
+                width=0.0,
+                height=0.0,
+                min_width=0.0,
+                min_height=0.0,
+            )
+
+    def test_update_specific_bbox_index_multiple_entries(self):
+        """When multiple rbboxes exist, bbox_index targets only the intended entry."""
+
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        frame = ol.frames["1"]
+        obj = frame.objects["1"]
+        obj.object_data.rbbox.append(obj.object_data.rbbox[0])
+        first_list = obj.object_data.rbbox[0].val.model_dump()
+        obj.object_data.rbbox[-1] = GeometryData(val=RB.model_validate(first_list))
+
+        updated = ol.update_bbox(frame_key=1, object_key=1, bbox_index=1, delta_x=3.0)
+        assert updated.x_center == obj.object_data.rbbox[1].val.x_center == 3603.0 + 3.0
+
+        first = ol.get_bbox(frame_key=1, object_key=1, bbox_index=0)
+        assert first.x_center == 3603.0
