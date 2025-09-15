@@ -1,6 +1,6 @@
 # main_window.py
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QDialog
 from savant_app.frontend.widgets.video_display import VideoDisplay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
 from savant_app.frontend.widgets.sidebar import Sidebar
@@ -10,7 +10,12 @@ import os
 from savant_app.controllers.project_state_controller import ProjectStateController
 from savant_app.controllers.video_controller import VideoController
 from savant_app.controllers.annotation_controller import AnnotationController
+from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
+from dataclasses import asdict
 from pathlib import Path
+from savant_app.frontend.widgets.menu import AppMenu
+
+from savant_app.frontend.widgets.settings import SettingsDialog
 
 
 class MainWindow(QMainWindow):
@@ -25,6 +30,13 @@ class MainWindow(QMainWindow):
         self.project_name = project_name
         self.update_title()
         self.resize(1600, 800)
+        self.menu = AppMenu(
+            self,
+            on_new=self.noop,
+            on_load=self.noop,
+            on_save=self.noop,
+            on_settings=self.open_settings,
+        )
 
         # Controllers
         self.video_controller = video_controller
@@ -88,7 +100,8 @@ class MainWindow(QMainWindow):
         # Sidebar signals
         self.sidebar.open_video.connect(self.on_open_video)
         self.sidebar.open_config.connect(self.open_openlabel_config)
-        self.sidebar.start_bbox_drawing.connect(self.video_widget.start_drawing_mode)
+        self.sidebar.start_bbox_drawing.connect(self.on_new_object_bbox)
+        self.sidebar.add_new_bbox_existing_obj.connect(self.on_existing_object_bbox)
         self.sidebar.open_project_dir.connect(self.on_open_project_dir)
         self.sidebar.quick_save.connect(self.quick_save)
 
@@ -129,6 +142,17 @@ class MainWindow(QMainWindow):
         video_container.setMouseTracking(True)
         video_container.wheelEvent = self._wheel_zoom
 
+    # TODO: Remove once functions implemented
+    def noop(*args, **kwargs):
+        print("Not implemented yet")
+
+    def open_settings(self):
+        # Create the dialog, pass in current values
+        dlg = SettingsDialog(theme="Dark", zoom_rate=1.2, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            vals = dlg.values()
+            print("New settings:", vals)
+
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")
 
@@ -145,9 +169,24 @@ class MainWindow(QMainWindow):
 
         try:
             if frame_idx is not None:
+
                 self._update_overlay_from_model()
+
+                w, h = self.video_controller.size()
+                self.overlay.set_frame_size(w, h)
+                # TODO: Refactor to put in annotation controller
+                rot_boxes = self.project_state_controller.boxes_for_frame(
+                    int(frame_idx)
+                )
+                self.overlay.set_rotated_boxes(rot_boxes)
+                self.update_active_objects(frame_idx)
+
         except Exception:
             self.overlay.set_rotated_boxes([])
+
+    def update_active_objects(self, frame_idx):
+        active_objects = self.annotation_controller.get_active_objects(frame_idx)
+        self.sidebar.refresh_active_objects(active_objects)
 
     def refresh_frame(self):
         idx = self.video_controller.current_index()
@@ -394,16 +433,53 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Skip forward failed", str(e))
 
-    def handle_drawn_bbox(self, bbox_info):
+    def on_new_object_bbox(self, object_type: str):
+        """Set up state for drawing a new bounding box for a new object."""
+        self.video_widget.start_drawing_mode(
+            AnnotationState(mode=AnnotationMode.NEW, object_type=object_type)
+        )
+
+    def on_existing_object_bbox(self, object_type: str, object_id: str):
+        """Set up state for drawing a new bounding box for an existing object."""
+        self.video_widget.start_drawing_mode(
+            AnnotationState(
+                mode=AnnotationMode.EXISTING,
+                object_type=object_type,
+                object_id=object_id,
+            )
+        )
+
+    def handle_drawn_bbox(self, annotation: AnnotationState):
         """Handle newly drawn bounding box coordinates from video widget."""
         frame_idx = self.video_controller.current_index()
-        self.annotation_controller.add_new_object_annotation(
-            frame_number=frame_idx, bbox_info=bbox_info
-        )
-        # Update UI elements as needed
-        self.sidebar.refresh_annotations_list()
 
-        self.refresh_frame()
+        try:
+            if annotation.mode == AnnotationMode.EXISTING:
+                if not annotation.object_id:
+                    QMessageBox.warning(
+                        self, "No ID", "No object ID provided for existing object."
+                    )
+                    return
+                self.annotation_controller.create_bbox_existing_object(
+                    frame_number=frame_idx, bbox_info=asdict(annotation)
+                )
+            elif annotation.mode == AnnotationMode.NEW:
+                self.annotation_controller.create_new_object_bbox(
+                    frame_number=frame_idx, bbox_info=asdict(annotation)
+                )
+            else:
+                QMessageBox.warning(
+                    self, "Invalid State", "Annotation state is not set correctly."
+                )
+                return
+            # Update UI elements as needed
+            self.update_active_objects(frame_idx=frame_idx)
+
+            self.refresh_frame()
+        # TODO: Refacftor error handling.
+        except Exception as e:
+            QMessageBox.critical(self, "Error adding bbox", str(e))
+            return
 
     def _sync_overlay_geometry(self):
         """Ensure overlay matches video widget area exactly (parented to video_widget)."""

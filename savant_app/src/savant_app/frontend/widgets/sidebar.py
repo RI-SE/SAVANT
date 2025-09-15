@@ -20,7 +20,9 @@ class Sidebar(QWidget):
 
     open_video = pyqtSignal(str)
     open_config = pyqtSignal(str)
+    # TODO: Rename to add_new_bbox_new_obj
     start_bbox_drawing = pyqtSignal(str)
+    add_new_bbox_existing_obj = pyqtSignal(str, str)
     open_project_dir = pyqtSignal(str)
     quick_save = pyqtSignal()
 
@@ -106,6 +108,13 @@ class Sidebar(QWidget):
 
         self.setLayout(main_layout)
 
+    def refresh_active_objects(self, active_objects: list[str]):
+        """Refresh the list of active objects."""
+        self.active_objects.clear()
+        for item in active_objects:
+            self.active_objects.addItem(f'{item["type"]} (ID: {item["name"]})')
+        self.update()
+
     def _choose_project_dir(self):
         """Let the user pick a folder containing the video + OpenLabel JSON."""
         path = QFileDialog.getExistingDirectory(self, "Open Project Folder", "")
@@ -167,8 +176,9 @@ class Sidebar(QWidget):
 
         # Link button logic
         link_btn.clicked.connect(
-            lambda: self.link_to_existing(dialog, object_type, id_input.text())
+            lambda: self.add_new_bbox_existing_obj.emit(object_type, id_input.text())
         )
+        link_btn.clicked.connect(dialog.accept)
 
         # Cancel button
         cancel_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
@@ -180,12 +190,13 @@ class Sidebar(QWidget):
     # Method removed to resolve naming conflict with signal
     # Actual object creation now handled via drawing workflow
 
+    """
     def link_to_existing(self, dialog, object_type, object_id):
-        """Link object to an existing ID."""
         object_id = object_id.strip()
         if object_id:
             self.active_objects.addItem(f"{object_type} (ID: {object_id})")
         dialog.accept()
+    """
 
     def adjust_list_sizes(self):
         """Keep lists at min height when empty, let them expand when populated."""
