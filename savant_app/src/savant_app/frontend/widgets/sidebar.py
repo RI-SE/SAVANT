@@ -20,7 +20,9 @@ class Sidebar(QWidget):
 
     open_video = pyqtSignal(str)
     open_config = pyqtSignal(str)
+    # TODO: Rename to add_new_bbox_new_obj
     start_bbox_drawing = pyqtSignal(str)
+    add_new_bbox_existing_obj = pyqtSignal(str, str)
     open_project_dir = pyqtSignal(str)
     quick_save = pyqtSignal()
 
@@ -174,8 +176,9 @@ class Sidebar(QWidget):
 
         # Link button logic
         link_btn.clicked.connect(
-            lambda: self.link_to_existing(dialog, object_type, id_input.text())
+            lambda: self.add_new_bbox_existing_obj.emit(object_type, id_input.text())
         )
+        link_btn.clicked.connect(dialog.accept)
 
         # Cancel button
         cancel_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)

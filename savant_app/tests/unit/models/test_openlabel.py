@@ -182,7 +182,7 @@ class TestOpenLabel:
         obj = ol.objects[new_object_id]
         assert isinstance(obj, ObjectMetadata)
         assert obj.type == obj_type
-        assert obj.name == f"object-{new_object_id}"
+        assert obj.name == f"Object-{new_object_id}"
 
     def test_full_serialization(self):
         """Test complete structure serialization matches expected format"""
@@ -202,7 +202,7 @@ class TestOpenLabel:
         if str(frame_id) not in ol.frames.keys():
             ol.frames[str(frame_id)] = FrameObjects(objects={})
 
-        ol.append_new_object_bbox(
+        ol.append_object_bbox(
             frame_id, bbox_coordinates, confidence_data, annotater_data, new_bbox_key
         )
 
@@ -214,6 +214,68 @@ class TestOpenLabel:
         assert bbox.width == 50
         assert bbox.height == 60
         assert bbox.rotation == 0  # Method currently sets rotation to 0
+
+    def test_append_existing_object_bbox(self):
+        """Test appending a bbox to an existing object"""
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        frame_id = 1  # Use a frame that already exists
+        obj_id = "1"  # Existing object from setup
+        bbox_coordinates = [300, 400, 70, 80]
+        confidence_data = {"val": [0.85]}
+        annotater_data = {"val": ["another_annotator"]}
+
+        ol.append_object_bbox(
+            frame_id=frame_id,
+            bbox_coordinates=bbox_coordinates,
+            confidence_data=confidence_data,
+            annotater_data=annotater_data,
+            obj_id=obj_id,
+        )
+
+        # Verify the object is still in the frame
+        frame = ol.frames[str(frame_id)]
+        assert obj_id in frame.objects
+
+        # Verify bbox data
+        bbox = frame.objects[obj_id].object_data.rbbox[0].val
+        assert bbox.x_center == 300
+        assert bbox.y_center == 400
+        assert bbox.width == 70
+        assert bbox.height == 80
+        assert bbox.rotation == 0
+
+    def test_append_existing_object_bbox_new_object(self):
+        """Test appending a bbox to a new object in a frame"""
+        ol = OpenLabel(**self.expected_output["openlabel"])
+        frame_id = 2  # Use a frame that already exists
+        obj_id = "new_obj"  # New object for this frame
+        bbox_coordinates = [500, 600, 90, 100]
+        confidence_data = {"val": [0.75]}
+        annotater_data = {"val": ["new_annotator"]}
+
+        # Ensure object doesn't exist in this frame initially
+        if obj_id in ol.frames[str(frame_id)].objects:
+            del ol.frames[str(frame_id)].objects[obj_id]
+
+        ol.append_object_bbox(
+            frame_id=frame_id,
+            bbox_coordinates=bbox_coordinates,
+            confidence_data=confidence_data,
+            annotater_data=annotater_data,
+            obj_id=obj_id,
+        )
+
+        # Verify the object is now in the frame
+        frame = ol.frames[str(frame_id)]
+        assert obj_id in frame.objects
+
+        # Verify bbox data
+        bbox = frame.objects[obj_id].object_data.rbbox[0].val
+        assert bbox.x_center == 500
+        assert bbox.y_center == 600
+        assert bbox.width == 90
+        assert bbox.height == 100
+        assert bbox.rotation == 0
 
     def test_model_dump_excludes_none(self):
         """Test model_dump excludes None values"""
