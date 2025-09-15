@@ -8,3 +8,8 @@ class ObjectNotFoundError(Exception):
     """Raised when an object ID does not exist in the annotation config."""
 
     pass
+
+class FrameNotFoundError(Exception):
+    """Raised when a frame number does not exist in the annotation config."""
+
+    pass

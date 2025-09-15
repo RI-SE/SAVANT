@@ -1,5 +1,5 @@
 from .project_state import ProjectState
-from .exceptions import ObjectInFrameError, ObjectNotFoundError
+from .exceptions import ObjectInFrameError, ObjectNotFoundError, FrameNotFoundError
 
 
 class AnnotationService:
@@ -50,17 +50,20 @@ class AnnotationService:
             obj_id=obj_id,
         )
 
-    def _does_object_exist(self, object_id: str) -> bool:
+    def _does_object_exist(self, object_name: str) -> bool:
         """Check if an object exists in the annotation config."""
         existing_ids = [
             value.name
             for _, value in self.project_state.annotation_config.objects.items()
         ]
-        return object_id in existing_ids
+        return object_name in existing_ids
 
     def _does_object_exist_in_frame(self, frame_number: int, object_id: str) -> bool:
         """Check if an object exists in a specific frame."""
-        frame = self.project_state.annotation_config.frames[str(frame_number)]
+        try:
+            frame = self.project_state.annotation_config.frames[str(frame_number)]
+        except KeyError:
+            raise FrameNotFoundError(f"Frame number {frame_number} does not exist.")
 
         return object_id in [key for key in frame.objects.keys()]
 
