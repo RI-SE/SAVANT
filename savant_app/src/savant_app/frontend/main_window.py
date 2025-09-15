@@ -57,10 +57,6 @@ class MainWindow(QMainWindow):
         video_container_layout.setContentsMargins(0, 0, 0, 0)
         video_container_layout.addWidget(self.video_widget)
 
-        self.overlay.raise_()
-        self.overlay.resize(self.video_widget.size())
-        self.video_widget.resizeEvent = lambda e: self.overlay.resize(e.size())
-
         # Seek bar + playback
         self.seek_bar = SeekBar()
         self.playback_controls = PlaybackControls()

@@ -21,7 +21,7 @@ class Overlay(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
         self._frame_size: Tuple[int, int] = (0, 0)
@@ -29,7 +29,6 @@ class Overlay(QWidget):
         self._pan_x: float = 0.0
         self._pan_y: float = 0.0
         self._boxes: List[Tuple[float, float, float, float, float]] = []
-        self._passthrough_active: bool = False
 
         # This flag flips the sign if needed (Rotation of boxes).
         self._theta_is_clockwise: bool = True
@@ -113,11 +112,10 @@ class Overlay(QWidget):
         return QPointF((x_disp - off_x) / scale, (y_disp - off_y) / scale)
 
     def mousePressEvent(self, ev):
-        if ev.button() == Qt.MouseButton.LeftButton and (
-            ev.modifiers() & Qt.KeyboardModifier.ControlModifier
+        if ev.button() in (Qt.MouseButton.MiddleButton,) or (
+            ev.button() == Qt.MouseButton.LeftButton
+            and (ev.modifiers() & Qt.KeyboardModifier.ControlModifier)
         ):
-            self._passthrough_active = True
-            self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             ev.ignore()
             return
 
@@ -127,14 +125,10 @@ class Overlay(QWidget):
         idx, mode = self._hit_test(ev.position())
 
         if idx is None:
-            # EMPTY SPACE → deselect AND passthrough so VideoDisplay can start drawing
             self._selected_idx = None
             self._drag_mode = None
             self._hover_idx, self._hover_mode = None, None
             self.update()
-
-            self._passthrough_active = True
-            self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             ev.ignore()
             return
 
@@ -142,9 +136,8 @@ class Overlay(QWidget):
         self._selected_idx = idx
         self._drag_mode = mode
         self._press_pos_disp = ev.position()
-        self._orig_box = self._boxes[idx]  # (cx, cy, w, h, theta)
+        self._orig_box = self._boxes[idx]
 
-        # If rotating, cache initial angle in VIDEO coords
         if mode == "R":
             cx0, cy0, _, _, theta0 = self._orig_box
             scale, off_x, off_y, _ = self._compute_transform()
@@ -157,31 +150,25 @@ class Overlay(QWidget):
         ev.accept()
 
     def mouseMoveEvent(self, ev):
-        if self._passthrough_active:
-            ev.ignore()
-            return
-
         if not self._interactive:
             return super().mouseMoveEvent(ev)
 
-        # Hover/cursor when NOT dragging
         if self._drag_mode is None:
             idx, mode = self._hit_test(ev.position())
             if idx != self._hover_idx or mode != self._hover_mode:
                 self._hover_idx, self._hover_mode = idx, mode
                 self.update()
 
-            # Cursor hint
             if mode in ("E", "W"):
                 self.setCursor(Qt.CursorShape.SizeHorCursor)
             elif mode in ("N", "S"):
                 self.setCursor(Qt.CursorShape.SizeVerCursor)
-            elif mode == "move":
-                self.setCursor(Qt.CursorShape.SizeAllCursor)
-            elif mode == "R":
+            elif mode in ("move", "R"):
                 self.setCursor(Qt.CursorShape.SizeAllCursor)
             else:
                 self.unsetCursor()
+
+            ev.ignore()
             return
 
         # Dragging a selected box/handle
@@ -250,8 +237,6 @@ class Overlay(QWidget):
                 d_theta -= 2 * math.pi
             if d_theta <= -math.pi:
                 d_theta += 2 * math.pi
-
-            # If model stores clockwise-positive angles, invert the delta
             if self._theta_is_clockwise:
                 theta = self._orig_theta - d_theta
             else:
@@ -263,22 +248,20 @@ class Overlay(QWidget):
             ev.accept()
             return
 
-        # live preview for move/resize
+        # live preview
         self._boxes[self._selected_idx] = (cx, cy, w, h, theta)
         self.update()
         ev.accept()
 
     def mouseReleaseEvent(self, ev):
-        if self._passthrough_active:
-            self._passthrough_active = False
-            self.setAttribute(
-                Qt.WidgetAttribute.WA_TransparentForMouseEvents, not self._interactive)
-            ev.ignore()
-            return
         if not self._interactive or ev.button() != Qt.MouseButton.LeftButton:
             return super().mouseReleaseEvent(ev)
 
-        if self._selected_idx is not None and self._drag_mode is not None:
+        if self._drag_mode is None:
+            ev.ignore()
+            return
+
+        if self._selected_idx is not None:
             cx, cy, w, h, theta = self._boxes[self._selected_idx]
             if self._drag_mode == "move":
                 self.boxMoved.emit(self._selected_idx, cx, cy)
