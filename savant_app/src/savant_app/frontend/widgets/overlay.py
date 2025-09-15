@@ -29,6 +29,7 @@ class Overlay(QWidget):
         self._pan_x: float = 0.0
         self._pan_y: float = 0.0
         self._boxes: List[Tuple[float, float, float, float, float]] = []
+        self._passthrough_active: bool = False
 
         # This flag flips the sign if needed (Rotation of boxes).
         self._theta_is_clockwise: bool = True
@@ -115,6 +116,8 @@ class Overlay(QWidget):
         if ev.button() == Qt.MouseButton.LeftButton and (
             ev.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
+            self._passthrough_active = True
+            self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             ev.ignore()
             return
 
@@ -124,10 +127,14 @@ class Overlay(QWidget):
         idx, mode = self._hit_test(ev.position())
 
         if idx is None:
+            # EMPTY SPACE → deselect AND passthrough so VideoDisplay can start drawing
             self._selected_idx = None
             self._drag_mode = None
             self._hover_idx, self._hover_mode = None, None
             self.update()
+
+            self._passthrough_active = True
+            self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             ev.ignore()
             return
 
@@ -135,7 +142,7 @@ class Overlay(QWidget):
         self._selected_idx = idx
         self._drag_mode = mode
         self._press_pos_disp = ev.position()
-        self._orig_box = self._boxes[idx]
+        self._orig_box = self._boxes[idx]  # (cx, cy, w, h, theta)
 
         # If rotating, cache initial angle in VIDEO coords
         if mode == "R":
@@ -150,6 +157,10 @@ class Overlay(QWidget):
         ev.accept()
 
     def mouseMoveEvent(self, ev):
+        if self._passthrough_active:
+            ev.ignore()
+            return
+
         if not self._interactive:
             return super().mouseMoveEvent(ev)
 
@@ -258,6 +269,12 @@ class Overlay(QWidget):
         ev.accept()
 
     def mouseReleaseEvent(self, ev):
+        if self._passthrough_active:
+            self._passthrough_active = False
+            self.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents, not self._interactive)
+            ev.ignore()
+            return
         if not self._interactive or ev.button() != Qt.MouseButton.LeftButton:
             return super().mouseReleaseEvent(ev)
 
