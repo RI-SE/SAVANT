@@ -303,3 +303,26 @@ class OpenLabel(BaseModel):
         )
         geometry_entry.val = updated_bbox
         return updated_bbox
+
+    def delete_bbox(self, frame_key: int | str, object_key: str) -> Optional["FrameLevelObject"]:
+        """
+        Remove a bbox (FrameLevelObject) from a specific frame by object_key.
+        Returns the removed FrameLevelObject if it existed, else None.
+        """
+        fkey = str(frame_key)
+        if fkey not in self.frames:
+            return None
+        frame = self.frames[fkey]
+        return frame.objects.pop(object_key, None)
+
+    def restore_bbox(self, frame_key: int | str, object_key: str, frame_obj:
+                     "FrameLevelObject") -> None:
+        """
+        Restore a previously removed bbox (FrameLevelObject) at the same frame/object key.
+        Overwrites if something is already there.
+        """
+        fkey = str(frame_key)
+        if fkey not in self.frames:
+            # Create empty frame if needed
+            self.frames[fkey] = FrameObjects(objects={})
+        self.frames[fkey].objects[object_key] = frame_obj

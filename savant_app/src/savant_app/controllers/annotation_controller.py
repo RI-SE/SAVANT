@@ -1,5 +1,7 @@
 from savant_app.services.annotation_service import AnnotationService
 from savant_app.models.OpenLabel import RotatedBBox
+from typing import Optional
+from savant_app.models.OpenLabel import FrameLevelObject
 
 
 class AnnotationController:
@@ -81,3 +83,9 @@ class AnnotationController:
     def get_active_objects(self, frame_number: int) -> list[str]:
         """Get a list of active objects for the given frame number."""
         return self.annotation_service.get_active_objects(frame_number)
+
+    def delete_bbox(self, frame_key: int, object_key: str) -> Optional[FrameLevelObject]:
+        return self.annotation_service.delete_bbox(frame_key, object_key)
+
+    def restore_bbox(self, frame_key: int, object_key: str, frame_obj: FrameLevelObject) -> None:
+        self.annotation_service.restore_bbox(frame_key, object_key, frame_obj)

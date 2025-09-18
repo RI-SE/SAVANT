@@ -105,6 +105,10 @@ class Overlay(QWidget):
         self._interactive = bool(enabled)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, not enabled)
 
+    def selected_index(self) -> int | None:
+        """Return selected overlay index or None if nothing selected."""
+        return self._selected_idx
+
     def _display_to_video(self, x_disp: float, y_disp: float) -> QPointF:
         scale, off_x, off_y, _ = self._compute_transform()
         if scale == 0:
