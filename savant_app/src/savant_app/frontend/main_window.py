@@ -1,6 +1,7 @@
 # main_window.py
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QDialog
+from PyQt6.QtGui import QShortcut, QKeySequence
 from savant_app.frontend.widgets.video_display import VideoDisplay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
 from savant_app.frontend.widgets.sidebar import Sidebar
@@ -14,8 +15,8 @@ from savant_app.frontend.states.annotation_state import AnnotationMode, Annotati
 from dataclasses import asdict
 from pathlib import Path
 from savant_app.frontend.widgets.menu import AppMenu
-
 from savant_app.frontend.widgets.settings import SettingsDialog
+from savant_app.models.OpenLabel import FrameLevelObject
 
 
 class MainWindow(QMainWindow):
@@ -123,7 +124,10 @@ class MainWindow(QMainWindow):
 
         self.video_widget.pan_changed.connect(self.overlay.set_pan)
 
-        from PyQt6.QtGui import QShortcut, QKeySequence
+        self._undo_stack: list[dict] = []
+
+        QShortcut(QKeySequence(Qt.Key.Key_Delete), self, activated=self.delete_selected_bbox)
+        QShortcut(QKeySequence.StandardKey.Undo, self, activated=self.undo_delete)
 
         QShortcut(
             QKeySequence(QKeySequence.StandardKey.ZoomIn), self, activated=self.zoom_in
@@ -345,6 +349,53 @@ class MainWindow(QMainWindow):
             rotation=rotation,
         )
         self._update_overlay_from_model()
+
+    def delete_selected_bbox(self):
+        """Delete the currently selected bbox and make it undoable."""
+        idx = self.overlay.selected_index()
+        if idx is None:
+            QMessageBox.information(self, "Delete", "No box is selected.")
+            return
+
+        frame_key = self.video_controller.current_index()
+        try:
+            object_key = self._overlay_ids[idx]
+        except Exception:
+            QMessageBox.warning(self, "Delete", "Selected box mapping not available.")
+            return
+
+        removed: FrameLevelObject | None = self.annotation_controller.delete_bbox(
+            frame_key=frame_key, object_key=object_key
+        )
+        if removed is None:
+            QMessageBox.warning(self, "Delete", "Nothing was deleted (already gone?).")
+            return
+
+        self._undo_stack.append({
+            "frame_key": frame_key,
+            "object_key": object_key,
+            "frame_obj": removed,
+        })
+
+        self.overlay.clear_selection()
+        self._update_overlay_from_model()
+        self.update_active_objects(frame_idx=frame_key)
+
+    def undo_delete(self):
+        """Undo last bbox deletion."""
+        if not self._undo_stack:
+            return
+        rec = self._undo_stack.pop()
+        frame_key = rec["frame_key"]
+        object_key = rec["object_key"]
+        frame_obj: FrameLevelObject = rec["frame_obj"]
+
+        self.annotation_controller.restore_bbox(frame_key=frame_key, object_key=object_key,
+                                                frame_obj=frame_obj)
+
+        self.overlay.clear_selection()
+        self._update_overlay_from_model()
+        self.update_active_objects(frame_idx=frame_key)
 
     # Navigation
     def on_next(self):

@@ -2,6 +2,7 @@ from .project_state import ProjectState
 from typing import Optional, Union
 from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
 from .exceptions import ObjectInFrameError, ObjectNotFoundError, FrameNotFoundError
+from savant_app.models.OpenLabel import FrameLevelObject
 
 
 class AnnotationService:
@@ -183,3 +184,13 @@ class AnnotationService:
         )
         # place for side-effects, e.g. mark project dirty, log, mirror, etc.
         return updated_bbox
+
+    def delete_bbox(self, frame_key: int, object_key: str) -> Optional[FrameLevelObject]:
+        if not self.project_state.annotation_config:
+            return None
+        return self.project_state.annotation_config.delete_bbox(frame_key, object_key)
+
+    def restore_bbox(self, frame_key: int, object_key: str, frame_obj: FrameLevelObject) -> None:
+        if not self.project_state.annotation_config:
+            return
+        self.project_state.annotation_config.restore_bbox(frame_key, object_key, frame_obj)
