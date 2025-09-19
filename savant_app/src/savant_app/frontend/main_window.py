@@ -377,6 +377,7 @@ class MainWindow(QMainWindow):
             "frame_obj": removed,
         })
 
+        self.overlay.clear_selection()
         self._update_overlay_from_model()
         self.update_active_objects(frame_idx=frame_key)
 
@@ -392,6 +393,7 @@ class MainWindow(QMainWindow):
         self.annotation_controller.restore_bbox(frame_key=frame_key, object_key=object_key,
                                                 frame_obj=frame_obj)
 
+        self.overlay.clear_selection()
         self._update_overlay_from_model()
         self.update_active_objects(frame_idx=frame_key)
 

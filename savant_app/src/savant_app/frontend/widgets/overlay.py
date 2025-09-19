@@ -109,6 +109,16 @@ class Overlay(QWidget):
         """Return selected overlay index or None if nothing selected."""
         return self._selected_idx
 
+    def clear_selection(self) -> None:
+        """Clear any current selection and hover/drag state."""
+        self._selected_idx = None
+        self._drag_mode = None
+        self._hover_idx = None
+        self._hover_mode = None
+        self._press_pos_disp = None
+        self._orig_box = None
+        self.update()
+
     def _display_to_video(self, x_disp: float, y_disp: float) -> QPointF:
         scale, off_x, off_y, _ = self._compute_transform()
         if scale == 0:
@@ -283,8 +293,6 @@ class Overlay(QWidget):
 
     def wheelEvent(self, ev):
         ev.ignore()
-
-    # ---------------- hit-testing ----------------
 
     def _hit_test(self, pos_disp):
         """
