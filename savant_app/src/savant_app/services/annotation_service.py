@@ -134,7 +134,7 @@ class AnnotationService:
         start_frame = max(0, current_frame - frame_limit)
         
         # Convert to string keys for consistency
-        frame_keys = [str(k) for k in range(start_frame, current_frame)]
+        frame_keys = [str(k) for k in range(start_frame, current_frame+1)]
         frame_subset = {k: frames[k] for k in frame_keys if k in frames}
 
         object_ids = set()
