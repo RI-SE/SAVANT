@@ -199,6 +199,7 @@ class Sidebar(QWidget):
         link_obj_bbox_btn.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)  # Prevent user input from being added to the list
         placeholder_text = "Type or select ID"
         link_obj_bbox_btn.lineEdit().setPlaceholderText(placeholder_text)
+        link_obj_bbox_btn.setMinimumWidth(len(placeholder_text)*10)
 
         recent_obj_ids = self.get_recent_frame_object_ids() 
         print(recent_obj_ids)
