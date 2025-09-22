@@ -15,8 +15,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QSize, pyqtSignal
 from PyQt6.QtGui import QAction
-from collections import deque  # For tracking recent objects
 from savant_app.frontend.utils.assets import icon
+from savant_app.controllers.annotation_controller import AnnotationController
+from savant_app.controllers.video_controller import VideoController
 
 
 class Sidebar(QWidget):
@@ -29,14 +30,16 @@ class Sidebar(QWidget):
     open_project_dir = pyqtSignal(str)
     quick_save = pyqtSignal()
 
-    def __init__(self, video_actors: list[str]):
+
+    def __init__(self, video_actors: list[str], annotation_controller: AnnotationController, video_controller: VideoController):
         super().__init__()
         self.setFixedWidth(200)
         main_layout = QVBoxLayout()
-        
-        # Track recent object IDs (last 10 frames)
-        self.recent_object_ids = deque(maxlen=10)
 
+        # Temporary controller until refactor.
+        self.annotation_controller: AnnotationController  = annotation_controller
+        self.video_controller: VideoController = video_controller
+        
         # --- Horizontal layout for New / Load / Save ---
         top_buttons_layout = QHBoxLayout()
 
@@ -130,8 +133,6 @@ class Sidebar(QWidget):
             self.active_objects.addItem(f'{item["type"]} (ID: {obj_id})')
             current_ids.append(obj_id)
         
-        # Add current IDs to recent objects
-        self.recent_object_ids.append(current_ids)
         self.update()
 
     def _choose_project_dir(self):
@@ -215,6 +216,11 @@ class Sidebar(QWidget):
 
 
         return new_obj_bbox_btn
+
+    def get_recent_frame_object_ids(self):
+        """Fetch object IDs from previous frames and update sidebar."""
+        current_frame = self.video_controller.current_index()
+        return set(self.annotation_controller.get_frame_object_ids(frame_limit=10, current_frame=current_frame))
     
     def create_existing_obj_bbox_button(self, dialog: QDialog, object_type: str):
         """Creates a dropdown button for creating a new bbox for an existing object."""
@@ -224,18 +230,13 @@ class Sidebar(QWidget):
         placeholder_text = "Type or select ID"
         link_obj_bbox_btn.lineEdit().setPlaceholderText(placeholder_text)
 
+        recent_obj_ids = self.get_recent_frame_object_ids() 
+        print(recent_obj_ids)
         unique_ids = set()
-        for frame_ids in self.recent_object_ids:
-            for obj_id in frame_ids:
-                unique_ids.add(obj_id)
+        for obj_id in recent_obj_ids:
+            unique_ids.add(obj_id)
         link_obj_bbox_btn.addItems(sorted(unique_ids))
         link_obj_bbox_btn.setCurrentIndex(-1) # This is done to reset the index back to the placeholder. https://stackoverflow.com/questions/18274508/setplaceholdertext-for-qcombobox
-
-        # Ensure the widget itself has enough width
-        placeholder_len = len(placeholder_text)
-        max_item_len = max((len(i) for i in unique_ids), default=0)
-        link_obj_bbox_btn.setMinimumContentsLength(max(placeholder_len, max_item_len))
-        link_obj_bbox_btn.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
 
         # Emit signal once editing is finished OR user selects from the dropdown
         def _emit_id():

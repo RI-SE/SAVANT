@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
 
         # Sidebar
         actors = self.project_state_controller.get_actor_types()
-        self.sidebar = Sidebar(video_actors=actors)
+        self.sidebar = Sidebar(video_actors=actors, annotation_controller=self.annotation_controller, video_controller=self.video_controller) # Temporarily pass controllers until refactor.
 
         # Main layout
         main_layout = QHBoxLayout()
