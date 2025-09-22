@@ -14,6 +14,7 @@ from PyQt6.QtCore import QSize, pyqtSignal
 from savant_app.frontend.utils.assets import icon
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.video_controller import VideoController
+from savant_app.frontend.states.sidebar_state import SidebarState
 
 
 class Sidebar(QWidget):
@@ -27,7 +28,7 @@ class Sidebar(QWidget):
     quick_save = pyqtSignal()
 
 
-    def __init__(self, video_actors: list[str], annotation_controller: AnnotationController, video_controller: VideoController):
+    def __init__(self, video_actors: list[str], annotation_controller: AnnotationController, video_controller: VideoController, state: SidebarState):
         super().__init__()
         self.setFixedWidth(200)
         main_layout = QVBoxLayout()
@@ -35,6 +36,9 @@ class Sidebar(QWidget):
         # Temporary controller until refactor.
         self.annotation_controller: AnnotationController  = annotation_controller
         self.video_controller: VideoController = video_controller
+
+        # State for sidebar
+        self.state: SidebarState = state 
         
         # --- Horizontal layout for New / Load / Save ---
         top_buttons_layout = QHBoxLayout()
@@ -190,7 +194,7 @@ class Sidebar(QWidget):
     def get_recent_frame_object_ids(self):
         """Fetch object IDs from previous frames and update sidebar."""
         current_frame = self.video_controller.current_index()
-        return set(self.annotation_controller.get_frame_object_ids(frame_limit=10, current_frame=current_frame))
+        return set(self.annotation_controller.get_frame_object_ids(frame_limit=self.state.historic_obj_frame_count, current_frame=current_frame))
     
     def create_existing_obj_bbox_button(self, dialog: QDialog, object_type: str):
         """Creates a dropdown button for creating a new bbox for an existing object."""

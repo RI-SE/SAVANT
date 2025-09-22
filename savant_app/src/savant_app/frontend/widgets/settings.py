@@ -1,14 +1,14 @@
 # settings.py
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QDialogButtonBox,
-    QWidget, QDoubleSpinBox, QTableWidget, QTableWidgetItem,
+    QWidget, QDoubleSpinBox, QSpinBox, QTableWidget, QTableWidgetItem,
     QCheckBox, QPushButton, QColorDialog, QLabel
 )
 from PyQt6.QtCore import Qt
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, *, theme="System", zoom_rate=1.2, parent=None):
+    def __init__(self, *, theme="System", zoom_rate=1.2, frame_count=100, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setModal(True)
@@ -42,6 +42,15 @@ class SettingsDialog(QDialog):
         self.zoom_spin.setSuffix(" X")
         self.zoom_spin.setValue(float(zoom_rate))
         form.addRow("Zoom rate:", self.zoom_spin)
+
+        # Frame count input
+        self.frame_count_spin = QSpinBox()
+        self.frame_count_spin.setRange(1, 100000)
+        self.frame_count_spin.setSingleStep(1)
+        self.frame_count_spin.setSuffix(" frames")
+        self.frame_count_spin.setValue(int(frame_count))
+        self.frame_count_spin.setToolTip("Number of recent frames to analyze for object detection")
+        form.addRow("Frame history:", self.frame_count_spin)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -110,6 +119,7 @@ class SettingsDialog(QDialog):
         Returns:
             dict: A dictionary with:
                 - "zoom_rate" (float): The current zoom factor from the spinbox.
+                - "frame_count" (int): The number of frames to look back for object IDs.
                 - "Annotators" (list of dict): List of annotators, where each entry has:
                     * "name" (str): Annotator's name.
                     * "enabled" (bool): Checkbox state.
@@ -126,6 +136,7 @@ class SettingsDialog(QDialog):
 
         return {
             "zoom_rate": float(self.zoom_spin.value()),
+            "previous_frame_count": int(self.frame_count_spin.value()),
             "Annotators": annotators
         }
 
