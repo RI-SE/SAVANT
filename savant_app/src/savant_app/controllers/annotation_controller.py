@@ -19,7 +19,6 @@ class AnnotationController:
     def create_bbox_existing_object(self, frame_number: int, bbox_info: dict) -> None:
         self.annotation_service.create_existing_object_bbox(
             frame_number=frame_number,
-            obj_type=bbox_info["object_type"],
             coordinates=bbox_info["coordinates"],
             object_name=bbox_info["object_id"],
         )

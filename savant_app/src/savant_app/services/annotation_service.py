@@ -75,7 +75,7 @@ class AnnotationService:
         return None
 
     def create_existing_object_bbox(
-        self, frame_number: int, obj_type: str, coordinates: tuple, object_name: str
+        self, frame_number: int, coordinates: tuple, object_name: str
     ) -> None:
         """Handles adding a bbox for an existing object."""
 
