@@ -11,9 +11,9 @@ class AnnotationMode(Enum):
 
 @dataclass
 class AnnotationState:
-    object_type: str
+    object_id: str 
+    object_type: Optional[str] = None
     mode: AnnotationMode = field(
         default=AnnotationMode.NONE, metadata={"exclude": True}
     )  # Will not include annotation mode in dict conversions.
-    object_id: Optional[str] = None
     coordinates: Optional[tuple[float, float, float, float, float]] = None

@@ -379,12 +379,11 @@ class MainWindow(QMainWindow):
             AnnotationState(mode=AnnotationMode.NEW, object_type=object_type)
         )
 
-    def on_existing_object_bbox(self, object_type: str, object_id: str):
+    def on_existing_object_bbox(self, object_id: str):
         """Set up state for drawing a new bounding box for an existing object."""
         self.video_widget.start_drawing_mode(
             AnnotationState(
                 mode=AnnotationMode.EXISTING,
-                object_type=object_type,
                 object_id=object_id,
             )
         )
