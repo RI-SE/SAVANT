@@ -237,10 +237,15 @@ class Sidebar(QWidget):
         link_obj_bbox_btn.setMinimumContentsLength(max(placeholder_len, max_item_len))
         link_obj_bbox_btn.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
 
-        link_obj_bbox_btn.currentTextChanged.connect(
-            lambda text: self.add_new_bbox_existing_obj.emit(text)
-        )
-        link_obj_bbox_btn.currentTextChanged.connect(dialog.accept)
+        # Emit signal once editing is finished OR user selects from the dropdown
+        def _emit_id():
+            text = link_obj_bbox_btn.currentText()
+            if text:  # Only emit if something is typed/selected
+                self.add_new_bbox_existing_obj.emit(text)
+                dialog.accept()
+
+        link_obj_bbox_btn.lineEdit().editingFinished.connect(_emit_id)
+        link_obj_bbox_btn.activated.connect(lambda _: _emit_id())  # triggered when user selects an item
 
         return link_obj_bbox_btn
 
