@@ -4,17 +4,13 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QListWidget,
     QLabel,
-    QMenu,
     QDialog,
-    QSizePolicy,
     QDialogButtonBox,
-    QLineEdit,
     QHBoxLayout,
     QFileDialog,
     QComboBox,  # Added for recent objects dropdown
 )
 from PyQt6.QtCore import QSize, pyqtSignal
-from PyQt6.QtGui import QAction
 from savant_app.frontend.utils.assets import icon
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.video_controller import VideoController
@@ -74,26 +70,6 @@ class Sidebar(QWidget):
 
         # --- New BBox Button with dropdown ---
         new_bbox_btn = QPushButton("New BBox")
-        #bbox_menu = QMenu()
-
-        # TODO - Get labels from config file
-
-        #for label in video_actors:
-        #    action = QAction(label, self)
-        #    action.triggered.connect(
-        #        lambda checked, l=label: self.open_object_options_popup(l)  # noqa: E741
-        #    )
-        #    bbox_menu.addAction(action)
-
-        #action = QAction(self)
-        #action.triggered.connect(
-        #lambda checked: self.open_object_options_popup(l)  # noqa: E741
-        #)
-        #bbox_menu.addAction(action)
-        #bbox_menu.aboutToShow.connect(
-        #    lambda: bbox_menu.setMinimumWidth(new_bbox_btn.width())
-        #)
-        #new_bbox_btn.setMenu(bbox_menu)
         new_bbox_btn.clicked.connect(lambda: self.create_bbox(video_actors=video_actors))
         main_layout.addWidget(new_bbox_btn)
 
@@ -171,7 +147,6 @@ class Sidebar(QWidget):
         dialog.setWindowTitle("Object Options")
 
         layout = QVBoxLayout(dialog)
-        #layout.addWidget(QLabel(f"Selected Type: {object_type}"))
 
         # Buttons for new object and linking
         button_layout = QHBoxLayout()
@@ -198,11 +173,7 @@ class Sidebar(QWidget):
         layout.addWidget(cancel_box)
 
         dialog.exec()
-
-        # Drawing logic comes after the bbox selected
-
-        # Connect new object button to start drawing
-    
+ 
     def create_new_obj_bbox_button(self, video_actors: str, dialog: QDialog):
         """Creates a dropdown button for creating a new bbox for a new object."""
         new_obj_bbox_btn = QComboBox()
@@ -213,7 +184,6 @@ class Sidebar(QWidget):
             lambda text: self.start_bbox_drawing.emit(text)
         )
         new_obj_bbox_btn.currentTextChanged.connect(dialog.accept)
-
 
         return new_obj_bbox_btn
 
@@ -249,15 +219,6 @@ class Sidebar(QWidget):
         link_obj_bbox_btn.activated.connect(lambda _: _emit_id())  # triggered when user selects an item
 
         return link_obj_bbox_btn
-
-
-    """
-    def link_to_existing(self, dialog, object_type, object_id):
-        object_id = object_id.strip()
-        if object_id:
-            self.active_objects.addItem(f"{object_type} (ID: {object_id})")
-        dialog.accept()
-    """
 
     def adjust_list_sizes(self):
         """Keep lists at min height when empty, let them expand when populated."""
