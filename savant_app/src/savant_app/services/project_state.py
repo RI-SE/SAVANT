@@ -113,3 +113,56 @@ class ProjectState:
                     )
                 )
         return out
+
+    def boxes_with_ids_for_frame(
+        self, frame_idx: int
+            ) -> List[Tuple[str, Tuple[float, float, float, float, float]]]:
+        """
+        Return [(object_id_str, (cx, cy, w, h, theta)), ...] for the given frame,
+        in the same order you'll draw them in the overlay.
+        Uses the same frame-key fallback logic as boxes_for_frame().
+        """
+        if not self.annotation_config or not self.annotation_config.frames:
+            return []
+
+        fkey = str(frame_idx)
+        if fkey not in self.annotation_config.frames:
+            alt = str(frame_idx + 1)
+            if alt not in self.annotation_config.frames:
+                return []
+            fkey = alt
+
+        out: List[Tuple[str, Tuple[float, float, float, float, float]]] = []
+        frame = self.annotation_config.frames[fkey]
+
+        # Preserve dict iteration order (same as you already draw)
+        for object_id_str, fobj in frame.objects.items():
+            for geom in fobj.object_data.rbbox:
+                if geom.name != "shape":
+                    continue
+                rb = geom.val
+                out.append(
+                    (
+                        object_id_str,
+                        (
+                            float(rb.x_center),
+                            float(rb.y_center),
+                            float(rb.width),
+                            float(rb.height),
+                            float(rb.rotation),
+                        ),
+                    )
+                )
+        return out
+
+    def object_id_for_frame_index(self, frame_idx: int, overlay_index: int) -> str:
+        """
+        Map overlay row index -> object_id_str for the given frame.
+        Raises IndexError if overlay_index is out of range.
+        """
+        pairs = self.boxes_with_ids_for_frame(frame_idx)
+        if overlay_index < 0 or overlay_index >= len(pairs):
+            raise IndexError(
+                f"overlay_index {overlay_index} out of range for frame {frame_idx}"
+            )
+        return pairs[overlay_index][0]
