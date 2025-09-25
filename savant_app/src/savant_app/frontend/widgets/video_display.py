@@ -51,12 +51,11 @@ class VideoDisplay(QLabel):
 
         ctrl_down = bool(e.modifiers() & Qt.KeyboardModifier.ControlModifier)
         is_pan_gesture = (
-            (e.button() == Qt.MouseButton.LeftButton and ctrl_down)
-            or e.button() == Qt.MouseButton.MiddleButton
-        )
+            e.button() == Qt.MouseButton.LeftButton and ctrl_down
+        ) or e.button() == Qt.MouseButton.MiddleButton
 
         if is_pan_gesture and self._zoom > 1.0:
-            self._pan_via_ctrl = (e.button() == Qt.MouseButton.LeftButton)
+            self._pan_via_ctrl = e.button() == Qt.MouseButton.LeftButton
             self._handle_panning_press(e)
             return
         super().mousePressEvent(e)
@@ -67,7 +66,9 @@ class VideoDisplay(QLabel):
             self._handle_drawing_move(e)
             return
         if self._dragging:
-            if self._pan_via_ctrl and not (e.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            if self._pan_via_ctrl and not (
+                e.modifiers() & Qt.KeyboardModifier.ControlModifier
+            ):
                 self._dragging = False
                 self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
                 e.accept()
@@ -82,8 +83,10 @@ class VideoDisplay(QLabel):
         if self.drawing and e.button() == Qt.MouseButton.LeftButton:
             self._handle_drawing_release(e)
             return
-        if self._dragging and e.button() in (Qt.MouseButton.LeftButton,
-                                             Qt.MouseButton.MiddleButton):
+        if self._dragging and e.button() in (
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.MiddleButton,
+        ):
             self._handle_panning_release(e)
             return
         super().mouseReleaseEvent(e)
@@ -165,7 +168,9 @@ class VideoDisplay(QLabel):
 
     def _handle_panning_move(self, e: QMouseEvent):
         """Handle panning mode mouse move."""
-        if self._pan_via_ctrl and not (e.modifiers() & Qt.KeyboardModifier.ControlModifier):
+        if self._pan_via_ctrl and not (
+            e.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             self._dragging = False
             self._pan_via_ctrl = False
             self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
@@ -185,7 +190,9 @@ class VideoDisplay(QLabel):
     def _handle_panning_release(self, e: QMouseEvent):
         """Handle panning mode mouse release."""
         if self._dragging and e.button() in (
-                Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.MiddleButton,
+        ):
             self._dragging = False
             self._pan_via_ctrl = False
             self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))

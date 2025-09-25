@@ -40,8 +40,8 @@ class AnnotationController:
         bbox_index: int = 0,
         x_center: float | None = None,
         y_center: float | None = None,
-        width:    float | None = None,
-        height:   float | None = None,
+        width: float | None = None,
+        height: float | None = None,
         rotation: float | None = None,
         delta_x: float = 0.0,
         delta_y: float = 0.0,
@@ -83,16 +83,21 @@ class AnnotationController:
         """Get a list of active objects for the given frame number."""
         return self.annotation_service.get_active_objects(frame_number)
 
-
     def get_frame_object_ids(self, frame_limit: int, current_frame: int) -> list[str]:
         """
         Get a list of all objects with bboxes in the frame range between the
         current frame and frame_limit.
         """
-        return self.annotation_service.get_frame_objects(frame_limit=frame_limit, current_frame=current_frame)
-      
-    def delete_bbox(self, frame_key: int, object_key: str) -> Optional[FrameLevelObject]:
+        return self.annotation_service.get_frame_objects(
+            frame_limit=frame_limit, current_frame=current_frame
+        )
+
+    def delete_bbox(
+        self, frame_key: int, object_key: str
+    ) -> Optional[FrameLevelObject]:
         return self.annotation_service.delete_bbox(frame_key, object_key)
 
-    def restore_bbox(self, frame_key: int, object_key: str, frame_obj: FrameLevelObject) -> None:
+    def restore_bbox(
+        self, frame_key: int, object_key: str, frame_obj: FrameLevelObject
+    ) -> None:
         self.annotation_service.restore_bbox(frame_key, object_key, frame_obj)

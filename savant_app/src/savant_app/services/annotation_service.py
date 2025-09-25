@@ -1,5 +1,10 @@
 from .project_state import ProjectState
-from .exceptions import ObjectInFrameError, ObjectNotFoundError, FrameNotFoundError, InvalidFrameRangeError
+from .exceptions import (
+    ObjectInFrameError,
+    ObjectNotFoundError,
+    FrameNotFoundError,
+    InvalidFrameRangeError,
+)
 from typing import Optional, Union
 from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
 from savant_app.models.OpenLabel import FrameLevelObject
@@ -123,32 +128,31 @@ class AnnotationService:
             int(list(self.project_state.annotation_config.objects.keys())[-1]) + 1
         )
 
-
     def get_frame_objects(self, frame_limit: int, current_frame: int) -> list[str]:
         """
         Get a list of all objects with bboxes in the frame range between the
         current frame and frame_limit.
         """
         frames = self.project_state.annotation_config.frames
-        global_objects = self.project_state.annotation_config.objects 
+        global_objects = self.project_state.annotation_config.objects
 
         if frame_limit < 0 or current_frame < 0:
             raise InvalidFrameRangeError("Frame numbers must be non-negative.")
 
         start_frame = max(0, current_frame - frame_limit)
-        
+
         # Convert to string keys for consistency
-        frame_keys = [str(k) for k in range(start_frame, current_frame+1)]
+        frame_keys = [str(k) for k in range(start_frame, current_frame + 1)]
         frame_subset = {k: frames[k] for k in frame_keys if k in frames}
 
         object_ids = set()
         for frame_data in frame_subset.values():  # Use new variable name
             object_ids.update(frame_data.objects.keys())  # Use update() for set
-        
+
         # Correct list comprehension:
         return [
-            global_objects[obj_id].name 
-            for obj_id in object_ids 
+            global_objects[obj_id].name
+            for obj_id in object_ids
             if obj_id in global_objects
         ]
 
@@ -177,8 +181,8 @@ class AnnotationService:
         # absolute (optional)
         x_center: Optional[float] = None,
         y_center: Optional[float] = None,
-        width:    Optional[float] = None,
-        height:   Optional[float] = None,
+        width: Optional[float] = None,
+        height: Optional[float] = None,
         rotation: Optional[float] = None,
         # deltas (optional)
         delta_x: float = 0.0,
@@ -214,12 +218,18 @@ class AnnotationService:
         # place for side-effects, e.g. mark project dirty, log, mirror, etc.
         return updated_bbox
 
-    def delete_bbox(self, frame_key: int, object_key: str) -> Optional[FrameLevelObject]:
+    def delete_bbox(
+        self, frame_key: int, object_key: str
+    ) -> Optional[FrameLevelObject]:
         if not self.project_state.annotation_config:
             return None
         return self.project_state.annotation_config.delete_bbox(frame_key, object_key)
 
-    def restore_bbox(self, frame_key: int, object_key: str, frame_obj: FrameLevelObject) -> None:
+    def restore_bbox(
+        self, frame_key: int, object_key: str, frame_obj: FrameLevelObject
+    ) -> None:
         if not self.project_state.annotation_config:
             return
-        self.project_state.annotation_config.restore_bbox(frame_key, object_key, frame_obj)
+        self.project_state.annotation_config.restore_bbox(
+            frame_key, object_key, frame_obj
+        )

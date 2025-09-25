@@ -15,6 +15,7 @@ class FrameNotFoundError(Exception):
 
     pass
 
+
 class InvalidFrameRangeError(Exception):
     """Raised when the provided frame range is invalid."""
 

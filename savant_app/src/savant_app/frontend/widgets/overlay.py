@@ -324,8 +324,12 @@ class Overlay(QWidget):
 
             # corners in DISPLAY coords (same local order as paintEvent)
             corners = []
-            for lx, ly in [(-half_w, -half_h), (half_w, -half_h),
-                           (half_w, half_h), (-half_w, half_h)]:
+            for lx, ly in [
+                (-half_w, -half_h),
+                (half_w, -half_h),
+                (half_w, half_h),
+                (-half_w, half_h),
+            ]:
                 rx = lx * cos_a - ly * sin_a
                 ry = lx * sin_a + ly * cos_a
                 corners.append(QPointF(cx_disp + rx, cy_disp + ry))
@@ -333,14 +337,16 @@ class Overlay(QWidget):
             TL, TR, BR, BL = corners
 
             # midpoints (DISPLAY)
-            mid_top = QPointF((TL.x()+TR.x())*0.5, (TL.y()+TR.y())*0.5)
-            mid_right = QPointF((TR.x()+BR.x())*0.5, (TR.y()+BR.y())*0.5)
-            mid_bottom = QPointF((BL.x()+BR.x())*0.5, (BL.y()+BR.y())*0.5)
-            mid_left = QPointF((TL.x()+BL.x())*0.5, (TL.y()+BL.y())*0.5)
+            mid_top = QPointF((TL.x() + TR.x()) * 0.5, (TL.y() + TR.y()) * 0.5)
+            mid_right = QPointF((TR.x() + BR.x()) * 0.5, (TR.y() + BR.y()) * 0.5)
+            mid_bottom = QPointF((BL.x() + BR.x()) * 0.5, (BL.y() + BR.y()) * 0.5)
+            mid_left = QPointF((TL.x() + BL.x()) * 0.5, (TL.y() + BL.y()) * 0.5)
 
             # side handle hits (square around midpoint)
             def in_handle(pt: QPointF) -> bool:
-                return (pt.x()-half <= x <= pt.x()+half) and (pt.y()-half <= y <= pt.y()+half)
+                return (pt.x() - half <= x <= pt.x() + half) and (
+                    pt.y() - half <= y <= pt.y() + half
+                )
 
             if in_handle(mid_top):
                 return idx, "N"
@@ -366,19 +372,24 @@ class Overlay(QWidget):
             rot_cy = mid_top.y() + ny * handle_offset
             rot_half = getattr(self, "_handle_draw_px", tol) * 0.5
             if (rot_cx - rot_half <= x <= rot_cx + rot_half) and (
-                    rot_cy - rot_half <= y <= rot_cy + rot_half):
+                rot_cy - rot_half <= y <= rot_cy + rot_half
+            ):
                 return idx, "R"
 
             # inside test (point-in-quad) → MOVE
             def tri_area(a, b, c):
-                return ((b.x()-a.x())*(c.y()-a.y()) - (b.y()-a.y())*(c.x()-a.x()))
+                return (b.x() - a.x()) * (c.y() - a.y()) - (b.y() - a.y()) * (
+                    c.x() - a.x()
+                )
+
             P = QPointF(x, y)
             a1 = tri_area(TL, TR, P)
             a2 = tri_area(TR, BR, P)
             a3 = tri_area(BR, BL, P)
             a4 = tri_area(BL, TL, P)
             if (a1 >= 0 and a2 >= 0 and a3 >= 0 and a4 >= 0) or (
-                    a1 <= 0 and a2 <= 0 and a3 <= 0 and a4 <= 0):
+                a1 <= 0 and a2 <= 0 and a3 <= 0 and a4 <= 0
+            ):
                 return idx, "move"
 
         return None, None
@@ -416,8 +427,13 @@ class Overlay(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        for idx, (center_x_vid, center_y_vid, width_vid, height_vid, theta) in enumerate(
-                self._boxes):
+        for idx, (
+            center_x_vid,
+            center_y_vid,
+            width_vid,
+            height_vid,
+            theta,
+        ) in enumerate(self._boxes):
             center_x_disp = offset_x + center_x_vid * scale
             center_y_disp = offset_y + center_y_vid * scale
             box_width_disp = width_vid * scale
@@ -431,11 +447,17 @@ class Overlay(QWidget):
 
             corners = []
             for local_offset_x, local_offset_y in [
-                (-half_w, -half_h), (half_w, -half_h),
-                (half_w, half_h), (-half_w, half_h)
+                (-half_w, -half_h),
+                (half_w, -half_h),
+                (half_w, half_h),
+                (-half_w, half_h),
             ]:
-                rotated_offset_x = local_offset_x * cos_angle - local_offset_y * sin_angle
-                rotated_offset_y = local_offset_x * sin_angle + local_offset_y * cos_angle
+                rotated_offset_x = (
+                    local_offset_x * cos_angle - local_offset_y * sin_angle
+                )
+                rotated_offset_y = (
+                    local_offset_x * sin_angle + local_offset_y * cos_angle
+                )
                 corner_x_disp = center_x_disp + rotated_offset_x
                 corner_y_disp = center_y_disp + rotated_offset_y
                 corners.append(QPointF(corner_x_disp, corner_y_disp))
@@ -456,15 +478,17 @@ class Overlay(QWidget):
             if self._selected_idx == idx:
                 s = self._handle_draw_px
                 half = s / 2.0
-                mid_top = QPointF((TL.x()+TR.x())*0.5, (TL.y()+TR.y())*0.5)
-                mid_right = QPointF((TR.x()+BR.x())*0.5, (TR.y()+BR.y())*0.5)
-                mid_bottom = QPointF((BL.x()+BR.x())*0.5, (BL.y()+BR.y())*0.5)
-                mid_left = QPointF((TL.x()+BL.x())*0.5, (TL.y()+BL.y())*0.5)
+                mid_top = QPointF((TL.x() + TR.x()) * 0.5, (TL.y() + TR.y()) * 0.5)
+                mid_right = QPointF((TR.x() + BR.x()) * 0.5, (TR.y() + BR.y()) * 0.5)
+                mid_bottom = QPointF((BL.x() + BR.x()) * 0.5, (BL.y() + BR.y()) * 0.5)
+                mid_left = QPointF((TL.x() + BL.x()) * 0.5, (TL.y() + BL.y()) * 0.5)
 
                 painter.setPen(QPen(QColor(30, 30, 30)))
                 painter.setBrush(QColor(255, 255, 255))
                 for pt in (mid_top, mid_right, mid_bottom, mid_left):
-                    rectf = QRectF(float(pt.x() - half), float(pt.y() - half), float(s), float(s))
+                    rectf = QRectF(
+                        float(pt.x() - half), float(pt.y() - half), float(s), float(s)
+                    )
                     painter.drawRect(rectf)
 
                 # rotate handle above top edge (always outside) + connector
@@ -472,7 +496,9 @@ class Overlay(QWidget):
                 edge_len = math.hypot(tx, ty) or 1.0
                 nx, ny = (-ty / edge_len, tx / edge_len)
 
-                vec_cx, vec_cy = (center_x_disp - mid_top.x()), (center_y_disp - mid_top.y())
+                vec_cx, vec_cy = (center_x_disp - mid_top.x()), (
+                    center_y_disp - mid_top.y()
+                )
                 if nx * vec_cx + ny * vec_cy > 0:
                     nx, ny = -nx, -ny
 
@@ -491,7 +517,7 @@ class Overlay(QWidget):
                 r = self._handle_draw_px * 0.5
                 painter.setPen(self._pen_rotate_handle)
                 painter.setBrush(self._brush_rotate_handle)
-                painter.drawEllipse(QRectF(rot_cx - r, rot_cy - r, 2*r, 2*r))
+                painter.drawEllipse(QRectF(rot_cx - r, rot_cy - r, 2 * r, 2 * r))
 
             # hover edge indicator (cyan, fat)
             if idx == self._hover_idx and self._hover_mode in ("N", "S", "E", "W"):
@@ -508,16 +534,21 @@ class Overlay(QWidget):
             # centers / axes (optional debug)
             if self._show_centers:
                 painter.setPen(self._pen_center)
-                painter.drawLine(QPointF(center_x_disp - 4, center_y_disp),
-                                 QPointF(center_x_disp + 4, center_y_disp))
-                painter.drawLine(QPointF(center_x_disp, center_y_disp - 4),
-                                 QPointF(center_x_disp, center_y_disp + 4))
+                painter.drawLine(
+                    QPointF(center_x_disp - 4, center_y_disp),
+                    QPointF(center_x_disp + 4, center_y_disp),
+                )
+                painter.drawLine(
+                    QPointF(center_x_disp, center_y_disp - 4),
+                    QPointF(center_x_disp, center_y_disp + 4),
+                )
 
             if self._show_axes:
                 painter.setPen(self._pen_axis)
                 axis_x = center_x_disp + half_w * cos_angle
                 axis_y = center_y_disp + half_h * sin_angle
-                painter.drawLine(QPointF(center_x_disp, center_y_disp),
-                                 QPointF(axis_x, axis_y))
+                painter.drawLine(
+                    QPointF(center_x_disp, center_y_disp), QPointF(axis_x, axis_y)
+                )
 
         painter.end()

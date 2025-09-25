@@ -116,7 +116,7 @@ class ProjectState:
 
     def boxes_with_ids_for_frame(
         self, frame_idx: int
-            ) -> List[Tuple[str, Tuple[float, float, float, float, float]]]:
+    ) -> List[Tuple[str, Tuple[float, float, float, float, float]]]:
         """
         Return [(object_id_str, (cx, cy, w, h, theta)), ...] for the given frame,
         in the same order you'll draw them in the overlay.

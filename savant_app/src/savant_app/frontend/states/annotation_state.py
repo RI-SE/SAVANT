@@ -11,7 +11,7 @@ class AnnotationMode(Enum):
 
 @dataclass
 class AnnotationState:
-    object_id: Optional[str] = None 
+    object_id: Optional[str] = None
     object_type: Optional[str] = None
     mode: AnnotationMode = field(
         default=AnnotationMode.NONE, metadata={"exclude": True}
