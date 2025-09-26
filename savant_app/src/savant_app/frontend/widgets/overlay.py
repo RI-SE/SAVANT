@@ -55,6 +55,7 @@ class Overlay(QWidget):
         self._handle_draw_px: float = 14.0
 
         # Hover feedback
+        self.setMouseTracking(True)
         self._hover_idx: int | None = None
         self._hover_mode: str | None = None
         self._pen_hover_edge = QPen(QColor(0, 200, 255))
@@ -173,16 +174,18 @@ class Overlay(QWidget):
                 self._hover_idx, self._hover_mode = idx, mode
                 self.update()
 
-            if mode in ("E", "W"):
-                self.setCursor(Qt.CursorShape.SizeHorCursor)
-            elif mode in ("N", "S"):
-                self.setCursor(Qt.CursorShape.SizeVerCursor)
-            elif mode in ("move", "R"):
+            if mode in ("E", "W", "N", "S"):
+                theta = self._boxes[idx][4]
+                ax_x, ax_y = self._axis_from_mode(theta, mode)
+                self.setCursor(self._cursor_for_axis(ax_x, ax_y))
+            elif mode == "move":
                 self.setCursor(Qt.CursorShape.SizeAllCursor)
+            elif mode == "R":
+                self.setCursor(Qt.CursorShape.OpenHandCursor)
             else:
                 self.unsetCursor()
 
-            ev.ignore()
+            ev.accept()
             return
 
         # Dragging a selected box/handle
@@ -293,6 +296,29 @@ class Overlay(QWidget):
 
     def wheelEvent(self, ev):
         ev.ignore()
+
+    def _axis_from_mode(self, theta: float, mode: str) -> tuple[float, float]:
+        """Return unit axis (ax_x, ax_y) in DISPLAY coords for the edge being resized."""
+        angle_rad = -theta if self._theta_is_clockwise else theta
+        if mode in ("E", "W"):
+            return math.cos(angle_rad), math.sin(angle_rad)
+        else:
+            return -math.sin(angle_rad), math.cos(angle_rad)
+
+    def _cursor_for_axis(self, ax_x: float, ax_y: float) -> Qt.CursorShape:
+        """
+        Map axis angle to the nearest standard cursor:
+        0/180° → SizeHor, 90° → SizeVer, 45° → FDiag, 135° → BDiag
+        """
+        deg = abs(math.degrees(math.atan2(ax_y, ax_x))) % 180.0
+        if deg < 22.5 or deg >= 157.5:
+            return Qt.CursorShape.SizeHorCursor
+        elif deg < 67.5:
+            return Qt.CursorShape.SizeFDiagCursor
+        elif deg < 112.5:
+            return Qt.CursorShape.SizeVerCursor
+        else:
+            return Qt.CursorShape.SizeBDiagCursor
 
     def _hit_test(self, pos_disp):
         """
