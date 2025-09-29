@@ -28,6 +28,7 @@ jobs:
         working-directory: ./savant_app/
         run: |
           # Use your real entry point here
+          rye add --dev pyinstaller
           rye run pyinstaller --onefile --windowed --name SAVANT main.py
 
       - name: Upload artifact
