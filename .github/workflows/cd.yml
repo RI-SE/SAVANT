@@ -23,13 +23,16 @@ jobs:
       - name: Sync dependencies (prod only)
         working-directory: ./savant_app/
         run: rye sync --no-lock --no-dev
-
+      
       - name: build
         working-directory: ./savant_app/src/savant_app/
         run: |
-          # Use your real entry point here
           rye add --dev pyinstaller
-          rye run pyinstaller --onefile --windowed --name SAVANT main.py
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            rye run pyinstaller --onefile --windowed --name SAVANT --add-data "frontend/assets;assets" main.py
+          else
+            rye run pyinstaller --onefile --windowed --name SAVANT --add-data "frontend/assets:assets" main.py
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
