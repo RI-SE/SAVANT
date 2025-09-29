@@ -1,3 +1,6 @@
+[![CD](https://github.com/fwrise/SAVANT/actions/workflows/cd.yml/badge.svg)](https://github.com/fwrise/SAVANT/actions/workflows/cd.yml)
+[![CI](https://github.com/fwrise/SAVANT/actions/workflows/ci.yml/badge.svg)](https://github.com/fwrise/SAVANT/actions/workflows/ci.yml)
+
 # SAVANT
 Development repository for RISE SAVANT - Semi-automated video annotation toolkit
 ![SAVANT logo](./savant_app/src/savant_app/frontend/assets/savant_logo.png)
