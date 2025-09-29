@@ -25,7 +25,7 @@ jobs:
         run: rye sync --no-lock --no-dev
 
       - name: build
-        working-directory: ./savant_app/
+        working-directory: ./savant_app/src/savant_app/
         run: |
           # Use your real entry point here
           rye add --dev pyinstaller
