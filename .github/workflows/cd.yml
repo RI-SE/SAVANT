@@ -14,7 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-
       - name: Setup Rye
         uses: eifinger/setup-rye@v4
         with:
@@ -23,20 +22,25 @@ jobs:
       - name: Sync dependencies (prod only)
         working-directory: ./savant_app/
         run: rye sync --no-lock --no-dev
-            
-      - name: build
+
+      - name: Build
         working-directory: ./savant_app/src/savant_app/
         run: |
           rye add --dev pyinstaller
-      
-          # Set the --add-data separator based on OS
+
+          # Set the --add-data separator and output name based on OS
           if [ "${{ runner.os }}" = "Windows" ]; then
             ADD_DATA="frontend/assets;assets"
+            OUTPUT="SAVANT-windows.exe"
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            ADD_DATA="frontend/assets:assets"
+            OUTPUT="SAVANT-macos"
           else
             ADD_DATA="frontend/assets:assets"
+            OUTPUT="SAVANT-linux"
           fi
-      
-          rye run pyinstaller --onefile --windowed --name SAVANT --add-data "$ADD_DATA" main.py
+
+          rye run pyinstaller --onefile --windowed --name "$OUTPUT" --add-data "$ADD_DATA" main.py
         shell: bash
 
       - name: Upload artifact
@@ -44,27 +48,33 @@ jobs:
         with:
           name: SAVANT-${{ matrix.os }}
           path: ./savant_app/src/savant_app/dist/*
-          
+
   release:
     needs: deploy
     runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
-      - name: Download artifacts from all OS
+      # Download artifacts from all OS builds
+      - name: Download Ubuntu artifact
         uses: actions/download-artifact@v4
         with:
           name: SAVANT-ubuntu-22.04
           path: ./artifacts/ubuntu
-      - uses: actions/download-artifact@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
         with:
           name: SAVANT-windows-latest
           path: ./artifacts/windows
-      - uses: actions/download-artifact@v4
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
         with:
           name: SAVANT-macos-latest
           path: ./artifacts/macos
 
+      # Create GitHub Release with all artifacts
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
