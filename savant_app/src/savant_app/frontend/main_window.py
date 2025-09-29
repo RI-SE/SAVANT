@@ -1,6 +1,13 @@
 # main_window.py
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QDialog
+from PyQt6.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QMessageBox,
+    QDialog,
+)
 from PyQt6.QtGui import QShortcut, QKeySequence
 from savant_app.frontend.widgets.video_display import VideoDisplay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
@@ -12,6 +19,7 @@ from savant_app.controllers.project_state_controller import ProjectStateControll
 from savant_app.controllers.video_controller import VideoController
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
+from savant_app.frontend.states.sidebar_state import SidebarState
 from dataclasses import asdict
 from pathlib import Path
 from savant_app.frontend.widgets.menu import AppMenu
@@ -38,6 +46,8 @@ class MainWindow(QMainWindow):
             on_save=self.noop,
             on_settings=self.open_settings,
         )
+
+        self.sidebar_state = SidebarState()
 
         # Controllers
         self.video_controller = video_controller
@@ -78,7 +88,12 @@ class MainWindow(QMainWindow):
 
         # Sidebar
         actors = self.project_state_controller.get_actor_types()
-        self.sidebar = Sidebar(video_actors=actors)
+        self.sidebar = Sidebar(
+            video_actors=actors,
+            annotation_controller=self.annotation_controller,
+            video_controller=self.video_controller,
+            state=self.sidebar_state,
+        )  # Temporarily pass controllers until refactor.
 
         # Main layout
         main_layout = QHBoxLayout()
@@ -126,7 +141,9 @@ class MainWindow(QMainWindow):
 
         self._undo_stack: list[dict] = []
 
-        QShortcut(QKeySequence(Qt.Key.Key_Delete), self, activated=self.delete_selected_bbox)
+        QShortcut(
+            QKeySequence(Qt.Key.Key_Delete), self, activated=self.delete_selected_bbox
+        )
         QShortcut(QKeySequence.StandardKey.Undo, self, activated=self.undo_delete)
 
         QShortcut(
@@ -151,6 +168,7 @@ class MainWindow(QMainWindow):
         dlg = SettingsDialog(theme="Dark", zoom_rate=1.2, parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             vals = dlg.values()
+            self.sidebar_state.historic_obj_frame_count = vals["previous_frame_count"]
             print("New settings:", vals)
 
     def update_title(self):
@@ -315,7 +333,9 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Save Failed", str(e))
 
-    def _on_overlay_box_moved(self, overlay_idx: int, x_center: float, y_center: float) -> None:
+    def _on_overlay_box_moved(
+        self, overlay_idx: int, x_center: float, y_center: float
+    ) -> None:
         frame_key = self.video_controller.current_index()
         object_key = self._overlay_ids[overlay_idx]
         self.annotation_controller.move_resize_bbox(
@@ -326,8 +346,14 @@ class MainWindow(QMainWindow):
         )
         self.refresh_frame()
 
-    def _on_overlay_box_resized(self, overlay_idx: int, x_center: float, y_center: float,
-                                width: float, height: float) -> None:
+    def _on_overlay_box_resized(
+        self,
+        overlay_idx: int,
+        x_center: float,
+        y_center: float,
+        width: float,
+        height: float,
+    ) -> None:
         frame_key = self.video_controller.current_index()
         object_key = self._overlay_ids[overlay_idx]
         self.annotation_controller.move_resize_bbox(
@@ -342,7 +368,9 @@ class MainWindow(QMainWindow):
 
     def _on_overlay_box_rotated(self, overlay_idx: int, rotation: float) -> None:
         frame_key = self.video_controller.current_index()
-        object_key = self.project_state_controller.object_id_for_frame_index(frame_key, overlay_idx)
+        object_key = self.project_state_controller.object_id_for_frame_index(
+            frame_key, overlay_idx
+        )
         self.annotation_controller.move_resize_bbox(
             frame_key=frame_key,
             object_key=object_key,
@@ -371,11 +399,13 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Delete", "Nothing was deleted (already gone?).")
             return
 
-        self._undo_stack.append({
-            "frame_key": frame_key,
-            "object_key": object_key,
-            "frame_obj": removed,
-        })
+        self._undo_stack.append(
+            {
+                "frame_key": frame_key,
+                "object_key": object_key,
+                "frame_obj": removed,
+            }
+        )
 
         self.overlay.clear_selection()
         self._update_overlay_from_model()
@@ -390,8 +420,9 @@ class MainWindow(QMainWindow):
         object_key = rec["object_key"]
         frame_obj: FrameLevelObject = rec["frame_obj"]
 
-        self.annotation_controller.restore_bbox(frame_key=frame_key, object_key=object_key,
-                                                frame_obj=frame_obj)
+        self.annotation_controller.restore_bbox(
+            frame_key=frame_key, object_key=object_key, frame_obj=frame_obj
+        )
 
         self.overlay.clear_selection()
         self._update_overlay_from_model()
@@ -486,12 +517,11 @@ class MainWindow(QMainWindow):
             AnnotationState(mode=AnnotationMode.NEW, object_type=object_type)
         )
 
-    def on_existing_object_bbox(self, object_type: str, object_id: str):
+    def on_existing_object_bbox(self, object_id: str):
         """Set up state for drawing a new bounding box for an existing object."""
         self.video_widget.start_drawing_mode(
             AnnotationState(
                 mode=AnnotationMode.EXISTING,
-                object_type=object_type,
                 object_id=object_id,
             )
         )

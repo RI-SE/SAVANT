@@ -112,7 +112,6 @@ class TestAnnotationService:
     ):
         """Test create_existing_object_bbox with valid existing object"""
         frame_number = 42
-        obj_type = "car"
         coordinates = (10, 20, 30, 40)
         object_id = "1"
         object_name = "car_1"
@@ -123,7 +122,7 @@ class TestAnnotationService:
         annotation_service._get_objectid_by_name = MagicMock(return_value=object_id)
 
         annotation_service.create_existing_object_bbox(
-            frame_number, obj_type, coordinates, object_name
+            frame_number, coordinates, object_name
         )
 
         # Verify config method was called
@@ -140,7 +139,6 @@ class TestAnnotationService:
     ):
         """Test create_existing_object_bbox with non-existent object"""
         frame_number = 42
-        obj_type = "car"
         coordinates = (10, 20, 30, 40)
         object_id = "invalid_id"
 
@@ -149,7 +147,7 @@ class TestAnnotationService:
 
         with pytest.raises(ObjectNotFoundError):
             annotation_service.create_existing_object_bbox(
-                frame_number, obj_type, coordinates, object_id
+                frame_number, coordinates, object_id
             )
 
     def test_does_object_exist_true(self, annotation_service, mock_project_state):

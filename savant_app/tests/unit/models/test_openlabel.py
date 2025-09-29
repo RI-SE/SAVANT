@@ -370,10 +370,13 @@ class TestOpenLabel:
             height=30.0,
             rotation=0.1,
         )
-        assert (updated.x_center, updated.y_center, updated.width,
-                updated.height, updated.rotation) == (
-            200.0, 80.0, 50.0, 30.0, 0.1
-        )
+        assert (
+            updated.x_center,
+            updated.y_center,
+            updated.width,
+            updated.height,
+            updated.rotation,
+        ) == (200.0, 80.0, 50.0, 30.0, 0.1)
         again = ol.get_bbox(frame_key=1, object_key=1)
         assert again == updated
 

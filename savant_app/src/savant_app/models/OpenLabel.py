@@ -200,7 +200,9 @@ class OpenLabel(BaseModel):
 
         frame_objects = self.frames[frame_id_str].objects
         if object_id_str not in frame_objects:
-            raise KeyError(f"Object '{object_id_str}' not found in frame '{frame_id_str}'")
+            raise KeyError(
+                f"Object '{object_id_str}' not found in frame '{frame_id_str}'"
+            )
 
         return frame_objects[object_id_str]
 
@@ -245,8 +247,8 @@ class OpenLabel(BaseModel):
         # absolute values (optional)
         x_center: Optional[float] = None,
         y_center: Optional[float] = None,
-        width:    Optional[float] = None,
-        height:   Optional[float] = None,
+        width: Optional[float] = None,
+        height: Optional[float] = None,
         rotation: Optional[float] = None,
         # deltas values (optional)
         delta_x: float = 0.0,
@@ -280,14 +282,27 @@ class OpenLabel(BaseModel):
 
         current_bbox: RotatedBBox = geometry_entry.val
 
-        new_x_center = x_center if (x_center is not None and isfinite(
-            x_center)) else current_bbox.x_center
-        new_y_center = y_center if (y_center is not None and isfinite(
-            y_center)) else current_bbox.y_center
-        new_width = width if (width is not None and isfinite(width)) else current_bbox.width
-        new_height = height if (height is not None and isfinite(height)) else current_bbox.height
-        new_rotation = rotation if (rotation is not None and isfinite(
-            rotation)) else current_bbox.rotation
+        new_x_center = (
+            x_center
+            if (x_center is not None and isfinite(x_center))
+            else current_bbox.x_center
+        )
+        new_y_center = (
+            y_center
+            if (y_center is not None and isfinite(y_center))
+            else current_bbox.y_center
+        )
+        new_width = (
+            width if (width is not None and isfinite(width)) else current_bbox.width
+        )
+        new_height = (
+            height if (height is not None and isfinite(height)) else current_bbox.height
+        )
+        new_rotation = (
+            rotation
+            if (rotation is not None and isfinite(rotation))
+            else current_bbox.rotation
+        )
 
         new_x_center += delta_x
         new_y_center += delta_y
@@ -304,7 +319,9 @@ class OpenLabel(BaseModel):
         geometry_entry.val = updated_bbox
         return updated_bbox
 
-    def delete_bbox(self, frame_key: int | str, object_key: str) -> Optional["FrameLevelObject"]:
+    def delete_bbox(
+        self, frame_key: int | str, object_key: str
+    ) -> Optional["FrameLevelObject"]:
         """
         Remove a bbox (FrameLevelObject) from a specific frame by object_key.
         Returns the removed FrameLevelObject if it existed, else None.
@@ -315,8 +332,9 @@ class OpenLabel(BaseModel):
         frame = self.frames[fkey]
         return frame.objects.pop(object_key, None)
 
-    def restore_bbox(self, frame_key: int | str, object_key: str, frame_obj:
-                     "FrameLevelObject") -> None:
+    def restore_bbox(
+        self, frame_key: int | str, object_key: str, frame_obj: "FrameLevelObject"
+    ) -> None:
         """
         Restore a previously removed bbox (FrameLevelObject) at the same frame/object key.
         Overwrites if something is already there.

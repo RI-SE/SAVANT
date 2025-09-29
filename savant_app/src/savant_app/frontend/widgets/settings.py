@@ -1,14 +1,24 @@
 # settings.py
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QFormLayout, QDialogButtonBox,
-    QWidget, QDoubleSpinBox, QTableWidget, QTableWidgetItem,
-    QCheckBox, QPushButton, QColorDialog, QLabel
+    QDialog,
+    QVBoxLayout,
+    QFormLayout,
+    QDialogButtonBox,
+    QWidget,
+    QDoubleSpinBox,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QCheckBox,
+    QPushButton,
+    QColorDialog,
+    QLabel,
 )
 from PyQt6.QtCore import Qt
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, *, theme="System", zoom_rate=1.2, parent=None):
+    def __init__(self, *, theme="System", zoom_rate=1.2, frame_count=100, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setModal(True)
@@ -29,10 +39,10 @@ class SettingsDialog(QDialog):
 
         # TODO: Change to retrieve names from config
         self._annotator = [
-            {"name": "Chris", "enabled": True,  "colour": "#ff6666"},
-            {"name": "Younis",   "enabled": False, "colour": "#3aa3ff"},
-            {"name": "Fredrik",   "enabled": False, "colour": "#63ff5e"},
-            {"name": "Thanh",   "enabled": False, "colour": "#fff347"},
+            {"name": "Chris", "enabled": True, "colour": "#ff6666"},
+            {"name": "Younis", "enabled": False, "colour": "#3aa3ff"},
+            {"name": "Fredrik", "enabled": False, "colour": "#63ff5e"},
+            {"name": "Thanh", "enabled": False, "colour": "#fff347"},
         ]
 
         self.zoom_spin = QDoubleSpinBox()
@@ -43,9 +53,19 @@ class SettingsDialog(QDialog):
         self.zoom_spin.setValue(float(zoom_rate))
         form.addRow("Zoom rate:", self.zoom_spin)
 
+        # Frame count input
+        self.frame_count_spin = QSpinBox()
+        self.frame_count_spin.setRange(1, 100000)
+        self.frame_count_spin.setSingleStep(1)
+        self.frame_count_spin.setSuffix(" frames")
+        self.frame_count_spin.setValue(int(frame_count))
+        self.frame_count_spin.setToolTip(
+            "Number of recent frames to analyze for object detection"
+        )
+        form.addRow("Frame history:", self.frame_count_spin)
+
         buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             parent=self,
         )
         buttons.accepted.connect(self.accept)
@@ -64,8 +84,10 @@ class SettingsDialog(QDialog):
         self.annotator_table.resizeRowsToContents()
 
         header_height = self.annotator_table.horizontalHeader().height()
-        rows_height = sum(self.annotator_table.rowHeight(r)
-                          for r in range(self.annotator_table.rowCount()))
+        rows_height = sum(
+            self.annotator_table.rowHeight(r)
+            for r in range(self.annotator_table.rowCount())
+        )
         frame_height = 2 * self.annotator_table.frameWidth()
 
         total_height = header_height + rows_height + frame_height
@@ -110,6 +132,7 @@ class SettingsDialog(QDialog):
         Returns:
             dict: A dictionary with:
                 - "zoom_rate" (float): The current zoom factor from the spinbox.
+                - "frame_count" (int): The number of frames to look back for object IDs.
                 - "Annotators" (list of dict): List of annotators, where each entry has:
                     * "name" (str): Annotator's name.
                     * "enabled" (bool): Checkbox state.
@@ -126,7 +149,8 @@ class SettingsDialog(QDialog):
 
         return {
             "zoom_rate": float(self.zoom_spin.value()),
-            "Annotators": annotators
+            "previous_frame_count": int(self.frame_count_spin.value()),
+            "Annotators": annotators,
         }
 
     def _pick_color_for_row(self, row: int):
