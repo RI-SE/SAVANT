@@ -43,7 +43,7 @@ jobs:
       contents: write
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           path: ./savant_app/src/savant_app/dist
 
