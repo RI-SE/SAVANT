@@ -70,7 +70,6 @@ class TestAnnotationController:
         # Verify service method is called with correct parameters
         mock_annotation_service.create_existing_object_bbox.assert_called_once_with(
             frame_number=frame_number,
-            obj_type=bbox_info["object_type"],
             coordinates=bbox_info["coordinates"],
             object_name=bbox_info["object_id"],
         )

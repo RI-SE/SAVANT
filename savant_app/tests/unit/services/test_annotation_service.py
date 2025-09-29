@@ -123,7 +123,7 @@ class TestAnnotationService:
         annotation_service._get_objectid_by_name = MagicMock(return_value=object_id)
 
         annotation_service.create_existing_object_bbox(
-            frame_number, obj_type, coordinates, object_name
+            frame_number, coordinates, object_name
         )
 
         # Verify config method was called
@@ -149,7 +149,7 @@ class TestAnnotationService:
 
         with pytest.raises(ObjectNotFoundError):
             annotation_service.create_existing_object_bbox(
-                frame_number, obj_type, coordinates, object_id
+                frame_number, coordinates, object_id
             )
 
     def test_does_object_exist_true(self, annotation_service, mock_project_state):
