@@ -96,6 +96,7 @@ class VideoDisplay(QLabel):
         self.drawing = True
         self.start_point = e.position()
         self.end_point = e.position()
+        self.grabMouse()
         self.update()
 
     def _handle_drawing_move(self, e: QMouseEvent):
@@ -107,6 +108,7 @@ class VideoDisplay(QLabel):
     def _handle_drawing_release(self, e: QMouseEvent):
         """Handle drawing mode mouse release."""
         self.drawing = False
+        self.releaseMouse()
         self.setCursor(Qt.CursorShape.ArrowCursor)
 
         if self._pixmap is None or self._pixmap.isNull():
