@@ -1,12 +1,12 @@
 import sys
 from PyQt6.QtWidgets import QApplication
-from .frontend.main_window import MainWindow
-from .controllers.project_state_controller import ProjectStateController
-from .controllers.annotation_controller import AnnotationController
-from .services.annotation_service import AnnotationService
-from .services.project_state import ProjectState
-from .controllers.video_controller import VideoController
-from .services.video_reader import VideoReader
+from savant_app.frontend.main_window import MainWindow
+from savant_app.controllers.project_state_controller import ProjectStateController
+from savant_app.controllers.annotation_controller import AnnotationController
+from savant_app.services.annotation_service import AnnotationService
+from savant_app.services.project_state import ProjectState
+from savant_app.controllers.video_controller import VideoController
+from savant_app.services.video_reader import VideoReader
 
 if __name__ == "__main__":
 
