@@ -14,6 +14,11 @@ annotated-types==0.7.0
     # via pydantic
 iniconfig==2.1.0
     # via pytest
+numpy==2.2.6
+    # via opencv-python
+    # via savant-app
+opencv-python==4.12.0.88
+    # via savant-app
 packaging==25.0
     # via pytest
 pluggy==1.6.0
