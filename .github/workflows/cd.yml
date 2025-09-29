@@ -44,20 +44,30 @@ jobs:
         with:
           name: SAVANT-${{ matrix.os }}
           path: ./savant_app/src/savant_app/dist/*
-
+          
   release:
     needs: deploy
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
-    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/upload-artifact@v4
+      - name: Download artifacts from all OS
+        uses: actions/download-artifact@v4
         with:
-          path: ./savant_app/src/savant_app/dist
+          name: SAVANT-ubuntu-22.04
+          path: ./artifacts/ubuntu
+      - uses: actions/download-artifact@v4
+        with:
+          name: SAVANT-windows-latest
+          path: ./artifacts/windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: SAVANT-macos-latest
+          path: ./artifacts/macos
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./savant_app/src/savant_app/dist/**/*
+          files: ./artifacts/**/* 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
