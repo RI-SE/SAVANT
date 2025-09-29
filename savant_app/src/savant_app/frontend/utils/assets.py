@@ -1,8 +1,15 @@
-# frontend/utils/assets.py
 from pathlib import Path
 from PyQt6.QtGui import QIcon
+import sys
 
-ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
+if getattr(sys, "frozen", False):
+    # Running in PyInstaller bundle
+    BASE_DIR = Path(sys._MEIPASS)
+else:
+    # Running normally
+    BASE_DIR = Path(__file__).resolve().parent.parent
+
+ASSETS_DIR = BASE_DIR / "assets"
 
 
 def asset_path(*parts: str) -> str:
