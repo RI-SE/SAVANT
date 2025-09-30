@@ -50,6 +50,17 @@ class VideoReader:
             raise StopIteration
         return frame
 
+    def skip_frames(self, delta: int) -> np.ndarray:
+        """
+        Move delta frames from current position, clamped to [0, frame_count-1]
+        Returns the frame at the new position.
+        """
+        self._validate_video_loaded()
+        cur = max(self.current_index, 0)
+        last = self.metadata["frame_count"] - 1
+        target = min(max(cur + delta, 0), last)
+        return self.get_frame(target)
+
     def get_frame(self, index: int) -> np.ndarray:
         """
         Retrieve a specific frame by index.
@@ -76,10 +87,10 @@ class VideoReader:
     def previous_frame(self) -> np.ndarray:
         """
         Retrieve the previous frame relative to the current index.
-
+        
         Returns:
-            np.ndarray: The previous frame.
-
+            np.ndarray: The previous frame
+            
         Raises:
             IndexError: If already at the first frame.
         """
