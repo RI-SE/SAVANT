@@ -62,6 +62,7 @@ class VideoController:
     def size(self) -> tuple[int, int]:
         return (self.reader.metadata["width"], self.reader.metadata["height"])
 
+    # TODO: Can eventually move this to frontend for full SOC
     def _convert_frame_to_pixmap(self, frame: np.ndarray) -> QPixmap:
         """Convert OpenCV BGR ndarray to QPixmap"""
         if frame is None or frame.ndim != 3 or frame.shape[2] != 3:
