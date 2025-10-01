@@ -4,20 +4,21 @@ import cv2
 import numpy as np
 from PyQt6.QtGui import QPixmap, QImage
 from savant_app.services.video_reader import VideoReader
-
+from .error_handler_middleware import error_handler
 
 class VideoController:
     def __init__(self, reader: VideoReader) -> None:
         self.reader: VideoReader = reader
 
-    # lifecycle
+    @error_handler
     def load_video(self, path: str) -> None:
         self.reader.load_video(path)
 
+    @error_handler
     def close_video(self) -> None:
         self.reader.release()
 
-    # frames / navigation
+    @error_handler
     def next_frame(self) -> tuple[QPixmap, int] | tuple[None, None]:
         """Advance to next frame and return (pixmap, index)."""
         try:
@@ -26,6 +27,7 @@ class VideoController:
         except (StopIteration, RuntimeError):
             return None, None
 
+    @error_handler
     def previous_frame(self) -> tuple[QPixmap, int] | tuple[None, None]:
         try:
             frame = self.reader.previous_frame()
@@ -33,6 +35,7 @@ class VideoController:
         except (IndexError, RuntimeError):
             return None, None
 
+    @error_handler
     def jump_to_frame(self, index: int) -> tuple[QPixmap, int] | tuple[None, None]:
         """Jump to an exact frame and return (pixmap, index)."""
         try:
@@ -41,6 +44,7 @@ class VideoController:
         except (IndexError, RuntimeError):
             return None, None
 
+    @error_handler
     def skip_frames(self, delta: int) -> tuple[QPixmap, int] | tuple[None, None]:
         """Move delta frames from current position, clamped to [0, frame_count-1]."""
         try:
@@ -49,16 +53,19 @@ class VideoController:
         except (IndexError, RuntimeError):
             return None, None
 
-    # metadata
+    @error_handler
     def total_frames(self) -> int:
         return self.reader.metadata["frame_count"]
 
+    @error_handler
     def current_index(self) -> int:
         return self.reader.current_index
 
+    @error_handler
     def fps(self) -> float:
         return float(self.reader.metadata["fps"])
 
+    @error_handler
     def size(self) -> tuple[int, int]:
         return (self.reader.metadata["width"], self.reader.metadata["height"])
 
