@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from .exceptions import VideoLoadError, VideoFrameIndexError, VideoReadError
 
 
 class VideoReader:
@@ -15,7 +16,7 @@ class VideoReader:
             self.release()
         self.capture = cv2.VideoCapture(path)
         if not self.capture.isOpened():
-            raise ValueError(f"Could not open video file: {path}")
+            raise VideoLoadError(f"Could not open video file from path: {path}")
 
         self.metadata.update(
             {
@@ -47,7 +48,7 @@ class VideoReader:
         self._validate_video_loaded()
         success, frame = self.capture.read()
         if not success:
-            raise StopIteration
+            raise StopIteration # This will not trigger error handling middleware. 
         return frame
 
     def skip_frames(self, delta: int) -> np.ndarray:
@@ -76,12 +77,12 @@ class VideoReader:
         """
         self._validate_video_loaded()
         if not (0 <= index < self.metadata["frame_count"]):
-            raise IndexError("Frame index out of range")
+            raise VideoFrameIndexError("Frame index out of range")
 
         self.capture.set(cv2.CAP_PROP_POS_FRAMES, index)
         success, frame = self.capture.read()
         if not success:
-            raise RuntimeError(f"Failed to read frame {index}")
+            raise VideoReadError(f"Failed to read frame {index}")
         return frame
 
     def previous_frame(self) -> np.ndarray:
@@ -97,7 +98,7 @@ class VideoReader:
         self._validate_video_loaded()
         target = self.current_index - 1
         if target < 0:
-            raise IndexError("Already at the first frame")
+            raise VideoFrameIndexError("Already at the first frame")
         return self.get_frame(target)
 
     def release(self) -> None:
@@ -109,4 +110,4 @@ class VideoReader:
     def _validate_video_loaded(self):
         """Ensure a video is loaded before performing operations."""
         if not self.capture or not self.capture.isOpened():
-            raise RuntimeError("No video loaded - call load_video() first")
+            raise VideoLoadError("No video loaded - please ensure you have imported a project.")

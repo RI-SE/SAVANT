@@ -3,6 +3,8 @@
 import json
 from savant_app.models.OpenLabel import OpenLabel
 from savant_app.utils import read_json
+from .exceptions import OpenLabelFileNotValid, OverlayIndexError
+from pydantic import ValidationError
 from typing import List, Tuple
 
 
@@ -50,18 +52,20 @@ class ProjectState:
         Initializes:
             self.open_label: New OpenLabel instance with loaded configuration
         """
-        config = read_json(path)
-        self.annotation_config = OpenLabel(**config["openlabel"])
-        self.open_label_path = path
+        try:
+            config = read_json(path)
+            self.annotation_config = OpenLabel(**config["openlabel"])
+            self.open_label_path = path
+        except json.JSONDecodeError as e:
+            raise OpenLabelFileNotValid("Please ensure a valid json file exists in the config dir.")
+        except ValidationError as e:
+            raise OpenLabelFileNotValid("Config file contains incorrect OpenLabel syntax.") from e
 
     def save_openlabel_config(self) -> None:
         """Save the adjusted OpenLabel configuration to a JSON file.
 
         Args:
             adjusted_config: The OpenLabel instance containing the adjusted configuration
-
-        Raises:
-            ValueError: If adjusted_config is not a valid OpenLabel instance
         """
         # Save the configuration to a JSON file
         with open(self.open_label_path, "w") as f:
@@ -79,6 +83,7 @@ class ProjectState:
         """
         return self.__ACTORS.copy()
 
+    # TODO: Move to more related service
     def boxes_for_frame(
         self, frame_idx: int
     ) -> List[Tuple[float, float, float, float, float]]:
@@ -114,6 +119,7 @@ class ProjectState:
                 )
         return out
 
+    # TODO: Move to more related service
     def boxes_with_ids_for_frame(
         self, frame_idx: int
     ) -> List[Tuple[str, Tuple[float, float, float, float, float]]]:
@@ -155,6 +161,7 @@ class ProjectState:
                 )
         return out
 
+    # TODO: Move to more related service
     def object_id_for_frame_index(self, frame_idx: int, overlay_index: int) -> str:
         """
         Map overlay row index -> object_id_str for the given frame.
@@ -162,7 +169,7 @@ class ProjectState:
         """
         pairs = self.boxes_with_ids_for_frame(frame_idx)
         if overlay_index < 0 or overlay_index >= len(pairs):
-            raise IndexError(
+            raise OverlayIndexError(
                 f"overlay_index {overlay_index} out of range for frame {frame_idx}"
             )
         return pairs[overlay_index][0]
