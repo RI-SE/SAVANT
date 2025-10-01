@@ -54,6 +54,11 @@ class OpenLabelFileNotValid(DomainException):
 
     pass
 
+class BBoxNotFoundError(DomainException):
+    """Raised when bounding boxes are not found in the config"""
+
+    pass
+
 class VideoLoadError(DomainException):
     """Raised when video file can't be loaded"""
      

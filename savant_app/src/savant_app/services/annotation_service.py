@@ -5,12 +5,12 @@ from .exceptions import (
     FrameNotFoundError,
     InvalidFrameRangeError,
     InvalidInputError,
-    BBOXNotFoundError,
+    BBoxNotFoundError,
 )
 from typing import Optional, Union
 from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
 from savant_app.models.OpenLabel import FrameLevelObject
-from pydantic.errors import ValidationError
+from pydantic import ValidationError
 
 
 class AnnotationService:
@@ -127,7 +127,7 @@ class AnnotationService:
                 bbox_index=bbox_index,
             )
         except KeyError as e:
-            raise BBOXNotFoundError(f"BBox not found for object {object_key} in frame {frame_key}.", e)
+            raise BBoxNotFoundError(f"BBox not found for object {object_key} in frame {frame_key}.", e)
 
     def move_resize_bbox(
         self,
