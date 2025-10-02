@@ -4,75 +4,78 @@ from savant_app.frontend.states.annotation_state import AnnotationMode, Annotati
 from .render import refresh_frame
 
 
-def wire(mw):
+def wire(main_window):
     """
     Connect all annotation-related signals. Safe to call once in MainWindow.__init__.
     """
-    if hasattr(mw.sidebar, "start_bbox_drawing"):
-        mw.sidebar.start_bbox_drawing.connect(
-            lambda object_type: on_new_object_bbox(mw, object_type))
-    if hasattr(mw.sidebar, "add_new_bbox_existing_obj"):
-        mw.sidebar.add_new_bbox_existing_obj.connect(
-            lambda object_id: on_existing_object_bbox(mw, object_id))
+    if hasattr(main_window.sidebar, "start_bbox_drawing"):
+        main_window.sidebar.start_bbox_drawing.connect(
+            lambda object_type: on_new_object_bbox(main_window, object_type))
+    if hasattr(main_window.sidebar, "add_new_bbox_existing_obj"):
+        main_window.sidebar.add_new_bbox_existing_obj.connect(
+            lambda object_id: on_existing_object_bbox(main_window, object_id))
 
-    if hasattr(mw.video_widget, "bbox_drawn"):
+    if hasattr(main_window.video_widget, "bbox_drawn"):
         try:
-            mw.video_widget.bbox_drawn.connect(lambda ann: handle_drawn_bbox(mw, ann))
+            main_window.video_widget.bbox_drawn.connect(
+                lambda ann: handle_drawn_bbox(main_window, ann))
         except TypeError:
             pass
 
-    mw.overlay.boxMoved.connect(lambda i, x, y: _moved(mw, i, x, y))
-    mw.overlay.boxResized.connect(lambda i, x, y, w, h: _resized(mw, i, x, y, w, h))
-    mw.overlay.boxRotated.connect(lambda i, r: _rotated(mw, i, r))
+    main_window.overlay.boxMoved.connect(lambda i, x, y: _moved(main_window, i, x, y))
+    main_window.overlay.boxResized.connect(lambda i, x, y, w, h: _resized(
+        main_window, i, x, y, w, h))
+    main_window.overlay.boxRotated.connect(lambda i, r: _rotated(main_window, i, r))
 
 
-def on_new_object_bbox(mw, object_type: str):
+def on_new_object_bbox(main_window, object_type: str):
     """Enter drawing mode for a NEW object of given type."""
-    mw.video_widget.start_drawing_mode(
+    main_window.video_widget.start_drawing_mode(
         AnnotationState(mode=AnnotationMode.NEW, object_type=object_type))
 
 
-def on_existing_object_bbox(mw, object_id: str):
+def on_existing_object_bbox(main_window, object_id: str):
     """Enter drawing mode to add a bbox to an EXISTING object id."""
-    mw.video_widget.start_drawing_mode(
+    main_window.video_widget.start_drawing_mode(
         AnnotationState(mode=AnnotationMode.EXISTING, object_id=object_id))
 
 
-def handle_drawn_bbox(mw, annotation: AnnotationState):
+def handle_drawn_bbox(main_window, annotation: AnnotationState):
     """Finalize newly drawn bbox → controller → refresh."""
-    frame_idx = mw.video_controller.current_index()
+    frame_idx = main_window.video_controller.current_index()
     if annotation.mode == AnnotationMode.EXISTING:
         if not annotation.object_id:
             return
-        mw.annotation_controller.create_bbox_existing_object(
+        main_window.annotation_controller.create_bbox_existing_object(
             frame_number=frame_idx, bbox_info=asdict(annotation)
         )
     elif annotation.mode == AnnotationMode.NEW:
-        mw.annotation_controller.create_new_object_bbox(
+        main_window.annotation_controller.create_new_object_bbox(
             frame_number=frame_idx, bbox_info=asdict(annotation)
         )
-    refresh_frame(mw)
+    refresh_frame(main_window)
 
 
-def delete_selected_bbox(mw):
+def delete_selected_bbox(main_window):
     """Delete the currently selected bbox and record it for undo."""
-    _ensure_undo_stack(mw)
+    _ensure_undo_stack(main_window)
 
-    idx = mw.overlay.selected_index()
+    idx = main_window.overlay.selected_index()
     if idx is None:
         return
 
-    frame_key = mw.video_controller.current_index()
+    frame_key = main_window.video_controller.current_index()
     try:
-        object_key = mw._overlay_ids[idx]
+        object_key = main_window._overlay_ids[idx]
     except Exception:
         return
 
-    removed = mw.annotation_controller.delete_bbox(frame_key=frame_key, object_key=object_key)
+    removed = main_window.annotation_controller.delete_bbox(
+        frame_key=frame_key, object_key=object_key)
     if removed is None:
         return
 
-    mw._undo_stack.append(
+    main_window._undo_stack.append(
         {
             "frame_key": frame_key,
             "object_key": object_key,
@@ -80,54 +83,54 @@ def delete_selected_bbox(mw):
         }
     )
 
-    mw.overlay.clear_selection()
-    refresh_frame(mw)
+    main_window.overlay.clear_selection()
+    refresh_frame(main_window)
 
 
-def undo_delete(mw):
+def undo_delete(main_window):
     """Restore the last deleted bbox, if any."""
-    _ensure_undo_stack(mw)
-    if not mw._undo_stack:
+    _ensure_undo_stack(main_window)
+    if not main_window._undo_stack:
         return
 
-    rec = mw._undo_stack.pop()
+    rec = main_window._undo_stack.pop()
     frame_key = rec["frame_key"]
     object_key = rec["object_key"]
     frame_obj = rec["frame_obj"]
 
-    mw.annotation_controller.restore_bbox(
+    main_window.annotation_controller.restore_bbox(
         frame_key=frame_key, object_key=object_key, frame_obj=frame_obj)
-    mw.overlay.clear_selection()
-    refresh_frame(mw)
+    main_window.overlay.clear_selection()
+    refresh_frame(main_window)
 
 
-def _moved(mw, overlay_idx: int, x: float, y: float):
-    fk = mw.video_controller.current_index()
-    ok = mw._overlay_ids[overlay_idx]
-    mw.annotation_controller.move_resize_bbox(
+def _moved(main_window, overlay_idx: int, x: float, y: float):
+    fk = main_window.video_controller.current_index()
+    ok = main_window._overlay_ids[overlay_idx]
+    main_window.annotation_controller.move_resize_bbox(
         frame_key=fk, object_key=ok, x_center=x, y_center=y
     )
-    refresh_frame(mw)
+    refresh_frame(main_window)
 
 
-def _resized(mw, overlay_idx: int, x: float, y: float, w: float, h: float):
-    fk = mw.video_controller.current_index()
-    ok = mw._overlay_ids[overlay_idx]
-    mw.annotation_controller.move_resize_bbox(
+def _resized(main_window, overlay_idx: int, x: float, y: float, w: float, h: float):
+    fk = main_window.video_controller.current_index()
+    ok = main_window._overlay_ids[overlay_idx]
+    main_window.annotation_controller.move_resize_bbox(
         frame_key=fk, object_key=ok, x_center=x, y_center=y, width=w, height=h
     )
-    refresh_frame(mw)
+    refresh_frame(main_window)
 
 
-def _rotated(mw, overlay_idx: int, rotation: float):
-    fk = mw.video_controller.current_index()
-    ok = mw.project_state_controller.object_id_for_frame_index(fk, overlay_idx)
-    mw.annotation_controller.move_resize_bbox(
+def _rotated(main_window, overlay_idx: int, rotation: float):
+    fk = main_window.video_controller.current_index()
+    ok = main_window.project_state_controller.object_id_for_frame_index(fk, overlay_idx)
+    main_window.annotation_controller.move_resize_bbox(
         frame_key=fk, object_key=ok, rotation=rotation
     )
-    refresh_frame(mw)
+    refresh_frame(main_window)
 
 
-def _ensure_undo_stack(mw):
-    if not hasattr(mw, "_undo_stack"):
-        mw._undo_stack = []
+def _ensure_undo_stack(main_window):
+    if not hasattr(main_window, "_undo_stack"):
+        main_window._undo_stack = []

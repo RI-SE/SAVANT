@@ -4,42 +4,42 @@ from .render import show_frame
 from .playback import _stop as stop
 
 
-def wire(mw):
-    mw.sidebar.open_video.connect(lambda p: on_open_video(mw, p))
-    mw.sidebar.open_config.connect(lambda p: open_openlabel_config(mw, p))
-    mw.sidebar.open_project_dir.connect(lambda p: on_open_project_dir(mw, p))
-    mw.sidebar.quick_save.connect(lambda: quick_save(mw))
+def wire(main_window):
+    main_window.sidebar.open_video.connect(lambda p: on_open_video(main_window, p))
+    main_window.sidebar.open_config.connect(lambda p: open_openlabel_config(main_window, p))
+    main_window.sidebar.open_project_dir.connect(lambda p: on_open_project_dir(main_window, p))
+    main_window.sidebar.quick_save.connect(lambda: quick_save(main_window))
 
 
-def on_open_video(mw, path: str):
+def on_open_video(main_window, path: str):
     try:
-        mw.video_controller.load_video(path)
-        pixmap, idx = mw.video_controller.jump_to_frame(0)
-        show_frame(mw, pixmap, idx)
-        mw.seek_bar.update_range(mw.video_controller.total_frames())
-        if hasattr(mw.playback_controls, "set_fps"):
-            mw.playback_controls.set_fps(mw.video_controller.fps())
-        stop(mw)
+        main_window.video_controller.load_video(path)
+        pixmap, idx = main_window.video_controller.jump_to_frame(0)
+        show_frame(main_window, pixmap, idx)
+        main_window.seek_bar.update_range(main_window.video_controller.total_frames())
+        if hasattr(main_window.playback_controls, "set_fps"):
+            main_window.playback_controls.set_fps(main_window.video_controller.fps())
+        stop(main_window)
     except Exception as e:
-        QMessageBox.critical(mw, "Failed to open video", str(e))
+        QMessageBox.critical(main_window, "Failed to open video", str(e))
 
 
-def open_openlabel_config(mw, path: str):
+def open_openlabel_config(main_window, path: str):
     try:
-        mw.project_state_controller.load_openlabel_config(path)
+        main_window.project_state_controller.load_openlabel_config(path)
     except Exception as e:
-        QMessageBox.critical(mw, "Failed to load config", str(e))
+        QMessageBox.critical(main_window, "Failed to load config", str(e))
 
 
-def quick_save(mw):
+def quick_save(main_window):
     try:
-        mw.project_state_controller.save_openlabel_config()
-        QMessageBox.information(mw, "Save Successful", "Project saved successfully.")
+        main_window.project_state_controller.save_openlabel_config()
+        QMessageBox.information(main_window, "Save Successful", "Project saved successfully.")
     except Exception as e:
-        QMessageBox.critical(mw, "Save Failed", str(e))
+        QMessageBox.critical(main_window, "Save Failed", str(e))
 
 
-def on_open_project_dir(mw, dir_path: str):
+def on_open_project_dir(main_window, dir_path: str):
     try:
         folder = Path(dir_path)
         if not folder.is_dir():
@@ -57,10 +57,12 @@ def on_open_project_dir(mw, dir_path: str):
         preferred_jsons = [p for p in jsons if "openlabel" in p.stem.lower()]
         json_path = preferred_jsons[0] if preferred_jsons else jsons[0]
         video_path = videos[0]
-        open_openlabel_config(mw, str(json_path))
-        if getattr(mw.project_state_controller, "project_state", None) and \
-           getattr(mw.project_state_controller.project_state, "annotation_config", None) is None:
+        open_openlabel_config(main_window, str(json_path))
+        if getattr(main_window.project_state_controller, "project_state", None) and \
+           getattr(
+               main_window.project_state_controller
+               .project_state, "annotation_config", None) is None:
             return
-        on_open_video(mw, str(video_path))
+        on_open_video(main_window, str(video_path))
     except Exception as e:
-        QMessageBox.critical(mw, "Open Folder Failed", str(e))
+        QMessageBox.critical(main_window, "Open Folder Failed", str(e))

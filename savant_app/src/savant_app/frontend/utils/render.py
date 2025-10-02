@@ -4,72 +4,73 @@ from typing import Any, List, Tuple
 from PyQt6.QtWidgets import QMessageBox
 
 
-def wire(mw):
+def wire(main_window):
     """
     Hook overlay geometry to the video widget, and connect bbox events.
     No dependencies on methods inside MainWindow.
     """
-    _sync_overlay_geometry(mw)
+    _sync_overlay_geometry(main_window)
 
-    original_resize = getattr(mw.video_widget, "resizeEvent", None)
+    original_resize = getattr(main_window.video_widget, "resizeEvent", None)
 
     def _wrapped_resize(e):
         if callable(original_resize):
             original_resize(e)
-        _sync_overlay_geometry(mw)
+        _sync_overlay_geometry(main_window)
 
-    mw.video_widget.resizeEvent = _wrapped_resize
+    main_window.video_widget.resizeEvent = _wrapped_resize
 
 
-def show_frame(mw, pixmap, frame_idx: int | None):
+def show_frame(main_window, pixmap, frame_idx: int | None):
     """
     Render a frame and update overlay from the model (rotated boxes, active objects).
     Safe if pixmap/frame_idx are None at end-of-video.
     """
     if pixmap is not None:
-        mw.video_widget.show_frame(pixmap)
+        main_window.video_widget.show_frame(pixmap)
     else:
-        mw.overlay.set_rotated_boxes([])
+        main_window.overlay.set_rotated_boxes([])
         return
 
-    if frame_idx is not None and hasattr(mw.seek_bar, "set_position"):
-        mw.seek_bar.set_position(int(frame_idx))
+    if frame_idx is not None and hasattr(main_window.seek_bar, "set_position"):
+        main_window.seek_bar.set_position(int(frame_idx))
 
-    _update_overlay_from_model(mw)
+    _update_overlay_from_model(main_window)
 
 
-def refresh_frame(mw):
+def refresh_frame(main_window):
     """
     Re-render current frame without changing index (after edits/zoom/etc.).
     """
     try:
-        idx = mw.video_controller.current_index()
-        pixmap, _ = mw.video_controller.jump_to_frame(idx)
-        show_frame(mw, pixmap, idx)
+        idx = main_window.video_controller.current_index()
+        pixmap, _ = main_window.video_controller.jump_to_frame(idx)
+        show_frame(main_window, pixmap, idx)
     except Exception as e:
-        QMessageBox.critical(mw, "Refresh failed", str(e))
+        QMessageBox.critical(main_window, "Refresh failed", str(e))
 
 
-def _sync_overlay_geometry(mw):
+def _sync_overlay_geometry(main_window):
     """Ensure overlay matches the video widget's rect and sits on top."""
-    mw.overlay.setGeometry(mw.video_widget.rect())
-    mw.overlay.raise_()
+    main_window.overlay.setGeometry(main_window.video_widget.rect())
+    main_window.overlay.raise_()
 
 
-def _update_overlay_from_model(mw):
+def _update_overlay_from_model(main_window):
     """Fetch boxes for current frame and update overlay + sidebar."""
-    frame_idx = mw.video_controller.current_index()
+    frame_idx = main_window.video_controller.current_index()
     try:
-        pairs: List[Tuple[str, Any]] = mw.project_state_controller.boxes_with_ids_for_frame(
-            frame_idx)
-        mw._overlay_ids = [oid for (oid, _) in pairs]
+        pairs: List[Tuple[str, Any]] = (
+            main_window.project_state_controller
+            .boxes_with_ids_for_frame(frame_idx))
+        main_window._overlay_ids = [oid for (oid, _) in pairs]
         boxes = [geom for (_, geom) in pairs]
-        w, h = mw.video_controller.size()
-        mw.overlay.set_frame_size(w, h)
-        mw.overlay.set_rotated_boxes(boxes)
-        active = mw.annotation_controller.get_active_objects(frame_idx)
-        mw.sidebar.refresh_active_objects(active)
+        w, h = main_window.video_controller.size()
+        main_window.overlay.set_frame_size(w, h)
+        main_window.overlay.set_rotated_boxes(boxes)
+        active = main_window.annotation_controller.get_active_objects(frame_idx)
+        main_window.sidebar.refresh_active_objects(active)
 
     except Exception:
-        mw._overlay_ids = []
-        mw.overlay.set_rotated_boxes([])
+        main_window._overlay_ids = []
+        main_window.overlay.set_rotated_boxes([])

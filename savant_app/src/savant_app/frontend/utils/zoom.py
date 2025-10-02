@@ -2,26 +2,26 @@ from PyQt6.QtGui import QShortcut, QKeySequence
 from PyQt6.QtCore import Qt
 
 
-def wire(mw, initial: float = 1.0):
+def wire(main_window, initial: float = 1.0):
 
     def _clamp(z: float) -> float:
         return max(0.05, min(z, 20.0))
 
     def _apply_zoom(z: float):
-        mw._zoom = _clamp(z)
-        if hasattr(mw.video_widget, "set_zoom"):
-            mw.video_widget.set_zoom(mw._zoom)
-        if hasattr(mw.overlay, "set_zoom"):
-            mw.overlay.set_zoom(mw._zoom)
-        if hasattr(mw.overlay, "update"):
-            mw.overlay.update()
+        main_window._zoom = _clamp(z)
+        if hasattr(main_window.video_widget, "set_zoom"):
+            main_window.video_widget.set_zoom(main_window._zoom)
+        if hasattr(main_window.overlay, "set_zoom"):
+            main_window.overlay.set_zoom(main_window._zoom)
+        if hasattr(main_window.overlay, "update"):
+            main_window.overlay.update()
 
-    def zoom_in():  _apply_zoom(mw._zoom * 1.1)
-    def zoom_out(): _apply_zoom(mw._zoom / 1.1)
+    def zoom_in():  _apply_zoom(main_window._zoom * 1.1)
+    def zoom_out(): _apply_zoom(main_window._zoom / 1.1)
     def zoom_fit(): _apply_zoom(1.0)
 
-    mw._zoom = initial
-    _apply_zoom(mw._zoom)
+    main_window._zoom = initial
+    _apply_zoom(main_window._zoom)
 
     def _wheel_zoom(event):
         mods = event.modifiers()
@@ -35,14 +35,14 @@ def wire(mw, initial: float = 1.0):
         else:
             event.ignore()
 
-    if hasattr(mw.video_widget, "setMouseTracking"):
-        mw.video_widget.setMouseTracking(True)
-    mw.video_widget.wheelEvent = _wheel_zoom
+    if hasattr(main_window.video_widget, "setMouseTracking"):
+        main_window.video_widget.setMouseTracking(True)
+    main_window.video_widget.wheelEvent = _wheel_zoom
 
-    QShortcut(QKeySequence(QKeySequence.StandardKey.ZoomIn), mw, activated=zoom_in)
-    QShortcut(QKeySequence(QKeySequence.StandardKey.ZoomOut), mw, activated=zoom_out)
-    QShortcut(QKeySequence("Ctrl+0"), mw, activated=zoom_fit)
+    QShortcut(QKeySequence(QKeySequence.StandardKey.ZoomIn), main_window, activated=zoom_in)
+    QShortcut(QKeySequence(QKeySequence.StandardKey.ZoomOut), main_window, activated=zoom_out)
+    QShortcut(QKeySequence("Ctrl+0"), main_window, activated=zoom_fit)
 
-    mw.zoom_in = zoom_in
-    mw.zoom_out = zoom_out
-    mw.zoom_fit = zoom_fit
+    main_window.zoom_in = zoom_in
+    main_window.zoom_out = zoom_out
+    main_window.zoom_fit = zoom_fit

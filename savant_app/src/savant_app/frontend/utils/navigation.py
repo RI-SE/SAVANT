@@ -2,15 +2,15 @@ from .render import show_frame
 from PyQt6.QtWidgets import QMessageBox
 
 
-def wire(mw):
-    if hasattr(mw.seek_bar, "frame_changed"):
-        mw.seek_bar.frame_changed.connect(lambda idx: on_seek(mw, idx))
+def wire(main_window):
+    if hasattr(main_window.seek_bar, "frame_changed"):
+        main_window.seek_bar.frame_changed.connect(lambda idx: on_seek(main_window, idx))
 
 
-def on_seek(mw, index: int):
+def on_seek(main_window, index: int):
     try:
-        pixmap, idx = mw.video_controller.jump_to_frame(index)
+        pixmap, idx = main_window.video_controller.jump_to_frame(index)
 
-        show_frame(mw, pixmap, idx)
+        show_frame(main_window, pixmap, idx)
     except Exception as e:
-        QMessageBox.critical(mw, "Seek failed", str(e))
+        QMessageBox.critical(main_window, "Seek failed", str(e))
