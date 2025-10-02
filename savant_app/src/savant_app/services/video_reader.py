@@ -48,7 +48,7 @@ class VideoReader:
         self._validate_video_loaded()
         success, frame = self.capture.read()
         if not success:
-            raise StopIteration # This will not trigger error handling middleware. 
+            raise StopIteration
         return frame
 
     def skip_frames(self, delta: int) -> np.ndarray:
