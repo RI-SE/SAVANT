@@ -14,7 +14,7 @@ def error_handler(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         try:
-            func(*args, **kwargs)
+            return func(*args, **kwargs)
         except DomainException as e:
             logger.warning(
                 f"""
