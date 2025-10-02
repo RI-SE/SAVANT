@@ -77,16 +77,16 @@ def _start(main_window):
 
     main_window._play_timer.start(max(1, int(1000 / int(fps))))
     main_window._is_playing = True
-    if hasattr(main_window.pplayback_controls, "set_playing"):
-        main_window.pplayback_controls.set_playing(True)
+    if hasattr(main_window.playback_controls, "set_playing"):
+        main_window.playback_controls.set_playing(True)
 
 
 def _stop(main_window):
     if main_window._play_timer.isActive():
         main_window._play_timer.stop()
     main_window._is_playing = False
-    if hasattr(main_window.pplayback_controls, "set_playing"):
-        main_window.pplayback_controls.set_playing(False)
+    if hasattr(main_window.playback_controls, "set_playing"):
+        main_window.playback_controls.set_playing(False)
 
 
 def _tick(main_window):
