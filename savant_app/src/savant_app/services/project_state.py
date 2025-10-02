@@ -83,7 +83,6 @@ class ProjectState:
         """
         return self.__ACTORS.copy()
 
-    # TODO: Move to more related service
     def boxes_for_frame(
         self, frame_idx: int
     ) -> List[Tuple[float, float, float, float, float]]:
@@ -119,7 +118,6 @@ class ProjectState:
                 )
         return out
 
-    # TODO: Move to more related service
     def boxes_with_ids_for_frame(
         self, frame_idx: int
     ) -> List[Tuple[str, Tuple[float, float, float, float, float]]]:
@@ -161,7 +159,6 @@ class ProjectState:
                 )
         return out
 
-    # TODO: Move to more related service
     def object_id_for_frame_index(self, frame_idx: int, overlay_index: int) -> str:
         """
         Map overlay row index -> object_id_str for the given frame.

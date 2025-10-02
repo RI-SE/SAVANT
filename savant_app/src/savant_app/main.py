@@ -7,8 +7,11 @@ from savant_app.services.annotation_service import AnnotationService
 from savant_app.services.project_state import ProjectState
 from savant_app.controllers.video_controller import VideoController
 from savant_app.services.video_reader import VideoReader
+import logging
 
 if __name__ == "__main__":
+
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
     # Initialize centralized state and PYQT widgets
     project_state = ProjectState()

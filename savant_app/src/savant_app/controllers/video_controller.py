@@ -21,37 +21,37 @@ class VideoController:
     @error_handler
     def next_frame(self) -> tuple[QPixmap, int] | tuple[None, None]:
         """Advance to next frame and return (pixmap, index)."""
-        try:
-            frame = next(self.reader)
-            return self._convert_frame_to_pixmap(frame), self.reader.current_index
-        except (StopIteration, RuntimeError):
-            return None, None
+        #try:
+        frame = next(self.reader)
+        return self._convert_frame_to_pixmap(frame), self.reader.current_index
+        #except (StopIteration, RuntimeError):
+        #    return None, None
 
     @error_handler
     def previous_frame(self) -> tuple[QPixmap, int] | tuple[None, None]:
-        try:
-            frame = self.reader.previous_frame()
-            return self._convert_frame_to_pixmap(frame), self.reader.current_index
-        except (IndexError, RuntimeError):
-            return None, None
+        #try:
+        frame = self.reader.previous_frame()
+        return self._convert_frame_to_pixmap(frame), self.reader.current_index
+        #except (IndexError, RuntimeError):
+        #    return None, None
 
     @error_handler
     def jump_to_frame(self, index: int) -> tuple[QPixmap, int] | tuple[None, None]:
         """Jump to an exact frame and return (pixmap, index)."""
-        try:
-            frame = self.reader.get_frame(index)
-            return self._convert_frame_to_pixmap(frame), self.reader.current_index
-        except (IndexError, RuntimeError):
-            return None, None
+        #try:
+        frame = self.reader.get_frame(index)
+        return self._convert_frame_to_pixmap(frame), self.reader.current_index
+        #except (IndexError, RuntimeError):
+            #return None, None
 
     @error_handler
     def skip_frames(self, delta: int) -> tuple[QPixmap, int] | tuple[None, None]:
         """Move delta frames from current position, clamped to [0, frame_count-1]."""
-        try:
-            frame = self.reader.skip_frames(delta)
-            return self._convert_frame_to_pixmap(frame), self.reader.current_index
-        except (IndexError, RuntimeError):
-            return None, None
+        #try:
+        frame = self.reader.skip_frames(delta)
+        return self._convert_frame_to_pixmap(frame), self.reader.current_index
+        #except (IndexError, RuntimeError):
+        #    return None, None
 
     @error_handler
     def total_frames(self) -> int:

@@ -25,7 +25,6 @@ def error_handler(func):
                 exc_info=True)
             raise
         except Exception as e:
-            # log
             logger.error(
                 f"""
                 Unexpected error of type {type(e)} occured.

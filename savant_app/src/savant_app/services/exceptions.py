@@ -79,7 +79,7 @@ class OverlayIndexError(DomainException):
 
     pass
 
-class InvalidInputError(Exception):
+class InvalidInputError(DomainException):
     """Raised when the input provided is invalid."""
 
     pass
