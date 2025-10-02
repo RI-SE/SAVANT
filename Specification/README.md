@@ -161,6 +161,7 @@ All dynamic objects are marked with the OpenLabel type rbbox - rotated bounding 
 | Tag | UID | Parent | Auto | Description |
 |:---:|:---:|:---:|:---:|:---:|
 | ArUco | 20 | StaticObject | Y ||
+| VisualMarker |	21 | StaticObject |	Y || 	
 
 _We will use and record absolute coordinates for Aruca markers. This object could have coordinates as a parameter?_
 
