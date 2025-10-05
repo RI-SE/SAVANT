@@ -31,6 +31,9 @@ def error_handler(func):
                 Exception info: {str(e)}
                 """, 
                 exc_info=True)
-            raise InternalException() from e
+            raise InternalException(
+                """
+                An unexpected error occurred.\nPlease contact support.\nDetails logged.
+                """) from e
 
     return wrapper 
