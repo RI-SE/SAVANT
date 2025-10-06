@@ -16,7 +16,7 @@ class InternalException(Exception):
 class DomainException(Exception):
     """Base class for domain-specific exceptions."""
 
-    def __init__(self, message: str, log_message: Optional[str] = None):
+    def __init__(self, message: Optional[str] = None, log_message: Optional[str] = None):
         super().__init__(message)
         self.log_message = log_message  # In case devs want to include extra log info.
 

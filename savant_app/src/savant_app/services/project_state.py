@@ -3,7 +3,7 @@
 import json
 from savant_app.models.OpenLabel import OpenLabel
 from savant_app.utils import read_json
-from .exceptions import OpenLabelFileNotValid, OverlayIndexError
+from .exceptions import OpenLabelFileNotValid, OverlayIndexError, OpenLabelFileNotFoundError
 from pydantic import ValidationError
 from typing import List, Tuple
 
@@ -56,7 +56,7 @@ class ProjectState:
             config = read_json(path)
             self.annotation_config = OpenLabel(**config["openlabel"])
             self.open_label_path = path
-        except json.JSONDecodeError:
+        except json.decoder.JSONDecodeError:
             raise OpenLabelFileNotValid(
                 "Please ensure a valid json file exists in the config dir."
             )
