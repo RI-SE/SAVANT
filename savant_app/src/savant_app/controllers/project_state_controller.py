@@ -37,3 +37,6 @@ class ProjectStateController:
         UI helper: map overlay row index -> object_id_str for that frame.
         """
         return self.project_state.object_id_for_frame_index(frame_idx, overlay_index)
+
+    def validate_before_save(self) -> None:
+        self.project_state.validate_before_save()

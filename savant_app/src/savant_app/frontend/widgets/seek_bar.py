@@ -143,3 +143,12 @@ class SeekBar(QWidget):
         self.slider.setValue(index)
         self.slider.blockSignals(False)
         self.label.setText(f"{index} / {self.slider.maximum()}")
+
+    def set_index(self, value: int, emit_signal: bool = True):
+        """
+        Set the current frame on the slider. Optionally emit frame_changed.
+        Use this for programmatic frame updates (playback, arrow keys).
+        """
+        self.slider.setValue(int(value))
+        if emit_signal:
+            self.frame_changed.emit(int(value))

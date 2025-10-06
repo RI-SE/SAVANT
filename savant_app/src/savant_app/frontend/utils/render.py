@@ -70,6 +70,7 @@ def _update_overlay_from_model(main_window):
         main_window.overlay.set_rotated_boxes(boxes)
         active = main_window.annotation_controller.get_active_objects(frame_idx)
         main_window.sidebar.refresh_active_objects(active)
+        main_window.sidebar._refresh_active_frame_tags(frame_idx)
 
     except Exception:
         main_window._overlay_ids = []
