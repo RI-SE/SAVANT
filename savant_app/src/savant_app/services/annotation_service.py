@@ -9,7 +9,7 @@ from typing import Optional, Union
 from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
 from savant_app.models.OpenLabel import FrameLevelObject
 from savant_app.models.OpenLabel import ActionMetadata, FrameInterval
-from savant_app.frontend.widgets.settings import get_ontology_path
+from savant_app.frontend.utils.settings_store import get_ontology_path
 from savant_app.frontend.utils.ontology_utils import get_action_labels
 from typing import Dict, List
 from savant_app.frontend.utils.ontology_utils import get_bbox_type_labels

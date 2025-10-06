@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from rdflib import Graph, RDFS, Namespace
-from savant_app.frontend.widgets.settings import get_ontology_path
-from savant_app.frontend.widgets.settings import get_ontology_namespace
+from savant_app.frontend.utils.settings_store import get_ontology_path, get_ontology_namespace
+
 
 CATEGORY_ACTION = "Action"
 CATEGORY_DYNAMIC = "DynamicObject"

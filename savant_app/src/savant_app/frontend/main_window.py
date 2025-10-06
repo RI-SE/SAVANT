@@ -9,9 +9,8 @@ from savant_app.frontend.widgets.sidebar import Sidebar
 from savant_app.frontend.widgets.seek_bar import SeekBar
 from savant_app.frontend.widgets.overlay import Overlay
 from savant_app.frontend.widgets.menu import AppMenu
-from savant_app.frontend.widgets.settings import (
-    get_ontology_path, get_action_interval_offset, SettingsDialog
-)
+from savant_app.frontend.widgets.settings import SettingsDialog
+from savant_app.frontend.utils.settings_store import get_ontology_path, get_action_interval_offset
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.states.frontend_state import FrontendState
 
