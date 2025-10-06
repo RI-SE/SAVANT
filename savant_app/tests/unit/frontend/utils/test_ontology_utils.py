@@ -1,5 +1,4 @@
 import os
-import time
 from pathlib import Path
 
 import pytest
@@ -26,6 +25,7 @@ TTL_BASE = """@prefix : <{ns}> .
 :Car a rdfs:Class ; rdfs:subClassOf :DynamicObject ; rdfs:label "Car" .
 :Sign a rdfs:Class ; rdfs:subClassOf :StaticObject ; rdfs:label "Sign" .
 """
+
 
 def write_ttl(path: Path, ns: str, extra: str = "") -> None:
     path.write_text(TTL_BASE.format(ns=ns) + extra, encoding="utf-8")

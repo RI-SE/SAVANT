@@ -72,4 +72,3 @@ class TestProjectState:
 
         # Verify that the changes are persisted
         assert new_project_state.annotation_config.ontologies["0"] == "test"
-
