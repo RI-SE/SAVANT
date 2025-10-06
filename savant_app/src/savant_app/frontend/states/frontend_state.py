@@ -19,15 +19,24 @@ class FrontendState(QObject):
         self._tool: str = "select"
 
     @property
-    def frame_index(self): return self._frame_index
+    def frame_index(self):
+        return self._frame_index
+
     @property
-    def is_playing(self): return self._is_playing
+    def is_playing(self):
+        return self._is_playing
+
     @property
-    def zoom(self): return self._zoom
+    def zoom(self):
+        return self._zoom
+
     @property
-    def selected_object_id(self): return self._selected_object_id
+    def selected_object_id(self):
+        return self._selected_object_id
+
     @property
-    def tool(self): return self._tool
+    def tool(self):
+        return self._tool
 
     def set_frame(self, idx: int):
         if idx != self._frame_index and idx >= 0:

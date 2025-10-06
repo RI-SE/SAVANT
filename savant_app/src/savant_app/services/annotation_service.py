@@ -27,7 +27,7 @@ class AnnotationService:
         self, frame_number: int, obj_type: str, coordinates: tuple
     ) -> None:
         """Handles both, the creation of a new object and adding a bbox for it."""
-        try: 
+        try:
             # Generate ID
             obj_id = self._generate_new_object_id()
 
@@ -37,7 +37,9 @@ class AnnotationService:
                 frame_number=frame_number, bbox_coordinates=coordinates, obj_id=obj_id
             )
         except ValidationError as e:
-            errors = "; ".join(f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors())
+            errors = "; ".join(
+                f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()
+            )
             raise InvalidInputError(f"Invalid input data: {errors}", e)
 
     def create_existing_object_bbox(
@@ -46,9 +48,9 @@ class AnnotationService:
         """Handles adding a bbox for an existing object."""
 
         # verify the object exists
-        #if not self._does_object_exist(object_name):
+        # if not self._does_object_exist(object_name):
         #    raise ObjectNotFoundError(f"Object: {object_name} does not exist.")
-        try: 
+        try:
             object_id = self._get_objectid_by_name(object_name)
 
             # Verify if current frame already has the object
@@ -58,12 +60,15 @@ class AnnotationService:
                 )
 
             self._add_object_bbox(
-                frame_number=frame_number, bbox_coordinates=coordinates, obj_id=object_id
+                frame_number=frame_number,
+                bbox_coordinates=coordinates,
+                obj_id=object_id,
             )
         except ValidationError as e:
-            errors = "; ".join(f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors())
+            errors = "; ".join(
+                f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()
+            )
             raise InvalidInputError(f"Invalid input data: {errors}", e)
-
 
     def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number.
@@ -127,7 +132,9 @@ class AnnotationService:
                 bbox_index=bbox_index,
             )
         except KeyError as e:
-            raise BBoxNotFoundError(f"BBox not found for object {object_key} in frame {frame_key}.", e)
+            raise BBoxNotFoundError(
+                f"BBox not found for object {object_key} in frame {frame_key}.", e
+            )
 
     def move_resize_bbox(
         self,
@@ -176,7 +183,9 @@ class AnnotationService:
             # place for side-effects, e.g. mark project dirty, log, mirror, etc.
             return updated_bbox
         except ValidationError as e:
-            raise InvalidInputError(f"Invalid input data: {[err["msg"] for err in e.errors()]}", e)
+            raise InvalidInputError(
+                f"Invalid input data: {[err["msg"] for err in e.errors()]}", e
+            )
 
     def delete_bbox(
         self, frame_key: int, object_key: str
@@ -195,7 +204,6 @@ class AnnotationService:
         self.project_state.annotation_config.restore_bbox(
             frame_key, object_key, frame_obj
         )
-
 
     def _add_new_object(self, obj_type: str, obj_id: str) -> None:
         self.project_state.annotation_config.add_new_object(
@@ -249,7 +257,3 @@ class AnnotationService:
         return str(
             int(list(self.project_state.annotation_config.objects.keys())[-1]) + 1
         )
-
-    
-
-   

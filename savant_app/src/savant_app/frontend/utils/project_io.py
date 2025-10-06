@@ -7,8 +7,12 @@ from ..exceptions import InvalidDirectoryError, MissingVideoError, MissingConfig
 
 def wire(main_window):
     main_window.sidebar.open_video.connect(lambda p: on_open_video(main_window, p))
-    main_window.sidebar.open_config.connect(lambda p: open_openlabel_config(main_window, p))
-    main_window.sidebar.open_project_dir.connect(lambda p: on_open_project_dir(main_window, p))
+    main_window.sidebar.open_config.connect(
+        lambda p: open_openlabel_config(main_window, p)
+    )
+    main_window.sidebar.open_project_dir.connect(
+        lambda p: on_open_project_dir(main_window, p)
+    )
     main_window.sidebar.quick_save.connect(lambda: quick_save(main_window))
 
 
@@ -28,7 +32,9 @@ def open_openlabel_config(main_window, path: str):
 
 def quick_save(main_window):
     main_window.project_state_controller.save_openlabel_config()
-    QMessageBox.information(main_window, "Save Successful", "Project saved successfully.")
+    QMessageBox.information(
+        main_window, "Save Successful", "Project saved successfully."
+    )
 
 
 def on_open_project_dir(main_window, dir_path: str):
@@ -37,10 +43,12 @@ def on_open_project_dir(main_window, dir_path: str):
         raise InvalidDirectoryError(f"Not a directory: {dir_path}")
     video_exts = {".mp4", ".avi", ".mov", ".mkv", ".mpg", ".mpeg", ".m4v"}
     json_exts = {".json"}
-    videos = sorted([p for p in folder.iterdir() if p.is_file() and
-                        p.suffix.lower() in video_exts])
-    jsons = sorted([p for p in folder.iterdir() if p.is_file() and
-                    p.suffix.lower() in json_exts])
+    videos = sorted(
+        [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in video_exts]
+    )
+    jsons = sorted(
+        [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in json_exts]
+    )
     if not videos:
         raise MissingVideoError("No video found in folder.")
     if not jsons:
@@ -50,9 +58,14 @@ def on_open_project_dir(main_window, dir_path: str):
     video_path = videos[0]
     open_openlabel_config(main_window, str(json_path))
     # TODO: Refactor the getattr stuff?
-    if getattr(main_window.project_state_controller, "project_state", None) and \
-        getattr(
-            main_window.project_state_controller
-            .project_state, "annotation_config", None) is None:
+    if (
+        getattr(main_window.project_state_controller, "project_state", None)
+        and getattr(
+            main_window.project_state_controller.project_state,
+            "annotation_config",
+            None,
+        )
+        is None
+    ):
         return
     on_open_video(main_window, str(video_path))

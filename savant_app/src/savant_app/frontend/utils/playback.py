@@ -18,18 +18,26 @@ def wire(main_window):
         _safe_connect(playback_controls.pause_clicked, lambda: _stop(main_window))
 
     if hasattr(playback_controls, "next_frame_clicked"):
-        _safe_connect(playback_controls.next_frame_clicked,
-                      lambda: _step_once(main_window, direction=+1))
+        _safe_connect(
+            playback_controls.next_frame_clicked,
+            lambda: _step_once(main_window, direction=+1),
+        )
 
     if hasattr(playback_controls, "prev_frame_clicked"):
-        _safe_connect(playback_controls.prev_frame_clicked,
-                      lambda: _step_once(main_window, direction=-1))
+        _safe_connect(
+            playback_controls.prev_frame_clicked,
+            lambda: _step_once(main_window, direction=-1),
+        )
 
     if hasattr(playback_controls, "skip_backward_clicked"):
-        _safe_connect(playback_controls.skip_backward_clicked, lambda n: _skip(main_window, -n))
+        _safe_connect(
+            playback_controls.skip_backward_clicked, lambda n: _skip(main_window, -n)
+        )
 
     if hasattr(playback_controls, "skip_forward_clicked"):
-        _safe_connect(playback_controls.skip_forward_clicked, lambda n: _skip(main_window, +n))
+        _safe_connect(
+            playback_controls.skip_forward_clicked, lambda n: _skip(main_window, +n)
+        )
 
 
 def _safe_connect(signal, slot):
@@ -45,7 +53,8 @@ def _reset_timer_connection(main_window):
     except TypeError:
         pass
     main_window._play_timer.timeout.connect(
-        lambda: _tick(main_window), Qt.ConnectionType.UniqueConnection)
+        lambda: _tick(main_window), Qt.ConnectionType.UniqueConnection
+    )
 
 
 def _toggle_play(main_window):
@@ -92,7 +101,7 @@ def _tick(main_window):
         show_frame(main_window, pixmap, idx)
     except Exception:
         _stop(main_window)
-        raise # re-raise for global handler
+        raise  # re-raise for global handler
 
 
 def _step_once(main_window, direction: int):

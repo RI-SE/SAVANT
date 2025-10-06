@@ -88,10 +88,10 @@ class VideoReader:
     def previous_frame(self) -> np.ndarray:
         """
         Retrieve the previous frame relative to the current index.
-        
+
         Returns:
             np.ndarray: The previous frame
-            
+
         Raises:
             IndexError: If already at the first frame.
         """
@@ -110,4 +110,6 @@ class VideoReader:
     def _validate_video_loaded(self):
         """Ensure a video is loaded before performing operations."""
         if not self.capture or not self.capture.isOpened():
-            raise VideoLoadError("No video loaded - please ensure you have imported a project.")
+            raise VideoLoadError(
+                "No video loaded - please ensure you have imported a project."
+            )

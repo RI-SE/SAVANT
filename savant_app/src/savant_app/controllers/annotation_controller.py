@@ -8,7 +8,7 @@ from .error_handler_middleware import error_handler
 class AnnotationController:
     def __init__(self, annotation_service: AnnotationService) -> None:
         self.annotation_service = annotation_service
-    
+
     @error_handler
     def get_actor_types(self) -> list[str]:
         """Get the list of all possible actor types."""

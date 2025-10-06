@@ -9,13 +9,15 @@ from .frontend.exceptions import FrontendException
 # Create a proper logger instance
 logger = logging.getLogger(__name__)
 
+
 def show_error_box(message: str, title: str = "Error"):
     """Display a critical error dialog safely."""
     QMessageBox.critical(None, title, message)
 
+
 def exception_hook(exc_type, exc_value, exc_tb):
     """Global Qt exception hook for error handling."""
-    
+
     # Recoverable domain-level errors
     if issubclass(exc_type, DomainException):
         QTimer.singleShot(0, lambda: show_error_box(str(exc_value), "Warning"))
@@ -29,12 +31,10 @@ def exception_hook(exc_type, exc_value, exc_tb):
         sys.__excepthook__(exc_type, exc_value, exc_tb)
         return
 
-    # Recoverable frontend errors 
+    # Recoverable frontend errors
     elif issubclass(exc_type, FrontendException):
         QTimer.singleShot(0, lambda: show_error_box(str(exc_value), "Warning"))
         return
-
-
 
     # Any other unhandled exceptions
     else:

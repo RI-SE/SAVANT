@@ -8,6 +8,7 @@ communication while maintaining separation of concerns, and a decoupled frontend
 from savant_app.services.project_state import ProjectState
 from .error_handler_middleware import error_handler
 
+
 class ProjectStateController:
     # TODO: ERROR HANDLING: Catch service level errors, make them UI friendly.
     def __init__(self, project_state: ProjectState):

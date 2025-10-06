@@ -1,10 +1,11 @@
 from .render import show_frame
-from PyQt6.QtWidgets import QMessageBox
 
 
 def wire(main_window):
     if hasattr(main_window.seek_bar, "frame_changed"):
-        main_window.seek_bar.frame_changed.connect(lambda idx: on_seek(main_window, idx))
+        main_window.seek_bar.frame_changed.connect(
+            lambda idx: on_seek(main_window, idx)
+        )
 
 
 def on_seek(main_window, index: int):

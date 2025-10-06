@@ -6,6 +6,7 @@ from PyQt6.QtGui import QPixmap, QImage
 from savant_app.services.video_reader import VideoReader
 from .error_handler_middleware import error_handler
 
+
 class VideoController:
     def __init__(self, reader: VideoReader) -> None:
         self.reader: VideoReader = reader
@@ -30,10 +31,10 @@ class VideoController:
 
     @error_handler
     def previous_frame(self) -> tuple[QPixmap, int] | tuple[None, None]:
-        #try:
+        # try:
         frame = self.reader.previous_frame()
         return self._convert_frame_to_pixmap(frame), self.reader.current_index
-        #except (IndexError, RuntimeError):
+        # except (IndexError, RuntimeError):
         #    return None, None
 
     @error_handler
@@ -69,18 +70,14 @@ class VideoController:
         """Convert OpenCV BGR ndarray to QPixmap"""
         if frame is None or frame.ndim != 3 or frame.shape[2] != 3:
             raise ValueError("Expected BGR image with shape (H, W, 3)")
-        
+
         # Convert color space from BGR to RGB
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         height, width, channels = rgb.shape
-        
+
         # Create QImage from numpy array
         qimage = QImage(
-            rgb.data, 
-            width, 
-            height, 
-            channels * width, 
-            QImage.Format.Format_RGB888
+            rgb.data, width, height, channels * width, QImage.Format.Format_RGB888
         )
-        
+
         return QPixmap.fromImage(qimage)

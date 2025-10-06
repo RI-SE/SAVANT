@@ -56,10 +56,14 @@ class ProjectState:
             config = read_json(path)
             self.annotation_config = OpenLabel(**config["openlabel"])
             self.open_label_path = path
-        except json.JSONDecodeError as e:
-            raise OpenLabelFileNotValid("Please ensure a valid json file exists in the config dir.")
+        except json.JSONDecodeError:
+            raise OpenLabelFileNotValid(
+                "Please ensure a valid json file exists in the config dir."
+            )
         except ValidationError as e:
-            raise OpenLabelFileNotValid("Config file contains incorrect OpenLabel syntax.") from e
+            raise OpenLabelFileNotValid(
+                "Config file contains incorrect OpenLabel syntax."
+            ) from e
 
     def save_openlabel_config(self) -> None:
         """Save the adjusted OpenLabel configuration to a JSON file.

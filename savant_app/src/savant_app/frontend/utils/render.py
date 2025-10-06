@@ -1,7 +1,6 @@
 # savant_app/frontend/utils/render.py
 from __future__ import annotations
 from typing import Any, List, Tuple
-from PyQt6.QtWidgets import QMessageBox
 
 
 def wire(main_window):
@@ -47,7 +46,6 @@ def refresh_frame(main_window):
     show_frame(main_window, pixmap, idx)
 
 
-
 def _sync_overlay_geometry(main_window):
     """Ensure overlay matches the video widget's rect and sits on top."""
     main_window.overlay.setGeometry(main_window.video_widget.rect())
@@ -59,8 +57,8 @@ def _update_overlay_from_model(main_window):
     frame_idx = main_window.video_controller.current_index()
     try:
         pairs: List[Tuple[str, Any]] = (
-            main_window.project_state_controller
-            .boxes_with_ids_for_frame(frame_idx))
+            main_window.project_state_controller.boxes_with_ids_for_frame(frame_idx)
+        )
         main_window._overlay_ids = [oid for (oid, _) in pairs]
         boxes = [geom for (_, geom) in pairs]
         w, h = main_window.video_controller.size()
