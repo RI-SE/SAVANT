@@ -9,7 +9,6 @@ APP_NAME = "SAVANT"
 LOG_DIR = user_log_dir(APP_NAME)
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, "savant_app.log")
-print(LOG_FILE)
 
 def setup_logger() -> None:
     """Set up logging configuration."""

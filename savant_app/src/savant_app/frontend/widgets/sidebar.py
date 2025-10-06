@@ -224,7 +224,6 @@ class Sidebar(QWidget):
         link_obj_bbox_btn.setMinimumWidth(len(placeholder_text) * 10)
 
         recent_obj_ids = self.get_recent_frame_object_ids()
-        print(recent_obj_ids)
         unique_ids = set()
         for obj_id in recent_obj_ids:
             unique_ids.add(obj_id)
