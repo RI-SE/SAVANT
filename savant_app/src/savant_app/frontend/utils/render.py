@@ -42,12 +42,10 @@ def refresh_frame(main_window):
     """
     Re-render current frame without changing index (after edits/zoom/etc.).
     """
-    try:
-        idx = main_window.video_controller.current_index()
-        pixmap, _ = main_window.video_controller.jump_to_frame(idx)
-        show_frame(main_window, pixmap, idx)
-    except Exception as e:
-        QMessageBox.critical(main_window, "Refresh failed", str(e))
+    idx = main_window.video_controller.current_index()
+    pixmap, _ = main_window.video_controller.jump_to_frame(idx)
+    show_frame(main_window, pixmap, idx)
+
 
 
 def _sync_overlay_geometry(main_window):
@@ -70,7 +68,7 @@ def _update_overlay_from_model(main_window):
         main_window.overlay.set_rotated_boxes(boxes)
         active = main_window.annotation_controller.get_active_objects(frame_idx)
         main_window.sidebar.refresh_active_objects(active)
-
     except Exception:
         main_window._overlay_ids = []
         main_window.overlay.set_rotated_boxes([])
+        raise

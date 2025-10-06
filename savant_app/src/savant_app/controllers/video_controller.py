@@ -26,7 +26,7 @@ class VideoController:
             return self._convert_frame_to_pixmap(frame), self.reader.current_index
         except StopIteration:
             # Handle end of video stream case
-            pass
+            return None, None
 
     @error_handler
     def previous_frame(self) -> tuple[QPixmap, int] | tuple[None, None]:

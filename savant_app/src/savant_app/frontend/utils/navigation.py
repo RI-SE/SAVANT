@@ -8,9 +8,6 @@ def wire(main_window):
 
 
 def on_seek(main_window, index: int):
-    try:
-        pixmap, idx = main_window.video_controller.jump_to_frame(index)
+    pixmap, idx = main_window.video_controller.jump_to_frame(index)
 
-        show_frame(main_window, pixmap, idx)
-    except Exception as e:
-        QMessageBox.critical(main_window, "Seek failed", str(e))
+    show_frame(main_window, pixmap, idx)

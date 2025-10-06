@@ -16,11 +16,11 @@ def wire(main_window):
             lambda object_id: on_existing_object_bbox(main_window, object_id))
 
     if hasattr(main_window.video_widget, "bbox_drawn"):
-        try:
-            main_window.video_widget.bbox_drawn.connect(
-                lambda ann: handle_drawn_bbox(main_window, ann))
-        except TypeError:
-            pass
+        #try:
+        main_window.video_widget.bbox_drawn.connect(
+        lambda ann: handle_drawn_bbox(main_window, ann))
+        #except TypeError:
+        #    pass
 
     main_window.overlay.boxMoved.connect(lambda i, x, y: _moved(main_window, i, x, y))
     main_window.overlay.boxResized.connect(lambda i, x, y, w, h: _resized(
@@ -65,10 +65,10 @@ def delete_selected_bbox(main_window):
         return
 
     frame_key = main_window.video_controller.current_index()
-    try:
-        object_key = main_window._overlay_ids[idx]
-    except Exception:
-        return
+    #try:
+    object_key = main_window._overlay_ids[idx]
+    #except Exception:
+    #    return
 
     removed = main_window.annotation_controller.delete_bbox(
         frame_key=frame_key, object_key=object_key)

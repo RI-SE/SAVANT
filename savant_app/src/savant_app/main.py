@@ -7,6 +7,8 @@ from savant_app.services.annotation_service import AnnotationService
 from savant_app.services.project_state import ProjectState
 from savant_app.controllers.video_controller import VideoController
 from savant_app.services.video_reader import VideoReader
+from savant_app.global_exception_handler import exception_hook 
+from functools import partial
 import logging
 
 if __name__ == "__main__":
@@ -16,6 +18,7 @@ if __name__ == "__main__":
     # Initialize centralized state and PYQT widgets
     project_state = ProjectState()
     app = QApplication(sys.argv)
+
 
     # Initialize services
     video_service = VideoReader()
@@ -38,4 +41,7 @@ if __name__ == "__main__":
         annotation_controller=annotation_controller,
     )
     window.show()
+
+    sys.excepthook = exception_hook
+
     sys.exit(app.exec())
