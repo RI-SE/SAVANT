@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import create_autospec
 from savant_app.controllers.project_state_controller import ProjectStateController
 from savant_app.services.project_state import ProjectState
-from savant_app.services.exceptions import OpenLabelFileNotFoundError, InternalException 
+from savant_app.services.exceptions import OpenLabelFileNotFoundError, InternalException
 
 
 @pytest.fixture
@@ -38,5 +38,5 @@ class TestProjectStateController:
 
     def test_service_error_handling(self, controller, mock_service):
         mock_service.save_openlabel_config.side_effect = ValueError("Invalid config")
-        with pytest.raises(InternalException) as exc_info:
+        with pytest.raises(InternalException):
             controller.save_openlabel_config()
