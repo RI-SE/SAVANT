@@ -10,34 +10,40 @@ def wire(main_window):
     """
     if hasattr(main_window.sidebar, "start_bbox_drawing"):
         main_window.sidebar.start_bbox_drawing.connect(
-            lambda object_type: on_new_object_bbox(main_window, object_type))
+            lambda object_type: on_new_object_bbox(main_window, object_type)
+        )
     if hasattr(main_window.sidebar, "add_new_bbox_existing_obj"):
         main_window.sidebar.add_new_bbox_existing_obj.connect(
-            lambda object_id: on_existing_object_bbox(main_window, object_id))
+            lambda object_id: on_existing_object_bbox(main_window, object_id)
+        )
 
     if hasattr(main_window.video_widget, "bbox_drawn"):
-        try:
-            main_window.video_widget.bbox_drawn.connect(
-                lambda ann: handle_drawn_bbox(main_window, ann))
-        except TypeError:
-            pass
+        # try:
+        main_window.video_widget.bbox_drawn.connect(
+            lambda ann: handle_drawn_bbox(main_window, ann)
+        )
+        # except TypeError:
+        #    pass
 
     main_window.overlay.boxMoved.connect(lambda i, x, y: _moved(main_window, i, x, y))
-    main_window.overlay.boxResized.connect(lambda i, x, y, w, h: _resized(
-        main_window, i, x, y, w, h))
+    main_window.overlay.boxResized.connect(
+        lambda i, x, y, w, h: _resized(main_window, i, x, y, w, h)
+    )
     main_window.overlay.boxRotated.connect(lambda i, r: _rotated(main_window, i, r))
 
 
 def on_new_object_bbox(main_window, object_type: str):
     """Enter drawing mode for a NEW object of given type."""
     main_window.video_widget.start_drawing_mode(
-        AnnotationState(mode=AnnotationMode.NEW, object_type=object_type))
+        AnnotationState(mode=AnnotationMode.NEW, object_type=object_type)
+    )
 
 
 def on_existing_object_bbox(main_window, object_id: str):
     """Enter drawing mode to add a bbox to an EXISTING object id."""
     main_window.video_widget.start_drawing_mode(
-        AnnotationState(mode=AnnotationMode.EXISTING, object_id=object_id))
+        AnnotationState(mode=AnnotationMode.EXISTING, object_id=object_id)
+    )
 
 
 def handle_drawn_bbox(main_window, annotation: AnnotationState):
@@ -65,13 +71,14 @@ def delete_selected_bbox(main_window):
         return
 
     frame_key = main_window.video_controller.current_index()
-    try:
-        object_key = main_window._overlay_ids[idx]
-    except Exception:
-        return
+    # try:
+    object_key = main_window._overlay_ids[idx]
+    # except Exception:
+    #    return
 
     removed = main_window.annotation_controller.delete_bbox(
-        frame_key=frame_key, object_key=object_key)
+        frame_key=frame_key, object_key=object_key
+    )
     if removed is None:
         return
 
@@ -99,7 +106,8 @@ def undo_delete(main_window):
     frame_obj = rec["frame_obj"]
 
     main_window.annotation_controller.restore_bbox(
-        frame_key=frame_key, object_key=object_key, frame_obj=frame_obj)
+        frame_key=frame_key, object_key=object_key, frame_obj=frame_obj
+    )
     main_window.overlay.clear_selection()
     refresh_frame(main_window)
 

@@ -18,18 +18,26 @@ def wire(main_window):
         _safe_connect(playback_controls.pause_clicked, lambda: _stop(main_window))
 
     if hasattr(playback_controls, "next_frame_clicked"):
-        _safe_connect(playback_controls.next_frame_clicked,
-                      lambda: _step_once(main_window, direction=+1))
+        _safe_connect(
+            playback_controls.next_frame_clicked,
+            lambda: _step_once(main_window, direction=+1),
+        )
 
     if hasattr(playback_controls, "prev_frame_clicked"):
-        _safe_connect(playback_controls.prev_frame_clicked,
-                      lambda: _step_once(main_window, direction=-1))
+        _safe_connect(
+            playback_controls.prev_frame_clicked,
+            lambda: _step_once(main_window, direction=-1),
+        )
 
     if hasattr(playback_controls, "skip_backward_clicked"):
-        _safe_connect(playback_controls.skip_backward_clicked, lambda n: _skip(main_window, -n))
+        _safe_connect(
+            playback_controls.skip_backward_clicked, lambda n: _skip(main_window, -n)
+        )
 
     if hasattr(playback_controls, "skip_forward_clicked"):
-        _safe_connect(playback_controls.skip_forward_clicked, lambda n: _skip(main_window, +n))
+        _safe_connect(
+            playback_controls.skip_forward_clicked, lambda n: _skip(main_window, +n)
+        )
 
 
 def _safe_connect(signal, slot):
@@ -45,7 +53,8 @@ def _reset_timer_connection(main_window):
     except TypeError:
         pass
     main_window._play_timer.timeout.connect(
-        lambda: _tick(main_window), Qt.ConnectionType.UniqueConnection)
+        lambda: _tick(main_window), Qt.ConnectionType.UniqueConnection
+    )
 
 
 def _toggle_play(main_window):
@@ -58,20 +67,14 @@ def _toggle_play(main_window):
 def _start(main_window):
     _reset_timer_connection(main_window)
 
-    try:
-        total = main_window.video_controller.total_frames()
-        idx = main_window.video_controller.current_index()
-        if idx < 0 or (total and idx >= total - 1):
-            pixmap, j = main_window.video_controller.jump_to_frame(0)
-            show_frame(main_window, pixmap, j)
-    except Exception:
-        pass
+    total = main_window.video_controller.total_frames()
+    idx = main_window.video_controller.current_index()
+    if idx < 0 or (total and idx >= total - 1):
+        pixmap, j = main_window.video_controller.jump_to_frame(0)
+        show_frame(main_window, pixmap, j)
 
     fps = 0
-    try:
-        fps = main_window.video_controller.fps()
-    except Exception:
-        pass
+    fps = main_window.video_controller.fps()
     if not fps or fps <= 0:
         fps = 25
 
@@ -93,12 +96,12 @@ def _tick(main_window):
     try:
         pixmap, idx = main_window.video_controller.next_frame()
         if pixmap is None or idx is None:
-            raise StopIteration
+            _stop(main_window)
+            return
         show_frame(main_window, pixmap, idx)
-    except StopIteration:
-        _stop(main_window)
     except Exception:
         _stop(main_window)
+        raise  # re-raise for global handler
 
 
 def _step_once(main_window, direction: int):
@@ -111,6 +114,7 @@ def _step_once(main_window, direction: int):
         show_frame(main_window, pixmap, idx)
     except Exception:
         _stop(main_window)
+        raise
 
 
 def _skip(main_window, n: int):
@@ -119,3 +123,4 @@ def _skip(main_window, n: int):
         show_frame(main_window, pixmap, idx)
     except Exception:
         _stop(main_window)
+        raise

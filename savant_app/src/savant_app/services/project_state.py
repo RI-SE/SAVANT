@@ -3,6 +3,11 @@
 import json
 from savant_app.models.OpenLabel import OpenLabel
 from savant_app.utils import read_json
+from .exceptions import (
+    OpenLabelFileNotValid,
+    OverlayIndexError,
+)
+from pydantic import ValidationError
 from typing import List, Tuple
 
 
@@ -24,18 +29,24 @@ class ProjectState:
         Initializes:
             self.open_label: New OpenLabel instance with loaded configuration
         """
-        config = read_json(path)
-        self.annotation_config = OpenLabel(**config["openlabel"])
-        self.open_label_path = path
+        try:
+            config = read_json(path)
+            self.annotation_config = OpenLabel(**config["openlabel"])
+            self.open_label_path = path
+        except json.decoder.JSONDecodeError:
+            raise OpenLabelFileNotValid(
+                "Please ensure a valid json file exists in the config dir."
+            )
+        except ValidationError as e:
+            raise OpenLabelFileNotValid(
+                "Config file contains incorrect OpenLabel syntax."
+            ) from e
 
     def save_openlabel_config(self) -> None:
         """Save the adjusted OpenLabel configuration to a JSON file.
 
         Args:
             adjusted_config: The OpenLabel instance containing the adjusted configuration
-
-        Raises:
-            ValueError: If adjusted_config is not a valid OpenLabel instance
         """
         # Save the configuration to a JSON file
         with open(self.open_label_path, "w") as f:
@@ -136,7 +147,7 @@ class ProjectState:
         """
         pairs = self.boxes_with_ids_for_frame(frame_idx)
         if overlay_index < 0 or overlay_index >= len(pairs):
-            raise IndexError(
+            raise OverlayIndexError(
                 f"overlay_index {overlay_index} out of range for frame {frame_idx}"
             )
         return pairs[overlay_index][0]
@@ -157,10 +168,13 @@ class ProjectState:
                 start_frame = frame_interval.frame_start
                 end_frame = frame_interval.frame_end
                 if start_frame is None or end_frame is None:
-                    errs.append(f"Action '{key}' interval #{interval_index+1} missing start or end")
+                    errs.append(
+                        f"Action '{key}' interval #{interval_index+1} missing start or end"
+                    )
                 elif start_frame > end_frame:
                     errs.append(
                         f"Action '{key}' interval #{interval_index+1
-                                                    } has start {start_frame} > end {end_frame}")
+                                                    } has start {start_frame} > end {end_frame}"
+                    )
         if errs:
             raise ValueError("Invalid frame tags:\n- " + "\n- ".join(errs))

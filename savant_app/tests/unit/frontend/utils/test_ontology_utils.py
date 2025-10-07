@@ -38,6 +38,7 @@ def reset_cache():
 
 # ---------- tests ----------
 
+
 def test_parse_transitive_subclasses(monkeypatch):
     """
     _parse_ontology_labels should include GRANDCHILD classes:

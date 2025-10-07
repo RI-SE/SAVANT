@@ -7,8 +7,12 @@ from savant_app.services.annotation_service import AnnotationService
 from savant_app.services.project_state import ProjectState
 from savant_app.controllers.video_controller import VideoController
 from savant_app.services.video_reader import VideoReader
+from savant_app.global_exception_handler import exception_hook
+from .logger_config import setup_logger
 
 if __name__ == "__main__":
+
+    setup_logger()  # Set up logging configuration
 
     # Initialize centralized state and PYQT widgets
     project_state = ProjectState()
@@ -35,4 +39,7 @@ if __name__ == "__main__":
         annotation_controller=annotation_controller,
     )
     window.show()
+
+    sys.excepthook = exception_hook
+
     sys.exit(app.exec())

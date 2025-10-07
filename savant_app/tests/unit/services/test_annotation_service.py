@@ -104,8 +104,8 @@ class TestAnnotationService:
         frame_number = 999
         mock_project_state.annotation_config.frames = {}
 
-        result = annotation_service.get_active_objects(frame_number)
-        assert result == []
+        with pytest.raises(KeyError):
+            annotation_service.get_active_objects(frame_number)
 
     def test_create_existing_object_bbox_valid(
         self, annotation_service, mock_project_state

@@ -1,6 +1,12 @@
 # main_window.py
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QDialog
+from PyQt6.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QDialog,
+)
 from PyQt6.QtGui import QKeySequence, QShortcut
 
 from savant_app.frontend.widgets.video_display import VideoDisplay
@@ -10,16 +16,31 @@ from savant_app.frontend.widgets.seek_bar import SeekBar
 from savant_app.frontend.widgets.overlay import Overlay
 from savant_app.frontend.widgets.menu import AppMenu
 from savant_app.frontend.widgets.settings import SettingsDialog
-from savant_app.frontend.utils.settings_store import get_ontology_path, get_action_interval_offset
+from savant_app.frontend.utils.settings_store import (
+    get_ontology_path,
+    get_action_interval_offset,
+)
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.states.frontend_state import FrontendState
 
-from savant_app.frontend.utils import project_io, playback, navigation, render, annotation_ops, zoom
+from savant_app.frontend.utils import (
+    project_io,
+    playback,
+    navigation,
+    render,
+    annotation_ops,
+    zoom,
+)
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, project_name, video_controller,
-                 project_state_controller, annotation_controller):
+    def __init__(
+        self,
+        project_name,
+        video_controller,
+        project_state_controller,
+        annotation_controller,
+    ):
         super().__init__()
         self.project_name = project_name
         self.update_title()
@@ -34,8 +55,13 @@ class MainWindow(QMainWindow):
         self.state = FrontendState(self)
 
         # Menu
-        self.menu = AppMenu(self, on_new=self.noop,
-                            on_load=self.noop, on_save=self.noop, on_settings=self.open_settings)
+        self.menu = AppMenu(
+            self,
+            on_new=self.noop,
+            on_load=self.noop,
+            on_save=self.noop,
+            on_settings=self.open_settings,
+        )
 
         # Video + overlay
         self.video_widget = VideoDisplay()
@@ -90,17 +116,28 @@ class MainWindow(QMainWindow):
         annotation_ops.wire(self)
         zoom.wire(self, initial=1.15)
 
-        QShortcut(QKeySequence(Qt.Key.Key_Delete),
-                  self, activated=lambda: annotation_ops.delete_selected_bbox(self))
-        QShortcut(QKeySequence.StandardKey.Undo,
-                  self, activated=lambda: annotation_ops.undo_delete(self))
+        QShortcut(
+            QKeySequence(Qt.Key.Key_Delete),
+            self,
+            activated=lambda: annotation_ops.delete_selected_bbox(self),
+        )
+        QShortcut(
+            QKeySequence.StandardKey.Undo,
+            self,
+            activated=lambda: annotation_ops.undo_delete(self),
+        )
 
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")
 
     def open_settings(self):
-        dlg = SettingsDialog(theme="Dark", zoom_rate=1.2, ontology_path=get_ontology_path(),
-                             action_interval_offset=get_action_interval_offset(), parent=self)
+        dlg = SettingsDialog(
+            theme="Dark",
+            zoom_rate=1.2,
+            ontology_path=get_ontology_path(),
+            action_interval_offset=get_action_interval_offset(),
+            parent=self,
+        )
         if dlg.exec() == QDialog.DialogCode.Accepted:
             vals = dlg.values()
             self.sidebar_state.historic_obj_frame_count = vals["previous_frame_count"]

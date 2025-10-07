@@ -23,7 +23,7 @@ from savant_app.frontend.utils.settings_store import (
     get_ontology_namespace,
     set_ontology_namespace,
     set_action_interval_offset,
-    set_ontology_path
+    set_ontology_path,
 )
 from PyQt6.QtCore import Qt
 from pathlib import Path
@@ -31,8 +31,16 @@ from PyQt6.QtWidgets import QGroupBox
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, *, theme="System", zoom_rate=1.2, frame_count=100,
-                 ontology_path: Path, action_interval_offset: int, parent=None):
+    def __init__(
+        self,
+        *,
+        theme="System",
+        zoom_rate=1.2,
+        frame_count=100,
+        ontology_path: Path,
+        action_interval_offset: int,
+        parent=None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setModal(True)
@@ -59,7 +67,9 @@ class SettingsDialog(QDialog):
         self.frame_count_spin.setSingleStep(1)
         self.frame_count_spin.setSuffix(" frames")
         self.frame_count_spin.setValue(int(frame_count))
-        self.frame_count_spin.setToolTip("Number of recent frames to analyze for object detection")
+        self.frame_count_spin.setToolTip(
+            "Number of recent frames to analyze for object detection"
+        )
         general_form.addRow("Frame history:", self.frame_count_spin)
 
         form.addRow(general_group)
@@ -76,7 +86,7 @@ class SettingsDialog(QDialog):
 
         # TODO: Change to retrieve names from config
         self._annotator = [
-            {"name": "Chris", "enabled": True,  "colour": "#ff6666"},
+            {"name": "Chris", "enabled": True, "colour": "#ff6666"},
             {"name": "Younis", "enabled": False, "colour": "#3aa3ff"},
             {"name": "Fredrik", "enabled": False, "colour": "#63ff5e"},
             {"name": "Thanh", "enabled": False, "colour": "#fff347"},
@@ -91,8 +101,10 @@ class SettingsDialog(QDialog):
             self._add_annotator_row(p)
         self.annotator_table.resizeRowsToContents()
         header_height = self.annotator_table.horizontalHeader().height()
-        rows_height = sum(self.annotator_table.rowHeight(row)
-                          for row in range(self.annotator_table.rowCount()))
+        rows_height = sum(
+            self.annotator_table.rowHeight(row)
+            for row in range(self.annotator_table.rowCount())
+        )
         frame_height = 2 * self.annotator_table.frameWidth()
         total_height = header_height + rows_height + frame_height
         self.annotator_table.setFixedHeight(total_height)
@@ -112,7 +124,9 @@ class SettingsDialog(QDialog):
         self._namespace_edit = QLineEdit(self)
         self._namespace_edit.setPlaceholderText(get_ontology_namespace())
         self._namespace_edit.setText(get_ontology_namespace())
-        self._namespace_edit.editingFinished.connect(self._on_namespace_editing_finished)
+        self._namespace_edit.editingFinished.connect(
+            self._on_namespace_editing_finished
+        )
         ontology_form.addRow("Ontology namespace:", self._namespace_edit)
 
         self._offset_spin = QSpinBox(self)
@@ -226,8 +240,9 @@ class SettingsDialog(QDialog):
             return
         set_ontology_path(path)
         self._ontology_edit.setText(str(get_ontology_path()))
-        QMessageBox.information(self, "Ontology Updated",
-                                "Frame tag ontology file has been updated.")
+        QMessageBox.information(
+            self, "Ontology Updated", "Frame tag ontology file has been updated."
+        )
 
     def _on_offset_changed(self, value: int) -> None:
         try:

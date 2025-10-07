@@ -238,7 +238,6 @@ class Sidebar(QWidget):
         link_obj_bbox_btn.setMinimumWidth(len(placeholder_text) * 10)
 
         recent_obj_ids = self.get_recent_frame_object_ids()
-        print(recent_obj_ids)
         unique_ids = set()
         for obj_id in recent_obj_ids:
             unique_ids.add(obj_id)
@@ -324,7 +323,7 @@ class Sidebar(QWidget):
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
-            parent=dlg
+            parent=dlg,
         )
         buttons.accepted.connect(dlg.accept)
         buttons.rejected.connect(dlg.reject)
@@ -337,7 +336,9 @@ class Sidebar(QWidget):
         start = int(start_spin.value())
         end = int(end_spin.value())
         if start > end:
-            QMessageBox.warning(self, "Invalid range", "Start frame cannot be after end frame.")
+            QMessageBox.warning(
+                self, "Invalid range", "Start frame cannot be after end frame."
+            )
             return
 
         try:
@@ -389,7 +390,9 @@ class Sidebar(QWidget):
         try:
             types = self.annotation_controller.allowed_bbox_types()
         except Exception as e:
-            QMessageBox.critical(self, "Ontology Error", f"Failed to load bbox types.\n{e}")
+            QMessageBox.critical(
+                self, "Ontology Error", f"Failed to load bbox types.\n{e}"
+            )
             types = {"DynamicObject": [], "StaticObject": []}
 
         type_combo.blockSignals(True)

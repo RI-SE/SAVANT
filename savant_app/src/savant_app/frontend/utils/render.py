@@ -1,7 +1,6 @@
 # savant_app/frontend/utils/render.py
 from __future__ import annotations
 from typing import Any, List, Tuple
-from PyQt6.QtWidgets import QMessageBox
 
 
 def wire(main_window):
@@ -42,12 +41,9 @@ def refresh_frame(main_window):
     """
     Re-render current frame without changing index (after edits/zoom/etc.).
     """
-    try:
-        idx = main_window.video_controller.current_index()
-        pixmap, _ = main_window.video_controller.jump_to_frame(idx)
-        show_frame(main_window, pixmap, idx)
-    except Exception as e:
-        QMessageBox.critical(main_window, "Refresh failed", str(e))
+    idx = main_window.video_controller.current_index()
+    pixmap, _ = main_window.video_controller.jump_to_frame(idx)
+    show_frame(main_window, pixmap, idx)
 
 
 def _sync_overlay_geometry(main_window):
@@ -61,8 +57,8 @@ def _update_overlay_from_model(main_window):
     frame_idx = main_window.video_controller.current_index()
     try:
         pairs: List[Tuple[str, Any]] = (
-            main_window.project_state_controller
-            .boxes_with_ids_for_frame(frame_idx))
+            main_window.project_state_controller.boxes_with_ids_for_frame(frame_idx)
+        )
         main_window._overlay_ids = [oid for (oid, _) in pairs]
         boxes = [geom for (_, geom) in pairs]
         w, h = main_window.video_controller.size()
@@ -71,7 +67,7 @@ def _update_overlay_from_model(main_window):
         active = main_window.annotation_controller.get_active_objects(frame_idx)
         main_window.sidebar.refresh_active_objects(active)
         main_window.sidebar._refresh_active_frame_tags(frame_idx)
-
     except Exception:
         main_window._overlay_ids = []
         main_window.overlay.set_rotated_boxes([])
+        raise
