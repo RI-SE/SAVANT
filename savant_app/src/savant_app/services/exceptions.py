@@ -94,10 +94,12 @@ class InvalidInputError(DomainException):
 
     pass
 
+
 class NoFrameLabelFoundError(DomainException):
     """Raised when no action label is found in the config"""
 
     pass
+
 
 class UnsportedTagTypeError(DomainException):
     """Raised when an unsupported tag type is encountered"""

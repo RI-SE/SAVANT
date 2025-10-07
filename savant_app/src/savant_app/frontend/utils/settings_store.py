@@ -5,7 +5,10 @@ from pathlib import Path
 # ---- Persistent settings (no PyQt imports here) ----
 
 _DEFAULT_ONTOLOGY = (
-    Path(__file__).resolve().parents[5] / "Tools" / "markit" / "savant_ontology_1.0.0.ttl"
+    Path(__file__).resolve().parents[5]
+    / "Tools"
+    / "markit"
+    / "savant_ontology_1.0.0.ttl"
 )
 _ONTOLOGY_PATH: Path = _DEFAULT_ONTOLOGY
 

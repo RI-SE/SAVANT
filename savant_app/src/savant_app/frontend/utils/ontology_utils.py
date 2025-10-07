@@ -3,7 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from rdflib import Graph, RDFS, Namespace
-from savant_app.frontend.utils.settings_store import get_ontology_path, get_ontology_namespace
+from savant_app.frontend.utils.settings_store import (
+    get_ontology_path,
+    get_ontology_namespace,
+)
 
 
 CATEGORY_ACTION = "Action"
@@ -38,13 +41,14 @@ def _parse_ontology_labels(ttl_text: str) -> Dict[str, List[str]]:
                 if lbl:
                     out.append(str(lbl))
                 visit(child)
+
         visit(root)
         return sorted({s.lower(): s for s in out}.values(), key=str.lower)
 
     return {
-        CATEGORY_ACTION:  labels_under(CATEGORY_ACTION),
+        CATEGORY_ACTION: labels_under(CATEGORY_ACTION),
         CATEGORY_DYNAMIC: labels_under(CATEGORY_DYNAMIC),
-        CATEGORY_STATIC:  labels_under(CATEGORY_STATIC),
+        CATEGORY_STATIC: labels_under(CATEGORY_STATIC),
     }
 
 

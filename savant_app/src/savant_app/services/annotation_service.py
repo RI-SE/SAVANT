@@ -274,112 +274,6 @@ class AnnotationService:
             int(list(self.project_state.annotation_config.objects.keys())[-1]) + 1
         )
 
-    def get_frame_objects(self, frame_limit: int, current_frame: int) -> list[str]:
-        """
-        Get a list of all objects with bboxes in the frame range between the
-        current frame and frame_limit.
-        """
-        frames = self.project_state.annotation_config.frames
-        global_objects = self.project_state.annotation_config.objects
-
-        if frame_limit < 0 or current_frame < 0:
-            raise InvalidFrameRangeError("Frame numbers must be non-negative.")
-
-        start_frame = max(0, current_frame - frame_limit)
-
-        # Convert to string keys for consistency
-        frame_keys = [str(k) for k in range(start_frame, current_frame + 1)]
-        frame_subset = {k: frames[k] for k in frame_keys if k in frames}
-
-        object_ids = set()
-        for frame_data in frame_subset.values():  # Use new variable name
-            object_ids.update(frame_data.objects.keys())  # Use update() for set
-
-        # Correct list comprehension:
-        return [
-            global_objects[obj_id].name
-            for obj_id in object_ids
-            if obj_id in global_objects
-        ]
-
-    def get_bbox(
-        self,
-        frame_key: Union[int, str],
-        object_key: Union[int, str],
-        bbox_index: int = 0,
-    ) -> RotatedBBox:
-        """
-        Read a bbox from the current annotation config (model).
-        """
-        openlabel_model: OpenLabel = self.project_state.annotation_config
-        return openlabel_model.get_bbox(
-            frame_key=frame_key,
-            object_key=object_key,
-            bbox_index=bbox_index,
-        )
-
-    def move_resize_bbox(
-        self,
-        frame_key: Union[int, str],
-        object_key: Union[int, str],
-        *,
-        bbox_index: int = 0,
-        # absolute (optional)
-        x_center: Optional[float] = None,
-        y_center: Optional[float] = None,
-        width: Optional[float] = None,
-        height: Optional[float] = None,
-        rotation: Optional[float] = None,
-        # deltas (optional)
-        delta_x: float = 0.0,
-        delta_y: float = 0.0,
-        delta_w: float = 0.0,
-        delta_h: float = 0.0,
-        delta_theta: float = 0.0,
-        # clamps
-        min_width: float = 1e-6,
-        min_height: float = 1e-6,
-    ) -> RotatedBBox:
-        """
-        Update bbox geometry in the model; return the updated RotatedBBox.
-        """
-        openlabel_model: OpenLabel = self.project_state.annotation_config
-        updated_bbox = openlabel_model.update_bbox(
-            frame_key=frame_key,
-            object_key=object_key,
-            bbox_index=bbox_index,
-            x_center=x_center,
-            y_center=y_center,
-            width=width,
-            height=height,
-            rotation=rotation,
-            delta_x=delta_x,
-            delta_y=delta_y,
-            delta_w=delta_w,
-            delta_h=delta_h,
-            delta_theta=delta_theta,
-            min_width=min_width,
-            min_height=min_height,
-        )
-        # place for side-effects, e.g. mark project dirty, log, mirror, etc.
-        return updated_bbox
-
-    def delete_bbox(
-        self, frame_key: int, object_key: str
-    ) -> Optional[FrameLevelObject]:
-        if not self.project_state.annotation_config:
-            return None
-        return self.project_state.annotation_config.delete_bbox(frame_key, object_key)
-
-    def restore_bbox(
-        self, frame_key: int, object_key: str, frame_obj: FrameLevelObject
-    ) -> None:
-        if not self.project_state.annotation_config:
-            return
-        self.project_state.annotation_config.restore_bbox(
-            frame_key, object_key, frame_obj
-        )
-
     def get_frame_tags(self) -> List[str]:
         """
         Return allowed frame tag labels from the ontology (Action class labels).
@@ -417,7 +311,8 @@ class AnnotationService:
 
         if tag not in openlabel_config.actions:
             openlabel_config.actions[tag] = ActionMetadata(
-                name=tag, type="FrameTag", frame_intervals=[])
+                name=tag, type="FrameTag", frame_intervals=[]
+            )
 
         intervals = openlabel_config.actions[tag].frame_intervals or []
         intervals.append(FrameInterval(frame_start=frame_start, frame_end=frame_end))
@@ -465,7 +360,9 @@ class AnnotationService:
                 seen[key] = lab.strip()
         out = sorted(seen.values(), key=str.lower)
         if not out:
-            raise NoFrameLabelFoundError(f"No frame tag labels found in ontology {ttl_path}")
+            raise NoFrameLabelFoundError(
+                f"No frame tag labels found in ontology {ttl_path}"
+            )
         return out
 
     def bbox_types(self) -> Dict[str, List[str]]:

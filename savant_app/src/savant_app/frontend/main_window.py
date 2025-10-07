@@ -16,7 +16,10 @@ from savant_app.frontend.widgets.seek_bar import SeekBar
 from savant_app.frontend.widgets.overlay import Overlay
 from savant_app.frontend.widgets.menu import AppMenu
 from savant_app.frontend.widgets.settings import SettingsDialog
-from savant_app.frontend.utils.settings_store import get_ontology_path, get_action_interval_offset
+from savant_app.frontend.utils.settings_store import (
+    get_ontology_path,
+    get_action_interval_offset,
+)
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.states.frontend_state import FrontendState
 
@@ -128,8 +131,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"SAVANT {self.project_name}")
 
     def open_settings(self):
-        dlg = SettingsDialog(theme="Dark", zoom_rate=1.2, ontology_path=get_ontology_path(),
-                             action_interval_offset=get_action_interval_offset(), parent=self)
+        dlg = SettingsDialog(
+            theme="Dark",
+            zoom_rate=1.2,
+            ontology_path=get_ontology_path(),
+            action_interval_offset=get_action_interval_offset(),
+            parent=self,
+        )
         if dlg.exec() == QDialog.DialogCode.Accepted:
             vals = dlg.values()
             self.sidebar_state.historic_obj_frame_count = vals["previous_frame_count"]

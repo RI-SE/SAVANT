@@ -168,10 +168,13 @@ class ProjectState:
                 start_frame = frame_interval.frame_start
                 end_frame = frame_interval.frame_end
                 if start_frame is None or end_frame is None:
-                    errs.append(f"Action '{key}' interval #{interval_index+1} missing start or end")
+                    errs.append(
+                        f"Action '{key}' interval #{interval_index+1} missing start or end"
+                    )
                 elif start_frame > end_frame:
                     errs.append(
                         f"Action '{key}' interval #{interval_index+1
-                                                    } has start {start_frame} > end {end_frame}")
+                                                    } has start {start_frame} > end {end_frame}"
+                    )
         if errs:
             raise ValueError("Invalid frame tags:\n- " + "\n- ".join(errs))
