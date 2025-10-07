@@ -18,11 +18,7 @@ from savant_app.frontend.utils.settings_store import get_ontology_path
 from savant_app.frontend.utils.ontology_utils import get_action_labels
 from typing import Dict, List
 from savant_app.frontend.utils.ontology_utils import get_bbox_type_labels
-import re
 from pathlib import Path
-
-
-_LABEL_RE = re.compile(r'rdfs:label\s+"([^"]+)"(?:@[a-zA-Z\-]+)?\s*;?')
 
 
 class AnnotationService:
@@ -345,26 +341,6 @@ class AnnotationService:
                     active.append((tag_name, int(start), int(end)))
         return active
 
-    @staticmethod
-    def _read_frame_tag_labels_from_ttl(ttl_path: Path) -> List[str]:
-        """
-        Parse a Turtle (.ttl) ontology file and extract class labels for use as frame tags.
-        Raises if the file is missing or no labels are found.
-        """
-        text = ttl_path.read_text(encoding="utf-8", errors="ignore")
-        labels = _LABEL_RE.findall(text)
-        seen = {}
-        for lab in labels:
-            key = lab.strip().lower()
-            if key and key not in seen:
-                seen[key] = lab.strip()
-        out = sorted(seen.values(), key=str.lower)
-        if not out:
-            raise NoFrameLabelFoundError(
-                f"No frame tag labels found in ontology {ttl_path}"
-            )
-        return out
-
     def bbox_types(self) -> Dict[str, List[str]]:
         """
         Return bbox type labels from the ontology (DynamicObject + StaticObject).
@@ -388,3 +364,30 @@ class AnnotationService:
         vals = get_bbox_type_labels(path)
         self._bbox_cache_key, self._bbox_cache_vals = key, vals
         return vals
+
+    def remove_frame_tag(self, tag_name: str, frame_start: int, frame_end: int) -> bool:
+        """
+        Remove the exact [frame_start, frame_end] interval for tag_name.
+        If the tag has no intervals left, remove the tag entry.
+        Returns True if something was removed.
+        """
+        ol = self.project_state.annotation_config
+        if not ol or not ol.actions or tag_name not in ol.actions:
+            return False
+
+        action = ol.actions[tag_name]
+        intervals = list(getattr(action, "frame_intervals", []) or [])
+        new_intervals = [
+            iv for iv in intervals
+            if not (int(iv.frame_start) == int(frame_start) and int(iv.frame_end) == int(frame_end))
+        ]
+        if len(new_intervals) == len(intervals):
+            return False
+
+        if new_intervals:
+            action.frame_intervals = new_intervals
+        else:
+            del ol.actions[tag_name]
+            if not ol.actions:
+                ol.actions = None
+        return True

@@ -144,3 +144,6 @@ class AnnotationController:
         Return bbox type labels grouped as DynamicObject / StaticObject.
         """
         return self.annotation_service.bbox_types()
+
+    def remove_frame_tag(self, tag_name: str, frame_start: int, frame_end: int) -> bool:
+        return self.annotation_service.remove_frame_tag(tag_name, frame_start, frame_end)

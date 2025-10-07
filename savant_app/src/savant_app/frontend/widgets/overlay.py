@@ -18,6 +18,7 @@ class Overlay(QWidget):
     boxMoved = pyqtSignal(int, float, float)
     boxResized = pyqtSignal(int, float, float, float, float)
     boxRotated = pyqtSignal(int, float)
+    deletePressed = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -68,6 +69,7 @@ class Overlay(QWidget):
         self._brush_rotate_handle = QBrush(QColor(0, 200, 255))
         self._press_angle = 0.0
         self._orig_theta = 0.0
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def set_frame_size(self, width_vid: int, height_vid: int):
         self._frame_size = (width_vid, height_vid)
@@ -127,6 +129,7 @@ class Overlay(QWidget):
         return QPointF((x_disp - off_x) / scale, (y_disp - off_y) / scale)
 
     def mousePressEvent(self, ev):
+        self.setFocus()
         if ev.button() in (Qt.MouseButton.MiddleButton,) or (
             ev.button() == Qt.MouseButton.LeftButton
             and (ev.modifiers() & Qt.KeyboardModifier.ControlModifier)
@@ -578,3 +581,11 @@ class Overlay(QWidget):
                 )
 
         painter.end()
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key.Key_Delete and not (
+                e.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            self.deletePressed.emit()
+            e.accept()
+            return
+        super().keyPressEvent(e)
