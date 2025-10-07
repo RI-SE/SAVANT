@@ -9,12 +9,17 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QFileDialog,
     QComboBox,  # Added for recent objects dropdown
+    QFormLayout,
+    QSpinBox,
+    QMessageBox,
 )
 from PyQt6.QtCore import QSize, pyqtSignal
 from savant_app.frontend.utils.assets import icon
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.video_controller import VideoController
 from savant_app.frontend.states.sidebar_state import SidebarState
+from PyQt6.QtCore import pyqtSlot
+from savant_app.frontend.widgets.settings import get_action_interval_offset
 
 
 class Sidebar(QWidget):
@@ -85,7 +90,9 @@ class Sidebar(QWidget):
         main_layout.addWidget(new_bbox_btn)
 
         # --- New Frame Tag Button ---
-        main_layout.addWidget(QPushButton("New frame tag"))
+        new_tag_btn = QPushButton("New frame tag")
+        new_tag_btn.clicked.connect(self._open_frame_tag_dialog)
+        main_layout.addWidget(new_tag_btn)
 
         # --- Active Objects ---
         main_layout.addWidget(QLabel("Active Objects:"))
@@ -101,15 +108,20 @@ class Sidebar(QWidget):
         # self.frame_id.setFixedHeight(40)
         # main_layout.addWidget(self.frame_id)
 
-        # --- Active Manoeuvre ---
-        main_layout.addWidget(QLabel("Active Manoeuvre:"))
-        self.active_manoeuvre = QListWidget()
-        self.active_manoeuvre.setMinimumHeight(60)
-        self.active_manoeuvre.model().rowsInserted.connect(self.adjust_list_sizes)
-        self.active_manoeuvre.model().rowsRemoved.connect(self.adjust_list_sizes)
-        main_layout.addWidget(self.active_manoeuvre)
+        # --- Active Frame Tags ---
+        main_layout.addWidget(QLabel("Frame Tags"))
+        self.frame_tag_list = QListWidget()
+        self.frame_tag_list.setMinimumHeight(100)
+        self.frame_tag_list.model().rowsInserted.connect(self.adjust_list_sizes)
+        self.frame_tag_list.model().rowsRemoved.connect(self.adjust_list_sizes)
+        main_layout.addWidget(self.frame_tag_list)
 
         self.setLayout(main_layout)
+        try:
+            cur = int(self.video_controller.current_index())
+        except Exception:
+            cur = 0
+        self._refresh_active_frame_tags(cur)
 
     def refresh_active_objects(self, active_objects: list[str]):
         """Refresh the list of active objects and update recent IDs."""
@@ -193,7 +205,9 @@ class Sidebar(QWidget):
         """Creates a dropdown button for creating a new bbox for a new object."""
         new_obj_bbox_btn = QComboBox()
         new_obj_bbox_btn.setPlaceholderText("Select new object type")
-        new_obj_bbox_btn.addItems(video_actors)
+        types = self.annotation_controller.allowed_bbox_types()
+        labels = types.get("DynamicObject", []) + types.get("StaticObject", [])
+        new_obj_bbox_btn.addItems(labels)
 
         new_obj_bbox_btn.currentTextChanged.connect(
             lambda text: self.start_bbox_drawing.emit(text)
@@ -249,7 +263,7 @@ class Sidebar(QWidget):
 
     def adjust_list_sizes(self):
         """Keep lists at min height when empty, let them expand when populated."""
-        for widget in [self.active_objects, self.active_manoeuvre]:
+        for widget in [self.active_objects, self.frame_tag_list]:
             rows = widget.count()
             if rows == 0:
                 widget.setMinimumHeight(widget.minimumHeight())
@@ -264,3 +278,135 @@ class Sidebar(QWidget):
         self.active_objects.clear()
         # TODO: Implement annotation data loading from controller
         # self.active_objects.addItems(annotations)
+
+    def _open_frame_tag_dialog(self):
+        if not self.video_controller:
+            QMessageBox.warning(self, "No Video", "Load a video first.")
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Add Frame Tag")
+        form = QFormLayout(dlg)
+
+        tag_combo = QComboBox(dlg)
+        tag_combo.addItems(self.annotation_controller.allowed_frame_tags())
+        form.addRow("Tag:", tag_combo)
+
+        try:
+            total = max(0, int(self.video_controller.total_frames()))
+        except Exception:
+            total = 0
+        try:
+            cur = max(0, int(self.video_controller.current_index()))
+        except Exception:
+            cur = 0
+
+        try:
+            offset = max(0, int(get_action_interval_offset()))
+        except Exception:
+            offset = 0
+
+        start_default = max(0, cur - offset)
+        end_default = cur + offset
+        if total > 0:
+            end_default = min(total - 1, end_default)
+
+        start_spin = QSpinBox(dlg)
+        end_spin = QSpinBox(dlg)
+        for spin_box in (start_spin, end_spin):
+            spin_box.setRange(0, max(0, total - 1))
+            spin_box.setSingleStep(1)
+        start_spin.setValue(start_default)
+        end_spin.setValue(end_default)
+        form.addRow("Start frame:", start_spin)
+        form.addRow("End frame:", end_spin)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=dlg
+        )
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        form.addRow(buttons)
+
+        if not dlg.exec():
+            return
+
+        tag = tag_combo.currentText().strip()
+        start = int(start_spin.value())
+        end = int(end_spin.value())
+        if start > end:
+            QMessageBox.warning(self, "Invalid range", "Start frame cannot be after end frame.")
+            return
+
+        try:
+            self.annotation_controller.add_frame_tag(tag, start, end)
+            try:
+                cur_now = int(self.video_controller.current_index())
+            except Exception:
+                cur_now = 0
+            self._refresh_active_frame_tags(cur_now)
+            QMessageBox.information(self, "Tag added", f"{tag}: {start} → {end}")
+        except Exception as e:
+            QMessageBox.critical(self, "Failed to add tag", str(e))
+
+    def _refresh_active_frame_tags(self, frame_index: int) -> None:
+        """
+        Rebuild the 'Frame Tags' list to show only tags active at frame_index.
+        """
+        if not hasattr(self, "frame_tag_list") or self.frame_tag_list is None:
+            return
+        try:
+            active = self.annotation_controller.active_frame_tags(int(frame_index))
+        except Exception:
+            active = []
+
+        self.frame_tag_list.clear()
+        for tag, start, end in active:
+            self.frame_tag_list.addItem(f"{tag} [{start}-{end}]")
+
+    @pyqtSlot(int)
+    def on_frame_changed(self, frame_index: int) -> None:
+        """
+        Slot called when SeekBar emits frame_changed(int).
+        Updates the list to only show tags active at that frame.
+        """
+        active = []
+        try:
+            active = self.annotation_controller.active_frame_tags(int(frame_index))
+        except Exception:
+            pass
+
+        self.frame_tag_list.clear()
+        for tag, start, end in active:
+            self.frame_tag_list.addItem(f"{tag} [{start}-{end}]")
+
+    def _populate_bbox_type_combo_grouped(self, type_combo) -> None:
+        """
+        Group bbox types by ontology category in the combo box.
+        """
+        try:
+            types = self.annotation_controller.allowed_bbox_types()
+        except Exception as e:
+            QMessageBox.critical(self, "Ontology Error", f"Failed to load bbox types.\n{e}")
+            types = {"DynamicObject": [], "StaticObject": []}
+
+        type_combo.blockSignals(True)
+        type_combo.clear()
+
+        def add_separator(text: str):
+            type_combo.addItem(text)
+            idx = type_combo.count() - 1
+            item = type_combo.model().item(idx)
+            if item:
+                item.setEnabled(False)
+
+        add_separator("— DynamicObject —")
+        for lbl in types.get("DynamicObject", []):
+            type_combo.addItem(lbl)
+
+        add_separator("— StaticObject —")
+        for lbl in types.get("StaticObject", []):
+            type_combo.addItem(lbl)
+
+        type_combo.blockSignals(False)

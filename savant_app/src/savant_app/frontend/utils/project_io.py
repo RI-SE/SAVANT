@@ -31,6 +31,7 @@ def open_openlabel_config(main_window, path: str):
 
 
 def quick_save(main_window):
+    main_window.project_state_controller.validate_before_save()
     main_window.project_state_controller.save_openlabel_config()
     QMessageBox.information(
         main_window, "Save Successful", "Project saved successfully."

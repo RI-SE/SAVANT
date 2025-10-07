@@ -111,3 +111,36 @@ class AnnotationController:
         self, frame_key: int, object_key: str, frame_obj: FrameLevelObject
     ) -> None:
         self.annotation_service.restore_bbox(frame_key, object_key, frame_obj)
+
+    def allowed_frame_tags(self) -> list[str]:
+        """Return the frame tag names from the service."""
+        return self.annotation_service.get_frame_tags()
+
+    def add_frame_tag(self, tag_name: str, frame_start: int, frame_end: int) -> None:
+        """
+        Add a new frame tag interval via the annotation service.
+
+        Args:
+            tag_name: Name of the tag.
+            frame_start: Index of the start frame.
+            frame_end: Index of the end frame.
+        """
+        self.annotation_service.add_frame_tag(tag_name, frame_start, frame_end)
+
+    def active_frame_tags(self, frame_index: int) -> list[tuple[str, int, int]]:
+        """
+        Fetch frame-tag intervals that are active at the given frame.
+
+        Args:
+            frame_index.
+
+        Returns:
+            List of (tag_name, start, end) tuples.
+        """
+        return self.annotation_service.get_active_frame_tags(frame_index)
+
+    def allowed_bbox_types(self) -> dict[str, list[str]]:
+        """
+        Return bbox type labels grouped as DynamicObject / StaticObject.
+        """
+        return self.annotation_service.bbox_types()
