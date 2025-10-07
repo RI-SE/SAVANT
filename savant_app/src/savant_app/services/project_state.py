@@ -11,32 +11,6 @@ class ProjectState:
         self.annotation_config: OpenLabel = None
         self.open_label_path: str = None
 
-        # Temporary list that denotes all possible actor types.
-        # To be replaced by an onotology (or something else).
-        self.__ACTORS: list[str] = [
-            "RoadUser",
-            "Vehicle",
-            "Car",
-            "Van",
-            "Truck",
-            "Trailer",
-            "Motorbike",
-            "Bicycle",
-            "Bus",
-            "Tram",
-            "Train",
-            "Caravan",
-            "StandupScooter",
-            "AgriculturalVehicle",
-            "ConstructionVehicle",
-            "EmergencyVehicle",
-            "SlowMovingVehicle",
-            "Human",
-            "Pedestrian",
-            "WheelChairUser",
-            "Animal",
-        ]
-
     def load_openlabel_config(self, path: str) -> None:
         """Load and validate OpenLabel configuration from JSON file.
         Args:
@@ -166,3 +140,27 @@ class ProjectState:
                 f"overlay_index {overlay_index} out of range for frame {frame_idx}"
             )
         return pairs[overlay_index][0]
+
+    def validate_before_save(self) -> None:
+        """
+        Validate action frame intervals:
+        - start/end present
+        - start <= end
+        """
+        if not self.annotation_config or not self.annotation_config.actions:
+            return
+        errs = []
+        for key, action in self.annotation_config.actions.items():
+            if not action.frame_intervals:
+                continue
+            for interval_index, frame_interval in enumerate(action.frame_intervals):
+                start_frame = frame_interval.frame_start
+                end_frame = frame_interval.frame_end
+                if start_frame is None or end_frame is None:
+                    errs.append(f"Action '{key}' interval #{interval_index+1} missing start or end")
+                elif start_frame > end_frame:
+                    errs.append(
+                        f"Action '{key}' interval #{interval_index+1
+                                                    } has start {start_frame} > end {end_frame}")
+        if errs:
+            raise ValueError("Invalid frame tags:\n- " + "\n- ".join(errs))

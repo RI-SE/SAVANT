@@ -8,6 +8,16 @@ from .exceptions import (
 from typing import Optional, Union
 from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
 from savant_app.models.OpenLabel import FrameLevelObject
+from savant_app.models.OpenLabel import ActionMetadata, FrameInterval
+from savant_app.frontend.utils.settings_store import get_ontology_path
+from savant_app.frontend.utils.ontology_utils import get_action_labels
+from typing import Dict, List
+from savant_app.frontend.utils.ontology_utils import get_bbox_type_labels
+import re
+from pathlib import Path
+
+
+_LABEL_RE = re.compile(r'rdfs:label\s+"([^"]+)"(?:@[a-zA-Z\-]+)?\s*;?')
 
 
 class AnnotationService:
@@ -19,6 +29,10 @@ class AnnotationService:
         # This is a temporary cache for unsaved annotations.
         # It may hold several annotations for a given user session.
         self.cached_annotations: list[dict] = []
+        self._tag_cache_key: tuple[str, float] | None = None
+        self._tag_cache_vals: list[str] | None = None
+        self._bbox_cache_key: tuple[str, float] | None = None
+        self._bbox_cache_vals: Dict[str, List[str]] | None = None
 
     def create_new_object_bbox(
         self, frame_number: int, obj_type: str, coordinates: tuple
@@ -233,3 +247,115 @@ class AnnotationService:
         self.project_state.annotation_config.restore_bbox(
             frame_key, object_key, frame_obj
         )
+
+    def get_frame_tags(self) -> List[str]:
+        """
+        Return allowed frame tag labels from the ontology (Action class labels).
+        """
+        path = Path(str(get_ontology_path()))
+        modified_time = path.stat().st_mtime
+        key = (str(path), float(modified_time))
+
+        if self._tag_cache_key == key and self._tag_cache_vals is not None:
+            return self._tag_cache_vals
+
+        labels = get_action_labels(path)
+        if not labels:
+            raise ValueError(f"No Action labels found in ontology: {path}")
+        self._tag_cache_key, self._tag_cache_vals = key, labels
+        return labels
+
+    def add_frame_tag(self, tag_name: str, frame_start: int, frame_end: int) -> None:
+        """
+        Append a frame interval [frame_start, frame_end] to the given tag.
+        Validates against ontology-derived allowed list.
+        """
+        tag = (tag_name or "").strip()
+        allowed_tags = set(self.get_frame_tags())
+        if tag not in allowed_tags:
+            raise ValueError(f"Unsupported tag '{tag}' (not in ontology).")
+        if frame_start is None or frame_end is None:
+            raise InvalidFrameRangeError("Both start and end frames must be provided.")
+        if frame_start > frame_end:
+            raise InvalidFrameRangeError("Start frame cannot be after end frame.")
+
+        openlabel_config: OpenLabel = self.project_state.annotation_config
+        if openlabel_config.actions is None:
+            openlabel_config.actions = {}
+
+        if tag not in openlabel_config.actions:
+            openlabel_config.actions[tag] = ActionMetadata(
+                name=tag, type="FrameTag", frame_intervals=[])
+
+        intervals = openlabel_config.actions[tag].frame_intervals or []
+        intervals.append(FrameInterval(frame_start=frame_start, frame_end=frame_end))
+        openlabel_config.actions[tag].frame_intervals = intervals
+
+    def get_active_frame_tags(self, frame_index: int):
+        """
+        Return all frame-tag intervals that include the given frame index.
+
+        Args:
+            frame_index: 0-based index of the current frame.
+
+        Returns:
+            List of (tag_name, start, end) tuples where start <= frame_index <= end.
+            Empty list if none.
+        """
+        openlabel_config = self.project_state.annotation_config
+        if not openlabel_config or not openlabel_config.actions:
+            return []
+
+        active = []
+        for tag_name, action in openlabel_config.actions.items():
+            intervals = getattr(action, "frame_intervals", None) or []
+            for iv in intervals:
+                start = iv.frame_start
+                end = iv.frame_end
+                if start is None or end is None:
+                    continue
+                if int(start) <= frame_index <= int(end):
+                    active.append((tag_name, int(start), int(end)))
+        return active
+
+    @staticmethod
+    def _read_frame_tag_labels_from_ttl(ttl_path: Path) -> List[str]:
+        """
+        Parse a Turtle (.ttl) ontology file and extract class labels for use as frame tags.
+        Raises if the file is missing or no labels are found.
+        """
+        text = ttl_path.read_text(encoding="utf-8", errors="ignore")
+        labels = _LABEL_RE.findall(text)
+        seen = {}
+        for lab in labels:
+            key = lab.strip().lower()
+            if key and key not in seen:
+                seen[key] = lab.strip()
+        out = sorted(seen.values(), key=str.lower)
+        if not out:
+            raise ValueError(f"No frame tag labels found in ontology {ttl_path}")
+        return out
+
+    def bbox_types(self) -> Dict[str, List[str]]:
+        """
+        Return bbox type labels from the ontology (DynamicObject + StaticObject).
+
+        Returns:
+            {
+              "DynamicObject": [...],
+              "StaticObject":  [...],
+            }
+
+        Raises:
+            FileNotFoundError / ValueError if ontology is missing/invalid.
+        """
+        path = Path(str(get_ontology_path())).resolve()
+        modified_time = path.stat().st_mtime
+        key = (str(path), float(modified_time))
+
+        if self._bbox_cache_key == key and self._bbox_cache_vals is not None:
+            return self._bbox_cache_vals
+
+        vals = get_bbox_type_labels(path)
+        self._bbox_cache_key, self._bbox_cache_vals = key, vals
+        return vals
