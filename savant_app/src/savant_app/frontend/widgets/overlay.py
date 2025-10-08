@@ -2,22 +2,31 @@ from PyQt6.QtWidgets import QWidget
 from PyQt6.QtGui import QPainter, QPen, QColor, QPolygonF, QBrush
 from PyQt6.QtCore import Qt, QPointF, pyqtSignal, QRectF
 from typing import List, Tuple
+from dataclasses import dataclass
 import math
 
+@dataclass
+class BBox:
+    object_id: str
+    center_x: float
+    center_y: float
+    width: float
+    height: float
+    theta: float  # in radians
 
 class Overlay(QWidget):
     """
     Draws rotated bounding boxes over the video. Boxes are expected as
-    (center_x_vid, center_y_vid, width_vid, height_vid, theta_radians)
+    BBox instances in VIDEO coords: (center_x, center_y, width, height, theta)
     in ORIGINAL VIDEO PIXELS (not scaled).
 
     Rotation is applied manually via cos/sin so it will ALWAYS be visible
     if theta != 0, regardless of painter transformations.
     """
 
-    boxMoved = pyqtSignal(int, float, float)
-    boxResized = pyqtSignal(int, float, float, float, float)
-    boxRotated = pyqtSignal(int, float)
+    boxMoved = pyqtSignal(str, float, float)           # (object_id, x, y)
+    boxResized = pyqtSignal(str, float, float, float, float)  # (object_id, x, y, w, h)
+    boxRotated = pyqtSignal(str, float)                # (object_id, rotation)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -28,7 +37,7 @@ class Overlay(QWidget):
         self._zoom: float = 1.0
         self._pan_x: float = 0.0
         self._pan_y: float = 0.0
-        self._boxes: List[Tuple[float, float, float, float, float]] = []
+        self._boxes: List[BBox] = []
 
         # This flag flips the sign if needed (Rotation of boxes).
         self._theta_is_clockwise: bool = True
@@ -50,7 +59,7 @@ class Overlay(QWidget):
         self._selected_idx: int | None = None
         self._drag_mode: str | None = None
         self._press_pos_disp: QPointF | None = None
-        self._orig_box: Tuple[float, float, float, float, float] | None = None
+        self._orig_box: BBox | None = None
         self._hit_tol_px: float = 14.0
         self._handle_draw_px: float = 14.0
 
@@ -81,15 +90,27 @@ class Overlay(QWidget):
         self._pan_x, self._pan_y = pan_x, pan_y
         self.update()
 
-    def set_rotated_boxes(self, boxes: List[Tuple[float, float, float, float, float]]):
-        """Boxes in VIDEO coords:
-        (center_x_vid, center_y_vid, width_vid, height_vid, theta_radians).
-        """
-        self._boxes = boxes or []
+    def set_rotated_boxes(self, boxes: List[BBox]):
+        """Set boxes as BBox instances in VIDEO coords."""
+        self._boxes = []
+        if boxes is not None:
+            for box in boxes:
+                if isinstance(box, BBox):
+                    self._boxes.append(box)
+                elif isinstance(box, tuple) and len(box) == 5:
+                    # Convert tuple to BBox with placeholder object_id
+                    self._boxes.append(BBox(
+                        object_id="unknown",
+                        center_x=box[0],
+                        center_y=box[1],
+                        width=box[2],
+                        height=box[3],
+                        theta=box[4]
+                    ))
         self.update()
 
     def set_theta_clockwise(self, clockwise: bool):
-        """If your dataset'sin_a theta increases clockwise, keep True (default)."""
+        """If your dataset's theta increases clockwise, keep True (default)."""
         self._theta_is_clockwise = clockwise
         self.update()
 
@@ -106,9 +127,11 @@ class Overlay(QWidget):
         self._interactive = bool(enabled)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, not enabled)
 
-    def selected_index(self) -> int | None:
-        """Return selected overlay index or None if nothing selected."""
-        return self._selected_idx
+    def selected_object_id(self) -> str | None:
+        """Return selected overlay object ID or None if nothing selected."""
+        if self._selected_idx is not None and 0 <= self._selected_idx < len(self._boxes):
+            return self._boxes[self._selected_idx].object_id
+        return None
 
     def clear_selection(self) -> None:
         """Clear any current selection and hover/drag state."""
@@ -154,12 +177,13 @@ class Overlay(QWidget):
         self._orig_box = self._boxes[idx]
 
         if mode == "R":
-            cx0, cy0, _, _, theta0 = self._orig_box
+            cx0 = self._orig_box.center_x
+            cy0 = self._orig_box.center_y
             scale, off_x, off_y, _ = self._compute_transform()
             px = (self._press_pos_disp.x() - off_x) / scale
             py = (self._press_pos_disp.y() - off_y) / scale
             self._press_angle = math.atan2(py - cy0, px - cx0)
-            self._orig_theta = theta0
+            self._orig_theta = self._orig_box.theta
 
         self.update()
         ev.accept()
@@ -175,7 +199,7 @@ class Overlay(QWidget):
                 self.update()
 
             if mode in ("E", "W", "N", "S"):
-                theta = self._boxes[idx][4]
+                theta = self._boxes[idx].theta
                 ax_x, ax_y = self._axis_from_mode(theta, mode)
                 self.setCursor(self._cursor_for_axis(ax_x, ax_y))
             elif mode == "move":
@@ -202,7 +226,12 @@ class Overlay(QWidget):
         dx_vid = dx_disp / scale
         dy_vid = dy_disp / scale
 
-        cx0, cy0, w0, h0, theta = self._orig_box
+        # Get current bbox properties
+        cx0 = self._orig_box.center_x
+        cy0 = self._orig_box.center_y
+        w0 = self._orig_box.width
+        h0 = self._orig_box.height
+        theta = self._orig_box.theta
         cx, cy, w, h = cx0, cy0, w0, h0
 
         if self._drag_mode == "move":
@@ -259,14 +288,21 @@ class Overlay(QWidget):
             else:
                 theta = self._orig_theta + d_theta
 
-            cx, cy, w, h = cx0, cy0, w0, h0
-            self._boxes[self._selected_idx] = (cx, cy, w, h, theta)
-            self.update()
-            ev.accept()
-            return
-
-        # live preview
-        self._boxes[self._selected_idx] = (cx, cy, w, h, theta)
+        # Create new BBox for live preview
+        current_box = self._boxes[self._selected_idx]
+        object_id = "unknown"
+        if isinstance(current_box, BBox):
+            object_id = current_box.object_id
+            
+        new_bbox = BBox(
+            object_id=object_id,
+            center_x=cx,
+            center_y=cy,
+            width=w,
+            height=h,
+            theta=theta
+        )
+        self._boxes[self._selected_idx] = new_bbox
         self.update()
         ev.accept()
 
@@ -279,13 +315,19 @@ class Overlay(QWidget):
             return
 
         if self._selected_idx is not None:
-            cx, cy, w, h, theta = self._boxes[self._selected_idx]
+            bbox = self._boxes[self._selected_idx]
             if self._drag_mode == "move":
-                self.boxMoved.emit(self._selected_idx, cx, cy)
+                self.boxMoved.emit(bbox.object_id, bbox.center_x, bbox.center_y)
             elif self._drag_mode == "R":
-                self.boxRotated.emit(self._selected_idx, theta)
+                self.boxRotated.emit(bbox.object_id, bbox.theta)
             else:
-                self.boxResized.emit(self._selected_idx, cx, cy, w, h)
+                self.boxResized.emit(
+                    bbox.object_id, 
+                    bbox.center_x, 
+                    bbox.center_y,
+                    bbox.width, 
+                    bbox.height
+                )
 
         # clear drag/hover state
         self._hover_idx, self._hover_mode = None, None
@@ -336,7 +378,19 @@ class Overlay(QWidget):
         x = pos_disp.x()
         y = pos_disp.y()
 
-        for idx, (cx_vid, cy_vid, w_vid, h_vid, theta) in enumerate(self._boxes):
+        for idx, bbox in enumerate(self._boxes):
+            # Handle both BBox and tuple formats during transition
+            if isinstance(bbox, BBox):
+                cx_vid = bbox.center_x
+                cy_vid = bbox.center_y
+                w_vid = bbox.width
+                h_vid = bbox.height
+                theta = bbox.theta
+            elif isinstance(bbox, tuple) and len(bbox) == 5:
+                cx_vid, cy_vid, w_vid, h_vid, theta = bbox
+            else:
+                continue
+            
             cx_disp = off_x + cx_vid * scale
             cy_disp = off_y + cy_vid * scale
             box_w_disp = w_vid * scale
@@ -444,6 +498,20 @@ class Overlay(QWidget):
         off_y = (display_height - draw_h) / 2 + self._pan_y
         return (scale, off_x, off_y, base)
 
+    def select_box(self, idx: int | None):
+        """Externally select a bounding box by index (or None to clear selection)."""
+        if idx is not None and (0 <= idx < len(self._boxes)):
+            self._selected_idx = idx
+        else:
+            self._selected_idx = None
+
+        self._drag_mode = None
+        self._hover_idx = None
+        self._hover_mode = None
+        self._press_pos_disp = None
+        self._orig_box = None
+        self.update()
+
     def paintEvent(self, _):
         if not self._boxes or self._frame_size == (0, 0):
             return
@@ -453,19 +521,25 @@ class Overlay(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        for idx, (
-            center_x_vid,
-            center_y_vid,
-            width_vid,
-            height_vid,
-            theta,
-        ) in enumerate(self._boxes):
-            center_x_disp = offset_x + center_x_vid * scale
-            center_y_disp = offset_y + center_y_vid * scale
-            box_width_disp = width_vid * scale
-            box_height_disp = height_vid * scale
+        for idx, bbox in enumerate(self._boxes):
+            # Handle both BBox and tuple formats during transition
+            if isinstance(bbox, BBox):
+                center_x = bbox.center_x
+                center_y = bbox.center_y
+                box_width = bbox.width
+                box_height = bbox.height
+                theta_val = bbox.theta
+            elif isinstance(bbox, tuple) and len(bbox) == 5:
+                center_x, center_y, box_width, box_height, theta_val = bbox
+            else:
+                continue
+                
+            center_x_disp = offset_x + center_x * scale
+            center_y_disp = offset_y + center_y * scale
+            box_width_disp = box_width * scale
+            box_height_disp = box_height * scale
 
-            angle_rad = -theta if self._theta_is_clockwise else theta
+            angle_rad = -theta_val if self._theta_is_clockwise else theta_val
             cos_angle, sin_angle = math.cos(angle_rad), math.sin(angle_rad)
 
             half_w = box_width_disp / 2.0

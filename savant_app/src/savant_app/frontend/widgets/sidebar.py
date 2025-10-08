@@ -100,6 +100,7 @@ class Sidebar(QWidget):
         self.active_objects.setMinimumHeight(100)
         self.active_objects.model().rowsInserted.connect(self.adjust_list_sizes)
         self.active_objects.model().rowsRemoved.connect(self.adjust_list_sizes)
+        self.active_objects.itemClicked.connect(self._on_active_object_selected)
         main_layout.addWidget(self.active_objects)
 
         # --- Frame ID ---
@@ -122,6 +123,10 @@ class Sidebar(QWidget):
         except Exception:
             cur = 0
         self._refresh_active_frame_tags(cur)
+    
+    def _on_active_object_selected(self, item):
+        # Trigger highlight in the UI
+        pass
 
     def refresh_active_objects(self, active_objects: list[str]):
         """Refresh the list of active objects and update recent IDs."""

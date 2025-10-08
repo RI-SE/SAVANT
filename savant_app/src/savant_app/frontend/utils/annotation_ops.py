@@ -25,11 +25,11 @@ def wire(main_window):
         # except TypeError:
         #    pass
 
-    main_window.overlay.boxMoved.connect(lambda i, x, y: _moved(main_window, i, x, y))
+    main_window.overlay.boxMoved.connect(lambda id, x, y: _moved(main_window, id, x, y))
     main_window.overlay.boxResized.connect(
-        lambda i, x, y, w, h: _resized(main_window, i, x, y, w, h)
+        lambda id, x, y, w, h: _resized(main_window, id, x, y, w, h)
     )
-    main_window.overlay.boxRotated.connect(lambda i, r: _rotated(main_window, i, r))
+    main_window.overlay.boxRotated.connect(lambda id, r: _rotated(main_window, id, r))
 
 
 def on_new_object_bbox(main_window, object_type: str):
@@ -66,18 +66,15 @@ def delete_selected_bbox(main_window):
     """Delete the currently selected bbox and record it for undo."""
     _ensure_undo_stack(main_window)
 
-    idx = main_window.overlay.selected_index()
-    if idx is None:
+    # Get selected object ID directly from overlay
+    object_id = main_window.overlay.selected_object_id()
+    if object_id is None:
         return
 
     frame_key = main_window.video_controller.current_index()
-    # try:
-    object_key = main_window._overlay_ids[idx]
-    # except Exception:
-    #    return
-
+    
     removed = main_window.annotation_controller.delete_bbox(
-        frame_key=frame_key, object_key=object_key
+        frame_key=frame_key, object_key=object_id
     )
     if removed is None:
         return
@@ -85,7 +82,7 @@ def delete_selected_bbox(main_window):
     main_window._undo_stack.append(
         {
             "frame_key": frame_key,
-            "object_key": object_key,
+            "object_key": object_id,
             "frame_obj": removed,
         }
     )
@@ -112,29 +109,26 @@ def undo_delete(main_window):
     refresh_frame(main_window)
 
 
-def _moved(main_window, overlay_idx: int, x: float, y: float):
+def _moved(main_window, object_id: str, x: float, y: float):
     fk = main_window.video_controller.current_index()
-    ok = main_window._overlay_ids[overlay_idx]
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=fk, object_key=ok, x_center=x, y_center=y
+        frame_key=fk, object_key=object_id, x_center=x, y_center=y
     )
     refresh_frame(main_window)
 
 
-def _resized(main_window, overlay_idx: int, x: float, y: float, w: float, h: float):
+def _resized(main_window, object_id: str, x: float, y: float, w: float, h: float):
     fk = main_window.video_controller.current_index()
-    ok = main_window._overlay_ids[overlay_idx]
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=fk, object_key=ok, x_center=x, y_center=y, width=w, height=h
+        frame_key=fk, object_key=object_id, x_center=x, y_center=y, width=w, height=h
     )
     refresh_frame(main_window)
 
 
-def _rotated(main_window, overlay_idx: int, rotation: float):
+def _rotated(main_window, object_id: str, rotation: float):
     fk = main_window.video_controller.current_index()
-    ok = main_window.project_state_controller.object_id_for_frame_index(fk, overlay_idx)
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=fk, object_key=ok, rotation=rotation
+        frame_key=fk, object_key=object_id, rotation=rotation
     )
     refresh_frame(main_window)
 

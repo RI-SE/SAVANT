@@ -1,6 +1,7 @@
 # savant_app/frontend/utils/render.py
 from __future__ import annotations
 from typing import Any, List, Tuple
+from savant_app.frontend.widgets.overlay import BBox
 
 
 def wire(main_window):
@@ -56,18 +57,26 @@ def _update_overlay_from_model(main_window):
     """Fetch boxes for current frame and update overlay + sidebar."""
     frame_idx = main_window.video_controller.current_index()
     try:
-        pairs: List[Tuple[str, Any]] = (
-            main_window.project_state_controller.boxes_with_ids_for_frame(frame_idx)
-        )
-        main_window._overlay_ids = [oid for (oid, _) in pairs]
-        boxes = [geom for (_, geom) in pairs]
+        # Get boxes as BBox objects with object IDs
+        pairs = main_window.project_state_controller.boxes_with_ids_for_frame(frame_idx)
+        bboxes = []
+        for object_id, geom in pairs:
+            # Create BBox instance from geometry tuple (center_x, center_y, width, height, theta)
+            bbox = BBox(
+                object_id=object_id,
+                center_x=geom[0],
+                center_y=geom[1],
+                width=geom[2],
+                height=geom[3],
+                theta=geom[4]
+            )
+            bboxes.append(bbox)
         w, h = main_window.video_controller.size()
         main_window.overlay.set_frame_size(w, h)
-        main_window.overlay.set_rotated_boxes(boxes)
+        main_window.overlay.set_rotated_boxes(bboxes)
         active = main_window.annotation_controller.get_active_objects(frame_idx)
         main_window.sidebar.refresh_active_objects(active)
         main_window.sidebar._refresh_active_frame_tags(frame_idx)
     except Exception:
-        main_window._overlay_ids = []
         main_window.overlay.set_rotated_boxes([])
         raise
