@@ -31,6 +31,11 @@ def wire(main_window):
             lambda ann: handle_drawn_bbox(main_window, ann)
         )
     
+    if hasattr(main_window.overlay, "bounding_box_selected"):
+        main_window.overlay.bounding_box_selected.connect(
+            lambda object_id: highlight_active_obj_list(main_window, object_id)
+        )
+    
 
     main_window.overlay.boxMoved.connect(lambda id, x, y: _moved(main_window, id, x, y))
     main_window.overlay.boxResized.connect(
@@ -41,6 +46,10 @@ def wire(main_window):
 def highlight_selected_object(main_window, object_id: str):
     """Highlight the selected object in the overlay."""
     main_window.overlay.select_box_by_obj_id(object_id)
+
+def highlight_active_obj_list(main_window, object_id: str):
+    """Highlight the selected object in the active object list."""
+    main_window.sidebar.select_active_object_by_id(object_id)
 
 def on_new_object_bbox(main_window, object_type: str):
     """Enter drawing mode for a NEW object of given type."""

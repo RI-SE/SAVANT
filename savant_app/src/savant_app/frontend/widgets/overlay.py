@@ -27,6 +27,7 @@ class Overlay(QWidget):
     boxMoved = pyqtSignal(str, float, float)           # (object_id, x, y)
     boxResized = pyqtSignal(str, float, float, float, float)  # (object_id, x, y, w, h)
     boxRotated = pyqtSignal(str, float)                # (object_id, rotation)
+    bounding_box_selected = pyqtSignal(str)               # (object_id)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -166,6 +167,9 @@ class Overlay(QWidget):
             self._selected_idx = None
             self._drag_mode = None
             self._hover_idx, self._hover_mode = None, None
+            print("clearing selected", self.selected_object_id())
+            # Clear selection in the sidebar too
+            self.bounding_box_selected.emit(self.selected_object_id())
             self.update()
             ev.ignore()
             return
@@ -175,6 +179,10 @@ class Overlay(QWidget):
         self._drag_mode = mode
         self._press_pos_disp = ev.position()
         self._orig_box = self._boxes[idx]
+
+        # Clicked on a box (or its handle), so trigger
+        # the highlight of the corresponding object in the sidebar. 
+        self.bounding_box_selected.emit(self.selected_object_id())
 
         if mode == "R":
             cx0 = self._orig_box.center_x
@@ -498,19 +506,21 @@ class Overlay(QWidget):
         off_y = (display_height - draw_h) / 2 + self._pan_y
         return (scale, off_x, off_y, base)
     
+    def _get_box_idx_from_obj_id(self, object_id: str) -> int | None:
+        """Return the index of the box with the given object_id, or None if not found."""
+        for idx, box in enumerate(self._boxes):
+            if box.object_id == object_id:
+                return idx
+        return None
+
+
     def select_box_by_obj_id(self, object_id: str | None):
         """Externally select a bounding box by object_id (or None to clear selection)."""
         if object_id is None:
             self.clear_selection()
             return
 
-        for idx, box in enumerate(self._boxes):
-            if box.object_id == object_id:
-                self._selected_idx = idx
-                break
-        else:
-            # ID not found
-            self._selected_idx = None
+        self._selected_idx = self._get_box_idx_from_obj_id(object_id)
 
         self._drag_mode = None
         self._hover_idx = None

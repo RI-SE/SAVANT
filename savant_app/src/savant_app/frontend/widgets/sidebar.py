@@ -32,6 +32,7 @@ class Sidebar(QWidget):
     open_project_dir = pyqtSignal(str)
     quick_save = pyqtSignal()
     highlight_selected_object = pyqtSignal(str)
+    object_selected = pyqtSignal(str)  # New signal for selection changes
 
     def __init__(
         self,
@@ -50,6 +51,9 @@ class Sidebar(QWidget):
 
         # State for sidebar
         self.state: SidebarState = state
+        
+        # Track the currently selected object ID
+        self._selected_annotation_object_id: str | None = None
 
         # --- Horizontal layout for New / Load / Save ---
         top_buttons_layout = QHBoxLayout()
@@ -125,9 +129,33 @@ class Sidebar(QWidget):
             cur = 0
         self._refresh_active_frame_tags(cur)
     
+    def _extract_object_id_from_text(self, text: str) -> str:
+        """Extract object ID from list item text in format 'Type (ID: 123)'"""
+        # Find the ID part and remove trailing parenthesis
+        id_part = text.split("ID: ")[1]
+        return id_part.rstrip(')').strip()
+            
     def _on_active_object_selected(self, item):
         # Trigger highlight in the UI
-        self.highlight_selected_object.emit(item.text().split("ID: ")[-1].strip(")")[-1])
+        object_id = self._extract_object_id_from_text(item.text())
+        print(f'Active object selected: {object_id}')
+        self.highlight_selected_object.emit(object_id)
+    
+    def select_active_object_by_id(self, object_id: str):
+        """Select the active object in the list by its ID."""
+        self.active_objects.clearSelection()
+        self._selected_annotation_object_id = object_id
+
+        for i in range(self.active_objects.count()):
+            item = self.active_objects.item(i) 
+            item_id = self._extract_object_id_from_text(item.text())
+            print(f'Comparing {object_id} to {item_id}')
+            if object_id == item_id:
+                item.setSelected(True)
+                self.active_objects.setCurrentItem(item)
+                self.active_objects.scrollToItem(item)
+                break
+
 
     def refresh_active_objects(self, active_objects: list[str]):
         """Refresh the list of active objects and update recent IDs."""
@@ -135,8 +163,12 @@ class Sidebar(QWidget):
         current_ids = []
         for item in active_objects:
             obj_id = item["name"]
-            self.active_objects.addItem(f'{item["type"]} (ID: {obj_id})')
+            # Display only numeric part of ID
+            numeric_id = obj_id.split("-")[-1] if "-" in obj_id else obj_id
+            self.active_objects.addItem(f'{item["type"]} (ID: {numeric_id})')
             current_ids.append(obj_id)
+        
+        self.select_active_object_by_id(self._selected_annotation_object_id)  # Reselect previously selected object if still present
 
         self.update()
 
