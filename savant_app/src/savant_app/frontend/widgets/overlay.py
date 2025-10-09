@@ -167,7 +167,6 @@ class Overlay(QWidget):
             self._selected_idx = None
             self._drag_mode = None
             self._hover_idx, self._hover_mode = None, None
-            print("clearing selected", self.selected_object_id())
             # Clear selection in the sidebar too
             self.bounding_box_selected.emit(self.selected_object_id())
             self.update()

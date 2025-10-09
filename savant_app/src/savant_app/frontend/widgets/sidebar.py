@@ -138,7 +138,6 @@ class Sidebar(QWidget):
     def _on_active_object_selected(self, item):
         # Trigger highlight in the UI
         object_id = self._extract_object_id_from_text(item.text())
-        print(f'Active object selected: {object_id}')
         self.highlight_selected_object.emit(object_id)
     
     def select_active_object_by_id(self, object_id: str):
@@ -149,7 +148,6 @@ class Sidebar(QWidget):
         for i in range(self.active_objects.count()):
             item = self.active_objects.item(i) 
             item_id = self._extract_object_id_from_text(item.text())
-            print(f'Comparing {object_id} to {item_id}')
             if object_id == item_id:
                 item.setSelected(True)
                 self.active_objects.setCurrentItem(item)

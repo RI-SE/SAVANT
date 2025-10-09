@@ -56,7 +56,6 @@ def _sync_overlay_geometry(main_window):
 def _update_overlay_from_model(main_window):
     """Fetch boxes for current frame and update overlay + sidebar."""
     frame_idx = main_window.video_controller.current_index()
-    #print("calling update/refresh")
     try:
         # Get boxes as BBox objects with object IDs
         pairs = main_window.project_state_controller.boxes_with_ids_for_frame(frame_idx)
