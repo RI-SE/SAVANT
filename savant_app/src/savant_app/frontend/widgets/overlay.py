@@ -497,6 +497,27 @@ class Overlay(QWidget):
         off_x = (display_width - draw_w) / 2 + self._pan_x
         off_y = (display_height - draw_h) / 2 + self._pan_y
         return (scale, off_x, off_y, base)
+    
+    def select_box_by_obj_id(self, object_id: str | None):
+        """Externally select a bounding box by object_id (or None to clear selection)."""
+        if object_id is None:
+            self.clear_selection()
+            return
+
+        for idx, box in enumerate(self._boxes):
+            if box.object_id == object_id:
+                self._selected_idx = idx
+                break
+        else:
+            # ID not found
+            self._selected_idx = None
+
+        self._drag_mode = None
+        self._hover_idx = None
+        self._hover_mode = None
+        self._press_pos_disp = None
+        self._orig_box = None
+        self.update()
 
     def select_box(self, idx: int | None):
         """Externally select a bounding box by index (or None to clear selection)."""

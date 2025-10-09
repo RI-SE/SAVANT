@@ -31,6 +31,7 @@ class Sidebar(QWidget):
     add_new_bbox_existing_obj = pyqtSignal(str)
     open_project_dir = pyqtSignal(str)
     quick_save = pyqtSignal()
+    highlight_selected_object = pyqtSignal(str)
 
     def __init__(
         self,
@@ -126,7 +127,7 @@ class Sidebar(QWidget):
     
     def _on_active_object_selected(self, item):
         # Trigger highlight in the UI
-        pass
+        self.highlight_selected_object.emit(item.text().split("ID: ")[-1].strip(")")[-1])
 
     def refresh_active_objects(self, active_objects: list[str]):
         """Refresh the list of active objects and update recent IDs."""
