@@ -98,16 +98,6 @@ class Overlay(QWidget):
             for box in boxes:
                 if isinstance(box, BBox):
                     self._boxes.append(box)
-                elif isinstance(box, tuple) and len(box) == 5:
-                    # Convert tuple to BBox with placeholder object_id
-                    self._boxes.append(BBox(
-                        object_id="unknown",
-                        center_x=box[0],
-                        center_y=box[1],
-                        width=box[2],
-                        height=box[3],
-                        theta=box[4]
-                    ))
         self.update()
 
     def set_theta_clockwise(self, clockwise: bool):
