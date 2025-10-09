@@ -9,7 +9,7 @@ from .exceptions import (
     NoFrameLabelFoundError,
     UnsportedTagTypeError,
 )
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
 from savant_app.models.OpenLabel import FrameLevelObject
 from pydantic import ValidationError
@@ -391,3 +391,19 @@ class AnnotationService:
             if not ol.actions:
                 ol.actions = None
         return True
+
+    def delete_bboxes_by_object(self, object_key: str) -> List[Tuple[int, FrameLevelObject]]:
+        """
+        Remove all FrameLevelObject instances for the given object_key across all frames.
+        Returns a list of (frame_index, removed_frame_obj) for undo purposes.
+        """
+        out: List[Tuple[int, FrameLevelObject]] = []
+        if not self.project_state.annotation_config:
+            return out
+
+        openlabel_annotation = self.project_state.annotation_config
+        for frame_key in list(openlabel_annotation.frames.keys()):
+            removed = openlabel_annotation.delete_bbox(frame_key, object_key)
+            if removed is not None:
+                out.append((int(frame_key), removed))
+        return out
