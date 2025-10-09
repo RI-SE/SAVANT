@@ -2,17 +2,8 @@ from PyQt6.QtWidgets import QWidget
 from PyQt6.QtGui import QPainter, QPen, QColor, QPolygonF, QBrush
 from PyQt6.QtCore import Qt, QPointF, pyqtSignal, QRectF
 from typing import List, Tuple
-from dataclasses import dataclass
 import math
-
-@dataclass
-class BBox:
-    object_id: str
-    center_x: float
-    center_y: float
-    width: float
-    height: float
-    theta: float  # in radians
+from savant_app.frontend.types import BBoxData
 
 class Overlay(QWidget):
     """
@@ -38,7 +29,7 @@ class Overlay(QWidget):
         self._zoom: float = 1.0
         self._pan_x: float = 0.0
         self._pan_y: float = 0.0
-        self._boxes: List[BBox] = []
+        self._boxes: List[BBoxData] = []
 
         # This flag flips the sign if needed (Rotation of boxes).
         self._theta_is_clockwise: bool = True
@@ -60,7 +51,7 @@ class Overlay(QWidget):
         self._selected_idx: int | None = None
         self._drag_mode: str | None = None
         self._press_pos_disp: QPointF | None = None
-        self._orig_box: BBox | None = None
+        self._orig_box: BBoxData | None = None
         self._hit_tol_px: float = 14.0
         self._handle_draw_px: float = 14.0
 
@@ -91,12 +82,12 @@ class Overlay(QWidget):
         self._pan_x, self._pan_y = pan_x, pan_y
         self.update()
 
-    def set_rotated_boxes(self, boxes: List[BBox]):
+    def set_rotated_boxes(self, boxes: List[BBoxData]):
         """Set boxes as BBox instances in VIDEO coords."""
         self._boxes = []
         if boxes is not None:
             for box in boxes:
-                if isinstance(box, BBox):
+                if isinstance(box, BBoxData):
                     self._boxes.append(box)
         self.update()
 
@@ -288,11 +279,12 @@ class Overlay(QWidget):
         # Create new BBox for live preview
         current_box = self._boxes[self._selected_idx]
         object_id = "unknown"
-        if isinstance(current_box, BBox):
+        if isinstance(current_box, BBoxData):
             object_id = current_box.object_id
             
-        new_bbox = BBox(
+        new_bbox = BBoxData(
             object_id=object_id,
+            object_type=current_box.object_type,
             center_x=cx,
             center_y=cy,
             width=w,
@@ -377,7 +369,7 @@ class Overlay(QWidget):
 
         for idx, bbox in enumerate(self._boxes):
             # Handle both BBox and tuple formats during transition
-            if isinstance(bbox, BBox):
+            if isinstance(bbox, BBoxData):
                 cx_vid = bbox.center_x
                 cy_vid = bbox.center_y
                 w_vid = bbox.width
@@ -543,7 +535,7 @@ class Overlay(QWidget):
 
         for idx, bbox in enumerate(self._boxes):
             # Handle both BBox and tuple formats during transition
-            if isinstance(bbox, BBox):
+            if isinstance(bbox, BBoxData):
                 center_x = bbox.center_x
                 center_y = bbox.center_y
                 box_width = bbox.width

@@ -1,7 +1,6 @@
 # savant_app/frontend/utils/render.py
 from __future__ import annotations
-from typing import Any, List, Tuple
-from savant_app.frontend.widgets.overlay import BBox
+from savant_app.frontend.types import BBoxData
 
 
 def wire(main_window):
@@ -55,28 +54,36 @@ def _sync_overlay_geometry(main_window):
 # TODO: This creates high coupling between render and annotation_ops.
 def _update_overlay_from_model(main_window):
     """Fetch boxes for current frame and update overlay + sidebar."""
-    frame_idx = main_window.video_controller.current_index()
+    current_frame_index = main_window.video_controller.current_index()
     try:
-        # Get boxes as BBox objects with object IDs
-        pairs = main_window.project_state_controller.boxes_with_ids_for_frame(frame_idx)
-        bboxes = []
-        for object_id, geom in pairs:
-            # Create BBox instance from geometry tuple (center_x, center_y, width, height, theta)
-            bbox = BBox(
-                object_id=object_id,
-                center_x=geom[0],
-                center_y=geom[1],
-                width=geom[2],
-                height=geom[3],
-                theta=geom[4]
+        # Retrieve FrameBBox objects from backend
+        frame_bounding_boxes = main_window.project_state_controller.boxes_with_ids_for_frame(current_frame_index)
+
+        frame_bounding_boxes_frontend_data = []
+        for frame_bounding_box in frame_bounding_boxes:
+            # Map backend FrameBBox to frontend BBox
+            frame_bounding_boxes_frontend_data.append(
+                BBoxData(
+                    object_id=frame_bounding_box.object_id,
+                    object_type=frame_bounding_box.object_type,
+                    center_x=frame_bounding_box.bbox.cx,
+                    center_y=frame_bounding_box.bbox.cy,
+                    width=frame_bounding_box.bbox.width,
+                    height=frame_bounding_box.bbox.height,
+                    theta=frame_bounding_box.bbox.theta,
+                )
             )
-            bboxes.append(bbox)
-        w, h = main_window.video_controller.size()
-        main_window.overlay.set_frame_size(w, h)
-        main_window.overlay.set_rotated_boxes(bboxes)
-        active = main_window.annotation_controller.get_active_objects(frame_idx)
-        main_window.sidebar.refresh_active_objects(active)
-        main_window.sidebar._refresh_active_frame_tags(frame_idx)
+
+        # Update overlay dimensions and set bounding boxes
+        video_width, video_height = main_window.video_controller.size()
+        main_window.overlay.set_frame_size(video_width, video_height)
+        main_window.overlay.set_rotated_boxes(frame_bounding_boxes_frontend_data)
+
+        # Refresh sidebar with active objects
+        active_objects = main_window.annotation_controller.get_active_objects(current_frame_index)
+        main_window.sidebar.refresh_active_objects(active_objects)
+        main_window.sidebar._refresh_active_frame_tags(current_frame_index)
+
     except Exception:
         main_window.overlay.set_rotated_boxes([])
         raise
