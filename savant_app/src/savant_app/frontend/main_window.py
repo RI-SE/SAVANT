@@ -1,5 +1,4 @@
 # main_window.py
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -69,7 +68,6 @@ class MainWindow(QMainWindow):
         self.overlay.set_interactive(True)
         self._overlay_ids: list[str] = []
         self.video_widget.pan_changed.connect(self.overlay.set_pan)
-
         # Seek + controls
         self.seek_bar = SeekBar()
         self.playback_controls = PlaybackControls()
@@ -116,11 +114,6 @@ class MainWindow(QMainWindow):
         annotation_ops.wire(self)
         zoom.wire(self, initial=1.15)
 
-        QShortcut(
-            QKeySequence(Qt.Key.Key_Delete),
-            self,
-            activated=lambda: annotation_ops.delete_selected_bbox(self),
-        )
         QShortcut(
             QKeySequence.StandardKey.Undo,
             self,

@@ -25,3 +25,8 @@ class MissingConfigError(FrontendException):
     """No JSON config files found in directory."""
 
     pass
+
+
+class MissingObjectIDError(FrontendException):
+    """No object ID for the selected bounding box."""
+    pass
