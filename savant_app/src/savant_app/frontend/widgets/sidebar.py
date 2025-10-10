@@ -20,6 +20,7 @@ from savant_app.controllers.video_controller import VideoController
 from savant_app.frontend.states.sidebar_state import SidebarState
 from PyQt6.QtCore import pyqtSlot
 from savant_app.frontend.widgets.settings import get_action_interval_offset
+from savant_app.frontend.exceptions import InvalidObjectIDFormat
 
 
 class Sidebar(QWidget):
@@ -132,8 +133,11 @@ class Sidebar(QWidget):
     def _extract_object_id_from_text(self, text: str) -> str:
         """Extract object ID from list item text in format 'Type (ID: 123)'"""
         # Find the ID part and remove trailing parenthesis
-        id_part = text.split("ID: ")[1]
-        return id_part.rstrip(")").strip()
+        try:
+            id_part = text.split("ID: ")[1]
+            return id_part.rstrip(")").strip()
+        except IndexError as e:
+            raise InvalidObjectIDFormat(f"Cannot extract object ID from text: {text}") from e
 
     def _on_active_object_selected(self, item):
         # Trigger highlight in the UI

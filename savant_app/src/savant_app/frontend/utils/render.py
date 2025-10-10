@@ -64,20 +64,18 @@ def _update_overlay_from_model(main_window):
             )
         )
 
-        frame_bounding_boxes_frontend_data = []
-        for frame_bounding_box in frame_bounding_boxes:
-            # Map backend FrameBBox to frontend BBox
-            frame_bounding_boxes_frontend_data.append(
-                BBoxData(
-                    object_id=frame_bounding_box.object_id,
-                    object_type=frame_bounding_box.object_type,
-                    center_x=frame_bounding_box.bbox.cx,
-                    center_y=frame_bounding_box.bbox.cy,
-                    width=frame_bounding_box.bbox.width,
-                    height=frame_bounding_box.bbox.height,
-                    theta=frame_bounding_box.bbox.theta,
-                )
+        frame_bounding_boxes_frontend_data = [
+            BBoxData(
+                object_id=fbbox.object_id,
+                object_type=fbbox.object_type,
+                center_x=fbbox.bbox.cx,
+                center_y=fbbox.bbox.cy,
+                width=fbbox.bbox.width,
+                height=fbbox.bbox.height,
+                theta=fbbox.bbox.theta,
             )
+            for fbbox in frame_bounding_boxes
+        ]
 
         # Update overlay dimensions and set bounding boxes
         video_width, video_height = main_window.video_controller.size()

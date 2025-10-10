@@ -9,6 +9,13 @@ class FrontendException(Exception):
         self.log_message = log_message  # In case devs want to include extra log info.
 
 
+class FrontendDevException(Exception):
+    """Base class for all frontend exceptions that are not user related"""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+
+
 class InvalidDirectoryError(FrontendException):
     """Path is not a valid directory."""
 
@@ -23,5 +30,11 @@ class MissingVideoError(FrontendException):
 
 class MissingConfigError(FrontendException):
     """No JSON config files found in directory."""
+
+    pass
+
+
+class InvalidObjectIDFormat(FrontendDevException):
+    """Raised when an object ID does not conform to expected format."""
 
     pass
