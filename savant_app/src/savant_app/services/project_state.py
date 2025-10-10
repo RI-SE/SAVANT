@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from typing import List, Tuple
 from dataclasses import dataclass
 
+
 @dataclass
 class BBoxDimensionData:
     cx: float
@@ -19,11 +20,13 @@ class BBoxDimensionData:
     height: float
     theta: float
 
+
 @dataclass
 class FrameBBoxData:
     object_id: str
     object_type: str
     bbox: BBoxDimensionData
+
 
 class ProjectState:
     def __init__(self):
@@ -113,8 +116,6 @@ class ProjectState:
                 )
         return out
 
-
-
     def boxes_with_ids_for_frame(self, frame_idx: int) -> List[FrameBBoxData]:
         results: List[ProjectState.FrameBBox] = []
 
@@ -137,7 +138,9 @@ class ProjectState:
                     height=rbbox_dimensions.height,
                     theta=rbbox_dimensions.rotation,
                 )
-                results.append(FrameBBoxData(object_id, object_type, bbox_dimension_data))
+                results.append(
+                    FrameBBoxData(object_id, object_type, bbox_dimension_data)
+                )
 
         return results
 

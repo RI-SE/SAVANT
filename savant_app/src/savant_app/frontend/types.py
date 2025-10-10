@@ -1,6 +1,7 @@
-""" Module to hold data types used in the frontend. """
+"""Module to hold data types used in the frontend."""
 
 from dataclasses import dataclass
+
 
 @dataclass
 class BBoxData:

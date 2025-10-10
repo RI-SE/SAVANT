@@ -5,6 +5,7 @@ from typing import List, Tuple
 import math
 from savant_app.frontend.types import BBoxData
 
+
 class Overlay(QWidget):
     """
     Draws rotated bounding boxes over the video. Boxes are expected as
@@ -15,10 +16,10 @@ class Overlay(QWidget):
     if theta != 0, regardless of painter transformations.
     """
 
-    boxMoved = pyqtSignal(str, float, float)           # (object_id, x, y)
+    boxMoved = pyqtSignal(str, float, float)  # (object_id, x, y)
     boxResized = pyqtSignal(str, float, float, float, float)  # (object_id, x, y, w, h)
-    boxRotated = pyqtSignal(str, float)                # (object_id, rotation)
-    bounding_box_selected = pyqtSignal(str)               # (object_id)
+    boxRotated = pyqtSignal(str, float)  # (object_id, rotation)
+    bounding_box_selected = pyqtSignal(str)  # (object_id)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -111,7 +112,9 @@ class Overlay(QWidget):
 
     def selected_object_id(self) -> str | None:
         """Return selected overlay object ID or None if nothing selected."""
-        if self._selected_idx is not None and 0 <= self._selected_idx < len(self._boxes):
+        if self._selected_idx is not None and 0 <= self._selected_idx < len(
+            self._boxes
+        ):
             return self._boxes[self._selected_idx].object_id
         return None
 
@@ -161,7 +164,7 @@ class Overlay(QWidget):
         self._orig_box = self._boxes[idx]
 
         # Clicked on a box (or its handle), so trigger
-        # the highlight of the corresponding object in the sidebar. 
+        # the highlight of the corresponding object in the sidebar.
         self.bounding_box_selected.emit(self.selected_object_id())
 
         if mode == "R":
@@ -281,7 +284,7 @@ class Overlay(QWidget):
         object_id = "unknown"
         if isinstance(current_box, BBoxData):
             object_id = current_box.object_id
-            
+
         new_bbox = BBoxData(
             object_id=object_id,
             object_type=current_box.object_type,
@@ -289,7 +292,7 @@ class Overlay(QWidget):
             center_y=cy,
             width=w,
             height=h,
-            theta=theta
+            theta=theta,
         )
         self._boxes[self._selected_idx] = new_bbox
         self.update()
@@ -311,11 +314,11 @@ class Overlay(QWidget):
                 self.boxRotated.emit(bbox.object_id, bbox.theta)
             else:
                 self.boxResized.emit(
-                    bbox.object_id, 
-                    bbox.center_x, 
+                    bbox.object_id,
+                    bbox.center_x,
                     bbox.center_y,
-                    bbox.width, 
-                    bbox.height
+                    bbox.width,
+                    bbox.height,
                 )
 
         # clear drag/hover state
@@ -379,7 +382,7 @@ class Overlay(QWidget):
                 cx_vid, cy_vid, w_vid, h_vid, theta = bbox
             else:
                 continue
-            
+
             cx_disp = off_x + cx_vid * scale
             cy_disp = off_y + cy_vid * scale
             box_w_disp = w_vid * scale
@@ -486,14 +489,13 @@ class Overlay(QWidget):
         off_x = (display_width - draw_w) / 2 + self._pan_x
         off_y = (display_height - draw_h) / 2 + self._pan_y
         return (scale, off_x, off_y, base)
-    
+
     def _get_box_idx_from_obj_id(self, object_id: str) -> int | None:
         """Return the index of the box with the given object_id, or None if not found."""
         for idx, box in enumerate(self._boxes):
             if box.object_id == object_id:
                 return idx
         return None
-
 
     def select_box_by_obj_id(self, object_id: str | None):
         """Externally select a bounding box by object_id (or None to clear selection)."""
@@ -560,14 +562,21 @@ class Overlay(QWidget):
 
             # Compute corners
             corners = []
-            for lx, ly in [(-half_w, -half_h), (half_w, -half_h), (half_w, half_h), (-half_w, half_h)]:
+            for lx, ly in [
+                (-half_w, -half_h),
+                (half_w, -half_h),
+                (half_w, half_h),
+                (-half_w, half_h),
+            ]:
                 rx = lx * cos_angle - ly * sin_angle
                 ry = lx * sin_angle + ly * cos_angle
                 corners.append(QPointF(center_x_disp + rx, center_y_disp + ry))
             polygon = QPolygonF(corners)
 
             # Draw box
-            painter.setPen(self._pen_box_selected if self._selected_idx == idx else self._pen_box)
+            painter.setPen(
+                self._pen_box_selected if self._selected_idx == idx else self._pen_box
+            )
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawPolygon(polygon)
             TL, TR, BR, BL = corners[0], corners[1], corners[2], corners[3]
@@ -598,7 +607,12 @@ class Overlay(QWidget):
             # Draw semi-transparent black background
             painter.setBrush(QColor(0, 0, 0, 160))
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRect(-padding, -metrics.ascent() - padding, text_width + 2 * padding, text_height + 2 * padding)
+            painter.drawRect(
+                -padding,
+                -metrics.ascent() - padding,
+                text_width + 2 * padding,
+                text_height + 2 * padding,
+            )
 
             # Draw text
             painter.setPen(QColor(255, 255, 0))  # bright yellow
@@ -650,14 +664,20 @@ class Overlay(QWidget):
             # --- Centers / axes ---
             if self._show_centers:
                 painter.setPen(self._pen_center)
-                painter.drawLine(QPointF(center_x_disp - 4, center_y_disp),
-                                QPointF(center_x_disp + 4, center_y_disp))
-                painter.drawLine(QPointF(center_x_disp, center_y_disp - 4),
-                                QPointF(center_x_disp, center_y_disp + 4))
+                painter.drawLine(
+                    QPointF(center_x_disp - 4, center_y_disp),
+                    QPointF(center_x_disp + 4, center_y_disp),
+                )
+                painter.drawLine(
+                    QPointF(center_x_disp, center_y_disp - 4),
+                    QPointF(center_x_disp, center_y_disp + 4),
+                )
             if self._show_axes:
                 painter.setPen(self._pen_axis)
                 axis_x = center_x_disp + half_w * cos_angle
                 axis_y = center_y_disp + half_h * sin_angle
-                painter.drawLine(QPointF(center_x_disp, center_y_disp), QPointF(axis_x, axis_y))
+                painter.drawLine(
+                    QPointF(center_x_disp, center_y_disp), QPointF(axis_x, axis_y)
+                )
 
         painter.end()

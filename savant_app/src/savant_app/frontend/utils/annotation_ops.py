@@ -14,7 +14,7 @@ def wire(main_window):
         main_window.sidebar.start_bbox_drawing.connect(
             lambda object_type: on_new_object_bbox(main_window, object_type)
         )
-    
+
     # TODO: Reverse naming of signal and function here.
     if hasattr(main_window.sidebar, "add_new_bbox_existing_obj"):
         main_window.sidebar.add_new_bbox_existing_obj.connect(
@@ -30,12 +30,11 @@ def wire(main_window):
         main_window.video_widget.bbox_drawn.connect(
             lambda ann: handle_drawn_bbox(main_window, ann)
         )
-    
+
     if hasattr(main_window.overlay, "bounding_box_selected"):
         main_window.overlay.bounding_box_selected.connect(
             lambda object_id: highlight_active_obj_list(main_window, object_id)
         )
-    
 
     main_window.overlay.boxMoved.connect(lambda id, x, y: _moved(main_window, id, x, y))
     main_window.overlay.boxResized.connect(
@@ -43,13 +42,16 @@ def wire(main_window):
     )
     main_window.overlay.boxRotated.connect(lambda id, r: _rotated(main_window, id, r))
 
+
 def highlight_selected_object(main_window, object_id: str):
     """Highlight the selected object in the overlay."""
     main_window.overlay.select_box_by_obj_id(object_id)
 
+
 def highlight_active_obj_list(main_window, object_id: str):
     """Highlight the selected object in the active object list."""
     main_window.sidebar.select_active_object_by_id(object_id)
+
 
 def on_new_object_bbox(main_window, object_type: str):
     """Enter drawing mode for a NEW object of given type."""
@@ -91,7 +93,7 @@ def delete_selected_bbox(main_window):
         return
 
     frame_key = main_window.video_controller.current_index()
-    
+
     removed = main_window.annotation_controller.delete_bbox(
         frame_key=frame_key, object_key=object_id
     )
