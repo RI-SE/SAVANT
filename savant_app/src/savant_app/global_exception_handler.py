@@ -4,7 +4,7 @@ import logging
 from PyQt6.QtWidgets import QMessageBox
 from PyQt6.QtCore import QTimer
 from .services.exceptions import DomainException, InternalException
-from .frontend.exceptions import FrontendException
+from .frontend.exceptions import FrontendException, FrontendDevException
 
 # Create a proper logger instance
 logger = logging.getLogger(__name__)
@@ -35,6 +35,8 @@ def exception_hook(exc_type, exc_value, exc_tb):
     elif issubclass(exc_type, FrontendException):
         QTimer.singleShot(0, lambda: show_error_box(str(exc_value), "Warning"))
         return
+    
+    elif issubclass(exc_type, )
 
     # Any other unhandled exceptions
     else:
