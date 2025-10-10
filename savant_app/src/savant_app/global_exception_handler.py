@@ -35,8 +35,19 @@ def exception_hook(exc_type, exc_value, exc_tb):
     elif issubclass(exc_type, FrontendException):
         QTimer.singleShot(0, lambda: show_error_box(str(exc_value), "Warning"))
         return
-    
-    elif issubclass(exc_type, )
+
+    elif issubclass(exc_type, FrontendDevException):
+        err_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        logger.error("Frontend development error: %s", err_msg)
+        QTimer.singleShot(
+            0,
+            lambda: show_error_box(
+                """An unexpected error occurred.\nPlease contact support.\nDetails logged.
+                """,
+                "Unexpected Error",
+            ),
+        )
+        return
 
     # Any other unhandled exceptions
     else:
