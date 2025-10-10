@@ -114,8 +114,6 @@ class MainWindow(QMainWindow):
         annotation_ops.wire(self)
         zoom.wire(self, initial=1.15)
 
-        self.overlay.deletePressed.connect(lambda: annotation_ops.delete_selected_bbox(self))
-
         QShortcut(
             QKeySequence.StandardKey.Undo,
             self,

@@ -1,5 +1,6 @@
 # savant_app/frontend/utils/annotation_ops.py
 from dataclasses import asdict
+from savant_app.frontend.exceptions import MissingObjectIDError
 from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
 from .render import refresh_frame
 from PyQt6.QtCore import Qt
@@ -26,6 +27,11 @@ def wire(main_window):
         )
         # except TypeError:
         #    pass
+
+    if hasattr(main_window.overlay, "deletePressed"):
+        main_window.overlay.deletePressed.connect(
+            lambda: delete_selected_bbox(main_window)
+        )
 
     main_window.overlay.boxMoved.connect(lambda i, x, y: _moved(main_window, i, x, y))
     main_window.overlay.boxResized.connect(
@@ -222,15 +228,19 @@ def _on_overlay_context_menu(main_window, click_position):
     if selected_action == action_delete_single:
         delete_selected_bbox(main_window)
     elif selected_action == action_delete_cascade:
-        _cascade_delete_same_id(main_window, bbox_index)
+        try:
+            _cascade_delete_same_id(main_window, bbox_index)
+        except MissingObjectIDError as e:
+            QMessageBox.warning(main_window, "Cascade Delete", str(e))
 
 
 def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
     """Delete all bboxes across all frames with the same object ID as the clicked bbox."""
     try:
         object_id = main_window._overlay_ids[overlay_bbox_index]
-    except Exception:
-        return
+    except Exception as e:
+        raise MissingObjectIDError(
+            "Could not determine object ID for the selected bounding box.") from e
 
     openlabel_annotation = (
         main_window.annotation_controller.annotation_service.project_state.annotation_config
