@@ -66,7 +66,6 @@ class MainWindow(QMainWindow):
         self.video_widget = VideoDisplay()
         self.overlay = Overlay(self.video_widget)
         self.overlay.set_interactive(True)
-        self._overlay_ids: list[str] = []
         self.video_widget.pan_changed.connect(self.overlay.set_pan)
         # Seek + controls
         self.seek_bar = SeekBar()

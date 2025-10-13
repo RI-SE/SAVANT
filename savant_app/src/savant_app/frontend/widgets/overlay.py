@@ -3,21 +3,23 @@ from PyQt6.QtGui import QPainter, QPen, QColor, QPolygonF, QBrush
 from PyQt6.QtCore import Qt, QPointF, pyqtSignal, QRectF
 from typing import List, Tuple
 import math
+from savant_app.frontend.types import BBoxData
 
 
 class Overlay(QWidget):
     """
     Draws rotated bounding boxes over the video. Boxes are expected as
-    (center_x_vid, center_y_vid, width_vid, height_vid, theta_radians)
+    BBox instances in VIDEO coords: (center_x, center_y, width, height, theta)
     in ORIGINAL VIDEO PIXELS (not scaled).
 
     Rotation is applied manually via cos/sin so it will ALWAYS be visible
     if theta != 0, regardless of painter transformations.
     """
 
-    boxMoved = pyqtSignal(int, float, float)
-    boxResized = pyqtSignal(int, float, float, float, float)
-    boxRotated = pyqtSignal(int, float)
+    boxMoved = pyqtSignal(str, float, float)  # (object_id, x, y)
+    boxResized = pyqtSignal(str, float, float, float, float)  # (object_id, x, y, w, h)
+    boxRotated = pyqtSignal(str, float)  # (object_id, rotation)
+    bounding_box_selected = pyqtSignal(str)  # (object_id)
     deletePressed = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -29,7 +31,7 @@ class Overlay(QWidget):
         self._zoom: float = 1.0
         self._pan_x: float = 0.0
         self._pan_y: float = 0.0
-        self._boxes: List[Tuple[float, float, float, float, float]] = []
+        self._boxes: List[BBoxData] = []
 
         # This flag flips the sign if needed (Rotation of boxes).
         self._theta_is_clockwise: bool = True
@@ -51,7 +53,7 @@ class Overlay(QWidget):
         self._selected_idx: int | None = None
         self._drag_mode: str | None = None
         self._press_pos_disp: QPointF | None = None
-        self._orig_box: Tuple[float, float, float, float, float] | None = None
+        self._orig_box: BBoxData | None = None
         self._hit_tol_px: float = 14.0
         self._handle_draw_px: float = 14.0
 
@@ -83,15 +85,17 @@ class Overlay(QWidget):
         self._pan_x, self._pan_y = pan_x, pan_y
         self.update()
 
-    def set_rotated_boxes(self, boxes: List[Tuple[float, float, float, float, float]]):
-        """Boxes in VIDEO coords:
-        (center_x_vid, center_y_vid, width_vid, height_vid, theta_radians).
-        """
-        self._boxes = boxes or []
+    def set_rotated_boxes(self, boxes: List[BBoxData]):
+        """Set boxes as BBox instances in VIDEO coords."""
+        self._boxes = []
+        if boxes is not None:
+            for box in boxes:
+                if isinstance(box, BBoxData):
+                    self._boxes.append(box)
         self.update()
 
     def set_theta_clockwise(self, clockwise: bool):
-        """If your dataset'sin_a theta increases clockwise, keep True (default)."""
+        """If your dataset's theta increases clockwise, keep True (default)."""
         self._theta_is_clockwise = clockwise
         self.update()
 
@@ -108,9 +112,13 @@ class Overlay(QWidget):
         self._interactive = bool(enabled)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, not enabled)
 
-    def selected_index(self) -> int | None:
-        """Return selected overlay index or None if nothing selected."""
-        return self._selected_idx
+    def selected_object_id(self) -> str | None:
+        """Return selected overlay object ID or None if nothing selected."""
+        if self._selected_idx is not None and 0 <= self._selected_idx < len(
+            self._boxes
+        ):
+            return self._boxes[self._selected_idx].object_id
+        return None
 
     def clear_selection(self) -> None:
         """Clear any current selection and hover/drag state."""
@@ -146,6 +154,8 @@ class Overlay(QWidget):
             self._selected_idx = None
             self._drag_mode = None
             self._hover_idx, self._hover_mode = None, None
+            # Clear selection in the sidebar too
+            self.bounding_box_selected.emit(self.selected_object_id())
             self.update()
             ev.ignore()
             return
@@ -156,13 +166,18 @@ class Overlay(QWidget):
         self._press_pos_disp = ev.position()
         self._orig_box = self._boxes[idx]
 
+        # Clicked on a box (or its handle), so trigger
+        # the highlight of the corresponding object in the sidebar.
+        self.bounding_box_selected.emit(self.selected_object_id())
+
         if mode == "R":
-            cx0, cy0, _, _, theta0 = self._orig_box
+            cx0 = self._orig_box.center_x
+            cy0 = self._orig_box.center_y
             scale, off_x, off_y, _ = self._compute_transform()
             px = (self._press_pos_disp.x() - off_x) / scale
             py = (self._press_pos_disp.y() - off_y) / scale
             self._press_angle = math.atan2(py - cy0, px - cx0)
-            self._orig_theta = theta0
+            self._orig_theta = self._orig_box.theta
 
         self.update()
         ev.accept()
@@ -178,7 +193,7 @@ class Overlay(QWidget):
                 self.update()
 
             if mode in ("E", "W", "N", "S"):
-                theta = self._boxes[idx][4]
+                theta = self._boxes[idx].theta
                 ax_x, ax_y = self._axis_from_mode(theta, mode)
                 self.setCursor(self._cursor_for_axis(ax_x, ax_y))
             elif mode == "move":
@@ -205,7 +220,12 @@ class Overlay(QWidget):
         dx_vid = dx_disp / scale
         dy_vid = dy_disp / scale
 
-        cx0, cy0, w0, h0, theta = self._orig_box
+        # Get current bbox properties
+        cx0 = self._orig_box.center_x
+        cy0 = self._orig_box.center_y
+        w0 = self._orig_box.width
+        h0 = self._orig_box.height
+        theta = self._orig_box.theta
         cx, cy, w, h = cx0, cy0, w0, h0
 
         if self._drag_mode == "move":
@@ -262,14 +282,22 @@ class Overlay(QWidget):
             else:
                 theta = self._orig_theta + d_theta
 
-            cx, cy, w, h = cx0, cy0, w0, h0
-            self._boxes[self._selected_idx] = (cx, cy, w, h, theta)
-            self.update()
-            ev.accept()
-            return
+        # Create new BBox for live preview
+        current_box = self._boxes[self._selected_idx]
+        object_id = "unknown"
+        if isinstance(current_box, BBoxData):
+            object_id = current_box.object_id
 
-        # live preview
-        self._boxes[self._selected_idx] = (cx, cy, w, h, theta)
+        new_bbox = BBoxData(
+            object_id=object_id,
+            object_type=current_box.object_type,
+            center_x=cx,
+            center_y=cy,
+            width=w,
+            height=h,
+            theta=theta,
+        )
+        self._boxes[self._selected_idx] = new_bbox
         self.update()
         ev.accept()
 
@@ -282,13 +310,19 @@ class Overlay(QWidget):
             return
 
         if self._selected_idx is not None:
-            cx, cy, w, h, theta = self._boxes[self._selected_idx]
+            bbox = self._boxes[self._selected_idx]
             if self._drag_mode == "move":
-                self.boxMoved.emit(self._selected_idx, cx, cy)
+                self.boxMoved.emit(bbox.object_id, bbox.center_x, bbox.center_y)
             elif self._drag_mode == "R":
-                self.boxRotated.emit(self._selected_idx, theta)
+                self.boxRotated.emit(bbox.object_id, bbox.theta)
             else:
-                self.boxResized.emit(self._selected_idx, cx, cy, w, h)
+                self.boxResized.emit(
+                    bbox.object_id,
+                    bbox.center_x,
+                    bbox.center_y,
+                    bbox.width,
+                    bbox.height,
+                )
 
         # clear drag/hover state
         self._hover_idx, self._hover_mode = None, None
@@ -339,7 +373,19 @@ class Overlay(QWidget):
         x = pos_disp.x()
         y = pos_disp.y()
 
-        for idx, (cx_vid, cy_vid, w_vid, h_vid, theta) in enumerate(self._boxes):
+        for idx, bbox in enumerate(self._boxes):
+            # Handle both BBox and tuple formats during transition
+            if isinstance(bbox, BBoxData):
+                cx_vid = bbox.center_x
+                cy_vid = bbox.center_y
+                w_vid = bbox.width
+                h_vid = bbox.height
+                theta = bbox.theta
+            elif isinstance(bbox, tuple) and len(bbox) == 5:
+                cx_vid, cy_vid, w_vid, h_vid, theta = bbox
+            else:
+                continue
+
             cx_disp = off_x + cx_vid * scale
             cy_disp = off_y + cy_vid * scale
             box_w_disp = w_vid * scale
@@ -447,108 +493,166 @@ class Overlay(QWidget):
         off_y = (display_height - draw_h) / 2 + self._pan_y
         return (scale, off_x, off_y, base)
 
+    def _get_box_idx_from_obj_id(self, object_id: str) -> int | None:
+        """Return the index of the box with the given object_id, or None if not found."""
+        for idx, box in enumerate(self._boxes):
+            if box.object_id == object_id:
+                return idx
+        return None
+
+    def select_box_by_obj_id(self, object_id: str | None):
+        """Externally select a bounding box by object_id (or None to clear selection)."""
+        if object_id is None:
+            self.clear_selection()
+            return
+
+        self._selected_idx = self._get_box_idx_from_obj_id(object_id)
+
+        self._drag_mode = None
+        self._hover_idx = None
+        self._hover_mode = None
+        self._press_pos_disp = None
+        self._orig_box = None
+        self.update()
+
+    def select_box(self, idx: int | None):
+        """Externally select a bounding box by index (or None to clear selection)."""
+        if idx is not None and (0 <= idx < len(self._boxes)):
+            self._selected_idx = idx
+        else:
+            self._selected_idx = None
+
+        self._drag_mode = None
+        self._hover_idx = None
+        self._hover_mode = None
+        self._press_pos_disp = None
+        self._orig_box = None
+        self.update()
+
     def paintEvent(self, _):
         if not self._boxes or self._frame_size == (0, 0):
             return
 
         scale, offset_x, offset_y, _ = self._compute_transform()
-
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        for idx, (
-            center_x_vid,
-            center_y_vid,
-            width_vid,
-            height_vid,
-            theta,
-        ) in enumerate(self._boxes):
-            center_x_disp = offset_x + center_x_vid * scale
-            center_y_disp = offset_y + center_y_vid * scale
-            box_width_disp = width_vid * scale
-            box_height_disp = height_vid * scale
+        for idx, bbox in enumerate(self._boxes):
+            if isinstance(bbox, BBoxData):
+                center_x = bbox.center_x
+                center_y = bbox.center_y
+                box_width = bbox.width
+                box_height = bbox.height
+                theta_val = bbox.theta
+                object_id = bbox.object_id
+                object_type = bbox.object_type
+            elif isinstance(bbox, tuple) and len(bbox) == 5:
+                center_x, center_y, box_width, box_height, theta_val = bbox
+                object_id = "unknown"
+                object_type = "unknown"
+            else:
+                continue
 
-            angle_rad = -theta if self._theta_is_clockwise else theta
+            center_x_disp = offset_x + center_x * scale
+            center_y_disp = offset_y + center_y * scale
+            box_width_disp = box_width * scale
+            box_height_disp = box_height * scale
+
+            angle_rad = -theta_val if self._theta_is_clockwise else theta_val
             cos_angle, sin_angle = math.cos(angle_rad), math.sin(angle_rad)
-
             half_w = box_width_disp / 2.0
             half_h = box_height_disp / 2.0
 
+            # Compute corners
             corners = []
-            for local_offset_x, local_offset_y in [
+            for lx, ly in [
                 (-half_w, -half_h),
                 (half_w, -half_h),
                 (half_w, half_h),
                 (-half_w, half_h),
             ]:
-                rotated_offset_x = (
-                    local_offset_x * cos_angle - local_offset_y * sin_angle
-                )
-                rotated_offset_y = (
-                    local_offset_x * sin_angle + local_offset_y * cos_angle
-                )
-                corner_x_disp = center_x_disp + rotated_offset_x
-                corner_y_disp = center_y_disp + rotated_offset_y
-                corners.append(QPointF(corner_x_disp, corner_y_disp))
-
+                rx = lx * cos_angle - ly * sin_angle
+                ry = lx * sin_angle + ly * cos_angle
+                corners.append(QPointF(center_x_disp + rx, center_y_disp + ry))
             polygon = QPolygonF(corners)
 
-            # outline (selected highlighted)
-            if self._selected_idx == idx:
-                painter.setPen(self._pen_box_selected)
-            else:
-                painter.setPen(self._pen_box)
+            # Draw box
+            painter.setPen(
+                self._pen_box_selected if self._selected_idx == idx else self._pen_box
+            )
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawPolygon(polygon)
-
             TL, TR, BR, BL = corners[0], corners[1], corners[2], corners[3]
 
-            # draw side handles when selected
+            # --- Draw rotated text with semi-transparent background ---
+            mid_top = QPointF((TL.x() + TR.x()) / 2, (TL.y() + TR.y()) / 2)
+            tx, ty = TR.x() - TL.x(), TR.y() - TL.y()
+            edge_angle = math.degrees(math.atan2(ty, tx))
+            text_margin = 10
+            nx, ny = -ty / math.hypot(tx, ty), tx / math.hypot(tx, ty)
+            vec_cx, vec_cy = center_x_disp - mid_top.x(), center_y_disp - mid_top.y()
+            if nx * vec_cx + ny * vec_cy > 0:
+                nx, ny = -nx, -ny
+            text_x = mid_top.x() + nx * text_margin
+            text_y = mid_top.y() + ny * text_margin
+            text_str = f"{object_id} ({object_type})"
+
+            painter.save()
+            painter.translate(text_x, text_y)
+            painter.rotate(edge_angle)
+
+            # Measure text
+            metrics = painter.fontMetrics()
+            text_width = metrics.horizontalAdvance(text_str)
+            text_height = metrics.height()
+            padding = 2
+
+            # Draw semi-transparent black background
+            painter.setBrush(QColor(0, 0, 0, 160))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRect(
+                -padding,
+                -metrics.ascent() - padding,
+                text_width + 2 * padding,
+                text_height + 2 * padding,
+            )
+
+            # Draw text
+            painter.setPen(QColor(255, 255, 0))  # bright yellow
+            painter.drawText(0, 0, text_str)
+            painter.restore()
+
+            # --- Draw side handles if selected ---
             if self._selected_idx == idx:
                 s = self._handle_draw_px
                 half = s / 2.0
-                mid_top = QPointF((TL.x() + TR.x()) * 0.5, (TL.y() + TR.y()) * 0.5)
-                mid_right = QPointF((TR.x() + BR.x()) * 0.5, (TR.y() + BR.y()) * 0.5)
-                mid_bottom = QPointF((BL.x() + BR.x()) * 0.5, (BL.y() + BR.y()) * 0.5)
-                mid_left = QPointF((TL.x() + BL.x()) * 0.5, (TL.y() + BL.y()) * 0.5)
-
+                mid_right = QPointF((TR.x() + BR.x()) / 2, (TR.y() + BR.y()) / 2)
+                mid_bottom = QPointF((BL.x() + BR.x()) / 2, (BL.y() + BR.y()) / 2)
+                mid_left = QPointF((TL.x() + BL.x()) / 2, (TL.y() + BL.y()) / 2)
                 painter.setPen(QPen(QColor(30, 30, 30)))
                 painter.setBrush(QColor(255, 255, 255))
                 for pt in (mid_top, mid_right, mid_bottom, mid_left):
-                    rectf = QRectF(
-                        float(pt.x() - half), float(pt.y() - half), float(s), float(s)
-                    )
-                    painter.drawRect(rectf)
+                    painter.drawRect(QRectF(pt.x() - half, pt.y() - half, s, s))
 
-                # rotate handle above top edge (always outside) + connector
-                tx, ty = (TR.x() - TL.x()), (TR.y() - TL.y())
+                # Rotate handle
                 edge_len = math.hypot(tx, ty) or 1.0
-                nx, ny = (-ty / edge_len, tx / edge_len)
-
-                vec_cx, vec_cy = (center_x_disp - mid_top.x()), (
-                    center_y_disp - mid_top.y()
-                )
+                nx, ny = -ty / edge_len, tx / edge_len
                 if nx * vec_cx + ny * vec_cy > 0:
                     nx, ny = -nx, -ny
-
                 handle_offset = self._rotate_handle_offset_px
                 rot_cx = mid_top.x() + nx * handle_offset
                 rot_cy = mid_top.y() + ny * handle_offset
-
-                # connector line
                 pen_line = QPen(QColor(0, 200, 255))
                 pen_line.setWidth(2)
                 pen_line.setStyle(Qt.PenStyle.DashLine)
                 painter.setPen(pen_line)
                 painter.drawLine(mid_top, QPointF(rot_cx, rot_cy))
-
-                # handle circle
-                r = self._handle_draw_px * 0.5
+                r = self._handle_draw_px / 2
                 painter.setPen(self._pen_rotate_handle)
                 painter.setBrush(self._brush_rotate_handle)
                 painter.drawEllipse(QRectF(rot_cx - r, rot_cy - r, 2 * r, 2 * r))
 
-            # hover edge indicator (cyan, fat)
+            # --- Hover edges ---
             if idx == self._hover_idx and self._hover_mode in ("N", "S", "E", "W"):
                 painter.setPen(self._pen_hover_edge)
                 if self._hover_mode == "N":
@@ -560,7 +664,7 @@ class Overlay(QWidget):
                 elif self._hover_mode == "W":
                     painter.drawLine(TL, BL)
 
-            # centers / axes (optional debug)
+            # --- Centers / axes ---
             if self._show_centers:
                 painter.setPen(self._pen_center)
                 painter.drawLine(
@@ -571,7 +675,6 @@ class Overlay(QWidget):
                     QPointF(center_x_disp, center_y_disp - 4),
                     QPointF(center_x_disp, center_y_disp + 4),
                 )
-
             if self._show_axes:
                 painter.setPen(self._pen_axis)
                 axis_x = center_x_disp + half_w * cos_angle
@@ -584,7 +687,8 @@ class Overlay(QWidget):
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key.Key_Delete and not (
-                e.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            e.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             self.deletePressed.emit()
             e.accept()
             return

@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QSpinBox,
     QMessageBox,
-    QListWidgetItem
+    QListWidgetItem,
 )
 from PyQt6.QtCore import QSize, pyqtSignal, pyqtSlot, Qt, QEvent
 from savant_app.frontend.utils.assets import icon
@@ -20,6 +20,7 @@ from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.video_controller import VideoController
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.widgets.settings import get_action_interval_offset
+from savant_app.frontend.exceptions import InvalidObjectIDFormat
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 
@@ -32,6 +33,8 @@ class Sidebar(QWidget):
     add_new_bbox_existing_obj = pyqtSignal(str)
     open_project_dir = pyqtSignal(str)
     quick_save = pyqtSignal()
+    highlight_selected_object = pyqtSignal(str)
+    object_selected = pyqtSignal(str)  # New signal for selection changes
 
     def __init__(
         self,
@@ -50,6 +53,9 @@ class Sidebar(QWidget):
 
         # State for sidebar
         self.state: SidebarState = state
+
+        # Track the currently selected object ID
+        self._selected_annotation_object_id: str | None = None
 
         # --- Horizontal layout for New / Load / Save ---
         top_buttons_layout = QHBoxLayout()
@@ -101,6 +107,7 @@ class Sidebar(QWidget):
         self.active_objects.setMinimumHeight(100)
         self.active_objects.model().rowsInserted.connect(self.adjust_list_sizes)
         self.active_objects.model().rowsRemoved.connect(self.adjust_list_sizes)
+        self.active_objects.itemClicked.connect(self._on_active_object_selected)
         main_layout.addWidget(self.active_objects)
 
         # --- Frame ID ---
@@ -118,7 +125,9 @@ class Sidebar(QWidget):
         self.frame_tag_list.installEventFilter(self)
         main_layout.addWidget(self.frame_tag_list)
 
-        self._frame_tag_del = QShortcut(QKeySequence(Qt.Key.Key_Delete), self.frame_tag_list)
+        self._frame_tag_del = QShortcut(
+            QKeySequence(Qt.Key.Key_Delete), self.frame_tag_list
+        )
         self._frame_tag_del.setContext(Qt.ShortcutContext.WidgetShortcut)
         self._frame_tag_del.activated.connect(self._delete_selected_frame_tag)
 
@@ -129,14 +138,50 @@ class Sidebar(QWidget):
             cur = 0
         self._refresh_active_frame_tags(cur)
 
+    def _extract_object_id_from_text(self, text: str) -> str:
+        """Extract object ID from list item text in format 'Type (ID: 123)'"""
+        # Find the ID part and remove trailing parenthesis
+        try:
+            id_part = text.split("ID: ")[1]
+            return id_part.rstrip(")").strip()
+        except IndexError as e:
+            raise InvalidObjectIDFormat(
+                f"Cannot extract object ID from text: {text}"
+            ) from e
+
+    def _on_active_object_selected(self, item):
+        # Trigger highlight in the UI
+        object_id = self._extract_object_id_from_text(item.text())
+        self.highlight_selected_object.emit(object_id)
+
+    def select_active_object_by_id(self, object_id: str):
+        """Select the active object in the list by its ID."""
+        self.active_objects.clearSelection()
+        self._selected_annotation_object_id = object_id
+
+        for i in range(self.active_objects.count()):
+            item = self.active_objects.item(i)
+            item_id = self._extract_object_id_from_text(item.text())
+            if object_id == item_id:
+                item.setSelected(True)
+                self.active_objects.setCurrentItem(item)
+                self.active_objects.scrollToItem(item)
+                break
+
     def refresh_active_objects(self, active_objects: list[str]):
         """Refresh the list of active objects and update recent IDs."""
         self.active_objects.clear()
         current_ids = []
         for item in active_objects:
             obj_id = item["name"]
-            self.active_objects.addItem(f'{item["type"]} (ID: {obj_id})')
+            # Display only numeric part of ID
+            numeric_id = obj_id.split("-")[-1] if "-" in obj_id else obj_id
+            self.active_objects.addItem(f'{item["type"]} (ID: {numeric_id})')
             current_ids.append(obj_id)
+
+        self.select_active_object_by_id(
+            self._selected_annotation_object_id
+        )  # Reselect previously selected object if still present
 
         self.update()
 
@@ -440,7 +485,9 @@ class Sidebar(QWidget):
 
         payload = item.data(Qt.ItemDataRole.UserRole)
         if not payload:
-            QMessageBox.warning(self, "Delete Frame Tag", "No tag data on the selected item.")
+            QMessageBox.warning(
+                self, "Delete Frame Tag", "No tag data on the selected item."
+            )
             return
 
         tag, start, end = payload

@@ -9,6 +9,23 @@ from .exceptions import (
 )
 from pydantic import ValidationError
 from typing import List, Tuple
+from dataclasses import dataclass
+
+
+@dataclass
+class BBoxDimensionData:
+    cx: float
+    cy: float
+    width: float
+    height: float
+    theta: float
+
+
+@dataclass
+class FrameBBoxData:
+    object_id: str
+    object_type: str
+    bbox: BBoxDimensionData
 
 
 class ProjectState:
@@ -99,46 +116,33 @@ class ProjectState:
                 )
         return out
 
-    def boxes_with_ids_for_frame(
-        self, frame_idx: int
-    ) -> List[Tuple[str, Tuple[float, float, float, float, float]]]:
-        """
-        Return [(object_id_str, (cx, cy, w, h, theta)), ...] for the given frame,
-        in the same order you'll draw them in the overlay.
-        Uses the same frame-key fallback logic as boxes_for_frame().
-        """
-        if not self.annotation_config or not self.annotation_config.frames:
+    def boxes_with_ids_for_frame(self, frame_idx: int) -> List[FrameBBoxData]:
+        results: List[ProjectState.FrameBBox] = []
+
+        frame = self.annotation_config.frames.get(str(frame_idx))
+        if not frame:
             return []
 
-        fkey = str(frame_idx)
-        if fkey not in self.annotation_config.frames:
-            alt = str(frame_idx + 1)
-            if alt not in self.annotation_config.frames:
-                return []
-            fkey = alt
+        for object_id, frame_obj in frame.objects.items():
+            metadata = self.annotation_config.objects.get(object_id)
+            object_type = metadata.type if metadata else "unknown"
 
-        out: List[Tuple[str, Tuple[float, float, float, float, float]]] = []
-        frame = self.annotation_config.frames[fkey]
-
-        # Preserve dict iteration order (same as you already draw)
-        for object_id_str, fobj in frame.objects.items():
-            for geom in fobj.object_data.rbbox:
-                if geom.name != "shape":
+            for geometry_data in frame_obj.object_data.rbbox:
+                if geometry_data.name != "shape":
                     continue
-                rb = geom.val
-                out.append(
-                    (
-                        object_id_str,
-                        (
-                            float(rb.x_center),
-                            float(rb.y_center),
-                            float(rb.width),
-                            float(rb.height),
-                            float(rb.rotation),
-                        ),
-                    )
+                rbbox_dimensions = geometry_data.val
+                bbox_dimension_data = BBoxDimensionData(
+                    cx=rbbox_dimensions.x_center,
+                    cy=rbbox_dimensions.y_center,
+                    width=rbbox_dimensions.width,
+                    height=rbbox_dimensions.height,
+                    theta=rbbox_dimensions.rotation,
                 )
-        return out
+                results.append(
+                    FrameBBoxData(object_id, object_type, bbox_dimension_data)
+                )
+
+        return results
 
     def object_id_for_frame_index(self, frame_idx: int, overlay_index: int) -> str:
         """
