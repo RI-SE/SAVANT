@@ -12,6 +12,8 @@
 -e file:.
 annotated-types==0.7.0
     # via pydantic
+appdirs==1.4.4
+    # via savant-app
 black==25.1.0
 click==8.2.1
     # via black
@@ -46,6 +48,8 @@ pyflakes==3.4.0
     # via flake8
 pygments==2.19.2
     # via pytest
+pyparsing==3.2.5
+    # via rdflib
 pyqt6==6.7.1
     # via savant-app
 pyqt6-qt6==6.7.3
@@ -56,6 +60,8 @@ pytest==8.4.1
     # via pytest-mock
     # via savant-app
 pytest-mock==3.14.1
+    # via savant-app
+rdflib==7.2.1
     # via savant-app
 typing-extensions==4.14.1
     # via pydantic

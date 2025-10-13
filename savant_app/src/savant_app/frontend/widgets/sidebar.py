@@ -9,12 +9,19 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QFileDialog,
     QComboBox,  # Added for recent objects dropdown
+    QFormLayout,
+    QSpinBox,
+    QMessageBox,
+    QListWidgetItem,
 )
-from PyQt6.QtCore import QSize, pyqtSignal
+from PyQt6.QtCore import QSize, pyqtSignal, pyqtSlot, Qt, QEvent
 from savant_app.frontend.utils.assets import icon
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.video_controller import VideoController
 from savant_app.frontend.states.sidebar_state import SidebarState
+from savant_app.frontend.widgets.settings import get_action_interval_offset
+from savant_app.frontend.exceptions import InvalidObjectIDFormat
+from PyQt6.QtGui import QShortcut, QKeySequence
 
 
 class Sidebar(QWidget):
@@ -26,6 +33,8 @@ class Sidebar(QWidget):
     add_new_bbox_existing_obj = pyqtSignal(str)
     open_project_dir = pyqtSignal(str)
     quick_save = pyqtSignal()
+    highlight_selected_object = pyqtSignal(str)
+    object_selected = pyqtSignal(str)  # New signal for selection changes
 
     def __init__(
         self,
@@ -44,6 +53,9 @@ class Sidebar(QWidget):
 
         # State for sidebar
         self.state: SidebarState = state
+
+        # Track the currently selected object ID
+        self._selected_annotation_object_id: str | None = None
 
         # --- Horizontal layout for New / Load / Save ---
         top_buttons_layout = QHBoxLayout()
@@ -85,7 +97,9 @@ class Sidebar(QWidget):
         main_layout.addWidget(new_bbox_btn)
 
         # --- New Frame Tag Button ---
-        main_layout.addWidget(QPushButton("New frame tag"))
+        new_tag_btn = QPushButton("New frame tag")
+        new_tag_btn.clicked.connect(self._open_frame_tag_dialog)
+        main_layout.addWidget(new_tag_btn)
 
         # --- Active Objects ---
         main_layout.addWidget(QLabel("Active Objects:"))
@@ -93,6 +107,7 @@ class Sidebar(QWidget):
         self.active_objects.setMinimumHeight(100)
         self.active_objects.model().rowsInserted.connect(self.adjust_list_sizes)
         self.active_objects.model().rowsRemoved.connect(self.adjust_list_sizes)
+        self.active_objects.itemClicked.connect(self._on_active_object_selected)
         main_layout.addWidget(self.active_objects)
 
         # --- Frame ID ---
@@ -101,15 +116,57 @@ class Sidebar(QWidget):
         # self.frame_id.setFixedHeight(40)
         # main_layout.addWidget(self.frame_id)
 
-        # --- Active Manoeuvre ---
-        main_layout.addWidget(QLabel("Active Manoeuvre:"))
-        self.active_manoeuvre = QListWidget()
-        self.active_manoeuvre.setMinimumHeight(60)
-        self.active_manoeuvre.model().rowsInserted.connect(self.adjust_list_sizes)
-        self.active_manoeuvre.model().rowsRemoved.connect(self.adjust_list_sizes)
-        main_layout.addWidget(self.active_manoeuvre)
+        # --- Active Frame Tags ---
+        main_layout.addWidget(QLabel("Frame Tags"))
+        self.frame_tag_list = QListWidget()
+        self.frame_tag_list.setMinimumHeight(100)
+        self.frame_tag_list.model().rowsInserted.connect(self.adjust_list_sizes)
+        self.frame_tag_list.model().rowsRemoved.connect(self.adjust_list_sizes)
+        self.frame_tag_list.installEventFilter(self)
+        main_layout.addWidget(self.frame_tag_list)
+
+        self._frame_tag_del = QShortcut(
+            QKeySequence(Qt.Key.Key_Delete), self.frame_tag_list
+        )
+        self._frame_tag_del.setContext(Qt.ShortcutContext.WidgetShortcut)
+        self._frame_tag_del.activated.connect(self._delete_selected_frame_tag)
 
         self.setLayout(main_layout)
+        try:
+            cur = int(self.video_controller.current_index())
+        except Exception:
+            cur = 0
+        self._refresh_active_frame_tags(cur)
+
+    def _extract_object_id_from_text(self, text: str) -> str:
+        """Extract object ID from list item text in format 'Type (ID: 123)'"""
+        # Find the ID part and remove trailing parenthesis
+        try:
+            id_part = text.split("ID: ")[1]
+            return id_part.rstrip(")").strip()
+        except IndexError as e:
+            raise InvalidObjectIDFormat(
+                f"Cannot extract object ID from text: {text}"
+            ) from e
+
+    def _on_active_object_selected(self, item):
+        # Trigger highlight in the UI
+        object_id = self._extract_object_id_from_text(item.text())
+        self.highlight_selected_object.emit(object_id)
+
+    def select_active_object_by_id(self, object_id: str):
+        """Select the active object in the list by its ID."""
+        self.active_objects.clearSelection()
+        self._selected_annotation_object_id = object_id
+
+        for i in range(self.active_objects.count()):
+            item = self.active_objects.item(i)
+            item_id = self._extract_object_id_from_text(item.text())
+            if object_id == item_id:
+                item.setSelected(True)
+                self.active_objects.setCurrentItem(item)
+                self.active_objects.scrollToItem(item)
+                break
 
     def refresh_active_objects(self, active_objects: list[str]):
         """Refresh the list of active objects and update recent IDs."""
@@ -117,8 +174,14 @@ class Sidebar(QWidget):
         current_ids = []
         for item in active_objects:
             obj_id = item["name"]
-            self.active_objects.addItem(f'{item["type"]} (ID: {obj_id})')
+            # Display only numeric part of ID
+            numeric_id = obj_id.split("-")[-1] if "-" in obj_id else obj_id
+            self.active_objects.addItem(f'{item["type"]} (ID: {numeric_id})')
             current_ids.append(obj_id)
+
+        self.select_active_object_by_id(
+            self._selected_annotation_object_id
+        )  # Reselect previously selected object if still present
 
         self.update()
 
@@ -193,7 +256,9 @@ class Sidebar(QWidget):
         """Creates a dropdown button for creating a new bbox for a new object."""
         new_obj_bbox_btn = QComboBox()
         new_obj_bbox_btn.setPlaceholderText("Select new object type")
-        new_obj_bbox_btn.addItems(video_actors)
+        types = self.annotation_controller.allowed_bbox_types()
+        labels = types.get("DynamicObject", []) + types.get("StaticObject", [])
+        new_obj_bbox_btn.addItems(labels)
 
         new_obj_bbox_btn.currentTextChanged.connect(
             lambda text: self.start_bbox_drawing.emit(text)
@@ -224,7 +289,6 @@ class Sidebar(QWidget):
         link_obj_bbox_btn.setMinimumWidth(len(placeholder_text) * 10)
 
         recent_obj_ids = self.get_recent_frame_object_ids()
-        print(recent_obj_ids)
         unique_ids = set()
         for obj_id in recent_obj_ids:
             unique_ids.add(obj_id)
@@ -250,7 +314,7 @@ class Sidebar(QWidget):
 
     def adjust_list_sizes(self):
         """Keep lists at min height when empty, let them expand when populated."""
-        for widget in [self.active_objects, self.active_manoeuvre]:
+        for widget in [self.active_objects, self.frame_tag_list]:
             rows = widget.count()
             if rows == 0:
                 widget.setMinimumHeight(widget.minimumHeight())
@@ -265,3 +329,180 @@ class Sidebar(QWidget):
         self.active_objects.clear()
         # TODO: Implement annotation data loading from controller
         # self.active_objects.addItems(annotations)
+
+    def _open_frame_tag_dialog(self):
+        if not self.video_controller:
+            QMessageBox.warning(self, "No Video", "Load a video first.")
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Add Frame Tag")
+        form = QFormLayout(dlg)
+
+        tag_combo = QComboBox(dlg)
+        tag_combo.addItems(self.annotation_controller.allowed_frame_tags())
+        form.addRow("Tag:", tag_combo)
+
+        try:
+            total = max(0, int(self.video_controller.total_frames()))
+        except Exception:
+            total = 0
+        try:
+            cur = max(0, int(self.video_controller.current_index()))
+        except Exception:
+            cur = 0
+
+        try:
+            offset = max(0, int(get_action_interval_offset()))
+        except Exception:
+            offset = 0
+
+        start_default = max(0, cur - offset)
+        end_default = cur + offset
+        if total > 0:
+            end_default = min(total - 1, end_default)
+
+        start_spin = QSpinBox(dlg)
+        end_spin = QSpinBox(dlg)
+        for spin_box in (start_spin, end_spin):
+            spin_box.setRange(0, max(0, total - 1))
+            spin_box.setSingleStep(1)
+        start_spin.setValue(start_default)
+        end_spin.setValue(end_default)
+        form.addRow("Start frame:", start_spin)
+        form.addRow("End frame:", end_spin)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=dlg,
+        )
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        form.addRow(buttons)
+
+        if not dlg.exec():
+            return
+
+        tag = tag_combo.currentText().strip()
+        start = int(start_spin.value())
+        end = int(end_spin.value())
+        if start > end:
+            QMessageBox.warning(
+                self, "Invalid range", "Start frame cannot be after end frame."
+            )
+            return
+
+        try:
+            self.annotation_controller.add_frame_tag(tag, start, end)
+            try:
+                cur_now = int(self.video_controller.current_index())
+            except Exception:
+                cur_now = 0
+            self._refresh_active_frame_tags(cur_now)
+            QMessageBox.information(self, "Tag added", f"{tag}: {start} → {end}")
+        except Exception as e:
+            QMessageBox.critical(self, "Failed to add tag", str(e))
+
+    def _refresh_active_frame_tags(self, frame_index: int) -> None:
+        """
+        Rebuild the 'Frame Tags' list to show only tags active at frame_index.
+        """
+        if not hasattr(self, "frame_tag_list") or self.frame_tag_list is None:
+            return
+        try:
+            active = self.annotation_controller.active_frame_tags(int(frame_index))
+        except Exception:
+            active = []
+
+        self.frame_tag_list.clear()
+        for tag, start, end in active:
+            item = QListWidgetItem(f"{tag} [{start}-{end}]")
+            item.setData(Qt.ItemDataRole.UserRole, (tag, int(start), int(end)))
+            self.frame_tag_list.addItem(item)
+
+    @pyqtSlot(int)
+    def on_frame_changed(self, frame_index: int) -> None:
+        """
+        Slot called when SeekBar emits frame_changed(int).
+        Updates the list to only show tags active at that frame.
+        """
+        active = []
+        try:
+            active = self.annotation_controller.active_frame_tags(int(frame_index))
+        except Exception:
+            pass
+
+        self.frame_tag_list.clear()
+        for tag, start, end in active:
+            item = QListWidgetItem(f"{tag} [{start}-{end}]")
+            item.setData(Qt.ItemDataRole.UserRole, (tag, int(start), int(end)))
+            self.frame_tag_list.addItem(item)
+
+    def _populate_bbox_type_combo_grouped(self, type_combo) -> None:
+        """
+        Group bbox types by ontology category in the combo box.
+        """
+        try:
+            types = self.annotation_controller.allowed_bbox_types()
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Ontology Error", f"Failed to load bbox types.\n{e}"
+            )
+            types = {"DynamicObject": [], "StaticObject": []}
+
+        type_combo.blockSignals(True)
+        type_combo.clear()
+
+        def add_separator(text: str):
+            type_combo.addItem(text)
+            idx = type_combo.count() - 1
+            item = type_combo.model().item(idx)
+            if item:
+                item.setEnabled(False)
+
+        add_separator("— DynamicObject —")
+        for lbl in types.get("DynamicObject", []):
+            type_combo.addItem(lbl)
+
+        add_separator("— StaticObject —")
+        for lbl in types.get("StaticObject", []):
+            type_combo.addItem(lbl)
+
+        type_combo.blockSignals(False)
+
+    def eventFilter(self, obj, event):
+        if obj is self.frame_tag_list and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Delete:
+                self._delete_selected_frame_tag()
+                event.accept()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _delete_selected_frame_tag(self):
+        item = self.frame_tag_list.currentItem()
+        if not item:
+            return
+
+        payload = item.data(Qt.ItemDataRole.UserRole)
+        if not payload:
+            QMessageBox.warning(
+                self, "Delete Frame Tag", "No tag data on the selected item."
+            )
+            return
+
+        tag, start, end = payload
+        res = QMessageBox.question(
+            self,
+            "Delete Frame Tag",
+            f"Delete {tag} [{start}-{end}]?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if res != QMessageBox.StandardButton.Yes:
+            return
+
+        if not self.annotation_controller.remove_frame_tag(tag, start, end):
+            QMessageBox.information(self, "Delete Frame Tag", "Nothing was deleted.")
+            return
+        cur = int(self.video_controller.current_index())
+        self._refresh_active_frame_tags(cur)

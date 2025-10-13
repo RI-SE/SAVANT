@@ -4,6 +4,7 @@ import os
 import pytest
 import numpy as np
 from src.savant_app.services.video_reader import VideoReader
+from src.savant_app.services.exceptions import VideoFrameIndexError
 
 
 @pytest.fixture(scope="module")
@@ -73,7 +74,7 @@ def test_previous_frame_raises_at_first_frame(test_video_path: str):
     vr = VideoReader()
     vr.load_video(test_video_path)
     next(vr)
-    with pytest.raises(IndexError):
+    with pytest.raises(VideoFrameIndexError):
         vr.previous_frame()
     vr.release()
 
@@ -94,9 +95,9 @@ def test_get_frame_out_of_bounds_raises(test_video_path: str):
     """get_frame: raises IndexError for indices outside [0, frame_count-1]."""
     vr = VideoReader()
     vr.load_video(test_video_path)
-    with pytest.raises(IndexError):
+    with pytest.raises(VideoFrameIndexError):
         vr.get_frame(-1)
-    with pytest.raises(IndexError):
+    with pytest.raises(VideoFrameIndexError):
         vr.get_frame(vr.metadata["frame_count"])
     vr.release()
 

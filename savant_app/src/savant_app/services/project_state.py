@@ -3,39 +3,35 @@
 import json
 from savant_app.models.OpenLabel import OpenLabel
 from savant_app.utils import read_json
+from .exceptions import (
+    OpenLabelFileNotValid,
+    OverlayIndexError,
+)
+from pydantic import ValidationError
 from typing import List, Tuple
+from dataclasses import dataclass
+
+
+@dataclass
+class BBoxDimensionData:
+    cx: float
+    cy: float
+    width: float
+    height: float
+    theta: float
+
+
+@dataclass
+class FrameBBoxData:
+    object_id: str
+    object_type: str
+    bbox: BBoxDimensionData
 
 
 class ProjectState:
     def __init__(self):
         self.annotation_config: OpenLabel = None
         self.open_label_path: str = None
-
-        # Temporary list that denotes all possible actor types.
-        # To be replaced by an onotology (or something else).
-        self.__ACTORS: list[str] = [
-            "RoadUser",
-            "Vehicle",
-            "Car",
-            "Van",
-            "Truck",
-            "Trailer",
-            "Motorbike",
-            "Bicycle",
-            "Bus",
-            "Tram",
-            "Train",
-            "Caravan",
-            "StandupScooter",
-            "AgriculturalVehicle",
-            "ConstructionVehicle",
-            "EmergencyVehicle",
-            "SlowMovingVehicle",
-            "Human",
-            "Pedestrian",
-            "WheelChairUser",
-            "Animal",
-        ]
 
     def load_openlabel_config(self, path: str) -> None:
         """Load and validate OpenLabel configuration from JSON file.
@@ -50,18 +46,24 @@ class ProjectState:
         Initializes:
             self.open_label: New OpenLabel instance with loaded configuration
         """
-        config = read_json(path)
-        self.annotation_config = OpenLabel(**config["openlabel"])
-        self.open_label_path = path
+        try:
+            config = read_json(path)
+            self.annotation_config = OpenLabel(**config["openlabel"])
+            self.open_label_path = path
+        except json.decoder.JSONDecodeError:
+            raise OpenLabelFileNotValid(
+                "Please ensure a valid json file exists in the config dir."
+            )
+        except ValidationError as e:
+            raise OpenLabelFileNotValid(
+                "Config file contains incorrect OpenLabel syntax."
+            ) from e
 
     def save_openlabel_config(self) -> None:
         """Save the adjusted OpenLabel configuration to a JSON file.
 
         Args:
             adjusted_config: The OpenLabel instance containing the adjusted configuration
-
-        Raises:
-            ValueError: If adjusted_config is not a valid OpenLabel instance
         """
         # Save the configuration to a JSON file
         with open(self.open_label_path, "w") as f:
@@ -114,46 +116,33 @@ class ProjectState:
                 )
         return out
 
-    def boxes_with_ids_for_frame(
-        self, frame_idx: int
-    ) -> List[Tuple[str, Tuple[float, float, float, float, float]]]:
-        """
-        Return [(object_id_str, (cx, cy, w, h, theta)), ...] for the given frame,
-        in the same order you'll draw them in the overlay.
-        Uses the same frame-key fallback logic as boxes_for_frame().
-        """
-        if not self.annotation_config or not self.annotation_config.frames:
+    def boxes_with_ids_for_frame(self, frame_idx: int) -> List[FrameBBoxData]:
+        results: List[ProjectState.FrameBBox] = []
+
+        frame = self.annotation_config.frames.get(str(frame_idx))
+        if not frame:
             return []
 
-        fkey = str(frame_idx)
-        if fkey not in self.annotation_config.frames:
-            alt = str(frame_idx + 1)
-            if alt not in self.annotation_config.frames:
-                return []
-            fkey = alt
+        for object_id, frame_obj in frame.objects.items():
+            metadata = self.annotation_config.objects.get(object_id)
+            object_type = metadata.type if metadata else "unknown"
 
-        out: List[Tuple[str, Tuple[float, float, float, float, float]]] = []
-        frame = self.annotation_config.frames[fkey]
-
-        # Preserve dict iteration order (same as you already draw)
-        for object_id_str, fobj in frame.objects.items():
-            for geom in fobj.object_data.rbbox:
-                if geom.name != "shape":
+            for geometry_data in frame_obj.object_data.rbbox:
+                if geometry_data.name != "shape":
                     continue
-                rb = geom.val
-                out.append(
-                    (
-                        object_id_str,
-                        (
-                            float(rb.x_center),
-                            float(rb.y_center),
-                            float(rb.width),
-                            float(rb.height),
-                            float(rb.rotation),
-                        ),
-                    )
+                rbbox_dimensions = geometry_data.val
+                bbox_dimension_data = BBoxDimensionData(
+                    cx=rbbox_dimensions.x_center,
+                    cy=rbbox_dimensions.y_center,
+                    width=rbbox_dimensions.width,
+                    height=rbbox_dimensions.height,
+                    theta=rbbox_dimensions.rotation,
                 )
-        return out
+                results.append(
+                    FrameBBoxData(object_id, object_type, bbox_dimension_data)
+                )
+
+        return results
 
     def object_id_for_frame_index(self, frame_idx: int, overlay_index: int) -> str:
         """
@@ -162,7 +151,34 @@ class ProjectState:
         """
         pairs = self.boxes_with_ids_for_frame(frame_idx)
         if overlay_index < 0 or overlay_index >= len(pairs):
-            raise IndexError(
+            raise OverlayIndexError(
                 f"overlay_index {overlay_index} out of range for frame {frame_idx}"
             )
         return pairs[overlay_index][0]
+
+    def validate_before_save(self) -> None:
+        """
+        Validate action frame intervals:
+        - start/end present
+        - start <= end
+        """
+        if not self.annotation_config or not self.annotation_config.actions:
+            return
+        errs = []
+        for key, action in self.annotation_config.actions.items():
+            if not action.frame_intervals:
+                continue
+            for interval_index, frame_interval in enumerate(action.frame_intervals):
+                start_frame = frame_interval.frame_start
+                end_frame = frame_interval.frame_end
+                if start_frame is None or end_frame is None:
+                    errs.append(
+                        f"Action '{key}' interval #{interval_index+1} missing start or end"
+                    )
+                elif start_frame > end_frame:
+                    errs.append(
+                        f"Action '{key}' interval #{interval_index+1
+                                                    } has start {start_frame} > end {end_frame}"
+                    )
+        if errs:
+            raise ValueError("Invalid frame tags:\n- " + "\n- ".join(errs))

@@ -13,29 +13,76 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QColorDialog,
     QLabel,
+    QLineEdit,
+    QFileDialog,
+    QMessageBox,
+)
+from savant_app.frontend.utils.settings_store import (
+    get_ontology_path,
+    get_action_interval_offset,
+    get_ontology_namespace,
+    set_ontology_namespace,
+    set_action_interval_offset,
+    set_ontology_path,
 )
 from PyQt6.QtCore import Qt
+from pathlib import Path
+from PyQt6.QtWidgets import QGroupBox
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, *, theme="System", zoom_rate=1.2, frame_count=100, parent=None):
+    def __init__(
+        self,
+        *,
+        theme="System",
+        zoom_rate=1.2,
+        frame_count=100,
+        ontology_path: Path,
+        action_interval_offset: int,
+        parent=None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setModal(True)
-        self.setMinimumWidth(380)
+        self.setMinimumWidth(700)
 
         page = QWidget(self)
         form = QFormLayout(page)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        # General group
+        general_group = QGroupBox("General", self)
+        general_form = QFormLayout(general_group)
+
+        self.zoom_spin = QDoubleSpinBox()
+        self.zoom_spin.setRange(1.0, 10.0)
+        self.zoom_spin.setDecimals(1)
+        self.zoom_spin.setSingleStep(0.1)
+        self.zoom_spin.setSuffix(" X")
+        self.zoom_spin.setValue(float(zoom_rate))
+        general_form.addRow("Zoom rate:", self.zoom_spin)
+
+        self.frame_count_spin = QSpinBox()
+        self.frame_count_spin.setRange(1, 100000)
+        self.frame_count_spin.setSingleStep(1)
+        self.frame_count_spin.setSuffix(" frames")
+        self.frame_count_spin.setValue(int(frame_count))
+        self.frame_count_spin.setToolTip(
+            "Number of recent frames to analyze for object detection"
+        )
+        general_form.addRow("Frame history:", self.frame_count_spin)
+
+        form.addRow(general_group)
+
+        # Annotators group
+        annotators_group = QGroupBox("Annotators", self)
+        annotators_form = QFormLayout(annotators_group)
 
         self.annotator_table = QTableWidget(0, 3, self)
         self.annotator_table.setHorizontalHeaderLabels(["Name", "Enabled", "Colour"])
         self.annotator_table.horizontalHeader().setStretchLastSection(True)
         self.annotator_table.verticalHeader().setVisible(False)
         self.annotator_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        anno_tbl_lbl = QLabel("Project annotators")
-        form.addRow(anno_tbl_lbl)
-        form.addRow(self.annotator_table)
 
         # TODO: Change to retrieve names from config
         self._annotator = [
@@ -45,25 +92,53 @@ class SettingsDialog(QDialog):
             {"name": "Thanh", "enabled": False, "colour": "#fff347"},
         ]
 
-        self.zoom_spin = QDoubleSpinBox()
-        self.zoom_spin.setRange(1.0, 10.0)
-        self.zoom_spin.setDecimals(1)
-        self.zoom_spin.setSingleStep(0.1)
-        self.zoom_spin.setSuffix(" X")
-        self.zoom_spin.setValue(float(zoom_rate))
-        form.addRow("Zoom rate:", self.zoom_spin)
+        annotators_form.addRow(self.annotator_table)
+        form.addRow(annotators_group)
 
-        # Frame count input
-        self.frame_count_spin = QSpinBox()
-        self.frame_count_spin.setRange(1, 100000)
-        self.frame_count_spin.setSingleStep(1)
-        self.frame_count_spin.setSuffix(" frames")
-        self.frame_count_spin.setValue(int(frame_count))
-        self.frame_count_spin.setToolTip(
-            "Number of recent frames to analyze for object detection"
+        self.annotator_table.clearContents()
+        self.annotator_table.setRowCount(0)
+        for p in self._annotator:
+            self._add_annotator_row(p)
+        self.annotator_table.resizeRowsToContents()
+        header_height = self.annotator_table.horizontalHeader().height()
+        rows_height = sum(
+            self.annotator_table.rowHeight(row)
+            for row in range(self.annotator_table.rowCount())
         )
-        form.addRow("Frame history:", self.frame_count_spin)
+        frame_height = 2 * self.annotator_table.frameWidth()
+        total_height = header_height + rows_height + frame_height
+        self.annotator_table.setFixedHeight(total_height)
 
+        # Annotations & Ontology group
+        ontology_group = QGroupBox("Annotations & Ontology", self)
+        ontology_form = QFormLayout(ontology_group)
+
+        self._ontology_edit = QLineEdit(self)
+        self._ontology_edit.setReadOnly(True)
+        self._ontology_edit.setText(str(get_ontology_path()))
+        browse_btn = QPushButton("Browse…", self)
+        browse_btn.clicked.connect(self._on_browse_ontology_clicked)
+        ontology_form.addRow("Frame Tag Ontology:", self._ontology_edit)
+        ontology_form.addRow("", browse_btn)
+
+        self._namespace_edit = QLineEdit(self)
+        self._namespace_edit.setPlaceholderText(get_ontology_namespace())
+        self._namespace_edit.setText(get_ontology_namespace())
+        self._namespace_edit.editingFinished.connect(
+            self._on_namespace_editing_finished
+        )
+        ontology_form.addRow("Ontology namespace:", self._namespace_edit)
+
+        self._offset_spin = QSpinBox(self)
+        self._offset_spin.setRange(0, 1_000_000)
+        self._offset_spin.setSingleStep(1)
+        self._offset_spin.setValue(int(get_action_interval_offset()))
+        self._offset_spin.valueChanged.connect(self._on_offset_changed)
+        ontology_form.addRow("Action interval offset (frames):", self._offset_spin)
+
+        form.addRow(ontology_group)
+
+        # Dialog buttons
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             parent=self,
@@ -74,25 +149,6 @@ class SettingsDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.addWidget(page)
         lay.addWidget(buttons)
-
-        self.annotator_table.clearContents()
-        self.annotator_table.setRowCount(0)
-
-        for p in self._annotator:
-            self._add_annotator_row(p)
-
-        self.annotator_table.resizeRowsToContents()
-
-        header_height = self.annotator_table.horizontalHeader().height()
-        rows_height = sum(
-            self.annotator_table.rowHeight(r)
-            for r in range(self.annotator_table.rowCount())
-        )
-        frame_height = 2 * self.annotator_table.frameWidth()
-
-        total_height = header_height + rows_height + frame_height
-
-        self.annotator_table.setFixedHeight(total_height)
 
     def _add_annotator_row(self, annotator: dict):
         """
@@ -169,3 +225,51 @@ class SettingsDialog(QDialog):
             hex_str = col.name()
             current_btn.setText(hex_str)
             current_btn.setStyleSheet(f"background-color: {hex_str};")
+
+    def _on_browse_ontology_clicked(self) -> None:
+        """
+        Let the user pick a .ttl ontology; update module-level setting immediately.
+        """
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Ontology (.ttl)",
+            str(get_ontology_path().parent),
+            "Turtle files (*.ttl)",
+        )
+        if not path:
+            return
+        set_ontology_path(path)
+        self._ontology_edit.setText(str(get_ontology_path()))
+        QMessageBox.information(
+            self, "Ontology Updated", "Frame tag ontology file has been updated."
+        )
+
+    def _on_offset_changed(self, value: int) -> None:
+        try:
+            set_action_interval_offset(int(value))
+        except Exception as ex:
+            QMessageBox.critical(self, "Invalid Offset", str(ex))
+            self._offset_spin.blockSignals(True)
+            self._offset_spin.setValue(get_action_interval_offset())
+            self._offset_spin.blockSignals(False)
+
+    def _section_label(self, title: str) -> QLabel:
+        """
+        Create a bold section header label for grouping settings.
+        """
+        lbl = QLabel(f"<b>{title}</b>", self)
+        lbl.setTextFormat(Qt.TextFormat.RichText)
+        return lbl
+
+    def _on_namespace_editing_finished(self) -> None:
+        """
+        Validate and persist the ontology namespace when the user edits the field.
+        """
+        namespace = (self._namespace_edit.text() or "").strip()
+        try:
+            set_ontology_namespace(namespace)
+        except Exception as e:
+            QMessageBox.critical(self, "Invalid Namespace", str(e))
+            self._namespace_edit.blockSignals(True)
+            self._namespace_edit.setText(get_ontology_namespace())
+            self._namespace_edit.blockSignals(False)
