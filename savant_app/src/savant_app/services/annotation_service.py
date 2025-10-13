@@ -378,8 +378,12 @@ class AnnotationService:
         action = ol.actions[tag_name]
         intervals = list(getattr(action, "frame_intervals", []) or [])
         new_intervals = [
-            iv for iv in intervals
-            if not (int(iv.frame_start) == int(frame_start) and int(iv.frame_end) == int(frame_end))
+            iv
+            for iv in intervals
+            if not (
+                int(iv.frame_start) == int(frame_start)
+                and int(iv.frame_end) == int(frame_end)
+            )
         ]
         if len(new_intervals) == len(intervals):
             return False
@@ -392,7 +396,9 @@ class AnnotationService:
                 ol.actions = None
         return True
 
-    def delete_bboxes_by_object(self, object_key: str) -> List[Tuple[int, FrameLevelObject]]:
+    def delete_bboxes_by_object(
+        self, object_key: str
+    ) -> List[Tuple[int, FrameLevelObject]]:
         """
         Remove all FrameLevelObject instances for the given object_key across all frames.
         Returns a list of (frame_index, removed_frame_obj) for undo purposes.

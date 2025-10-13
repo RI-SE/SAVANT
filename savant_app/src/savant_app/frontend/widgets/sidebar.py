@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QSpinBox,
     QMessageBox,
-    QListWidgetItem
+    QListWidgetItem,
 )
 from PyQt6.QtCore import QSize, pyqtSignal, pyqtSlot, Qt, QEvent
 from savant_app.frontend.utils.assets import icon
@@ -125,7 +125,9 @@ class Sidebar(QWidget):
         self.frame_tag_list.installEventFilter(self)
         main_layout.addWidget(self.frame_tag_list)
 
-        self._frame_tag_del = QShortcut(QKeySequence(Qt.Key.Key_Delete), self.frame_tag_list)
+        self._frame_tag_del = QShortcut(
+            QKeySequence(Qt.Key.Key_Delete), self.frame_tag_list
+        )
         self._frame_tag_del.setContext(Qt.ShortcutContext.WidgetShortcut)
         self._frame_tag_del.activated.connect(self._delete_selected_frame_tag)
 
@@ -483,7 +485,9 @@ class Sidebar(QWidget):
 
         payload = item.data(Qt.ItemDataRole.UserRole)
         if not payload:
-            QMessageBox.warning(self, "Delete Frame Tag", "No tag data on the selected item.")
+            QMessageBox.warning(
+                self, "Delete Frame Tag", "No tag data on the selected item."
+            )
             return
 
         tag, start, end = payload

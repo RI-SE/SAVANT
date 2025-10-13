@@ -36,6 +36,7 @@ class MissingConfigError(FrontendException):
 
 class MissingObjectIDError(FrontendException):
     """No object ID for the selected bounding box."""
+
     pass
 
 

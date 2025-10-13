@@ -20,7 +20,7 @@ class Overlay(QWidget):
     boxResized = pyqtSignal(str, float, float, float, float)  # (object_id, x, y, w, h)
     boxRotated = pyqtSignal(str, float)  # (object_id, rotation)
     bounding_box_selected = pyqtSignal(str)  # (object_id)
-    deletePressed = pyqtSignal() 
+    deletePressed = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -687,7 +687,8 @@ class Overlay(QWidget):
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key.Key_Delete and not (
-                e.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            e.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             self.deletePressed.emit()
             e.accept()
             return

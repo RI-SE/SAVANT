@@ -160,8 +160,10 @@ def undo_delete(main_window):
         ranges_str = ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in ranges)
         count_preview = len(frames_with_obj)
 
-        msg = (f"Undo: restored {count_preview} bbox(es) for ID '{object_key}' "
-               f"in frames {ranges_str}.")
+        msg = (
+            f"Undo: restored {count_preview} bbox(es) for ID '{object_key}' "
+            f"in frames {ranges_str}."
+        )
         QMessageBox.information(main_window, "Undo Delete (Cascade)", msg)
 
         main_window.overlay.clear_selection()
@@ -177,8 +179,9 @@ def undo_delete(main_window):
     )
 
     QMessageBox.information(
-        main_window, "Undo Delete",
-        f"Undo: restored bbox for ID '{object_key}' in frame {int(frame_key)}."
+        main_window,
+        "Undo Delete",
+        f"Undo: restored bbox for ID '{object_key}' in frame {int(frame_key)}.",
     )
 
     main_window.overlay.clear_selection()
@@ -257,7 +260,8 @@ def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
         object_id = main_window._overlay_ids[overlay_bbox_index]
     except Exception as e:
         raise MissingObjectIDError(
-            "Could not determine object ID for the selected bounding box.") from e
+            "Could not determine object ID for the selected bounding box."
+        ) from e
 
     openlabel_annotation = (
         main_window.annotation_controller.annotation_service.project_state.annotation_config
@@ -289,8 +293,7 @@ def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
 
     frame_ranges = _compress_frame_ranges(frames_with_object)
     frame_ranges_str = ", ".join(
-        str(start) if start == end else f"{start}-{end}"
-        for start, end in frame_ranges
+        str(start) if start == end else f"{start}-{end}" for start, end in frame_ranges
     )
     total_bboxes = len(frames_with_object)
 
@@ -305,16 +308,20 @@ def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
     if user_choice != QMessageBox.StandardButton.Yes:
         return
 
-    deleted_bboxes = main_window.annotation_controller.delete_bboxes_by_object(object_id)
+    deleted_bboxes = main_window.annotation_controller.delete_bboxes_by_object(
+        object_id
+    )
     if not deleted_bboxes:
         return
 
     _ensure_undo_stack(main_window)
-    main_window._undo_stack.append({
-        "batch": True,
-        "object_key": object_id,
-        "removed": deleted_bboxes,
-    })
+    main_window._undo_stack.append(
+        {
+            "batch": True,
+            "object_key": object_id,
+            "removed": deleted_bboxes,
+        }
+    )
 
     main_window.overlay.clear_selection()
     refresh_frame(main_window)
