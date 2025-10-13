@@ -34,6 +34,11 @@ class MissingConfigError(FrontendException):
     pass
 
 
+class MissingObjectIDError(FrontendException):
+    """No object ID for the selected bounding box."""
+    pass
+
+
 class InvalidObjectIDFormat(FrontendDevException):
     """Raised when an object ID does not conform to expected format."""
 

@@ -12,15 +12,16 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QSpinBox,
     QMessageBox,
+    QListWidgetItem
 )
-from PyQt6.QtCore import QSize, pyqtSignal
+from PyQt6.QtCore import QSize, pyqtSignal, pyqtSlot, Qt, QEvent
 from savant_app.frontend.utils.assets import icon
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.video_controller import VideoController
 from savant_app.frontend.states.sidebar_state import SidebarState
-from PyQt6.QtCore import pyqtSlot
 from savant_app.frontend.widgets.settings import get_action_interval_offset
 from savant_app.frontend.exceptions import InvalidObjectIDFormat
+from PyQt6.QtGui import QShortcut, QKeySequence
 
 
 class Sidebar(QWidget):
@@ -121,7 +122,12 @@ class Sidebar(QWidget):
         self.frame_tag_list.setMinimumHeight(100)
         self.frame_tag_list.model().rowsInserted.connect(self.adjust_list_sizes)
         self.frame_tag_list.model().rowsRemoved.connect(self.adjust_list_sizes)
+        self.frame_tag_list.installEventFilter(self)
         main_layout.addWidget(self.frame_tag_list)
+
+        self._frame_tag_del = QShortcut(QKeySequence(Qt.Key.Key_Delete), self.frame_tag_list)
+        self._frame_tag_del.setContext(Qt.ShortcutContext.WidgetShortcut)
+        self._frame_tag_del.activated.connect(self._delete_selected_frame_tag)
 
         self.setLayout(main_layout)
         try:
@@ -408,7 +414,9 @@ class Sidebar(QWidget):
 
         self.frame_tag_list.clear()
         for tag, start, end in active:
-            self.frame_tag_list.addItem(f"{tag} [{start}-{end}]")
+            item = QListWidgetItem(f"{tag} [{start}-{end}]")
+            item.setData(Qt.ItemDataRole.UserRole, (tag, int(start), int(end)))
+            self.frame_tag_list.addItem(item)
 
     @pyqtSlot(int)
     def on_frame_changed(self, frame_index: int) -> None:
@@ -424,7 +432,9 @@ class Sidebar(QWidget):
 
         self.frame_tag_list.clear()
         for tag, start, end in active:
-            self.frame_tag_list.addItem(f"{tag} [{start}-{end}]")
+            item = QListWidgetItem(f"{tag} [{start}-{end}]")
+            item.setData(Qt.ItemDataRole.UserRole, (tag, int(start), int(end)))
+            self.frame_tag_list.addItem(item)
 
     def _populate_bbox_type_combo_grouped(self, type_combo) -> None:
         """
@@ -457,3 +467,38 @@ class Sidebar(QWidget):
             type_combo.addItem(lbl)
 
         type_combo.blockSignals(False)
+
+    def eventFilter(self, obj, event):
+        if obj is self.frame_tag_list and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Delete:
+                self._delete_selected_frame_tag()
+                event.accept()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _delete_selected_frame_tag(self):
+        item = self.frame_tag_list.currentItem()
+        if not item:
+            return
+
+        payload = item.data(Qt.ItemDataRole.UserRole)
+        if not payload:
+            QMessageBox.warning(self, "Delete Frame Tag", "No tag data on the selected item.")
+            return
+
+        tag, start, end = payload
+        res = QMessageBox.question(
+            self,
+            "Delete Frame Tag",
+            f"Delete {tag} [{start}-{end}]?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if res != QMessageBox.StandardButton.Yes:
+            return
+
+        if not self.annotation_controller.remove_frame_tag(tag, start, end):
+            QMessageBox.information(self, "Delete Frame Tag", "Nothing was deleted.")
+            return
+        cur = int(self.video_controller.current_index())
+        self._refresh_active_frame_tags(cur)
