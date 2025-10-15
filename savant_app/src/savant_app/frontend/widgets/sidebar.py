@@ -21,6 +21,7 @@ from savant_app.controllers.video_controller import VideoController
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.widgets.settings import get_action_interval_offset
 from savant_app.frontend.exceptions import InvalidObjectIDFormat
+from savant_app.controllers.project_state_controller import ProjectStateController
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 
@@ -41,6 +42,7 @@ class Sidebar(QWidget):
         video_actors: list[str],
         annotation_controller: AnnotationController,
         video_controller: VideoController,
+        project_state_controller: ProjectStateController,
         state: SidebarState,
     ):
         super().__init__()
@@ -50,6 +52,7 @@ class Sidebar(QWidget):
         # Temporary controller until refactor.
         self.annotation_controller: AnnotationController = annotation_controller
         self.video_controller: VideoController = video_controller
+        self.project_state_controller: ProjectStateController = project_state_controller
 
         # State for sidebar
         self.state: SidebarState = state
@@ -344,7 +347,7 @@ class Sidebar(QWidget):
         form.addRow("Tag:", tag_combo)
 
         try:
-            total = max(0, int(self.video_controller.total_frames()))
+            total = max(0, int(self.project_state_controller.get_frame_count()))
         except Exception:
             total = 0
         try:

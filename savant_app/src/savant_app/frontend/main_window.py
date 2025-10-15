@@ -89,10 +89,11 @@ class MainWindow(QMainWindow):
         self.sidebar_state = SidebarState()
         actors = self.annotation_controller.allowed_bbox_types()
         self.sidebar = Sidebar(
-            video_actors=actors,
-            annotation_controller=self.annotation_controller,
-            video_controller=self.video_controller,
-            state=self.sidebar_state,
+            actors,
+            self.annotation_controller,
+            self.video_controller,
+            self.project_state_controller,
+            self.sidebar_state
         )
         self.seek_bar.frame_changed.connect(self.sidebar.on_frame_changed)
 

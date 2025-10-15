@@ -50,20 +50,8 @@ class VideoController:
         return self._convert_frame_to_pixmap(frame), self.reader.current_index
 
     @error_handler
-    def total_frames(self) -> int:
-        return self.reader.metadata["frame_count"]
-
-    @error_handler
     def current_index(self) -> int:
         return self.reader.current_index
-
-    @error_handler
-    def fps(self) -> float:
-        return float(self.reader.metadata["fps"])
-
-    @error_handler
-    def size(self) -> tuple[int, int]:
-        return (self.reader.metadata["width"], self.reader.metadata["height"])
 
     # TODO: Can eventually move this to frontend for full SOC
     def _convert_frame_to_pixmap(self, frame: np.ndarray) -> QPixmap:

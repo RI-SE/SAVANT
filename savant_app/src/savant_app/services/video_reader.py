@@ -1,15 +1,16 @@
 import cv2
 import numpy as np
 from .exceptions import VideoLoadError, VideoFrameIndexError, VideoReadError
+from .project_state import ProjectState
 
 
 class VideoReader:
     """Wrapper around OpenCV VideoCapture for frame iteration and random access."""
 
-    def __init__(self) -> None:
+    def __init__(self, project_state: ProjectState) -> None:
         """Initialize the video reader."""
         self.capture: cv2.VideoCapture = None
-        self.metadata = {"frame_count": 0, "width": 0, "height": 0, "fps": 0.0}
+        self.project_state = project_state
 
     def load_video(self, path: str) -> None:
         if self.capture and self.capture.isOpened():
@@ -18,14 +19,11 @@ class VideoReader:
         if not self.capture.isOpened():
             raise VideoLoadError(f"Could not open video file from path: {path}")
 
-        self.metadata.update(
-            {
-                "frame_count": int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT)),
-                "width": int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                "height": int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                "fps": self.capture.get(cv2.CAP_PROP_FPS),
-            }
-        )
+        if self.project_state:
+            self.project_state.video_metadata.frame_count = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+            self.project_state.video_metadata.width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+            self.project_state.video_metadata.height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            self.project_state.video_metadata.fps = self.capture.get(cv2.CAP_PROP_FPS)
 
     @property
     def current_index(self) -> int:
@@ -58,7 +56,7 @@ class VideoReader:
         """
         self._validate_video_loaded()
         cur = max(self.current_index, 0)
-        last = self.metadata["frame_count"] - 1
+        last = self.project_state.video_metadata.frame_count - 1
         target = min(max(cur + delta, 0), last)
         return self.get_frame(target)
 
@@ -76,7 +74,7 @@ class VideoReader:
             IndexError: If the index is out of range.
         """
         self._validate_video_loaded()
-        if not (0 <= index < self.metadata["frame_count"]):
+        if not (0 <= index < self.project_state.video_metadata.frame_count):
             raise VideoFrameIndexError("Frame index out of range")
 
         self.capture.set(cv2.CAP_PROP_POS_FRAMES, index)
@@ -105,7 +103,11 @@ class VideoReader:
         """Release the video capture resource."""
         if self.capture:
             self.capture.release()
-        self.metadata.update({"frame_count": 0, "width": 0, "height": 0, "fps": 0.0})
+        if self.project_state and self.project_state.video_metadata:
+            self.project_state.video_metadata.frame_count = 0
+            self.project_state.video_metadata.width = 0
+            self.project_state.video_metadata.height = 0
+            self.project_state.video_metadata.fps = 0.0
 
     def _validate_video_loaded(self):
         """Ensure a video is loaded before performing operations."""
