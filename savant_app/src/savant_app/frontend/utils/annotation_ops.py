@@ -342,7 +342,6 @@ def _apply_cascade_next_frames(
     refresh_frame(main_window)
 
 
-
 def _ensure_undo_stack(main_window):
     if not hasattr(main_window, "_undo_stack"):
         main_window._undo_stack = []
