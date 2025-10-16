@@ -21,7 +21,7 @@ class Overlay(QWidget):
     # TODO: Refactor these to use custom dataclass types!
     boxMoved = pyqtSignal(str, float, float)  # (object_id, x, y)
     boxResized = pyqtSignal(str, float, float, float, float, float)  # (object_id, x, y, w, h, rotate_angle)
-    boxRotated = pyqtSignal(str, float)  # (object_id, rotation)
+    boxRotated = pyqtSignal(str, float, float, float)  # (object_id, width, height, rotation)
     bounding_box_selected = pyqtSignal(str)  # (object_id)
     deletePressed = pyqtSignal()
     cascadeApplyAll = pyqtSignal(str, int, float, float, float)  # (object_id, frame_key, delta_w, delta_h, delta_theta)
@@ -347,7 +347,7 @@ class Overlay(QWidget):
             if self._drag_mode == "move":
                 self.boxMoved.emit(bbox.object_id, bbox.center_x, bbox.center_y)
             elif self._drag_mode == "R":
-                self.boxRotated.emit(bbox.object_id, bbox.theta)
+                self.boxRotated.emit(bbox.object_id, bbox.width, bbox.height, bbox.theta)
             else:
                 self.boxResized.emit(
                     bbox.object_id,
@@ -773,8 +773,7 @@ class Overlay(QWidget):
             # Show the dropdown
             self.cascade_dropdown.show_at_position(dropdown_x, dropdown_y)
 
-    def show_cascade_dropdown(self, object_id: str, frame_key: int,  
-                             new_width: float, new_height: float, new_rotation: float):
+    def show_cascade_dropdown(self, object_id: str, frame_key: int, new_width: float, new_height: float, new_rotation: float):
         """Show the cascade button near the resized/rotated annotation."""
         # Store resize/rotation data for cascade operations
         self._last_resized_object_id = object_id

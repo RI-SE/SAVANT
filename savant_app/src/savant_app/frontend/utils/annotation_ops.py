@@ -47,7 +47,7 @@ def wire(main_window):
     main_window.overlay.boxResized.connect(
         lambda id, x, y, w, h, rotation: _resized(main_window, id, x, y, w, h, rotation)
     )
-    main_window.overlay.boxRotated.connect(lambda id, r: _rotated(main_window, id, r))
+    main_window.overlay.boxRotated.connect(lambda id, width, height, rotation: _rotated(main_window, id, width, height, rotation))
     
     # Connect cascade signals
     if hasattr(main_window.overlay, "cascadeApplyAll"):
@@ -76,7 +76,7 @@ def highlight_selected_object(main_window, object_id: str):
 def highlight_active_obj_list(main_window, object_id: str):
     """Highlight the selected object in the active object list."""
     main_window.sidebar.select_active_object_by_id(object_id)
-    main_window.overlay.boxRotated.connect(lambda i, r: _rotated(main_window, i, r))
+    main_window.overlay.boxRotated.connect(lambda i, width, height, rotation: _rotated(main_window, i, width, height, rotation))
     _install_overlay_context_menu(main_window)
 
 
@@ -223,26 +223,26 @@ def _resized(main_window, object_id: str, x: float, y: float, width: float, heig
     main_window.overlay.show_cascade_dropdown(object_id, frame_key, width, height, rotation)
 
 
-def _rotated(main_window, object_id: str, rotation: float):
-    fk = main_window.video_controller.current_index()
+def _rotated(main_window, object_id: str, width: float, height: float, rotation: float):
+    frame_key = main_window.video_controller.current_index()
     # Store original rotation for potential cascade
     # Get the current bbox to get the original rotation
     try:
         current_bbox = main_window.annotation_controller.get_bbox(
-            frame_key=fk, object_key=object_id
+            frame_key=frame_key, object_key=object_id
         )
         original_rotation = current_bbox.theta if hasattr(current_bbox, 'theta') else 0.0
     except Exception:
         original_rotation = 0.0
     
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=fk, object_key=object_id, rotation=rotation
+        frame_key=frame_key, object_key=object_id, rotation=rotation
     )
     refresh_frame(main_window)
     
     # Show cascade dropdown after rotation
     main_window.overlay.show_cascade_dropdown(
-        object_id, fk, 0.0, 0.0, 0.0, 0.0, original_rotation, rotation
+        object_id, frame_key, width, height, rotation
     )
 
 
