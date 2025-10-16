@@ -24,8 +24,8 @@ class Overlay(QWidget):
     boxRotated = pyqtSignal(str, float, float, float)  # (object_id, width, height, rotation)
     bounding_box_selected = pyqtSignal(str)  # (object_id)
     deletePressed = pyqtSignal()
-    cascadeApplyAll = pyqtSignal(str, int, float, float, float)  # (object_id, frame_key, delta_w, delta_h, delta_theta)
-    cascadeApplyNext = pyqtSignal(str, int, float, float, float)  # (object_id, frame_key, delta_w, delta_h, delta_theta)
+    cascadeApplyAll = pyqtSignal(str, float, float, float)  # (object_id, width, height, theta)
+    cascadeApplyFrameRange = pyqtSignal(str, float, float, float)  # (object_id, width, height, theta)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -81,20 +81,13 @@ class Overlay(QWidget):
         # Cascade dropdown
         self.cascade_dropdown = CascadeDropdown(self)
         self.cascade_dropdown.applyToAll.connect(self._on_cascade_apply_all)
-        self.cascade_dropdown.applyToNext.connect(self._on_cascade_apply_next)
+        self.cascade_dropdown.applyToFrameRange.connect(self._on_cascade_apply_frame_range)
         self.cascade_dropdown.cancelled.connect(self._on_cascade_cancel)
         
         # Cascade button
         self.cascade_button = CascadeButton(self)
         self.cascade_button.clicked.connect(self._on_cascade_button_clicked)
         
-        # Store resize data for cascade operations
-        self._last_resized_object_id = None
-        self._last_resized_frame_key = None
-        self._last_resize_width = 0.0
-        self._last_resize_height = 0.0
-        self._last_resize_rotation = 0.0
-
     def set_frame_size(self, width_vid: int, height_vid: int):
         self._frame_size = (width_vid, height_vid)
         self.update()
@@ -202,6 +195,10 @@ class Overlay(QWidget):
         # Clicked on a box (or its handle), so trigger
         # the highlight of the corresponding object in the sidebar.
         self.bounding_box_selected.emit(self.selected_object_id())
+
+        # Handle cascade button option
+        self.show_cascade_option()
+
 
         if mode == "R":
             cx0 = self._orig_box.center_x
@@ -342,20 +339,20 @@ class Overlay(QWidget):
             ev.ignore()
             return
 
-        if self._selected_idx is not None:
-            bbox = self._boxes[self._selected_idx]
+        selected_bbox = self._get_selected_bbox()
+        if selected_bbox is not None:
             if self._drag_mode == "move":
-                self.boxMoved.emit(bbox.object_id, bbox.center_x, bbox.center_y)
+                self.boxMoved.emit(selected_bbox.object_id, selected_bbox.center_x, selected_bbox.center_y)
             elif self._drag_mode == "R":
-                self.boxRotated.emit(bbox.object_id, bbox.width, bbox.height, bbox.theta)
+                self.boxRotated.emit(selected_bbox.object_id, selected_bbox.width, selected_bbox.height, selected_bbox.theta)
             else:
                 self.boxResized.emit(
-                    bbox.object_id,
-                    bbox.center_x,
-                    bbox.center_y,
-                    bbox.width,
-                    bbox.height,
-                    bbox.theta
+                    selected_bbox.object_id,
+                    selected_bbox.center_x,
+                    selected_bbox.center_y,
+                    selected_bbox.width,
+                    selected_bbox.height,
+                    selected_bbox.theta
                 )
 
         # clear drag/hover state
@@ -730,31 +727,27 @@ class Overlay(QWidget):
 
     def _on_cascade_apply_all(self):
         """Handle cascade apply to all frames."""
-        if (self._last_resized_object_id is not None and 
-            self._last_resized_frame_key is not None):
-            # Emit a custom signal for cascade operations
-            if hasattr(self, 'cascadeApplyAll'):
-                self.cascadeApplyAll.emit(
-                    self._last_resized_object_id,
-                    self._last_resized_frame_key,
-                    self._last_resize_width,
-                    self._last_resize_height,
-                    self._last_resize_rotation 
-                )
+        selected_bbox = self._get_selected_bbox()
+        
+        # Emit a custom signal for cascade operations
+        self.cascadeApplyAll.emit(
+            selected_bbox.object_id,
+            selected_bbox.width,
+            selected_bbox.height,
+            selected_bbox.theta,
+        )
 
-    def _on_cascade_apply_next(self):
+    def _on_cascade_apply_frame_range(self):
         """Handle cascade apply to next X frames."""
-        if (self._last_resized_object_id is not None and 
-            self._last_resized_frame_key is not None):
-            # Emit a custom signal for cascade operations
-            if hasattr(self, 'cascadeApplyNext'):
-                self.cascadeApplyNext.emit(
-                    self._last_resized_object_id,
-                    self._last_resized_frame_key,
-                    self._last_resize_width,
-                    self._last_resize_height,
-                    self._last_resize_rotation
-                )
+        selected_bbox = self._get_selected_bbox()
+       
+        # Emit a custom signal for cascade operations
+        self.cascadeApplyFrameRange.emit(
+            selected_bbox.object_id,
+            selected_bbox.width,
+            selected_bbox.height,
+            selected_bbox.theta,
+        )
 
     def _on_cascade_cancel(self):
         """Handle cascade cancel."""
@@ -763,37 +756,40 @@ class Overlay(QWidget):
 
     def _on_cascade_button_clicked(self):
         """Handle cascade button click - show the dropdown with options."""
-        if (self._last_resized_object_id is not None and 
-            self._last_resized_frame_key is not None):
-            # Position dropdown near the cascade button
-            button_pos = self.cascade_button.pos()
-            dropdown_x = button_pos.x()
-            dropdown_y = button_pos.y() + self.cascade_button.height()
-            
-            # Show the dropdown
-            self.cascade_dropdown.show_at_position(dropdown_x, dropdown_y)
+        # Position dropdown near the cascade button
+        button_pos = self.cascade_button.pos()
+        dropdown_x = button_pos.x()
+        dropdown_y = button_pos.y() + self.cascade_button.height()
+        
+        # Show the dropdown
+        self.cascade_dropdown.show_at_position(dropdown_x, dropdown_y)
 
-    def show_cascade_dropdown(self, object_id: str, frame_key: int, new_width: float, new_height: float, new_rotation: float):
+    def show_cascade_option(self):
         """Show the cascade button near the resized/rotated annotation."""
         # Store resize/rotation data for cascade operations
-        self._last_resized_object_id = object_id
-        self._last_resized_frame_key = frame_key
-        self._last_resize_width = new_width 
-        self._last_resize_height = new_height
-        self._last_resize_rotation = new_rotation
+        #self._last_resized_object_id = object_id
+        #self._last_resized_frame_key = frame_key
+        #self._last_resize_width = new_width 
+        #self._last_resize_height = new_height
+        #self._last_resize_rotation = new_rotation
         
         # Get the position of the selected annotation
+        bbox = self._get_selected_bbox() 
+        
+        # Convert video coordinates to display coordinates
+        scale, offset_x, offset_y, _ = self._compute_transform()
+        center_x_disp = offset_x + bbox.center_x * scale
+        center_y_disp = offset_y + bbox.center_y * scale
+        
+        # Position cascade button near the annotation (top-right corner)
+        button_x = center_x_disp + (bbox.width * scale / 2) + 10
+        button_y = center_y_disp - (bbox.height * scale / 2) - 10
+        
+        # Show the cascade button
+        self.cascade_button.show_at_position(button_x, button_y)
+    
+    def _get_selected_bbox(self):
+        """Return the currently selected bounding box, or None if none is selected."""
         if self._selected_idx is not None and 0 <= self._selected_idx < len(self._boxes):
-            bbox = self._boxes[self._selected_idx]
-            
-            # Convert video coordinates to display coordinates
-            scale, offset_x, offset_y, _ = self._compute_transform()
-            center_x_disp = offset_x + bbox.center_x * scale
-            center_y_disp = offset_y + bbox.center_y * scale
-            
-            # Position cascade button near the annotation (top-right corner)
-            button_x = center_x_disp + (bbox.width * scale / 2) + 10
-            button_y = center_y_disp - (bbox.height * scale / 2) - 10
-            
-            # Show the cascade button
-            self.cascade_button.show_at_position(button_x, button_y)
+            return self._boxes[self._selected_idx]
+        return None

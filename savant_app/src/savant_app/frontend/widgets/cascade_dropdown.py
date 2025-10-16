@@ -9,7 +9,7 @@ class CascadeDropdown(QWidget):
     A dropdown widget that appears near annotations to provide cascade options.
     """
     applyToAll = pyqtSignal()
-    applyToNext = pyqtSignal()
+    applyToFrameRange = pyqtSignal()
     cancelled = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -107,7 +107,7 @@ class CascadeDropdown(QWidget):
     def _on_apply_next(self):
         """Handle apply to next X frames button click."""
         self.hide()
-        self.applyToNext.emit()
+        self.applyToFrameRange.emit()
 
     def _on_cancel(self):
         """Handle cancel button click."""
