@@ -413,3 +413,38 @@ class AnnotationService:
             if removed is not None:
                 out.append((int(frame_key), removed))
         return out
+
+    def get_object_metadata(self, object_id: str) -> dict:
+        ol = self.project_state.annotation_config
+        if not ol or object_id not in ol.objects:
+            raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
+        meta = ol.objects[object_id]
+        return {"id": object_id, "name": meta.name, "type": meta.type}
+
+    def update_object_name(self, object_id: str, new_name: str) -> None:
+        new_name = (new_name or "").strip()
+        if not new_name:
+            raise InvalidInputError("Name cannot be empty.")
+        ol = self.project_state.annotation_config
+        if not ol or object_id not in ol.objects:
+            raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
+        ol.objects[object_id].name = new_name
+
+    def update_object_type(self, object_id: str, new_type: str) -> None:
+        ol = self.project_state.annotation_config
+        if not ol or object_id not in ol.objects:
+            raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
+
+        allowed = self.bbox_types()
+        allowed_set = set(allowed.get("DynamicObject", [])) | set(allowed.get("StaticObject", []))
+        wanted_lc = (new_type or "").strip().lower()
+        canonical = None
+        for type in allowed_set:
+            if type.lower() == wanted_lc:
+                canonical = type
+                break
+
+        if canonical is None:
+            raise InvalidInputError(f"Unsupported type '{new_type}' (not in ontology).")
+
+        ol.objects[object_id].type = canonical

@@ -39,17 +39,22 @@ def wire(main_window):
             lambda object_id: highlight_active_obj_list(main_window, object_id)
         )
 
-    main_window.overlay.boxMoved.connect(lambda id, x, y: _moved(main_window, id, x, y))
     if hasattr(main_window.overlay, "deletePressed"):
         main_window.overlay.deletePressed.connect(
             lambda: delete_selected_bbox(main_window)
         )
+
+    if hasattr(main_window.sidebar, "object_details_changed"):
+        main_window.sidebar.object_details_changed.connect(lambda: refresh_frame(main_window))
 
     main_window.overlay.boxMoved.connect(lambda i, x, y: _moved(main_window, i, x, y))
     main_window.overlay.boxResized.connect(
         lambda id, x, y, w, h: _resized(main_window, id, x, y, w, h)
     )
     main_window.overlay.boxRotated.connect(lambda id, r: _rotated(main_window, id, r))
+
+    # Keep this here so that right-click works without having to select a bbox first
+    _install_overlay_context_menu(main_window)
 
 
 def highlight_selected_object(main_window, object_id: str):
@@ -59,9 +64,16 @@ def highlight_selected_object(main_window, object_id: str):
 
 def highlight_active_obj_list(main_window, object_id: str):
     """Highlight the selected object in the active object list."""
-    main_window.sidebar.select_active_object_by_id(object_id)
-    main_window.overlay.boxRotated.connect(lambda i, r: _rotated(main_window, i, r))
-    _install_overlay_context_menu(main_window)
+    if object_id:
+        main_window.sidebar.select_active_object_by_id(object_id)
+        main_window.sidebar.show_object_editor(object_id, expand=True)
+    else:
+        main_window.sidebar.active_objects.clearSelection()
+        main_window.sidebar.hide_object_editor()
+
+    # We already do this in the init, doing it here just stacks duplicate connections
+    # every time a selection is made.
+    # main_window.overlay.boxRotated.connect(lambda i, r: _rotated(main_window, i, r))
 
 
 def on_new_object_bbox(main_window, object_type: str):
@@ -229,17 +241,21 @@ def _install_overlay_context_menu(main_window):
 def _on_overlay_context_menu(main_window, click_position):
     """Handle right-clicks on the overlay and show a context menu for bbox actions."""
     overlay_widget = main_window.overlay
-    bbox_index, hit_mode = overlay_widget._hit_test(click_position)
+    bbox_index, _ = overlay_widget._hit_test(click_position)
 
     if bbox_index is None:
         return
 
     overlay_widget._selected_idx = bbox_index
     overlay_widget.update()
+    obj_id = overlay_widget.selected_object_id()
+    if obj_id:
+        overlay_widget.bounding_box_selected.emit(obj_id)
 
     context_menu = QMenu(overlay_widget)
     action_delete_single = context_menu.addAction("Delete this bbox")
     action_delete_cascade = context_menu.addAction("Cascade delete all with this ID")
+    action_edit_bbox = context_menu.addAction("Edit bounding box details")
 
     selected_action = context_menu.exec(overlay_widget.mapToGlobal(click_position))
     if selected_action is None:
@@ -252,12 +268,19 @@ def _on_overlay_context_menu(main_window, click_position):
             _cascade_delete_same_id(main_window, bbox_index)
         except MissingObjectIDError as e:
             QMessageBox.warning(main_window, "Cascade Delete", str(e))
+    elif selected_action == action_edit_bbox:
+        obj_id = overlay_widget.selected_object_id()
+        if obj_id:
+            overlay_widget.bounding_box_selected.emit(obj_id)
+            # Open the editor, enabled + expanded
+            main_window.sidebar.show_object_editor(obj_id, expand=True)
 
 
 def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
     """Delete all bboxes across all frames with the same object ID as the clicked bbox."""
     try:
-        object_id = main_window._overlay_ids[overlay_bbox_index]
+        main_window.overlay._selected_idx = overlay_bbox_index
+        object_id = main_window.overlay.selected_object_id()
     except Exception as e:
         raise MissingObjectIDError(
             "Could not determine object ID for the selected bounding box."

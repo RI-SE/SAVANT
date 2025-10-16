@@ -160,3 +160,15 @@ class AnnotationController:
         self, object_key: str
     ) -> list[tuple[int, FrameLevelObject]]:
         return self.annotation_service.delete_bboxes_by_object(object_key)
+
+    @error_handler
+    def get_object_metadata(self, object_id: str) -> dict:
+        return self.annotation_service.get_object_metadata(object_id)
+
+    @error_handler
+    def update_object_name(self, object_id: str, new_name: str) -> None:
+        self.annotation_service.update_object_name(object_id, new_name)
+
+    @error_handler
+    def update_object_type(self, object_id: str, new_type: str) -> None:
+        self.annotation_service.update_object_type(object_id, new_type)
