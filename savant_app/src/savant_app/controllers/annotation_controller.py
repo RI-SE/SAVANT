@@ -61,7 +61,7 @@ class AnnotationController:
         UI-level update for bbox geometry; delegates to the service.
         Handles cascade mode if enabled.
         """
-        
+
         # Update current frame
         return self.annotation_service.move_resize_bbox(
             frame_key=frame_key,
@@ -80,7 +80,7 @@ class AnnotationController:
             min_width=min_width,
             min_height=min_height,
         )
-    
+
     @error_handler
     def cascade_bbox_edit(
         self,
@@ -100,7 +100,7 @@ class AnnotationController:
             object_key=object_key,
             width=width,
             height=height,
-            rotation=rotation
+            rotation=rotation,
         )
 
     @error_handler

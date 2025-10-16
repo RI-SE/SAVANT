@@ -20,9 +20,15 @@ class VideoReader:
             raise VideoLoadError(f"Could not open video file from path: {path}")
 
         if self.project_state:
-            self.project_state.video_metadata.frame_count = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
-            self.project_state.video_metadata.width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-            self.project_state.video_metadata.height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            self.project_state.video_metadata.frame_count = int(
+                self.capture.get(cv2.CAP_PROP_FRAME_COUNT)
+            )
+            self.project_state.video_metadata.width = int(
+                self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)
+            )
+            self.project_state.video_metadata.height = int(
+                self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            )
             self.project_state.video_metadata.fps = self.capture.get(cv2.CAP_PROP_FPS)
 
     @property

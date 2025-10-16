@@ -21,9 +21,13 @@ def on_open_video(main_window, path: str):
     pixmap, idx = main_window.video_controller.jump_to_frame(0)
     show_frame(main_window, pixmap, idx)
     # Update seek bar range based on total frame count
-    main_window.seek_bar.update_range(main_window.project_state_controller.get_frame_count())
+    main_window.seek_bar.update_range(
+        main_window.project_state_controller.get_frame_count()
+    )
     if hasattr(main_window.playback_controls, "set_fps"):
-        main_window.playback_controls.set_fps(main_window.project_state_controller.get_fps())
+        main_window.playback_controls.set_fps(
+            main_window.project_state_controller.get_fps()
+        )
     stop(main_window)
 
 

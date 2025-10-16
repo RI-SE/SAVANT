@@ -45,7 +45,8 @@ class InvalidObjectIDFormat(FrontendDevException):
 
     pass
 
+
 class InvalidFrameRangeInput(FrontendException):
     """Raised when the user inputs an invalid frame range for cascade operations."""
-    
+
     pass

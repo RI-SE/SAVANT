@@ -31,11 +31,8 @@ class VideoController:
 
     @error_handler
     def previous_frame(self) -> tuple[QPixmap, int] | tuple[None, None]:
-        # try:
         frame = self.reader.previous_frame()
         return self._convert_frame_to_pixmap(frame), self.reader.current_index
-        # except (IndexError, RuntimeError):
-        #    return None, None
 
     @error_handler
     def jump_to_frame(self, index: int) -> tuple[QPixmap, int] | tuple[None, None]:

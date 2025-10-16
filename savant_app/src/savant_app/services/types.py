@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+
 @dataclass
 class VideoMetadata:
     frame_count: int = 0

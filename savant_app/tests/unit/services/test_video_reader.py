@@ -7,6 +7,7 @@ from src.savant_app.services.video_reader import VideoReader
 from src.savant_app.services.exceptions import VideoFrameIndexError
 from src.savant_app.services.types import VideoMetadata
 
+
 # Mock project state class for testing
 class SimpleProjectState:
     def __init__(self):

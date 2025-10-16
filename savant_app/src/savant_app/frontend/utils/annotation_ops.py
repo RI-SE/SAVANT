@@ -47,20 +47,27 @@ def wire(main_window):
     main_window.overlay.boxResized.connect(
         lambda id, x, y, w, h, rotation: _resized(main_window, id, x, y, w, h, rotation)
     )
-    main_window.overlay.boxRotated.connect(lambda id, width, height, rotation: _rotated(main_window, id, width, height, rotation))
-    
+    main_window.overlay.boxRotated.connect(
+        lambda id, width, height, rotation: _rotated(
+            main_window, id, width, height, rotation
+        )
+    )
+
     # Connect cascade signals
     if hasattr(main_window.overlay, "cascadeApplyAll"):
         main_window.overlay.cascadeApplyAll.connect(
-            lambda object_id, width, height, rotation: 
-            _apply_cascade_all_frames(main_window, object_id, width, height, rotation)
+            lambda object_id, width, height, rotation: _apply_cascade_all_frames(
+                main_window, object_id, width, height, rotation
+            )
         )
     if hasattr(main_window.overlay, "cascadeApplyFrameRange"):
         main_window.overlay.cascadeApplyFrameRange.connect(
-            lambda object_id, width, height, rotation: 
-            _apply_cascade_next_frames(main_window, object_id, width, height, rotation)
+            lambda object_id, width, height, rotation: _apply_cascade_next_frames(
+                main_window, object_id, width, height, rotation
+            )
         )
-    
+
+
 def highlight_selected_object(main_window, object_id: str):
     """Highlight the selected object in the overlay."""
     main_window.overlay.select_box_by_obj_id(object_id)
@@ -69,7 +76,11 @@ def highlight_selected_object(main_window, object_id: str):
 def highlight_active_obj_list(main_window, object_id: str):
     """Highlight the selected object in the active object list."""
     main_window.sidebar.select_active_object_by_id(object_id)
-    main_window.overlay.boxRotated.connect(lambda i, width, height, rotation: _rotated(main_window, i, width, height, rotation))
+    main_window.overlay.boxRotated.connect(
+        lambda i, width, height, rotation: _rotated(
+            main_window, i, width, height, rotation
+        )
+    )
     _install_overlay_context_menu(main_window)
 
 
@@ -205,36 +216,43 @@ def _moved(main_window, object_id: str, x: float, y: float):
     refresh_frame(main_window)
 
 
-def _resized(main_window, object_id: str, x: float, y: float, width: float, height: float, rotation: float):
+def _resized(
+    main_window,
+    object_id: str,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    rotation: float,
+):
     frame_key = main_window.video_controller.current_index()
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=frame_key, object_key=object_id, x_center=x, y_center=y, width=width, height=height
+        frame_key=frame_key,
+        object_key=object_id,
+        x_center=x,
+        y_center=y,
+        width=width,
+        height=height,
     )
     refresh_frame(main_window)
-    
-    # Show cascade dropdown after resize
-    #main_window.overlay.show_cascade_dropdown(object_id, frame_key, width, height, rotation)
 
 
 def _rotated(main_window, object_id: str, width: float, height: float, rotation: float):
     frame_key = main_window.video_controller.current_index()
-    # Store original rotation for potential cascade
-    # Get the current bbox to get the original rotation
-    try:
-        current_bbox = main_window.annotation_controller.get_bbox(
-            frame_key=frame_key, object_key=object_id
-        )
-        original_rotation = current_bbox.theta if hasattr(current_bbox, 'theta') else 0.0
-    except Exception:
-        original_rotation = 0.0
-    
+
     main_window.annotation_controller.move_resize_bbox(
         frame_key=frame_key, object_key=object_id, rotation=rotation
     )
     refresh_frame(main_window)
-    
 
-def _apply_cascade_all_frames(main_window, object_id: str, new_width: float, new_height: float, new_rotation: float = 0.0):
+
+def _apply_cascade_all_frames(
+    main_window,
+    object_id: str,
+    new_width: float,
+    new_height: float,
+    new_rotation: float = 0.0,
+):
     """Apply the resize/rotation to all frames containing the object."""
     last_frame = main_window.project_state_controller.get_frame_count() - 1
     current_frame = main_window.video_controller.current_index()
@@ -244,25 +262,29 @@ def _apply_cascade_all_frames(main_window, object_id: str, new_width: float, new
         object_key=object_id,
         width=new_width,
         height=new_height,
-        rotation=new_rotation
+        rotation=new_rotation,
     )
-    
+
     # Show confirmation
     frame_ranges_str = ", ".join(str(f) for f in modified_frames)
     QMessageBox.information(
         main_window,
         "Cascade Operation Complete",
-        f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}"
+        f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}",
     )
-    
+
     refresh_frame(main_window)
 
+
 # TODO:
-def _apply_cascade_next_frames(main_window, object_id: str,
-                              width: float, height: float, rotation: float):
+def _apply_cascade_next_frames(
+    main_window, object_id: str, width: float, height: float, rotation: float
+):
     """Ask user for number of frames and apply the resize/rotation to those frames."""
     current_frame = main_window.video_controller.current_index()
-    max_frames = main_window.project_state_controller.get_frame_count() - current_frame - 1
+    max_frames = (
+        main_window.project_state_controller.get_frame_count() - current_frame - 1
+    )
     # Ask user for number of frames
     num_frames, ok = QInputDialog.getInt(
         main_window,
@@ -270,40 +292,40 @@ def _apply_cascade_next_frames(main_window, object_id: str,
         "Apply to how many subsequent frames?",
         5,  # default value
         1,  # min value
-        max_frames  # max value
+        max_frames,  # max value
     )
-    
+
     if not ok:
         return
-    
+
     if num_frames > max_frames:
         raise InvalidFrameRangeInput(
             "The specified number of frames exceeds the available frames in the video."
-        ) 
-    
+        )
+
     if num_frames < 1:
         raise InvalidFrameRangeInput(
             "Please enter a valid number of frames (at least 1)."
         )
-    
+
     end_frame = current_frame + num_frames
     # Apply cascade to next X frames
     main_window.annotation_controller.cascade_bbox_edit(
-        frame_start=current_frame+1,  # Start from next frame
+        frame_start=current_frame + 1,  # Start from next frame
         frame_end=end_frame,
         object_key=object_id,
         width=width,
         height=height,
-        rotation=rotation
+        rotation=rotation,
     )
-    
+
     # Show confirmation
     QMessageBox.information(
         main_window,
         "Cascade Operation Complete",
-        f"Applied changes to {num_frames} subsequent frames (frames {current_frame+1}-{end_frame})"
+        f"Applied changes to {num_frames} subsequent frames (frames {current_frame+1}-{end_frame})",
     )
-    
+
     refresh_frame(main_window)
 
 

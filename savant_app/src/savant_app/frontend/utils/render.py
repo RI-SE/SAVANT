@@ -78,7 +78,9 @@ def _update_overlay_from_model(main_window):
         ]
 
         # Update overlay dimensions and set bounding boxes
-        video_width, video_height = main_window.project_state_controller.get_video_size()
+        video_width, video_height = (
+            main_window.project_state_controller.get_video_size()
+        )
         main_window.overlay.set_frame_size(video_width, video_height)
         main_window.overlay.set_rotated_boxes(frame_bounding_boxes_frontend_data)
 

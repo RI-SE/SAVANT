@@ -92,7 +92,13 @@ class ProjectState:
         """
         boxes = self.boxes_with_ids_for_frame(frame_idx)
         return [
-            (bbox.bbox.cx, bbox.bbox.cy, bbox.bbox.width, bbox.bbox.height, bbox.bbox.theta)
+            (
+                bbox.bbox.cx,
+                bbox.bbox.cy,
+                bbox.bbox.width,
+                bbox.bbox.height,
+                bbox.bbox.theta,
+            )
             for bbox in boxes
         ]
 
@@ -111,18 +117,14 @@ class ProjectState:
 
         results = []
         openlabel_data = self.annotation_config.get_boxes_with_ids_for_frame(frame_idx)
-        
+
         for item in openlabel_data:
             object_id, object_type, cx, cy, width, height, theta = item
             bbox_data = BBoxDimensionData(
-                cx=cx,
-                cy=cy,
-                width=width,
-                height=height,
-                theta=theta
+                cx=cx, cy=cy, width=width, height=height, theta=theta
             )
             results.append(FrameBBoxData(object_id, object_type, bbox_data))
-        
+
         return results
 
     def object_id_for_frame_index(self, frame_idx: int, overlay_index: int) -> str:

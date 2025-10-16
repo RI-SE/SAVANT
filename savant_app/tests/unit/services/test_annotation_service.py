@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, call
 from savant_app.services.annotation_service import AnnotationService
 from savant_app.services.project_state import ProjectState
 from savant_app.models.OpenLabel import OpenLabel
-from savant_app.services.exceptions import ObjectNotFoundError, InvalidFrameRangeError
+from savant_app.services.exceptions import ObjectNotFoundError
 
 
 @pytest.fixture
@@ -11,19 +11,21 @@ def mock_project_state():
     """Fixture for a mocked ProjectState instance"""
     state = MagicMock(spec=ProjectState)
     state.annotation_config = MagicMock(spec=OpenLabel)
-    
+
     # Add video_metadata mock
     state.annotation_config.video_metadata = MagicMock()
-    
+
     # Initialize mock objects
     state.annotation_config.objects = MagicMock()
     state.annotation_config.frames = {}
     return state
 
+
 @pytest.fixture
 def annotation_service(mock_project_state):
     """Fixture for AnnotationService with mocked dependencies"""
     return AnnotationService(project_state=mock_project_state)
+
 
 class TestAnnotationService:
     @pytest.mark.parametrize(
@@ -184,7 +186,7 @@ class TestCascadeBboxEdit:
         """Setup common test environment for cascade_bbox_edit tests"""
         # Configure video metadata with 100 frames
         mock_project_state.annotation_config.video_metadata.frame_count = 100
-        
+
         # Create frames with test object "obj1" present in frames 10-90
         frames = {}
         for frame_num in range(0, 100, 10):  # Frames 0,10,20,...,90
@@ -192,7 +194,7 @@ class TestCascadeBboxEdit:
             mock_frame = MagicMock()
             mock_frame.objects = {"obj1": MagicMock()} if frame_num >= 10 else {}
             frames[frame_key] = mock_frame
-        
+
         mock_project_state.annotation_config.frames = frames
         return mock_project_state
 
@@ -203,11 +205,7 @@ class TestCascadeBboxEdit:
 
         # Apply deltas starting from frame 20
         edited_frames = annotation_service.cascade_bbox_edit(
-            frame_start=20,
-            object_key="obj1",
-            width=5,
-            height=-3,
-            rotation=15
+            frame_start=20, object_key="obj1", width=5, height=-3, rotation=15
         )
 
         # Verify edited frames (20-90 in increments of 10)
@@ -229,19 +227,16 @@ class TestCascadeBboxEdit:
         ]
         mock_update.assert_has_calls(expected_calls, any_order=False)
 
-
-    def test_cascade_bbox_edit_mixed_params(self, setup_cascade_test, annotation_service):
+    def test_cascade_bbox_edit_mixed_params(
+        self, setup_cascade_test, annotation_service
+    ):
         """Test combination of absolute and delta parameters"""
         mock_project_state = setup_cascade_test
         mock_update = mock_project_state.annotation_config.update_bbox
 
         # Apply mixed parameters starting from frame 40
         edited_frames = annotation_service.cascade_bbox_edit(
-            frame_start=40,
-            object_key="obj1",
-            width=60,
-            height=40,
-            rotation=10
+            frame_start=40, object_key="obj1", width=60, height=40, rotation=10
         )
 
         # Verify edited frames (40–90)
@@ -263,23 +258,26 @@ class TestCascadeBboxEdit:
         ]
         mock_update.assert_has_calls(expected_calls, any_order=False)
 
-
-    def test_cascade_bbox_edit_object_not_present(self, setup_cascade_test, annotation_service):
+    def test_cascade_bbox_edit_object_not_present(
+        self, setup_cascade_test, annotation_service
+    ):
         """Test when object is not present in some frames"""
         mock_project_state = setup_cascade_test
         mock_update = mock_project_state.annotation_config.update_bbox
-        
+
         # Should only edit frames where object exists (10-90)
         edited_frames = annotation_service.cascade_bbox_edit(
             frame_start=0,
             object_key="obj1",
         )
-        
+
         # Verify only frames 10-90 were edited (not frame 0)
         assert edited_frames == [10, 20, 30, 40, 50, 60, 70, 80, 90]
         assert mock_update.call_count == 9  # Frames 10-90
 
-    def test_cascade_bbox_edit_min_constraints(self, setup_cascade_test, annotation_service):
+    def test_cascade_bbox_edit_min_constraints(
+        self, setup_cascade_test, annotation_service
+    ):
         """Test min_width and min_height constraints"""
         mock_project_state = setup_cascade_test
         mock_update = mock_project_state.annotation_config.update_bbox
