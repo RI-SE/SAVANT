@@ -246,6 +246,24 @@ def _rotated(main_window, object_id: str, width: float, height: float, rotation:
     refresh_frame(main_window)
 
 
+def _frames_to_ranges(frames):
+    """Convert a list of frame numbers into contiguous ranges as a string."""
+    if not frames:
+        return ""
+    frames = sorted(frames)
+    ranges = []
+    start = prev = frames[0]
+    for f in frames[1:]:
+        if f == prev + 1:
+            prev = f
+        else:
+            ranges.append((start, prev))
+            start = prev = f
+    ranges.append((start, prev))
+    range_strs = [f"{s}-{e}" if s != e else f"{s}" for s, e in ranges]
+    return ", ".join(range_strs)
+
+
 def _apply_cascade_all_frames(
     main_window,
     object_id: str,
@@ -266,7 +284,7 @@ def _apply_cascade_all_frames(
     )
 
     # Show confirmation
-    frame_ranges_str = ", ".join(str(f) for f in modified_frames)
+    frame_ranges_str = _frames_to_ranges(modified_frames)
     QMessageBox.information(
         main_window,
         "Cascade Operation Complete",
@@ -284,6 +302,7 @@ def _apply_cascade_next_frames(
     max_frames = (
         main_window.project_state_controller.get_frame_count() - current_frame - 1
     )
+
     # Ask user for number of frames
     num_frames, ok = QInputDialog.getInt(
         main_window,
@@ -297,19 +316,13 @@ def _apply_cascade_next_frames(
     if not ok:
         return
 
-    if num_frames > max_frames:
+    if num_frames > max_frames or num_frames < 1:
         raise InvalidFrameRangeInput(
-            "The specified number of frames exceeds the available frames in the video."
-        )
-
-    if num_frames < 1:
-        raise InvalidFrameRangeInput(
-            "Please enter a valid number of frames (at least 1)."
+            f"Please enter a valid number of frames (1-{max_frames})."
         )
 
     end_frame = current_frame + num_frames
-    # Apply cascade to next X frames
-    main_window.annotation_controller.cascade_bbox_edit(
+    modified_frames = main_window.annotation_controller.cascade_bbox_edit(
         frame_start=current_frame + 1,  # Start from next frame
         frame_end=end_frame,
         object_key=object_id,
@@ -319,13 +332,15 @@ def _apply_cascade_next_frames(
     )
 
     # Show confirmation
+    frame_ranges_str = _frames_to_ranges(modified_frames)
     QMessageBox.information(
         main_window,
         "Cascade Operation Complete",
-        f"Applied changes to {num_frames} subsequent frames (frames {current_frame+1}-{end_frame})",
+        f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}",
     )
 
     refresh_frame(main_window)
+
 
 
 def _ensure_undo_stack(main_window):
