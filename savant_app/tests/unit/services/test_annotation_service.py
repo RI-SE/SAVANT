@@ -205,7 +205,7 @@ class TestCascadeBboxEdit:
 
         # Apply deltas starting from frame 20
         edited_frames = annotation_service.cascade_bbox_edit(
-            frame_start=20, object_key="obj1", width=5, height=-3, rotation=15
+            frame_start=20, frame_end=90, object_key="obj1", width=5, height=-3, rotation=15
         )
 
         # Verify edited frames (20-90 in increments of 10)
@@ -236,7 +236,7 @@ class TestCascadeBboxEdit:
 
         # Apply mixed parameters starting from frame 40
         edited_frames = annotation_service.cascade_bbox_edit(
-            frame_start=40, object_key="obj1", width=60, height=40, rotation=10
+            frame_start=40, frame_end=90, object_key="obj1", width=60, height=40, rotation=10
         )
 
         # Verify edited frames (40–90)
@@ -268,6 +268,7 @@ class TestCascadeBboxEdit:
         # Should only edit frames where object exists (10-90)
         edited_frames = annotation_service.cascade_bbox_edit(
             frame_start=0,
+            frame_end=90,
             object_key="obj1",
         )
 
@@ -285,6 +286,7 @@ class TestCascadeBboxEdit:
         # Apply changes with min constraints
         edited_frames = annotation_service.cascade_bbox_edit(
             frame_start=50,
+            frame_end=90,
             object_key="obj1",
             width=-100,  # Would make width too small
             min_width=10,
