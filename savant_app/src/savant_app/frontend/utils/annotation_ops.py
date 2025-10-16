@@ -276,7 +276,6 @@ def _apply_cascade_all_frames(
     refresh_frame(main_window)
 
 
-# TODO:
 def _apply_cascade_next_frames(
     main_window, object_id: str, width: float, height: float, rotation: float
 ):
