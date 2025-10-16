@@ -203,6 +203,7 @@ class AnnotationService:
         self,
         frame_start: int,
         object_key: Union[int, str],
+        frame_end: Optional[int],
         *,
         # size values
         width: Optional[float] = None,
@@ -212,13 +213,13 @@ class AnnotationService:
         min_width: float = 1e-6,
         min_height: float = 1e-6,
     ):
-        """Apply size changes to all frames starting from frame_start"""
+        """Apply size changes to frames from frame_start to frame_end (inclusive)."""
         # Get all frames that contain this object (after frame_start)
         frames_with_object = sorted(
             int(frame_key) for frame_key, frame_data in getattr(self.project_state.annotation_config, "frames", {}).items()
             if getattr(frame_data, "objects", None) and object_key in frame_data.objects
         )
-        frames_with_object = [frame for frame in frames_with_object if frame >= frame_start]
+        frames_with_object = [frame for frame in frames_with_object if frame >= frame_start and frame <= frame_end]
         
         if not frames_with_object:
             return []

@@ -86,6 +86,7 @@ class AnnotationController:
         self,
         frame_start: int,
         object_key: Union[int, str],
+        frame_end: Optional[int],
         width: Optional[float] = None,
         height: Optional[float] = None,
         rotation: Optional[float] = None,
@@ -95,6 +96,7 @@ class AnnotationController:
         """
         return self.annotation_service.cascade_bbox_edit(
             frame_start=int(frame_start),  # Start from next frame
+            frame_end=frame_end,
             object_key=object_key,
             width=width,
             height=height,

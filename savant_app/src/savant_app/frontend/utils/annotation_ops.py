@@ -1,6 +1,6 @@
 # savant_app/frontend/utils/annotation_ops.py
 from dataclasses import asdict
-from savant_app.frontend.exceptions import MissingObjectIDError
+from savant_app.frontend.exceptions import MissingObjectIDError, InvalidFrameRangeInput
 from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
 from .render import refresh_frame
 from PyQt6.QtCore import Qt
@@ -233,83 +233,78 @@ def _rotated(main_window, object_id: str, width: float, height: float, rotation:
     )
     refresh_frame(main_window)
     
-    # Show cascade dropdown after rotation
-    #main_window.overlay.show_cascade_dropdown(
-    #    object_id, frame_key, width, height, rotation
-    #)
-
 
 def _apply_cascade_all_frames(main_window, object_id: str, new_width: float, new_height: float, new_rotation: float = 0.0):
     """Apply the resize/rotation to all frames containing the object."""
-    try:
-        current_frame = main_window.video_controller.current_index()
-        modified_frames = main_window.annotation_controller.cascade_bbox_edit(
-            frame_start=current_frame,  # Start from current frame
-            object_key=object_id,
-            width=new_width,
-            height=new_height,
-            rotation=new_rotation
-        )
-        
-        # Show confirmation
-        frame_ranges_str = ", ".join(str(f) for f in modified_frames)
-        QMessageBox.information(
-            main_window,
-            "Cascade Operation Complete",
-            f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}"
-        )
-        
-        refresh_frame(main_window)
-    except Exception as e:
-        QMessageBox.warning(
-            main_window,
-            "Cascade Operation Failed",
-            f"Failed to apply changes to other frames: {str(e)}"
-        )
+    last_frame = main_window.project_state_controller.get_frame_count() - 1
+    current_frame = main_window.video_controller.current_index()
+    modified_frames = main_window.annotation_controller.cascade_bbox_edit(
+        frame_start=current_frame,  # Start from current frame
+        frame_end=last_frame,
+        object_key=object_id,
+        width=new_width,
+        height=new_height,
+        rotation=new_rotation
+    )
+    
+    # Show confirmation
+    frame_ranges_str = ", ".join(str(f) for f in modified_frames)
+    QMessageBox.information(
+        main_window,
+        "Cascade Operation Complete",
+        f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}"
+    )
+    
+    refresh_frame(main_window)
 
 # TODO:
 def _apply_cascade_next_frames(main_window, object_id: str,
                               width: float, height: float, rotation: float):
     """Ask user for number of frames and apply the resize/rotation to those frames."""
-    try:
-        current_frame = main_window.video_controller.current_index()
-        # Ask user for number of frames
-        num_frames, ok = QInputDialog.getInt(
-            main_window,
-            "Cascade Operation",
-            "Apply to how many subsequent frames?",
-            5,  # default value
-            1,  # min value
-            1000  # max value
+    current_frame = main_window.video_controller.current_index()
+    max_frames = main_window.project_state_controller.get_frame_count() - current_frame - 1
+    # Ask user for number of frames
+    num_frames, ok = QInputDialog.getInt(
+        main_window,
+        "Cascade Operation",
+        "Apply to how many subsequent frames?",
+        5,  # default value
+        1,  # min value
+        max_frames  # max value
+    )
+    
+    if not ok:
+        return
+    
+    if num_frames > max_frames:
+        raise InvalidFrameRangeInput(
+            "The specified number of frames exceeds the available frames in the video."
+        ) 
+    
+    if num_frames < 1:
+        raise InvalidFrameRangeInput(
+            "Please enter a valid number of frames (at least 1)."
         )
-        
-        if not ok:
-            return
-        
-        # Apply cascade to next X frames
-        main_window.annotation_controller.move_resize_bbox(
-            frame_start=current_frame+1,  # Start from next frame
-            object_key=object_id,
-            delta_w=width,
-            delta_h=height,
-            delta_theta=rotation
-        )
-        
-        # Show confirmation
-        end_frame = current_frame + num_frames
-        QMessageBox.information(
-            main_window,
-            "Cascade Operation Complete",
-            f"Applied changes to {num_frames} subsequent frames (frames {current_frame+1}-{end_frame})"
-        )
-        
-        refresh_frame(main_window)
-    except Exception as e:
-        QMessageBox.warning(
-            main_window,
-            "Cascade Operation Failed",
-            f"Failed to apply changes to subsequent frames: {str(e)}"
-        )
+    
+    end_frame = current_frame + num_frames
+    # Apply cascade to next X frames
+    main_window.annotation_controller.cascade_bbox_edit(
+        frame_start=current_frame+1,  # Start from next frame
+        frame_end=end_frame,
+        object_key=object_id,
+        width=width,
+        height=height,
+        rotation=rotation
+    )
+    
+    # Show confirmation
+    QMessageBox.information(
+        main_window,
+        "Cascade Operation Complete",
+        f"Applied changes to {num_frames} subsequent frames (frames {current_frame+1}-{end_frame})"
+    )
+    
+    refresh_frame(main_window)
 
 
 def _ensure_undo_stack(main_window):
