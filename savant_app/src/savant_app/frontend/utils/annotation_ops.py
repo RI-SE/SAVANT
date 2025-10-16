@@ -4,7 +4,7 @@ from savant_app.frontend.exceptions import MissingObjectIDError
 from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
 from .render import refresh_frame
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QMenu, QMessageBox
+from PyQt6.QtWidgets import QMenu, QMessageBox, QInputDialog
 
 
 def wire(main_window):
@@ -44,12 +44,28 @@ def wire(main_window):
         main_window.overlay.deletePressed.connect(
             lambda: delete_selected_bbox(main_window)
         )
-
-    main_window.overlay.boxMoved.connect(lambda i, x, y: _moved(main_window, i, x, y))
     main_window.overlay.boxResized.connect(
-        lambda id, x, y, w, h: _resized(main_window, id, x, y, w, h)
+        lambda id, x, y, w, h, rotation: _resized(main_window, id, x, y, w, h, rotation)
     )
     main_window.overlay.boxRotated.connect(lambda id, r: _rotated(main_window, id, r))
+    
+    # Connect cascade signals
+    if hasattr(main_window.overlay, "cascadeApplyAll"):
+        main_window.overlay.cascadeApplyAll.connect(
+            lambda object_id, frame_key, width, height, rotation: 
+            _apply_cascade_all_frames(main_window, object_id, frame_key, width, height, rotation)
+        )
+    if hasattr(main_window.overlay, "cascadeApplyNext"):
+        main_window.overlay.cascadeApplyNext.connect(
+            lambda object_id, frame_key, width, height, rotation: 
+            _apply_cascade_next_frames(main_window, object_id, frame_key, width, height, rotation)
+        )
+    
+        main_window.overlay.cascadeApplyNext.connect(
+            lambda object_id, frame_key, delta_w, delta_h, delta_theta: _apply_cascade_next_frames(
+                main_window, object_id, frame_key, delta_w, delta_h, delta_theta
+            )
+        )
 
 
 def highlight_selected_object(main_window, object_id: str):
@@ -196,20 +212,131 @@ def _moved(main_window, object_id: str, x: float, y: float):
     refresh_frame(main_window)
 
 
-def _resized(main_window, object_id: str, x: float, y: float, w: float, h: float):
-    fk = main_window.video_controller.current_index()
+def _resized(main_window, object_id: str, x: float, y: float, width: float, height: float, rotation: float):
+    frame_key = main_window.video_controller.current_index()
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=fk, object_key=object_id, x_center=x, y_center=y, width=w, height=h
+        frame_key=frame_key, object_key=object_id, x_center=x, y_center=y, width=width, height=height
     )
     refresh_frame(main_window)
+    
+    # Show cascade dropdown after resize
+    main_window.overlay.show_cascade_dropdown(object_id, frame_key, width, height, rotation)
 
 
 def _rotated(main_window, object_id: str, rotation: float):
     fk = main_window.video_controller.current_index()
+    # Store original rotation for potential cascade
+    # Get the current bbox to get the original rotation
+    try:
+        current_bbox = main_window.annotation_controller.get_bbox(
+            frame_key=fk, object_key=object_id
+        )
+        original_rotation = current_bbox.theta if hasattr(current_bbox, 'theta') else 0.0
+    except Exception:
+        original_rotation = 0.0
+    
     main_window.annotation_controller.move_resize_bbox(
         frame_key=fk, object_key=object_id, rotation=rotation
     )
     refresh_frame(main_window)
+    
+    # Show cascade dropdown after rotation
+    main_window.overlay.show_cascade_dropdown(
+        object_id, fk, 0.0, 0.0, 0.0, 0.0, original_rotation, rotation
+    )
+
+
+def _apply_cascade_all_frames(main_window, object_id: str, current_frame: int, 
+                             new_width: float, new_height: float, new_rotation: float = 0.0):
+    """Apply the resize/rotation to all frames containing the object."""
+    # Get all frames with this object
+    #openlabel_annotation = (
+    #    main_window.annotation_controller.annotation_service.project_state.annotation_config
+    #)
+    #if not openlabel_annotation:
+    #    return
+
+    #frames_with_object = sorted(
+    #    int(frame_key)
+    #    for frame_key, frame_data in getattr(openlabel_annotation, "frames", {}).items()
+    #    if getattr(frame_data, "objects", None) and object_id in frame_data.objects
+    #)
+    
+    # Remove the current frame since it's already been updated
+    #if current_frame in frames_with_object:
+    #    frames_with_object.remove(current_frame)
+    
+    #if not frames_with_object:
+    #    return
+    
+    # Apply cascade to all frames
+    try:
+        modified_frames = main_window.annotation_controller.cascade_bbox_edit(
+            frame_start=current_frame,  # Start from current frame
+            object_key=object_id,
+            width=new_width,
+            height=new_height,
+            rotation=new_rotation
+        )
+        
+        # Show confirmation
+        frame_ranges_str = ", ".join(str(f) for f in modified_frames)
+        QMessageBox.information(
+            main_window,
+            "Cascade Operation Complete",
+            f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}"
+        )
+        
+        refresh_frame(main_window)
+    except Exception as e:
+        QMessageBox.warning(
+            main_window,
+            "Cascade Operation Failed",
+            f"Failed to apply changes to other frames: {str(e)}"
+        )
+
+
+def _apply_cascade_next_frames(main_window, object_id: str, current_frame: int,
+                              delta_w: float, delta_h: float, delta_theta: float = 0.0):
+    """Ask user for number of frames and apply the resize/rotation to those frames."""
+    # Ask user for number of frames
+    num_frames, ok = QInputDialog.getInt(
+        main_window,
+        "Cascade Operation",
+        "Apply to how many subsequent frames?",
+        5,  # default value
+        1,  # min value
+        1000  # max value
+    )
+    
+    if not ok:
+        return
+    
+    # Apply cascade to next X frames
+    try:
+        main_window.annotation_controller.move_resize_bbox(
+            frame_start=current_frame+1,  # Start from next frame
+            object_key=object_id,
+            delta_w=delta_w,
+            delta_h=delta_h,
+            delta_theta=delta_theta
+        )
+        
+        # Show confirmation
+        end_frame = current_frame + num_frames
+        QMessageBox.information(
+            main_window,
+            "Cascade Operation Complete",
+            f"Applied changes to {num_frames} subsequent frames (frames {current_frame+1}-{end_frame})"
+        )
+        
+        refresh_frame(main_window)
+    except Exception as e:
+        QMessageBox.warning(
+            main_window,
+            "Cascade Operation Failed",
+            f"Failed to apply changes to subsequent frames: {str(e)}"
+        )
 
 
 def _ensure_undo_stack(main_window):

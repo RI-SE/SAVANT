@@ -198,6 +198,54 @@ class AnnotationService:
             raise InvalidInputError(
                 f"Invalid input data: {[err["msg"] for err in e.errors()]}", e
             )
+    
+    def cascade_bbox_edit(
+        self,
+        frame_start: int,
+        object_key: Union[int, str],
+        *,
+        # size values
+        width: Optional[float] = None,
+        height: Optional[float] = None,
+        rotation: Optional[float] = None,
+        # clamps
+        min_width: float = 1e-6,
+        min_height: float = 1e-6,
+    ):
+        """Apply size changes to all frames starting from frame_start"""
+        # Get all frames that contain this object (after frame_start)
+        frames_with_object = sorted(
+            int(frame_key) for frame_key, frame_data in getattr(self.project_state.annotation_config, "frames", {}).items()
+            if getattr(frame_data, "objects", None) and object_key in frame_data.objects
+        )
+        frames_with_object = [frame for frame in frames_with_object if frame >= frame_start]
+        
+        if not frames_with_object:
+            return []
+
+        edited_frames = []
+        for frame_num in frames_with_object:
+            #frame_str = str(frame_num)
+            #if frame_str not in self.project_state.annotation_config.frames:
+            #    continue
+            frame_objects = self.project_state.annotation_config.frames[str(frame_num)].objects
+            if object_key not in frame_objects:
+                continue
+            
+            # Apply size changes only
+            self.project_state.annotation_config.update_bbox(
+                frame_key=str(frame_num),
+                object_key=object_key,
+                bbox_index=0,
+                width=width,
+                height=height,
+                rotation=rotation,
+                min_width=min_width,
+                min_height=min_height,
+            )
+            edited_frames.append(frame_num)
+
+        return edited_frames
 
     def delete_bbox(
         self, frame_key: int, object_key: str
