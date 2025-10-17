@@ -1,7 +1,7 @@
 # savant_app/frontend/utils/settings_store.py
 from __future__ import annotations
 from pathlib import Path
-from savant_app.frontend.assets import asset_path
+from savant_app.frontend.utils.assets import asset_path
 
 
 def _find_default_ontology() -> Path:
