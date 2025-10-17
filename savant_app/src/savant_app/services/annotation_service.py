@@ -8,6 +8,7 @@ from .exceptions import (
     BBoxNotFoundError,
     NoFrameLabelFoundError,
     UnsportedTagTypeError,
+    OntologyNotFound,
 )
 from typing import Optional, Union, Tuple
 from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
@@ -352,11 +353,14 @@ class AnnotationService:
             }
 
         Raises:
-            FileNotFoundError / ValueError if ontology is missing/invalid.
+            OntologyNotFound / ValueError if ontology is missing/invalid.
         """
-        path = Path(str(get_ontology_path())).resolve()
-        modified_time = path.stat().st_mtime
-        key = (str(path), float(modified_time))
+        try:
+            path = Path(str(get_ontology_path())).resolve()
+            modified_time = path.stat().st_mtime
+            key = (str(path), float(modified_time))
+        except FileNotFoundError:
+            raise OntologyNotFound(f"The ontology file can not be found at: {path}")
 
         if self._bbox_cache_key == key and self._bbox_cache_vals is not None:
             return self._bbox_cache_vals
