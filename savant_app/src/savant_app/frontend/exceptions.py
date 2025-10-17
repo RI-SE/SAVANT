@@ -46,7 +46,7 @@ class InvalidObjectIDFormat(FrontendDevException):
     pass
 
 
-class OntologyNotFound(FrontendDevException):
-    """Raised when an object ID does not conform to expected format."""
+class OntologyNotFound(FrontendException):
+    """Raised when an ontology file can not be found."""
 
     pass
