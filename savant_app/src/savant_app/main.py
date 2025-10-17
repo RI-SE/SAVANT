@@ -8,7 +8,7 @@ from savant_app.services.project_state import ProjectState
 from savant_app.controllers.video_controller import VideoController
 from savant_app.services.video_reader import VideoReader
 from savant_app.global_exception_handler import exception_hook
-from .logger_config import setup_logger
+from savant_app.logger_config import setup_logger
 
 if __name__ == "__main__":
 
