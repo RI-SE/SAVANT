@@ -5,6 +5,7 @@ import pytest
 
 # Module under test
 from savant_app.frontend.utils import ontology_utils as ou
+from savant_app.frontend.exceptions import OntologyNotFound
 
 
 # ---------- helpers ----------
@@ -126,5 +127,5 @@ def test_missing_ontology_path_raises(monkeypatch, tmp_path):
     # Namespace still needed by the code path, but won't be used after the raise
     monkeypatch.setattr(ou, "get_ontology_namespace", lambda: EX_NS)
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(OntologyNotFound):
         ou.get_action_labels()
