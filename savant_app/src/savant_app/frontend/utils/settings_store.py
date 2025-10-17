@@ -1,15 +1,17 @@
 # savant_app/frontend/utils/settings_store.py
 from __future__ import annotations
 from pathlib import Path
+from savant_app.frontend.assets import asset_path
 
-# ---- Persistent settings (no PyQt imports here) ----
 
-_DEFAULT_ONTOLOGY = (
-    Path(__file__).resolve().parents[5]
-    / "Tools"
-    / "markit"
-    / "savant_ontology_1.0.0.ttl"
-)
+def _find_default_ontology() -> Path:
+    """Return path to default ontology file in assets"""
+    path = Path(asset_path("savant_ontology_1.0.0.ttl"))
+    return path
+
+
+_DEFAULT_ONTOLOGY = _find_default_ontology()
+
 _ONTOLOGY_PATH: Path = _DEFAULT_ONTOLOGY
 
 _ACTION_INTERVAL_OFFSET: int = 0
