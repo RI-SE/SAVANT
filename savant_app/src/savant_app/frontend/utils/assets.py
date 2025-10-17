@@ -1,5 +1,18 @@
 from PyQt6.QtGui import QIcon
-from savant_app.frontend.utils.asset_paths import ASSETS_DIR
+from pathlib import Path
+import sys
+
+if getattr(sys, "frozen", False):
+    BASE_DIR = Path(sys._MEIPASS)
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent
+
+ASSETS_DIR = BASE_DIR / "assets"
+
+
+def asset_path(*parts: str) -> str:
+    """File-relative path into /frontend/assets."""
+    return str(ASSETS_DIR.joinpath(*parts))
 
 
 def icon(name: str) -> QIcon:
