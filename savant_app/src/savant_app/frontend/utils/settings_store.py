@@ -1,18 +1,10 @@
 # savant_app/frontend/utils/settings_store.py
 from __future__ import annotations
 from pathlib import Path
-from savant_app.frontend.utils.asset_paths import asset_path
+from typing import Optional
 
 
-def _find_default_ontology() -> Path:
-    """Return path to default ontology file in assets"""
-    path = Path(asset_path("savant_ontology_1.0.0.ttl"))
-    return path
-
-
-_DEFAULT_ONTOLOGY = _find_default_ontology()
-
-_ONTOLOGY_PATH: Path = _DEFAULT_ONTOLOGY
+_ONTOLOGY_PATH: Optional[Path] = None
 
 _ACTION_INTERVAL_OFFSET: int = 0
 
@@ -21,7 +13,7 @@ _DEFAULT_ONTOLOGY_NAMESPACE = "http://savant.ri.se/ontology#"
 _ONTOLOGY_NAMESPACE: str = _DEFAULT_ONTOLOGY_NAMESPACE
 
 
-def get_ontology_path() -> Path:
+def get_ontology_path() -> Optional[Path]:
     """
     Return the current Turtle (.ttl) ontology path used for frame tags.
     """
