@@ -31,15 +31,15 @@ class Overlay(QWidget):
     cascadeApplyAll = pyqtSignal(
         str, object, object, object
     )  # (object_id, width, height, theta). Object lets us pass optional floats
-    #cascadeApplyRotationAll = pyqtSignal(
+    # cascadeApplyRotationAll = pyqtSignal(
     #    str, float, float, float
-    #)  # (object_id, width, height, theta)
+    # )  # (object_id, width, height, theta)
     cascadeApplyFrameRange = pyqtSignal(
-        str, object, object, object 
+        str, object, object, object
     )  # (object_id, width, height, theta). Object lets us pass optional floats
-    #cascadeApplyRotationFrameRange = pyqtSignal(
+    # cascadeApplyRotationFrameRange = pyqtSignal(
     #    str, float, float, float
-    #)  # (object_id, width, height, theta)
+    # )  # (object_id, width, height, theta)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -95,7 +95,9 @@ class Overlay(QWidget):
         # Cascade dropdown
         self.cascade_dropdown = CascadeDropdown(self)
         self.cascade_dropdown.applySizeToAll.connect(self._on_cascade_size_to_all)
-        self.cascade_dropdown.applyRotationToAll.connect(self._on_cascade_rotation_to_all)
+        self.cascade_dropdown.applyRotationToAll.connect(
+            self._on_cascade_rotation_to_all
+        )
         self.cascade_dropdown.applySizeToFrameRange.connect(
             self._on_cascade_size_to_frame_range
         )
@@ -763,9 +765,8 @@ class Overlay(QWidget):
             selected_bbox.object_id,
             selected_bbox.width,
             selected_bbox.height,
-            None # Pass none for the rotation
+            None,  # Pass none for the rotation
         )
-
 
     def _on_cascade_rotation_to_all(self):
         """Handle cascade apply to all frames."""
@@ -774,8 +775,8 @@ class Overlay(QWidget):
         # Emit a custom signal for cascade operations
         self.cascadeApplyAll.emit(
             selected_bbox.object_id,
-            None, # Pass none for the width
-            None, # Pass none for the height
+            None,  # Pass none for the width
+            None,  # Pass none for the height
             selected_bbox.theta,
         )
 
