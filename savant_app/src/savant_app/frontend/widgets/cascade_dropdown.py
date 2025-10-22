@@ -39,14 +39,31 @@ class CascadeDropdown(QWidget):
         layout.setSpacing(1)
 
         # Apply size to all frames button
-        self.apply_all_btn = QPushButton("Apply Size to All Frames")
-        self.apply_all_btn.clicked.connect(self._on_apply_all)
-        layout.addWidget(self.apply_all_btn)
+        #self.apply_all_btn = QPushButton("Apply Size to All Frames")
+        #self.apply_all_btn.clicked.connect(self._on_apply_all)
+        #layout.addWidget(self.apply_all_btn)
+
+        self.apply_size_to_all_btn = QPushButton("Apply Size to All Frames")
+        self.apply_size_to_all_btn.clicked.connect(self._on_apply_all)
+        layout.addWidget(self.apply_size_to_all_btn)
+
+        self.apply_rotation_to_all_btn = QPushButton("Apply Rotation to All Frames")
+        self.apply_rotation_to_all_btn.clicked.connect(self._on_apply_all)
+        layout.addWidget(self.apply_rotation_to_all_btn)
 
         # Apply size to next X frames button
-        self.apply_next_btn = QPushButton("Apply Size to Next X Frames")
-        self.apply_next_btn.clicked.connect(self._on_apply_next)
-        layout.addWidget(self.apply_next_btn)
+        #self.apply_next_btn = QPushButton("Apply Size to Next X Frames")
+        #self.apply_next_btn.clicked.connect(self._on_apply_next)
+        #layout.addWidget(self.apply_next_btn)
+
+        self.apply_size_to_next_btn = QPushButton("Apply size to Next X Frames")
+        self.apply_size_to_next_btn.clicked.connect(self._on_apply_next)
+        layout.addWidget(self.apply_size_to_next_btn)
+
+        self.apply_rotation_to_next_btn = QPushButton("Apply Rotation to Next X Frames")
+        self.apply_rotation_to_next_btn.clicked.connect(self._on_apply_next)
+        layout.addWidget(self.apply_rotation_to_next_btn)
+        
 
         # Cancel button
         self.cancel_btn = QPushButton("Cancel")
