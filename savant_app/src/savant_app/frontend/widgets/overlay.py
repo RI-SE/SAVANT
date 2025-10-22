@@ -29,11 +29,17 @@ class Overlay(QWidget):
     bounding_box_selected = pyqtSignal(str)  # (object_id)
     deletePressed = pyqtSignal()
     cascadeApplyAll = pyqtSignal(
-        str, float, float, float
-    )  # (object_id, width, height, theta)
+        str, object, object, object
+    )  # (object_id, width, height, theta). Object lets us pass optional floats
+    #cascadeApplyRotationAll = pyqtSignal(
+    #    str, float, float, float
+    #)  # (object_id, width, height, theta)
     cascadeApplyFrameRange = pyqtSignal(
-        str, float, float, float
-    )  # (object_id, width, height, theta)
+        str, object, object, object 
+    )  # (object_id, width, height, theta). Object lets us pass optional floats
+    #cascadeApplyRotationFrameRange = pyqtSignal(
+    #    str, float, float, float
+    #)  # (object_id, width, height, theta)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -88,9 +94,13 @@ class Overlay(QWidget):
 
         # Cascade dropdown
         self.cascade_dropdown = CascadeDropdown(self)
-        self.cascade_dropdown.applyToAll.connect(self._on_cascade_apply_all)
-        self.cascade_dropdown.applyToFrameRange.connect(
-            self._on_cascade_apply_frame_range
+        self.cascade_dropdown.applySizeToAll.connect(self._on_cascade_size_to_all)
+        self.cascade_dropdown.applyRotationToAll.connect(self._on_cascade_rotation_to_all)
+        self.cascade_dropdown.applySizeToFrameRange.connect(
+            self._on_cascade_size_to_frame_range
+        )
+        self.cascade_dropdown.applyRotationToFrameRange.connect(
+            self._on_cascade_rotation_to_frame_range
         )
         self.cascade_dropdown.cancelled.connect(self._on_cascade_cancel)
 
@@ -744,7 +754,7 @@ class Overlay(QWidget):
             return
         super().keyPressEvent(e)
 
-    def _on_cascade_apply_all(self):
+    def _on_cascade_size_to_all(self):
         """Handle cascade apply to all frames."""
         selected_bbox = self._get_selected_bbox()
 
@@ -753,10 +763,23 @@ class Overlay(QWidget):
             selected_bbox.object_id,
             selected_bbox.width,
             selected_bbox.height,
+            None # Pass none for the rotation
+        )
+
+
+    def _on_cascade_rotation_to_all(self):
+        """Handle cascade apply to all frames."""
+        selected_bbox = self._get_selected_bbox()
+
+        # Emit a custom signal for cascade operations
+        self.cascadeApplyAll.emit(
+            selected_bbox.object_id,
+            None, # Pass none for the width
+            None, # Pass none for the height
             selected_bbox.theta,
         )
 
-    def _on_cascade_apply_frame_range(self):
+    def _on_cascade_size_to_frame_range(self):
         """Handle cascade apply to next X frames."""
         selected_bbox = self._get_selected_bbox()
 
@@ -765,6 +788,18 @@ class Overlay(QWidget):
             selected_bbox.object_id,
             selected_bbox.width,
             selected_bbox.height,
+            None,
+        )
+
+    def _on_cascade_rotation_to_frame_range(self):
+        """Handle cascade apply to next X frames."""
+        selected_bbox = self._get_selected_bbox()
+
+        # Emit a custom signal for cascade operations
+        self.cascadeApplyFrameRange.emit(
+            selected_bbox.object_id,
+            None,
+            None,
             selected_bbox.theta,
         )
 
