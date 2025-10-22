@@ -20,6 +20,7 @@ from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.video_controller import VideoController
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.widgets.settings import get_action_interval_offset
+from savant_app.frontend.utils.settings_store import get_ontology_path
 from savant_app.frontend.exceptions import InvalidObjectIDFormat
 from PyQt6.QtGui import QShortcut, QKeySequence
 from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
@@ -342,9 +343,11 @@ class Sidebar(QWidget):
         # self.active_objects.addItems(annotations)
 
     def _open_frame_tag_dialog(self):
-        if not self.video_controller:
-            QMessageBox.warning(self, "No Video", "Load a video first.")
+        path = get_ontology_path()
+        if path is None:
+            QMessageBox.warning(self, "No Ontology", "Set an ontology file in settings first.")
             return
+        print(get_ontology_path())
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Add Frame Tag")

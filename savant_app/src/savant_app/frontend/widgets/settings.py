@@ -115,7 +115,7 @@ class SettingsDialog(QDialog):
 
         self._ontology_edit = QLineEdit(self)
         self._ontology_edit.setReadOnly(True)
-        self._ontology_edit.setText(str(get_ontology_path()))
+        # self._ontology_edit.setText(str(get_ontology_path()))
         browse_btn = QPushButton("Browse…", self)
         browse_btn.clicked.connect(self._on_browse_ontology_clicked)
         ontology_form.addRow("Frame Tag Ontology:", self._ontology_edit)
@@ -233,7 +233,7 @@ class SettingsDialog(QDialog):
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Ontology (.ttl)",
-            str(get_ontology_path().parent),
+            str(Path.home()),
             "Turtle files (*.ttl)",
         )
         if not path:

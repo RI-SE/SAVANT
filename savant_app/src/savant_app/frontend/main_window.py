@@ -87,7 +87,7 @@ class MainWindow(QMainWindow):
 
         # Sidebar
         self.sidebar_state = SidebarState()
-        actors = self.annotation_controller.allowed_bbox_types()
+        actors: dict[str, list[str]] = {}
         self.sidebar = Sidebar(
             video_actors=actors,
             annotation_controller=self.annotation_controller,

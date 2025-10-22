@@ -8,6 +8,7 @@ from .exceptions import (
     BBoxNotFoundError,
     NoFrameLabelFoundError,
     UnsportedTagTypeError,
+    OntologyNotFound,
 )
 from typing import Optional, Union, Tuple
 from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
@@ -283,7 +284,9 @@ class AnnotationService:
 
         labels = get_action_labels(path)
         if not labels:
-            raise NoFrameLabelFoundError(f"No Action labels found in ontology: {path}")
+            raise NoFrameLabelFoundError(
+                "No Action labels found in ontology,\n"
+                "please ensure an ontology file is selected in settings.")
         self._tag_cache_key, self._tag_cache_vals = key, labels
         return labels
 
@@ -352,11 +355,15 @@ class AnnotationService:
             }
 
         Raises:
-            FileNotFoundError / ValueError if ontology is missing/invalid.
+            OntologyNotFound / ValueError if ontology is missing/invalid.
         """
-        path = Path(str(get_ontology_path())).resolve()
-        modified_time = path.stat().st_mtime
-        key = (str(path), float(modified_time))
+        try:
+            path = Path(str(get_ontology_path())).resolve()
+            modified_time = path.stat().st_mtime
+            key = (str(path), float(modified_time))
+        except FileNotFoundError:
+            raise OntologyNotFound(
+                "Ontology file not found, please select an ontology file in settings.")
 
         if self._bbox_cache_key == key and self._bbox_cache_vals is not None:
             return self._bbox_cache_vals
