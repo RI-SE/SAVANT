@@ -23,6 +23,14 @@ class PostprocessingPass(ABC):
         self.frame_height = frame_height
         self.fps = fps
 
+    def set_ontology_path(self, ontology_path: str) -> None:
+        """Set ontology file path for passes that need it.
+
+        Args:
+            ontology_path: Path to SAVANT ontology TTL file
+        """
+        self.ontology_path = ontology_path
+
     @abstractmethod
     def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
         """Process OpenLabel data and return modified version.

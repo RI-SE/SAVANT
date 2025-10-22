@@ -3,29 +3,48 @@
 markit.py
 
 Advanced command-line tool for running multi-engine object detection (YOLO + Optical Flow)
-with IoU-based conflict resolution. Exports results in OpenLabel JSON format and optionally
-as annotated video.
+with IoU-based conflict resolution. Exports results in OpenLabel JSON format with SAVANT
+ontology integration and optionally as annotated video.
 
 Usage:
-    python markit.py --weights WEIGHTS_PATH --input INPUT_VIDEO --output_json OUTPUT_JSON --schema SCHEMA_JSON [--output_video OUTPUT_VIDEO]
+    python markit.py --input INPUT_VIDEO --output_json OUTPUT_JSON [OPTIONS]
 
-Arguments:
-    --weights            Path to YOLO weights file (.pt)
+Required Arguments:
     --input              Path to input video file
     --output_json        Path to output OpenLabel JSON file
-    --schema             Path to OpenLabel JSON schema file
+
+Optional Arguments:
+    --weights            Path to YOLO weights file (.pt) - required if using YOLO detection
+    --schema             Path to OpenLabel JSON schema file (default: savant_openlabel_subset.schema.json)
+    --ontology           Path to SAVANT ontology file for class mapping (default: savant_ontology_1.2.0.ttl)
     --output_video       Path to output annotated video file (optional)
+
+Detection Configuration:
     --detection-method   Detection method: yolo, optical_flow, or both (default: yolo)
-    --iou-threshold      IoU threshold for conflict resolution (default: 0.3)
-    --motion-threshold   Optical flow motion threshold (default: 1.5)
-    --min-object-area    Minimum object area for optical flow (default: 500)
+    --motion-threshold   Optical flow motion threshold (default: 0.5)
+    --min-object-area    Minimum object area for optical flow detection (default: 200)
+
+Conflict Resolution:
+    --iou-threshold      IoU threshold for conflict resolution when using both engines (default: 0.3)
+    --verbose-conflicts  Enable verbose conflict resolution logging
+    --disable-conflict-resolution  Disable conflict resolution (keep all detections)
+
+Postprocessing (Housekeeping):
+    --housekeeping       Enable postprocessing passes (gap detection, filling, duplicate removal, etc.)
+    --duplicate-avg-iou  Average IOU threshold for duplicate detection (default: 0.7)
+    --duplicate-min-iou  Minimum IOU threshold for duplicate detection (default: 0.3)
+    --rotation-threshold Rotation angle threshold in radians for adjustment (default: 0.01)
+    --edge-distance      Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)
+    --static-threshold   Movement threshold in pixels for static object removal (default: 5, negative disables)
+    --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
 
 Features:
     - YOLO OBB (Oriented Bounding Box) detection with tracking
     - Background subtraction + optical flow detection
     - IoU-based conflict resolution with YOLO precedence
     - OpenLabel JSON export with SAVANT ontology integration
-    - Configurable detection engines and conflict resolution
+    - Dynamic class mapping from ontology (41 classes)
+    - Configurable postprocessing pipeline for data quality improvement
 """
 
 import argparse
@@ -44,6 +63,7 @@ from markitlib.postprocessing import (
     RotationAdjustmentPass,
     SuddenPass,
     FrameIntervalPass,
+    StaticObjectRemovalPass,
 )
 
 # Configure logging
@@ -62,20 +82,23 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # YOLO only (default)
-  python markit.py --weights model.pt --input video.mp4 --output_json output.json --schema schema.json
+  # YOLO only (uses default schema and ontology)
+  python markit.py --weights model.pt --input video.mp4 --output_json output.json
+
+  # With custom schema and ontology files
+  python markit.py --weights model.pt --input video.mp4 --output_json output.json --schema custom.schema.json --ontology custom_ontology.ttl
 
   # Optical flow only
-  python markit.py --detection-method optical_flow --input video.mp4 --output_json output.json --schema schema.json
+  python markit.py --detection-method optical_flow --input video.mp4 --output_json output.json
 
   # Both engines with default IoU threshold (0.3)
-  python markit.py --detection-method both --weights model.pt --input video.mp4 --output_json output.json --schema schema.json
+  python markit.py --detection-method both --weights model.pt --input video.mp4 --output_json output.json
 
   # Both engines with custom IoU threshold
-  python markit.py --detection-method both --weights model.pt --input video.mp4 --output_json output.json --schema schema.json --iou-threshold 0.5
+  python markit.py --detection-method both --weights model.pt --input video.mp4 --output_json output.json --iou-threshold 0.5
 
   # Both engines without conflict resolution
-  python markit.py --detection-method both --weights model.pt --input video.mp4 --output_json output.json --schema schema.json --disable-conflict-resolution
+  python markit.py --detection-method both --weights model.pt --input video.mp4 --output_json output.json --disable-conflict-resolution
         """
     )
 
@@ -83,8 +106,11 @@ Examples:
     parser.add_argument('--weights', help='Path to YOLO weights file (.pt)')
     parser.add_argument('--input', required=True, help='Path to input video file')
     parser.add_argument('--output_json', required=True, help='Path to output OpenLabel JSON file')
-    parser.add_argument('--schema', required=True, help='Path to OpenLabel JSON schema file')
+    parser.add_argument('--schema', default='savant_openlabel_subset.schema.json',
+                       help='Path to OpenLabel JSON schema file (default: savant_openlabel_subset.schema.json)')
     parser.add_argument('--output_video', help='Path to output annotated video file (optional)')
+    parser.add_argument('--ontology', default='savant_ontology_1.2.0.ttl',
+                       help='Path to SAVANT ontology file for class mapping (default: savant_ontology_1.2.0.ttl)')
 
     # Detection method selection
     parser.add_argument('--detection-method',
@@ -117,6 +143,10 @@ Examples:
                        help='Rotation angle threshold in radians for adjustment (default: 0.01)')
     parser.add_argument('--edge-distance', type=int, default=200,
                        help='Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)')
+    parser.add_argument('--static-threshold', type=int, default=5,
+                       help='Movement threshold in pixels for static object removal (default: 5, negative value disables this pass)')
+    parser.add_argument('--static-mark', action='store_true',
+                       help='Mark static objects instead of removing them (adds "staticdynamic" annotation)')
 
     return parser.parse_args()
 
@@ -232,6 +262,7 @@ def main():
                 video_processor.frame_height,
                 video_processor.fps
             )
+            postprocessing_pipeline.set_ontology_path(config.ontology_path)
             postprocessing_pipeline.add_pass(GapDetectionPass())
             postprocessing_pipeline.add_pass(GapFillingPass())
             postprocessing_pipeline.add_pass(
@@ -240,6 +271,13 @@ def main():
                     min_iou_threshold=config.duplicate_min_iou
                 )
             )
+            if config.static_threshold >= 0:
+                postprocessing_pipeline.add_pass(
+                    StaticObjectRemovalPass(
+                        static_threshold=config.static_threshold,
+                        mark_only=config.static_mark
+                    )
+                )
             postprocessing_pipeline.add_pass(
                 RotationAdjustmentPass(rotation_threshold=config.rotation_threshold)
             )

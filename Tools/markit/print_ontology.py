@@ -14,7 +14,12 @@ Example:
 
 import sys
 import argparse
-from ontology import read_ontology_classes
+from pathlib import Path
+
+# Add parent directory to path to import common package
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from common.ontology import read_ontology_classes
 
 
 def parse_arguments():

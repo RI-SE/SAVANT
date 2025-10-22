@@ -2,7 +2,8 @@
 postprocessing - OpenLabel data postprocessing pipeline
 
 Contains postprocessing passes for gap detection/filling, duplicate removal,
-rotation adjustment, sudden event detection, and frame interval calculation.
+rotation adjustment, sudden event detection, frame interval calculation,
+and static object removal.
 """
 
 from .base import PostprocessingPass
@@ -13,6 +14,7 @@ from .passes import (
     RotationAdjustmentPass,
     SuddenPass,
     FrameIntervalPass,
+    StaticObjectRemovalPass,
 )
 from .pipeline import PostprocessingPipeline
 
@@ -24,5 +26,6 @@ __all__ = [
     'RotationAdjustmentPass',
     'SuddenPass',
     'FrameIntervalPass',
+    'StaticObjectRemovalPass',
     'PostprocessingPipeline',
 ]

@@ -33,6 +33,14 @@ class PostprocessingPipeline:
         self.frame_height = frame_height
         self.fps = fps
 
+    def set_ontology_path(self, ontology_path: str) -> None:
+        """Set ontology file path for the pipeline.
+
+        Args:
+            ontology_path: Path to SAVANT ontology TTL file
+        """
+        self.ontology_path = ontology_path
+
     def add_pass(self, postprocessing_pass: PostprocessingPass) -> None:
         """Add a postprocessing pass to the pipeline.
 
@@ -65,6 +73,9 @@ class PostprocessingPipeline:
             try:
                 if self.frame_width and self.frame_height and self.fps:
                     pass_instance.set_video_properties(self.frame_width, self.frame_height, self.fps)
+
+                if hasattr(self, 'ontology_path') and self.ontology_path:
+                    pass_instance.set_ontology_path(self.ontology_path)
 
                 processed_data = pass_instance.process(processed_data)
                 stats = pass_instance.get_statistics()

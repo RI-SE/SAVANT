@@ -17,7 +17,11 @@ import sys
 import yaml
 from pathlib import Path
 from typing import Dict, List, Tuple
-from ontology import read_ontology_classes
+
+# Add parent directory to path to import common package
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from common.ontology import read_ontology_classes
 
 
 class ClassRemapper:
@@ -64,8 +68,10 @@ class ClassRemapper:
         print(f"\nFound {len(class_names)} classes in UAV.yaml:")
 
         # Create ontology lookup by label (case-insensitive)
+        # Only include classes with valid UIDs (not None)
         ontology_lookup = {
-            c['label'].lower(): c for c in self.ontology_classes if c['label']
+            c['label'].lower(): c for c in self.ontology_classes
+            if c['label'] and c['uid'] is not None
         }
 
         # Create mapping
