@@ -50,3 +50,9 @@ class InvalidFrameRangeInput(FrontendException):
     """Raised when the user inputs an invalid frame range for cascade operations."""
 
     pass
+
+
+class OntologyNotFound(FrontendException):
+    """Raised when an ontology file can not be found."""
+
+    pass

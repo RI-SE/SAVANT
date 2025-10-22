@@ -7,6 +7,7 @@ from savant_app.frontend.utils.settings_store import (
     get_ontology_path,
     get_ontology_namespace,
 )
+from ..exceptions import OntologyNotFound
 
 
 CATEGORY_ACTION = "Action"
@@ -60,7 +61,9 @@ def _get_ontology_path() -> Path:
     """
     path = Path(str(get_ontology_path())).resolve()
     if not path.is_file():
-        raise FileNotFoundError(f"Ontology file not found: {path}")
+        raise OntologyNotFound(
+            "Ontology file not found, please select an ontology file in settings."
+        )
     return path
 
 
@@ -74,7 +77,7 @@ def _load_labels_by_category() -> Dict[str, List[str]]:
 
     ontology_path = Path(str(_get_ontology_path())).resolve()
     if not ontology_path.is_file():
-        raise FileNotFoundError(f"Ontology file not found: {ontology_path}")
+        raise OntologyNotFound(f"Ontology file not found: {ontology_path}")
 
     ontology_modified_time = ontology_path.stat().st_mtime
     cache_key = (str(ontology_path), float(ontology_modified_time))

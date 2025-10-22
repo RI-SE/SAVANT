@@ -105,3 +105,9 @@ class UnsportedTagTypeError(DomainException):
     """Raised when an unsupported tag type is encountered"""
 
     pass
+
+
+class OntologyNotFound(DomainException):
+    """Raised when an ontology file can not be found"""
+
+    pass

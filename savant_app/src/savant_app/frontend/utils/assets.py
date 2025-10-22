@@ -1,12 +1,10 @@
-from pathlib import Path
 from PyQt6.QtGui import QIcon
+from pathlib import Path
 import sys
 
 if getattr(sys, "frozen", False):
-    # Running in PyInstaller bundle
     BASE_DIR = Path(sys._MEIPASS)
 else:
-    # Running normally
     BASE_DIR = Path(__file__).resolve().parent.parent
 
 ASSETS_DIR = BASE_DIR / "assets"
