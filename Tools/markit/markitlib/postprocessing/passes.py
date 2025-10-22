@@ -1,0 +1,836 @@
+"""
+passes - Postprocessing pass implementations
+
+Contains all postprocessing passes for gap detection/filling, duplicate removal,
+rotation adjustment, sudden event detection, and frame interval calculation.
+"""
+
+import logging
+from typing import Any, Dict, List, Optional, Set
+from collections import defaultdict
+
+import numpy as np
+
+from .base import PostprocessingPass
+from ..geometry import BBoxOverlapCalculator
+
+logger = logging.getLogger(__name__)
+
+
+class GapDetectionPass(PostprocessingPass):
+    """Detect gaps in object ID frame sequences."""
+
+    def __init__(self):
+        self.gaps_detected = {}
+        self.objects_with_gaps = set()
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Detect gaps in object tracking sequences.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Unmodified OpenLabel data (detection only, no fixes yet)
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+
+        object_frames = defaultdict(list)
+
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            objects = frame_data.get("objects", {})
+
+            for obj_id_str in objects.keys():
+                object_frames[obj_id_str].append(frame_idx)
+
+        for obj_id, frame_list in object_frames.items():
+            if len(frame_list) < 2:
+                continue
+
+            frame_list_sorted = sorted(frame_list)
+            gaps = []
+
+            for i in range(len(frame_list_sorted) - 1):
+                current_frame = frame_list_sorted[i]
+                next_frame = frame_list_sorted[i + 1]
+                gap_size = next_frame - current_frame - 1
+
+                if gap_size > 0:
+                    gaps.append({
+                        'start_frame': current_frame,
+                        'end_frame': next_frame,
+                        'gap_size': gap_size
+                    })
+
+            if gaps:
+                self.gaps_detected[obj_id] = {
+                    'frame_range': (frame_list_sorted[0], frame_list_sorted[-1]),
+                    'total_frames': len(frame_list_sorted),
+                    'gaps': gaps
+                }
+                self.objects_with_gaps.add(obj_id)
+
+                logger.warning(
+                    f"Object ID {obj_id}: detected {len(gaps)} gap(s) in frame sequence "
+                    f"[{frame_list_sorted[0]}-{frame_list_sorted[-1]}]"
+                )
+                for gap in gaps:
+                    logger.warning(
+                        f"  Gap: frames {gap['start_frame']} -> {gap['end_frame']} "
+                        f"(missing {gap['gap_size']} frame(s))"
+                    )
+
+        return openlabel_data
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get gap detection statistics.
+
+        Returns:
+            Dictionary with gap detection statistics
+        """
+        total_gaps = sum(len(info['gaps']) for info in self.gaps_detected.values())
+
+        return {
+            'objects_with_gaps': len(self.objects_with_gaps),
+            'total_gaps_detected': total_gaps,
+            'gap_details': self.gaps_detected
+        }
+
+
+class GapFillingPass(PostprocessingPass):
+    """Fill gaps in object ID frame sequences by interpolating positions."""
+
+    def __init__(self):
+        self.gaps_filled = 0
+        self.frames_added = 0
+        self.objects_processed = set()
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fill gaps in object tracking sequences by interpolating positions.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Modified OpenLabel data with gaps filled
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+
+        object_frames = defaultdict(list)
+
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            objects = frame_data.get("objects", {})
+
+            for obj_id_str in objects.keys():
+                object_frames[obj_id_str].append(frame_idx)
+
+        for obj_id, frame_list in object_frames.items():
+            if len(frame_list) < 2:
+                continue
+
+            frame_list_sorted = sorted(frame_list)
+
+            for i in range(len(frame_list_sorted) - 1):
+                frame_before = frame_list_sorted[i]
+                frame_after = frame_list_sorted[i + 1]
+                gap_size = frame_after - frame_before - 1
+
+                if gap_size > 0:
+                    self._fill_gap(
+                        openlabel_data,
+                        obj_id,
+                        frame_before,
+                        frame_after,
+                        gap_size
+                    )
+
+        return openlabel_data
+
+    def _fill_gap(self, openlabel_data: Dict[str, Any], obj_id: str,
+                  frame_before: int, frame_after: int, gap_size: int) -> None:
+        """Fill a specific gap by interpolating object positions.
+
+        Args:
+            openlabel_data: OpenLabel data structure
+            obj_id: Object ID string
+            frame_before: Last frame before gap
+            frame_after: First frame after gap
+            gap_size: Number of missing frames
+        """
+        frames = openlabel_data["openlabel"]["frames"]
+
+        obj_data_before = frames[str(frame_before)]["objects"][obj_id]["object_data"]
+        obj_data_after = frames[str(frame_after)]["objects"][obj_id]["object_data"]
+
+        rbbox_before = obj_data_before["rbbox"][0]["val"]
+        rbbox_after = obj_data_after["rbbox"][0]["val"]
+
+        x_before, y_before, w_before, h_before, r_before = rbbox_before
+        x_after, y_after, w_after, h_after, r_after = rbbox_after
+
+        delta_x = x_after - x_before
+        delta_y = y_after - y_before
+
+        total_steps = gap_size + 1
+
+        for step in range(1, gap_size + 1):
+            interpolation_factor = step / total_steps
+
+            x_interpolated = int(x_before + delta_x * interpolation_factor)
+            y_interpolated = int(y_before + delta_y * interpolation_factor)
+
+            missing_frame_idx = frame_before + step
+            missing_frame_str = str(missing_frame_idx)
+
+            if missing_frame_str not in frames:
+                frames[missing_frame_str] = {"objects": {}}
+
+            frames[missing_frame_str]["objects"][obj_id] = {
+                "object_data": {
+                    "rbbox": [{
+                        "name": "shape",
+                        "val": [x_interpolated, y_interpolated, w_before, h_before, r_before]
+                    }],
+                    "vec": [
+                        {
+                            "name": "annotator",
+                            "val": ["markit_housekeeping(gap)"]
+                        },
+                        {
+                            "name": "confidence",
+                            "val": [0.6666]
+                        }
+                    ]
+                }
+            }
+
+            self.frames_added += 1
+
+        self.gaps_filled += 1
+        self.objects_processed.add(obj_id)
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get gap filling statistics.
+
+        Returns:
+            Dictionary with gap filling statistics
+        """
+        return {
+            'objects_processed': len(self.objects_processed),
+            'gaps_filled': self.gaps_filled,
+            'frames_added': self.frames_added
+        }
+
+
+class DuplicateRemovalPass(PostprocessingPass):
+    """Remove duplicate bounding boxes based on IOU threshold."""
+
+    def __init__(self, avg_iou_threshold: float = 0.7, min_iou_threshold: float = 0.3):
+        self.objects_deleted = 0
+        self.duplicate_pairs_found = 0
+        self.frames_modified = 0
+        self.iou_calculator = BBoxOverlapCalculator()
+        self.deletion_details = []
+        self.avg_iou_threshold = avg_iou_threshold
+        self.min_iou_threshold = min_iou_threshold
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Remove duplicate objects based on IOU analysis.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Modified OpenLabel data with duplicates removed
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+        objects = openlabel_data.get("openlabel", {}).get("objects", {})
+
+        object_frame_map = defaultdict(list)
+
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            frame_objects = frame_data.get("objects", {})
+
+            for obj_id_str in frame_objects.keys():
+                object_frame_map[obj_id_str].append(frame_idx)
+
+        objects_to_delete = set()
+        object_ids = list(objects.keys())
+
+        for i in range(len(object_ids)):
+            for j in range(i + 1, len(object_ids)):
+                obj_a = object_ids[i]
+                obj_b = object_ids[j]
+
+                if obj_a in objects_to_delete or obj_b in objects_to_delete:
+                    continue
+
+                if self._are_duplicates(obj_a, obj_b, object_frame_map, frames):
+                    self.duplicate_pairs_found += 1
+
+                    obj_to_delete = self._choose_object_to_delete(
+                        obj_a, obj_b, object_frame_map, frames
+                    )
+                    obj_to_keep = obj_b if obj_to_delete == obj_a else obj_a
+                    objects_to_delete.add(obj_to_delete)
+
+                    frames_list = sorted(object_frame_map[obj_to_delete])
+                    self.deletion_details.append({
+                        'deleted_object': obj_to_delete,
+                        'kept_object': obj_to_keep,
+                        'frame_start': frames_list[0] if frames_list else None,
+                        'frame_end': frames_list[-1] if frames_list else None
+                    })
+
+        for obj_id in objects_to_delete:
+            if obj_id in objects:
+                del objects[obj_id]
+                self.objects_deleted += 1
+
+            for frame_idx_str, frame_data in frames.items():
+                frame_objects = frame_data.get("objects", {})
+                if obj_id in frame_objects:
+                    del frame_objects[obj_id]
+                    self.frames_modified += 1
+
+        for detail in self.deletion_details:
+            logger.info(
+                f"Deleted object {detail['deleted_object']} (duplicate of {detail['kept_object']}) "
+                f"from frames {detail['frame_start']}-{detail['frame_end']}"
+            )
+
+        return openlabel_data
+
+    def _are_duplicates(self, obj_a: str, obj_b: str,
+                       object_frame_map: Dict[str, List[int]],
+                       frames: Dict[str, Any]) -> bool:
+        """Check if two objects are duplicates based on IOU thresholds.
+
+        Args:
+            obj_a: First object ID
+            obj_b: Second object ID
+            object_frame_map: Mapping of object IDs to frame lists
+            frames: Frame data
+
+        Returns:
+            True if objects are duplicates (avg IOU > 0.8 and min IOU > 0.5)
+        """
+        frames_a = set(object_frame_map.get(obj_a, []))
+        frames_b = set(object_frame_map.get(obj_b, []))
+        shared_frames = frames_a.intersection(frames_b)
+
+        if len(shared_frames) == 0:
+            return False
+
+        ious = []
+
+        for frame_idx in shared_frames:
+            frame_str = str(frame_idx)
+            frame_data = frames[frame_str]
+            frame_objects = frame_data.get("objects", {})
+
+            bbox_a = self._extract_bbox(frame_objects[obj_a])
+            bbox_b = self._extract_bbox(frame_objects[obj_b])
+
+            if bbox_a is not None and bbox_b is not None:
+                iou = self.iou_calculator.calculate_intersection_over_union(bbox_a, bbox_b)
+                ious.append(iou)
+
+        if len(ious) == 0:
+            return False
+
+        avg_iou = sum(ious) / len(ious)
+        min_iou = min(ious)
+
+        return avg_iou > self.avg_iou_threshold and min_iou > self.min_iou_threshold
+
+    def _extract_bbox(self, object_data: Dict[str, Any]) -> Optional[np.ndarray]:
+        """Extract bounding box from object data and convert to corner points.
+
+        Args:
+            object_data: Object data containing rbbox
+
+        Returns:
+            4 corner points as numpy array, or None if extraction fails
+        """
+        try:
+            rbbox_val = object_data["object_data"]["rbbox"][0]["val"]
+            x, y, w, h, r = rbbox_val
+
+            cos_r = np.cos(r)
+            sin_r = np.sin(r)
+
+            hw = w / 2
+            hh = h / 2
+
+            corners = np.array([
+                [-hw, -hh],
+                [hw, -hh],
+                [hw, hh],
+                [-hw, hh]
+            ])
+
+            rotation_matrix = np.array([[cos_r, -sin_r], [sin_r, cos_r]])
+            rotated_corners = corners @ rotation_matrix.T
+
+            oriented_bbox = rotated_corners + np.array([x, y])
+
+            return oriented_bbox.astype(np.float32)
+
+        except (KeyError, IndexError, ValueError) as e:
+            logger.debug(f"Failed to extract bbox: {e}")
+            return None
+
+    def _choose_object_to_delete(self, obj_a: str, obj_b: str,
+                                 object_frame_map: Dict[str, List[int]],
+                                 frames: Dict[str, Any]) -> str:
+        """Choose which object to delete from a duplicate pair.
+
+        Args:
+            obj_a: First object ID
+            obj_b: Second object ID
+            object_frame_map: Mapping of object IDs to frame lists
+            frames: Frame data
+
+        Returns:
+            Object ID to delete
+        """
+        frames_a = len(object_frame_map.get(obj_a, []))
+        frames_b = len(object_frame_map.get(obj_b, []))
+
+        if frames_a != frames_b:
+            return obj_a if frames_a < frames_b else obj_b
+
+        conf_a = self._calculate_average_confidence(obj_a, object_frame_map, frames)
+        conf_b = self._calculate_average_confidence(obj_b, object_frame_map, frames)
+
+        return obj_a if conf_a < conf_b else obj_b
+
+    def _calculate_average_confidence(self, obj_id: str,
+                                     object_frame_map: Dict[str, List[int]],
+                                     frames: Dict[str, Any]) -> float:
+        """Calculate average confidence for an object across all its frames.
+
+        Args:
+            obj_id: Object ID
+            object_frame_map: Mapping of object IDs to frame lists
+            frames: Frame data
+
+        Returns:
+            Average confidence value
+        """
+        confidences = []
+
+        for frame_idx in object_frame_map.get(obj_id, []):
+            frame_str = str(frame_idx)
+            frame_data = frames[frame_str]
+            frame_objects = frame_data.get("objects", {})
+
+            if obj_id in frame_objects:
+                try:
+                    vec_list = frame_objects[obj_id]["object_data"]["vec"]
+                    for vec_item in vec_list:
+                        if vec_item.get("name") == "confidence":
+                            conf_values = vec_item.get("val", [])
+                            if conf_values:
+                                confidences.append(conf_values[-1])
+                            break
+                except (KeyError, IndexError):
+                    pass
+
+        return sum(confidences) / len(confidences) if confidences else 0.0
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get duplicate removal statistics.
+
+        Returns:
+            Dictionary with duplicate removal statistics
+        """
+        return {
+            'objects_deleted': self.objects_deleted,
+            'duplicate_pairs_found': self.duplicate_pairs_found,
+            'frames_modified': self.frames_modified
+        }
+
+
+class RotationAdjustmentPass(PostprocessingPass):
+    """Adjust rotation values based on movement direction."""
+
+    def __init__(self, rotation_threshold: float = 0.01):
+        self.rotations_adjusted = 0
+        self.rotations_kept = 0
+        self.rotations_copied = 0
+        self.objects_processed = 0
+        self.rotation_threshold = rotation_threshold
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Adjust rotation values based on movement direction.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Modified OpenLabel data with adjusted rotations
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+
+        object_frame_map = defaultdict(list)
+
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            frame_objects = frame_data.get("objects", {})
+
+            for obj_id_str in frame_objects.keys():
+                object_frame_map[obj_id_str].append(frame_idx)
+
+        for obj_id, frame_list in object_frame_map.items():
+            if len(frame_list) < 2:
+                continue
+
+            self.objects_processed += 1
+            frame_list_sorted = sorted(frame_list)
+            last_valid_angle = None
+
+            for i in range(len(frame_list_sorted)):
+                current_frame = frame_list_sorted[i]
+                is_last_frame = (i == len(frame_list_sorted) - 1)
+
+                if is_last_frame:
+                    if last_valid_angle is not None:
+                        current_frame_str = str(current_frame)
+                        frame_obj_data = frames[current_frame_str]["objects"][obj_id]
+                        rbbox = frame_obj_data["object_data"]["rbbox"][0]["val"]
+                        r_current = rbbox[4]
+
+                        if abs(last_valid_angle - r_current) > self.rotation_threshold:
+                            self._apply_rotation_adjustment(frame_obj_data, last_valid_angle)
+                            self.rotations_copied += 1
+                    break
+
+                r_new = self._calculate_smoothed_rotation(
+                    frames, obj_id, current_frame, frame_list_sorted, i
+                )
+
+                current_frame_str = str(current_frame)
+                frame_obj_data = frames[current_frame_str]["objects"][obj_id]
+                rbbox = frame_obj_data["object_data"]["rbbox"][0]["val"]
+                r_current = rbbox[4]
+
+                if r_new is None:
+                    if last_valid_angle is not None:
+                        r_new = last_valid_angle
+                        self._apply_rotation_adjustment(frame_obj_data, r_new)
+                        self.rotations_copied += 1
+                    continue
+                else:
+                    last_valid_angle = r_new
+
+                if abs(r_new - r_current) > self.rotation_threshold:
+                    self._apply_rotation_adjustment(frame_obj_data, r_new)
+                    self.rotations_adjusted += 1
+                else:
+                    self.rotations_kept += 1
+
+        return openlabel_data
+
+    def _apply_rotation_adjustment(self, frame_obj_data: Dict[str, Any], r_new: float) -> None:
+        """Apply rotation adjustment and update annotator/confidence.
+
+        Args:
+            frame_obj_data: Frame object data
+            r_new: New rotation value
+        """
+        rbbox = frame_obj_data["object_data"]["rbbox"][0]["val"]
+        rbbox[4] = r_new
+
+        vec_list = frame_obj_data["object_data"]["vec"]
+        annotator_found = False
+        confidence_found = False
+
+        for vec_item in vec_list:
+            if vec_item.get("name") == "annotator":
+                vec_item["val"].append("markit_housekeep(rot)")
+                annotator_found = True
+            elif vec_item.get("name") == "confidence":
+                vec_item["val"].append(0.8888)
+                confidence_found = True
+
+        if not annotator_found:
+            vec_list.insert(0, {
+                "name": "annotator",
+                "val": ["markit_housekeep(rot)"]
+            })
+
+        if not confidence_found:
+            vec_list.append({
+                "name": "confidence",
+                "val": [0.8888]
+            })
+
+    def _calculate_smoothed_rotation(self, frames: Dict[str, Any], obj_id: str,
+                                     current_frame: int, frame_list_sorted: List[int],
+                                     current_idx: int) -> Optional[float]:
+        """Calculate smoothed rotation using weighted average of 1-8 frames ahead.
+
+        Args:
+            frames: Frame data
+            obj_id: Object ID
+            current_frame: Current frame index
+            frame_list_sorted: Sorted list of frames for this object
+            current_idx: Index in frame_list_sorted
+
+        Returns:
+            Smoothed rotation angle in radians, or None if no movement detected
+        """
+        current_frame_str = str(current_frame)
+        current_obj = frames[current_frame_str]["objects"][obj_id]
+        current_rbbox = current_obj["object_data"]["rbbox"][0]["val"]
+        x_current, y_current = current_rbbox[0], current_rbbox[1]
+
+        angles = []
+        weights = []
+
+        for lookahead in range(1, 9):
+            if current_idx + lookahead >= len(frame_list_sorted):
+                break
+
+            future_frame = frame_list_sorted[current_idx + lookahead]
+            future_frame_str = str(future_frame)
+            future_obj = frames[future_frame_str]["objects"][obj_id]
+            future_rbbox = future_obj["object_data"]["rbbox"][0]["val"]
+            x_future, y_future = future_rbbox[0], future_rbbox[1]
+
+            delta_x = x_future - x_current
+            delta_y = y_future - y_current
+
+            if delta_x != 0 or delta_y != 0:
+                angle = np.arctan2(delta_x, delta_y)
+                angles.append(angle)
+                weights.append(9 - lookahead)
+
+        if not angles:
+            return None
+
+        weighted_sin = sum(np.sin(angle) * weight for angle, weight in zip(angles, weights))
+        weighted_cos = sum(np.cos(angle) * weight for angle, weight in zip(angles, weights))
+        weight_sum = sum(weights)
+
+        avg_sin = weighted_sin / weight_sum
+        avg_cos = weighted_cos / weight_sum
+
+        return float(np.arctan2(avg_sin, avg_cos))
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get rotation adjustment statistics.
+
+        Returns:
+            Dictionary with rotation adjustment statistics
+        """
+        return {
+            'objects_processed': self.objects_processed,
+            'rotations_adjusted': self.rotations_adjusted,
+            'rotations_kept': self.rotations_kept,
+            'rotations_copied': self.rotations_copied
+        }
+
+
+class SuddenPass(PostprocessingPass):
+    """Detect sudden appearance/disappearance of objects near frame edges."""
+
+    def __init__(self, edge_distance: int = 200):
+        self.edge_distance = edge_distance
+        self.sudden_appear_count = 0
+        self.sudden_disappear_count = 0
+        self.objects_with_events = set()
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Detect and record sudden appearance/disappearance events.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Modified OpenLabel data with sudden events recorded
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+        objects = openlabel_data.get("openlabel", {}).get("objects", {})
+
+        if not hasattr(self, 'frame_width') or not hasattr(self, 'frame_height'):
+            logger.warning("SuddenPass: Video properties not set, skipping")
+            return openlabel_data
+
+        object_frame_map = defaultdict(list)
+
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            frame_objects = frame_data.get("objects", {})
+
+            for obj_id_str in frame_objects.keys():
+                object_frame_map[obj_id_str].append(frame_idx)
+
+        frame_indices = sorted([int(f) for f in frames.keys()])
+        if not frame_indices:
+            return openlabel_data
+
+        first_frame = frame_indices[0]
+        last_frame = frame_indices[-1]
+
+        for obj_id, frame_list in object_frame_map.items():
+            frame_list_sorted = sorted(frame_list)
+
+            sudden_appear_frames = []
+            sudden_disappear_frames = []
+
+            for i, frame_idx in enumerate(frame_list_sorted):
+                if frame_idx == first_frame:
+                    continue
+
+                is_first_appearance = (i == 0)
+                is_last_appearance = (i == len(frame_list_sorted) - 1)
+
+                frame_str = str(frame_idx)
+                frame_obj = frames[frame_str]["objects"][obj_id]
+                rbbox = frame_obj["object_data"]["rbbox"][0]["val"]
+                x, y, w, h, r = rbbox
+
+                is_near_edge = self._is_near_edge(x, y, w, h)
+
+                if is_first_appearance and frame_idx != first_frame and is_near_edge:
+                    sudden_appear_frames.append(frame_idx)
+                    self.sudden_appear_count += 1
+
+                if is_last_appearance and frame_idx != last_frame and is_near_edge:
+                    sudden_disappear_frames.append(frame_idx)
+                    self.sudden_disappear_count += 1
+
+            if sudden_appear_frames or sudden_disappear_frames:
+                self.objects_with_events.add(obj_id)
+
+                if obj_id not in objects:
+                    continue
+
+                if "object_data" not in objects[obj_id]:
+                    objects[obj_id]["object_data"] = {}
+
+                if "vec" not in objects[obj_id]["object_data"]:
+                    objects[obj_id]["object_data"]["vec"] = []
+
+                vec_list = objects[obj_id]["object_data"]["vec"]
+
+                if sudden_appear_frames:
+                    vec_list.append({
+                        "name": "suddenappear",
+                        "val": sudden_appear_frames
+                    })
+
+                if sudden_disappear_frames:
+                    vec_list.append({
+                        "name": "suddendisappear",
+                        "val": sudden_disappear_frames
+                    })
+
+        return openlabel_data
+
+    def _is_near_edge(self, x: float, y: float, w: float, h: float) -> bool:
+        """Check if bounding box is near frame edge.
+
+        Args:
+            x: Center x coordinate
+            y: Center y coordinate
+            w: Width
+            h: Height
+
+        Returns:
+            True if any part of bbox is within edge_distance of frame edge
+        """
+        x_min = x - w / 2
+        x_max = x + w / 2
+        y_min = y - h / 2
+        y_max = y + h / 2
+
+        near_left = x_min < self.edge_distance
+        near_right = x_max > (self.frame_width - self.edge_distance)
+        near_top = y_min < self.edge_distance
+        near_bottom = y_max > (self.frame_height - self.edge_distance)
+
+        return near_left or near_right or near_top or near_bottom
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get sudden event statistics.
+
+        Returns:
+            Dictionary with sudden event statistics
+        """
+        return {
+            'objects_with_events': len(self.objects_with_events),
+            'sudden_appear_count': self.sudden_appear_count,
+            'sudden_disappear_count': self.sudden_disappear_count
+        }
+
+
+class FrameIntervalPass(PostprocessingPass):
+    """Add frame_intervals to objects based on their frame appearances."""
+
+    def __init__(self):
+        self.intervals_added = 0
+        self.intervals_skipped_existing = 0
+        self.intervals_skipped_no_frames = 0
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Add frame_intervals to objects based on frame appearances.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Modified OpenLabel data with frame_intervals added
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+        objects = openlabel_data.get("openlabel", {}).get("objects", {})
+
+        object_frame_map = defaultdict(list)
+
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            frame_objects = frame_data.get("objects", {})
+
+            for obj_id_str in frame_objects.keys():
+                object_frame_map[obj_id_str].append(frame_idx)
+
+        for obj_id, obj_data in objects.items():
+            if "frame_intervals" in obj_data:
+                self.intervals_skipped_existing += 1
+                continue
+
+            if obj_id not in object_frame_map or len(object_frame_map[obj_id]) == 0:
+                self.intervals_skipped_no_frames += 1
+                continue
+
+            frame_list = sorted(object_frame_map[obj_id])
+            frame_start = frame_list[0]
+            frame_end = frame_list[-1]
+
+            obj_data["frame_intervals"] = [
+                {
+                    "frame_start": frame_start,
+                    "frame_end": frame_end
+                }
+            ]
+            self.intervals_added += 1
+
+        return openlabel_data
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get frame interval addition statistics.
+
+        Returns:
+            Dictionary with frame interval statistics
+        """
+        return {
+            'intervals_added': self.intervals_added,
+            'intervals_skipped_existing': self.intervals_skipped_existing,
+            'intervals_skipped_no_frames': self.intervals_skipped_no_frames
+        }
