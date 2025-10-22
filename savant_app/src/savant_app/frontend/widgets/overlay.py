@@ -19,6 +19,7 @@ class Overlay(QWidget):
     boxMoved = pyqtSignal(str, float, float)  # (object_id, x, y)
     boxResized = pyqtSignal(str, float, float, float, float)  # (object_id, x, y, w, h)
     boxRotated = pyqtSignal(str, float)  # (object_id, rotation)
+    # Object used here to allow for None types to be passed.
     bounding_box_selected = pyqtSignal(object)  # (object_id)
     deletePressed = pyqtSignal()
 
@@ -148,7 +149,7 @@ class Overlay(QWidget):
         if not self._interactive or ev.button() != Qt.MouseButton.LeftButton:
             return super().mousePressEvent(ev)
 
-        idx, mode = self._hit_test(ev.position())
+        idx, mode = self.hit_test(ev.position())
 
         if idx is None:
             self._selected_idx = None
@@ -188,7 +189,7 @@ class Overlay(QWidget):
             return super().mouseMoveEvent(ev)
 
         if self._drag_mode is None:
-            idx, mode = self._hit_test(ev.position())
+            idx, mode = self.hit_test(ev.position())
             if idx != self._hover_idx or mode != self._hover_mode:
                 self._hover_idx, self._hover_mode = idx, mode
                 self.update()
@@ -358,7 +359,7 @@ class Overlay(QWidget):
         else:
             return Qt.CursorShape.SizeBDiagCursor
 
-    def _hit_test(self, pos_disp):
+    def hit_test(self, pos_disp):
         """
         Return (box_index, mode) where mode in {"move","N","S","E","W","R"}; or (None,None).
         DISPLAY-space hit-test that matches paintEvent exactly, including _theta_is_clockwise.

@@ -371,11 +371,12 @@ class AnnotationService:
         If the tag has no intervals left, remove the tag entry.
         Returns True if something was removed.
         """
-        ol = self.project_state.annotation_config
-        if not ol or not ol.actions or tag_name not in ol.actions:
+        openlabel_config = self.project_state.annotation_config
+        if (not openlabel_config or not openlabel_config.actions or
+                tag_name not in openlabel_config.actions):
             return False
 
-        action = ol.actions[tag_name]
+        action = openlabel_config.actions[tag_name]
         intervals = list(getattr(action, "frame_intervals", []) or [])
         new_intervals = [
             iv
@@ -391,9 +392,9 @@ class AnnotationService:
         if new_intervals:
             action.frame_intervals = new_intervals
         else:
-            del ol.actions[tag_name]
-            if not ol.actions:
-                ol.actions = None
+            del openlabel_config.actions[tag_name]
+            if not openlabel_config.actions:
+                openlabel_config.actions = None
         return True
 
     def delete_bboxes_by_object(
@@ -415,36 +416,36 @@ class AnnotationService:
         return out
 
     def get_object_metadata(self, object_id: str) -> dict:
-        ol = self.project_state.annotation_config
-        if not ol or object_id not in ol.objects:
+        openlabel_config = self.project_state.annotation_config
+        if not openlabel_config or object_id not in openlabel_config.objects:
             raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
-        meta = ol.objects[object_id]
+        meta = openlabel_config.objects[object_id]
         return {"id": object_id, "name": meta.name, "type": meta.type}
 
     def update_object_name(self, object_id: str, new_name: str) -> None:
         new_name = (new_name or "").strip()
         if not new_name:
             raise InvalidInputError("Name cannot be empty.")
-        ol = self.project_state.annotation_config
-        if not ol or object_id not in ol.objects:
+        openlabel_config = self.project_state.annotation_config
+        if not openlabel_config or object_id not in openlabel_config.objects:
             raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
-        ol.objects[object_id].name = new_name
+        openlabel_config.objects[object_id].name = new_name
 
     def update_object_type(self, object_id: str, new_type: str) -> None:
-        ol = self.project_state.annotation_config
-        if not ol or object_id not in ol.objects:
+        openlabel_config = self.project_state.annotation_config
+        if not openlabel_config or object_id not in openlabel_config.objects:
             raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
 
         allowed = self.bbox_types()
         allowed_set = set(allowed.get("DynamicObject", [])) | set(allowed.get("StaticObject", []))
-        wanted_lc = (new_type or "").strip().lower()
+        target_type_lower = (new_type or "").strip().lower()
         canonical = None
         for type in allowed_set:
-            if type.lower() == wanted_lc:
+            if type.lower() == target_type_lower:
                 canonical = type
                 break
 
         if canonical is None:
             raise InvalidInputError(f"Unsupported type '{new_type}' (not in ontology).")
 
-        ol.objects[object_id].type = canonical
+        openlabel_config.objects[object_id].type = canonical

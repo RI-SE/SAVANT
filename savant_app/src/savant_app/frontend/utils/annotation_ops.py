@@ -71,10 +71,6 @@ def highlight_active_obj_list(main_window, object_id: str):
         main_window.sidebar.active_objects.clearSelection()
         main_window.sidebar.hide_object_editor()
 
-    # We already do this in the init, doing it here just stacks duplicate connections
-    # every time a selection is made.
-    # main_window.overlay.boxRotated.connect(lambda i, r: _rotated(main_window, i, r))
-
 
 def on_new_object_bbox(main_window, object_type: str):
     """Enter drawing mode for a NEW object of given type."""
@@ -241,7 +237,7 @@ def _install_overlay_context_menu(main_window):
 def _on_overlay_context_menu(main_window, click_position):
     """Handle right-clicks on the overlay and show a context menu for bbox actions."""
     overlay_widget = main_window.overlay
-    bbox_index, _ = overlay_widget._hit_test(click_position)
+    bbox_index, _ = overlay_widget.hit_test(click_position)
 
     if bbox_index is None:
         return

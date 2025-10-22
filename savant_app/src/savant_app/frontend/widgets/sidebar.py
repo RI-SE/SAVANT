@@ -149,10 +149,10 @@ class Sidebar(QWidget):
 
         self.setLayout(main_layout)
         try:
-            cur = int(self.video_controller.current_index())
+            current_index = int(self.video_controller.current_index())
         except Exception:
-            cur = 0
-        self._refresh_active_frame_tags(cur)
+            current_index = 0
+        self._refresh_active_frame_tags(current_index)
 
     def _extract_object_id_from_text(self, text: str) -> str:
         """Extract object ID from list item text in format 'Type (ID: 123)'"""
@@ -359,17 +359,17 @@ class Sidebar(QWidget):
         except Exception:
             total = 0
         try:
-            cur = max(0, int(self.video_controller.current_index()))
+            current_index = max(0, int(self.video_controller.current_index()))
         except Exception:
-            cur = 0
+            current_index = 0
 
         try:
             offset = max(0, int(get_action_interval_offset()))
         except Exception:
             offset = 0
 
-        start_default = max(0, cur - offset)
-        end_default = cur + offset
+        start_default = max(0, current_index - offset)
+        end_default = current_index + offset
         if total > 0:
             end_default = min(total - 1, end_default)
 
@@ -406,10 +406,10 @@ class Sidebar(QWidget):
         try:
             self.annotation_controller.add_frame_tag(tag, start, end)
             try:
-                cur_now = int(self.video_controller.current_index())
+                current_index = int(self.video_controller.current_index())
             except Exception:
-                cur_now = 0
-            self._refresh_active_frame_tags(cur_now)
+                current_index = 0
+            self._refresh_active_frame_tags(current_index)
             QMessageBox.information(self, "Tag added", f"{tag}: {start} → {end}")
         except Exception as e:
             QMessageBox.critical(self, "Failed to add tag", str(e))
@@ -476,12 +476,12 @@ class Sidebar(QWidget):
                 item.setFont(f)
 
         add_separator("— DynamicObject —")
-        for lbl in types.get("DynamicObject", []):
-            type_combo.addItem(lbl.lower())
+        for label in types.get("DynamicObject", []):
+            type_combo.addItem(label.lower())
 
         add_separator("— StaticObject —")
-        for lbl in types.get("StaticObject", []):
-            type_combo.addItem(lbl.lower())
+        for label in types.get("StaticObject", []):
+            type_combo.addItem(label.lower())
 
         type_combo.blockSignals(False)
 
@@ -519,8 +519,8 @@ class Sidebar(QWidget):
         if not self.annotation_controller.remove_frame_tag(tag, start, end):
             QMessageBox.information(self, "Delete Frame Tag", "Nothing was deleted.")
             return
-        cur = int(self.video_controller.current_index())
-        self._refresh_active_frame_tags(cur)
+        current_index = int(self.video_controller.current_index())
+        self._refresh_active_frame_tags(current_index)
 
     def show_object_editor(self, object_id: str, *, expand: bool) -> None:
         """
@@ -600,11 +600,11 @@ class Sidebar(QWidget):
     def _refresh_active_objects_after_edit(self):
         """Reloads Active Objects list to reflect edited metadata."""
 
-        cur = int(self.video_controller.current_index())
+        current_index = int(self.video_controller.current_index())
 
         with QSignalBlocker(self.active_objects):
             self.active_objects.clear()
-            active = self.annotation_controller.get_active_objects(cur)
+            active = self.annotation_controller.get_active_objects(current_index)
             for item in active:
                 obj_name = item["name"]
                 obj_type = (item["type"] or "").lower()
