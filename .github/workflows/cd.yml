@@ -33,8 +33,8 @@ jobs:
             ADD_DATA="frontend/assets;assets"
             OUTPUT="SAVANT-windows.exe"
           elif [ "${{ runner.os }}" = "macOS" ]; then
-            ADD_DATA="frontend/assets:assets"
-            OUTPUT="SAVANT-macos"
+            #ADD_DATA="frontend/assets:assets"
+            #OUTPUT="SAVANT-macos"
           else
             ADD_DATA="frontend/assets:assets"
             OUTPUT="SAVANT-linux"
@@ -68,11 +68,11 @@ jobs:
           name: SAVANT-windows-latest
           path: ./artifacts/windows
 
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: SAVANT-macos-latest
-          path: ./artifacts/macos
+      #- name: Download macOS artifact
+      #  uses: actions/download-artifact@v4
+      #  with:
+      #    name: SAVANT-macos-latest
+      #    path: ./artifacts/macos
 
       # Create GitHub Release with all artifacts
       - name: Create GitHub Release

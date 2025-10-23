@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QFileDialog,
     QMessageBox,
+    QGroupBox,
 )
 from savant_app.frontend.utils.settings_store import (
     get_ontology_path,
@@ -25,12 +26,13 @@ from savant_app.frontend.utils.settings_store import (
     set_action_interval_offset,
     set_ontology_path,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from pathlib import Path
-from PyQt6.QtWidgets import QGroupBox
 
 
 class SettingsDialog(QDialog):
+    ontology_path_selected = pyqtSignal(str)
+
     def __init__(
         self,
         *,
@@ -243,6 +245,7 @@ class SettingsDialog(QDialog):
         QMessageBox.information(
             self, "Ontology Updated", "Frame tag ontology file has been updated."
         )
+        self.ontology_path_selected.emit(str(get_ontology_path()))
 
     def _on_offset_changed(self, value: int) -> None:
         try:

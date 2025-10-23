@@ -2,6 +2,7 @@ from savant_app.services.annotation_service import AnnotationService
 from savant_app.models.OpenLabel import RotatedBBox
 from typing import Optional
 from savant_app.models.OpenLabel import FrameLevelObject
+from typing import Union
 from .error_handler_middleware import error_handler
 
 
@@ -39,15 +40,15 @@ class AnnotationController:
     @error_handler
     def move_resize_bbox(
         self,
-        frame_key: int | str,
-        object_key: int | str,
+        frame_key: Union[int, str],
+        object_key: Union[int, str],
         *,
         bbox_index: int = 0,
-        x_center: float | None = None,
-        y_center: float | None = None,
-        width: float | None = None,
-        height: float | None = None,
-        rotation: float | None = None,
+        x_center: Optional[float] = None,
+        y_center: Optional[float] = None,
+        width: Optional[float] = None,
+        height: Optional[float] = None,
+        rotation: Optional[float] = None,
         delta_x: float = 0.0,
         delta_y: float = 0.0,
         delta_w: float = 0.0,
@@ -58,7 +59,10 @@ class AnnotationController:
     ) -> RotatedBBox:
         """
         UI-level update for bbox geometry; delegates to the service.
+        Handles cascade mode if enabled.
         """
+
+        # Update current frame
         return self.annotation_service.move_resize_bbox(
             frame_key=frame_key,
             object_key=object_key,
@@ -75,6 +79,28 @@ class AnnotationController:
             delta_theta=delta_theta,
             min_width=min_width,
             min_height=min_height,
+        )
+
+    @error_handler
+    def cascade_bbox_edit(
+        self,
+        frame_start: int,
+        object_key: Union[int, str],
+        frame_end: Optional[int],
+        width: Optional[float] = None,
+        height: Optional[float] = None,
+        rotation: Optional[float] = None,
+    ) -> Optional[RotatedBBox]:
+        """
+        Cascade resize/rotation to all frames containing the object starting from frame_start.
+        """
+        return self.annotation_service.cascade_bbox_edit(
+            frame_start=int(frame_start),  # Start from next frame
+            frame_end=frame_end,
+            object_key=object_key,
+            width=width,
+            height=height,
+            rotation=rotation,
         )
 
     @error_handler
@@ -160,3 +186,15 @@ class AnnotationController:
         self, object_key: str
     ) -> list[tuple[int, FrameLevelObject]]:
         return self.annotation_service.delete_bboxes_by_object(object_key)
+
+    @error_handler
+    def get_object_metadata(self, object_id: str) -> dict:
+        return self.annotation_service.get_object_metadata(object_id)
+
+    @error_handler
+    def update_object_name(self, object_id: str, new_name: str) -> None:
+        self.annotation_service.update_object_name(object_id, new_name)
+
+    @error_handler
+    def update_object_type(self, object_id: str, new_type: str) -> None:
+        self.annotation_service.update_object_type(object_id, new_type)
