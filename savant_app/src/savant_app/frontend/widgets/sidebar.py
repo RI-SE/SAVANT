@@ -269,8 +269,15 @@ class Sidebar(QWidget):
         new_obj_bbox_btn = QComboBox()
         new_obj_bbox_btn.setPlaceholderText("Select new object type")
         types = self.annotation_controller.allowed_bbox_types()
-        labels = types.get("DynamicObject", []) + types.get("StaticObject", [])
-        new_obj_bbox_btn.addItems(labels)
+        self._add_combo_separator(new_obj_bbox_btn, "— DynamicObject —")
+        for label in types.get("DynamicObject", []):
+            new_obj_bbox_btn.addItem(label)
+
+        self._add_combo_separator(new_obj_bbox_btn, "— StaticObject —")
+        for label in types.get("StaticObject", []):
+            new_obj_bbox_btn.addItem(label)
+
+        new_obj_bbox_btn.setCurrentIndex(-1)
 
         new_obj_bbox_btn.currentTextChanged.connect(
             lambda text: self.start_bbox_drawing.emit(text)
@@ -452,6 +459,35 @@ class Sidebar(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, (tag, int(start), int(end)))
             self.frame_tag_list.addItem(item)
 
+    def _add_combo_separator(self, combo: QComboBox, text: str) -> None:
+        """Insert a disabled, italic separator item into a combo box."""
+        combo.addItem(text)
+        idx = combo.count() - 1
+        item = combo.model().item(idx)
+        if item is None:
+            return
+        item.setEnabled(False)
+        item.setSelectable(False)
+        font = item.font() or QFont()
+        font.setItalic(True)
+        item.setFont(font)
+
+    def reload_bbox_type_combo(self, _: object | None = None) -> None:
+        """Repopulate the type combo after the ontology path changes."""
+        if not hasattr(self, "_details_type_combo") or self._details_type_combo is None:
+            return
+
+        current_text = self._details_type_combo.currentText()
+        self._populate_bbox_type_combo_grouped(self._details_type_combo)
+
+        if current_text and not current_text.strip().startswith("—"):
+            for idx in range(self._details_type_combo.count()):
+                if (
+                    self._details_type_combo.itemText(idx) or ""
+                ).lower() == current_text.lower():
+                    self._details_type_combo.setCurrentIndex(idx)
+                    break
+
     def _populate_bbox_type_combo_grouped(self, type_combo) -> None:
         """
         Group bbox types by ontology category in the combo box.
@@ -467,22 +503,11 @@ class Sidebar(QWidget):
         type_combo.blockSignals(True)
         type_combo.clear()
 
-        def add_separator(text: str):
-            type_combo.addItem(text)
-            idx = type_combo.count() - 1
-            item = type_combo.model().item(idx)
-            if item:
-                item.setEnabled(False)
-                item.setSelectable(False)
-                f = item.font() or QFont()
-                f.setItalic(True)
-                item.setFont(f)
-
-        add_separator("— DynamicObject —")
+        self._add_combo_separator(type_combo, "— DynamicObject —")
         for label in types.get("DynamicObject", []):
             type_combo.addItem(label.lower())
 
-        add_separator("— StaticObject —")
+        self._add_combo_separator(type_combo, "— StaticObject —")
         for label in types.get("StaticObject", []):
             type_combo.addItem(label.lower())
 
