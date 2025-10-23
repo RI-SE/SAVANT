@@ -8,7 +8,9 @@ from savant_app.services.project_state import ProjectState
 from savant_app.controllers.video_controller import VideoController
 from savant_app.services.video_reader import VideoReader
 from savant_app.global_exception_handler import exception_hook
+from savant_app.frontend.theme.menu_styler import install_menu_styler
 from savant_app.logger_config import setup_logger
+
 
 if __name__ == "__main__":
 
@@ -17,6 +19,7 @@ if __name__ == "__main__":
     # Initialize centralized state and PYQT widgets
     project_state = ProjectState()
     app = QApplication(sys.argv)
+    install_menu_styler(app)
 
     # Initialize services
     video_service = VideoReader(project_state)
@@ -39,6 +42,7 @@ if __name__ == "__main__":
         annotation_controller=annotation_controller,
     )
     window.show()
+    print("SS len:", len(QApplication.instance().styleSheet()))
 
     sys.excepthook = exception_hook
 
