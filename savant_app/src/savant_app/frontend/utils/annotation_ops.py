@@ -142,7 +142,6 @@ def delete_selected_bbox(main_window):
     main_window.overlay.clear_selection()
     refresh_frame(main_window)
 
-
 def undo_delete(main_window):
     """Restore the last deletion (single bbox or batch cascade) and show a summary."""
     _ensure_undo_stack(main_window)
@@ -246,11 +245,10 @@ def _rotated(main_window, object_id: str, width: float, height: float, rotation:
     refresh_frame(main_window)
 
 
-def _frames_to_ranges(frames):
+def _frames_to_ranges(frames: list[int]) -> str:
     """Convert a list of frame numbers into contiguous ranges as a string."""
     if not frames:
         return ""
-    frames = sorted(frames)
     ranges = []
     start = prev = frames[0]
     for f in frames[1:]:
