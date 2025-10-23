@@ -23,10 +23,13 @@ Advanced Training Parameters (optional - uses YOLO defaults if not specified):
     --lr0              Initial learning rate (default: 0.01)
     --lrf              Final learning rate as fraction of lr0 (default: 0.01)
     --optimizer        Optimizer: SGD, Adam, AdamW, NAdam, RAdam, RMSProp (default: auto)
+    --warmup-epochs    Number of warmup epochs (default: 3.0)
+    --warmup-momentum  Warmup initial momentum (default: 0.8)
     --patience         Early stopping patience in epochs (default: 50)
     --cache            Cache images: true, false, ram, disk (default: false)
     --workers          Number of dataloader workers (default: 8)
     --close-mosaic     Disable mosaic in final N epochs (default: 10)
+    --freeze           Freeze first N layers for transfer learning (default: None)
     --box              Box loss gain weight (default: 7.5 for OBB)
     --cls              Class loss gain weight (default: 0.5)
     --dfl              Distribution focal loss gain (default: 1.5)
@@ -38,6 +41,8 @@ Augmentation Parameters (optional - uses YOLO defaults if not specified):
     --degrees          Rotation augmentation in degrees (default: 0.0)
     --translate        Translation augmentation as fraction (default: 0.1)
     --scale            Scaling augmentation gain (default: 0.5)
+    --shear            Shear augmentation in degrees (default: 0.0)
+    --perspective      Perspective augmentation (default: 0.0)
     --fliplr           Horizontal flip probability (default: 0.5)
     --mosaic           Mosaic augmentation probability (default: 1.0)
     --mixup            Mixup augmentation probability (default: 0.0)
@@ -55,6 +60,15 @@ Examples:
     # Custom augmentation settings
     python train_yolo_obb.py --data UAV.yaml --degrees 10 --scale 0.8 --mosaic 0.8
 
+    # Advanced augmentation with perspective and shear
+    python train_yolo_obb.py --data UAV.yaml --perspective 0.0001 --shear 2.0 --degrees 15
+
+    # Custom warmup settings
+    python train_yolo_obb.py --data UAV.yaml --warmup-epochs 5.0 --warmup-momentum 0.9
+
+    # Transfer learning - freeze backbone layers
+    python train_yolo_obb.py --data UAV.yaml --freeze 10
+
     # Resume training
     python train_yolo_obb.py --data UAV.yaml --resume
 """
@@ -68,6 +82,7 @@ from typing import Optional
 
 try:
     from ultralytics import YOLO
+    import ultralytics.utils as ultralytics_utils
 except ImportError:
     print("Error: ultralytics package not found. Please install it:")
     print("pip install ultralytics")
@@ -115,10 +130,13 @@ class YOLOTrainingConfig:
         self.lr0 = args.lr0
         self.lrf = args.lrf
         self.optimizer = args.optimizer
+        self.warmup_epochs = args.warmup_epochs
+        self.warmup_momentum = args.warmup_momentum
         self.patience = args.patience
         self.cache = self._parse_cache(args.cache)
         self.workers = args.workers
         self.close_mosaic = args.close_mosaic
+        self.freeze = args.freeze
         self.box = args.box
         self.cls = args.cls
         self.dfl = args.dfl
@@ -128,6 +146,8 @@ class YOLOTrainingConfig:
         self.degrees = args.degrees
         self.translate = args.translate
         self.scale = args.scale
+        self.shear = args.shear
+        self.perspective = args.perspective
         self.fliplr = args.fliplr
         self.mosaic = args.mosaic
         self.mixup = args.mixup
@@ -233,6 +253,10 @@ class YOLOTrainer:
             advanced_params.append(f"Final LR fraction (lrf): {self.config.lrf}")
         if self.config.optimizer is not None:
             advanced_params.append(f"Optimizer: {self.config.optimizer}")
+        if self.config.warmup_epochs is not None:
+            advanced_params.append(f"Warmup epochs: {self.config.warmup_epochs}")
+        if self.config.warmup_momentum is not None:
+            advanced_params.append(f"Warmup momentum: {self.config.warmup_momentum}")
         if self.config.patience is not None:
             advanced_params.append(f"Patience: {self.config.patience}")
         if self.config.cache is not None:
@@ -241,6 +265,8 @@ class YOLOTrainer:
             advanced_params.append(f"Workers: {self.config.workers}")
         if self.config.close_mosaic is not None:
             advanced_params.append(f"Close mosaic: {self.config.close_mosaic}")
+        if self.config.freeze is not None:
+            advanced_params.append(f"Freeze layers: {self.config.freeze}")
         if self.config.box is not None:
             advanced_params.append(f"Box loss: {self.config.box}")
         if self.config.cls is not None:
@@ -262,6 +288,10 @@ class YOLOTrainer:
             aug_params.append(f"Translate: {self.config.translate}")
         if self.config.scale is not None:
             aug_params.append(f"Scale: {self.config.scale}")
+        if self.config.shear is not None:
+            aug_params.append(f"Shear: {self.config.shear}")
+        if self.config.perspective is not None:
+            aug_params.append(f"Perspective: {self.config.perspective}")
         if self.config.fliplr is not None:
             aug_params.append(f"FlipLR: {self.config.fliplr}")
         if self.config.mosaic is not None:
@@ -303,6 +333,7 @@ class YOLOTrainer:
                 'device': self.config.device,
                 'project': self.config.project,
                 'name': self.config.name,
+                'verbose': self.config.verbose,  # Control YOLO's verbose output
             }
 
             # Add resume if specified
@@ -315,10 +346,13 @@ class YOLOTrainer:
                 'lr0': self.config.lr0,
                 'lrf': self.config.lrf,
                 'optimizer': self.config.optimizer,
+                'warmup_epochs': self.config.warmup_epochs,
+                'warmup_momentum': self.config.warmup_momentum,
                 'patience': self.config.patience,
                 'cache': self.config.cache,
                 'workers': self.config.workers,
                 'close_mosaic': self.config.close_mosaic,
+                'freeze': self.config.freeze,
                 'box': self.config.box,
                 'cls': self.config.cls,
                 'dfl': self.config.dfl,
@@ -328,6 +362,8 @@ class YOLOTrainer:
                 'degrees': self.config.degrees,
                 'translate': self.config.translate,
                 'scale': self.config.scale,
+                'shear': self.config.shear,
+                'perspective': self.config.perspective,
                 'fliplr': self.config.fliplr,
                 'mosaic': self.config.mosaic,
                 'mixup': self.config.mixup,
@@ -387,11 +423,12 @@ class YOLOTrainer:
 
 
 def setup_logging(verbose: bool = False) -> None:
-    """Setup logging configuration.
-    
+    """Setup logging configuration for both script and YOLO.
+
     Args:
         verbose: Enable debug level logging
     """
+    # Configure script logging
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,
@@ -400,6 +437,16 @@ def setup_logging(verbose: bool = False) -> None:
             logging.StreamHandler()
         ]
     )
+
+    # Configure Ultralytics/YOLO logging
+    # When verbose=False (default), suppress YOLO progress bars and info messages
+    # When verbose=True, allow full YOLO output
+    if not verbose:
+        ultralytics_utils.LOGGER.setLevel(logging.WARNING)
+        logger.info("YOLO output suppressed (use --verbose to enable)")
+    else:
+        ultralytics_utils.LOGGER.setLevel(logging.INFO)
+        logger.info("YOLO verbose output enabled")
 
 
 def get_default_device() -> str:
@@ -448,6 +495,15 @@ Examples:
   # Custom augmentation for better generalization
   python train_yolo_obb.py --data UAV.yaml --degrees 15 --scale 0.8 --mosaic 0.8 --mixup 0.1
 
+  # Advanced augmentation with perspective and shear
+  python train_yolo_obb.py --data UAV.yaml --perspective 0.0001 --shear 2.0 --degrees 15
+
+  # Custom warmup for smoother training start
+  python train_yolo_obb.py --data UAV.yaml --warmup-epochs 5.0 --warmup-momentum 0.9
+
+  # Transfer learning - freeze backbone layers
+  python train_yolo_obb.py --data UAV.yaml --freeze 10
+
   # Resume previous training
   python train_yolo_obb.py --data UAV.yaml --resume
 
@@ -494,6 +550,10 @@ Examples:
     parser.add_argument("--optimizer", type=str, default=None,
                        choices=['SGD', 'Adam', 'AdamW', 'NAdam', 'RAdam', 'RMSProp'],
                        help="Optimizer choice (YOLO default: auto)")
+    parser.add_argument("--warmup-epochs", type=float, default=None,
+                       help="Number of warmup epochs (YOLO default: 3.0)")
+    parser.add_argument("--warmup-momentum", type=float, default=None,
+                       help="Warmup initial momentum (YOLO default: 0.8)")
     parser.add_argument("--patience", type=int, default=None,
                        help="Early stopping patience in epochs (YOLO default: 50)")
     parser.add_argument("--cache", type=str, default=None,
@@ -503,6 +563,8 @@ Examples:
                        help="Number of dataloader worker threads (YOLO default: 8)")
     parser.add_argument("--close-mosaic", type=int, default=None,
                        help="Disable mosaic augmentation in final N epochs (YOLO default: 10)")
+    parser.add_argument("--freeze", type=int, default=None,
+                       help="Freeze first N layers for transfer learning (YOLO default: None)")
     parser.add_argument("--box", type=float, default=None,
                        help="Box loss gain weight (YOLO default: 7.5 for OBB)")
     parser.add_argument("--cls", type=float, default=None,
@@ -521,6 +583,10 @@ Examples:
                        help="Translation augmentation as fraction (YOLO default: 0.1)")
     parser.add_argument("--scale", type=float, default=None,
                        help="Scaling augmentation gain (YOLO default: 0.5)")
+    parser.add_argument("--shear", type=float, default=None,
+                       help="Shear augmentation in degrees (YOLO default: 0.0)")
+    parser.add_argument("--perspective", type=float, default=None,
+                       help="Perspective augmentation (YOLO default: 0.0)")
     parser.add_argument("--fliplr", type=float, default=None,
                        help="Horizontal flip probability (YOLO default: 0.5)")
     parser.add_argument("--mosaic", type=float, default=None,
