@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 
 from ..config import Constants, ConflictResolutionConfig, DetectionResult, MarkitConfig
-from .engines import YOLOEngine, OpticalFlowEngine
+from .engines import YOLOEngine, OpticalFlowEngine, ArUcoEngine
 from .conflict_resolution import DetectionConflictResolver
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,8 @@ class VideoProcessor:
             self.engines.append(YOLOEngine(config.weights_path))
         if config.use_optical_flow:
             self.engines.append(OpticalFlowEngine(config.optical_flow_params))
+        if config.use_aruco:
+            self.engines.append(ArUcoEngine(config.aruco_csv_path, config.aruco_class_id))
 
         # Initialize conflict resolver if multiple engines and conflict resolution enabled
         if len(self.engines) > 1 and config.enable_conflict_resolution:
@@ -193,6 +195,7 @@ class FrameAnnotator:
         color_map = {
             'yolo': (0, 255, 0),  # Green
             'optical_flow': (255, 0, 0),  # Blue
+            'aruco': (0, 165, 255),  # Orange
         }
 
         for detection in detection_results:

@@ -1,12 +1,14 @@
 """
 engines - Object detection engines
 
-Contains YOLO, optical flow, and background subtraction detection engines.
+Contains YOLO, optical flow, background subtraction, and ArUco marker detection engines.
 """
 
+import csv
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -399,3 +401,240 @@ class OpticalFlowEngine(BaseDetectionEngine):
         """Clean up optical flow engine resources."""
         self.back_sub = None
         self.prev_gray = None
+
+
+class ArUcoGPSData:
+    """Parses and stores ArUco marker GPS position data from CSV file."""
+
+    def __init__(self, csv_path: str):
+        """Initialize ArUco GPS data parser.
+
+        Args:
+            csv_path: Path to CSV file with ArUco GPS positions
+
+        CSV format:
+            point_name,latitude,longitude,altitude,...
+            aruco_24a,57.74281389447574,12.894721471928605,...
+            aruco_24c,57.74280961617389,12.89475703176673,...
+
+        Naming convention:
+            aruco_<ID><corner> where corner is a, b, c, or d
+            a = bottom-left, b = top-left, c = top-right, d = bottom-right
+        """
+        self.csv_path = Path(csv_path)
+        self.gps_data = {}  # {aruco_id: {corner: {'lat': ..., 'lon': ...}}}
+        self.base_name = self._extract_base_name()
+        self._load_csv()
+
+    def _extract_base_name(self) -> str:
+        """Extract base name from CSV filename (before first underscore).
+
+        Returns:
+            Base name (e.g., 'Zurich' from 'Zurich_markers.csv')
+        """
+        filename = self.csv_path.stem  # Get filename without extension
+        parts = filename.split('_')
+        return parts[0] if parts else filename
+
+    def _load_csv(self) -> None:
+        """Load and parse CSV file."""
+        try:
+            with open(self.csv_path, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    point_name = row.get('point_name', '').strip()
+
+                    # Parse point_name: aruco_24a -> ID=24, corner='a'
+                    if not point_name.startswith('aruco_'):
+                        continue
+
+                    # Extract ID and corner
+                    suffix = point_name[6:]  # Remove 'aruco_' prefix
+                    if not suffix:
+                        continue
+
+                    # Corner is last character (a, b, c, d)
+                    corner = suffix[-1].lower()
+                    if corner not in ['a', 'b', 'c', 'd']:
+                        logger.warning(f"Invalid corner '{corner}' in point_name: {point_name}")
+                        continue
+
+                    # ID is everything before the corner
+                    try:
+                        aruco_id = int(suffix[:-1])
+                    except ValueError:
+                        logger.warning(f"Invalid ArUco ID in point_name: {point_name}")
+                        continue
+
+                    # Extract GPS coordinates
+                    try:
+                        lat = float(row.get('latitude', 0))
+                        lon = float(row.get('longitude', 0))
+                    except (ValueError, TypeError):
+                        logger.warning(f"Invalid GPS coordinates for {point_name}")
+                        continue
+
+                    # Store data
+                    if aruco_id not in self.gps_data:
+                        self.gps_data[aruco_id] = {}
+
+                    self.gps_data[aruco_id][corner] = {
+                        'lat': lat,
+                        'lon': lon
+                    }
+
+            logger.info(f"Loaded GPS data for {len(self.gps_data)} ArUco markers from {self.csv_path}")
+
+        except Exception as e:
+            logger.error(f"Failed to load ArUco GPS CSV: {e}")
+            raise
+
+    def get_gps_data(self, aruco_id: int) -> Dict[str, Dict[str, float]]:
+        """Get GPS data for specific ArUco ID.
+
+        Args:
+            aruco_id: ArUco marker ID
+
+        Returns:
+            Dictionary of corner positions: {corner: {'lat': ..., 'lon': ...}}
+            Empty dict if ID not found
+        """
+        return self.gps_data.get(aruco_id, {})
+
+    def get_object_name(self, aruco_id: int) -> str:
+        """Get OpenLabel object name for ArUco marker.
+
+        Args:
+            aruco_id: ArUco marker ID
+
+        Returns:
+            Object name in format: "BaseName_ID" (e.g., "Zurich_24")
+        """
+        return f"{self.base_name}_{aruco_id}"
+
+
+class ArUcoEngine(BaseDetectionEngine):
+    """ArUco marker detection engine with GPS position integration."""
+
+    def __init__(self, csv_path: str, class_id: int):
+        """Initialize ArUco detection engine.
+
+        Args:
+            csv_path: Path to GPS CSV file with ArUco positions
+            class_id: Class ID for ArUco markers from ontology
+        """
+        self.csv_path = csv_path
+        self.class_id = class_id
+        self.gps_data = None
+        self.aruco_dict = None
+        self.aruco_params = None
+        self.tracker = SimpleTracker(id_offset=2000000)  # Offset to avoid conflicts
+        self._initialize()
+
+    def _initialize(self) -> None:
+        """Initialize ArUco detector and GPS data."""
+        try:
+            # Load GPS data
+            logger.info(f"Loading ArUco GPS data from {self.csv_path}")
+            self.gps_data = ArUcoGPSData(self.csv_path)
+
+            # Initialize ArUco detector with DICT_4X4_50
+            logger.info("Initializing ArUco detector with DICT_4X4_50")
+            self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+            self.aruco_params = cv2.aruco.DetectorParameters()
+
+            logger.info("ArUco detection engine initialized successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize ArUco engine: {e}")
+            raise
+
+    def process_frame(self, frame: np.ndarray) -> List[DetectionResult]:
+        """Process frame to detect ArUco markers.
+
+        Args:
+            frame: Input frame
+
+        Returns:
+            List of ArUco detection results with GPS data
+        """
+        try:
+            results = []
+
+            # Convert to grayscale for better detection
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            # Detect ArUco markers
+            corners, ids, rejected = cv2.aruco.detectMarkers(
+                gray, self.aruco_dict, parameters=self.aruco_params
+            )
+
+            # Process each detected marker
+            if ids is not None:
+                for i, aruco_id in enumerate(ids.flatten()):
+                    aruco_id = int(aruco_id)
+                    marker_corners = corners[i][0]  # Shape: (4, 2)
+
+                    # Get GPS data for this marker (may be empty)
+                    gps_data = self.gps_data.get_gps_data(aruco_id)
+
+                    if not gps_data:
+                        logger.warning(f"ArUco marker {aruco_id} detected but not found in GPS CSV")
+
+                    # Calculate center point
+                    center_x = float(np.mean(marker_corners[:, 0]))
+                    center_y = float(np.mean(marker_corners[:, 1]))
+
+                    # Get or assign tracking ID
+                    obj_id = self.tracker.get_id((center_x, center_y))
+
+                    # Calculate rotation angle from corner positions
+                    # Use vector from bottom-left to bottom-right corner
+                    angle = float(np.arctan2(
+                        marker_corners[1, 1] - marker_corners[0, 1],
+                        marker_corners[1, 0] - marker_corners[0, 0]
+                    ))
+
+                    # Calculate confidence based on corner detection quality
+                    # Use perimeter consistency as quality metric
+                    edge_lengths = []
+                    for j in range(4):
+                        p1 = marker_corners[j]
+                        p2 = marker_corners[(j + 1) % 4]
+                        edge_lengths.append(np.linalg.norm(p2 - p1))
+
+                    # Confidence is higher when edges are more uniform
+                    avg_length = np.mean(edge_lengths)
+                    length_variance = np.var(edge_lengths)
+                    # Normalize variance to 0-1 range and invert (lower variance = higher confidence)
+                    confidence = float(max(0.5, min(1.0, 1.0 - (length_variance / (avg_length ** 2)))))
+
+                    # Create detection result with GPS data attached
+                    detection = DetectionResult(
+                        object_id=obj_id,
+                        class_id=self.class_id,
+                        confidence=confidence,
+                        oriented_bbox=marker_corners.astype(np.float32),
+                        center=(center_x, center_y),
+                        angle=angle,
+                        source_engine='aruco'
+                    )
+
+                    # Attach GPS data and ArUco ID for OpenLabel export
+                    detection.aruco_id = aruco_id
+                    detection.gps_data = gps_data
+                    detection.aruco_name = self.gps_data.get_object_name(aruco_id)
+
+                    results.append(detection)
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Error processing frame with ArUco detector: {e}")
+            return []
+
+    def cleanup(self) -> None:
+        """Clean up ArUco engine resources."""
+        self.aruco_dict = None
+        self.aruco_params = None
+        self.gps_data = None

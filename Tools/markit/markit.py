@@ -18,6 +18,7 @@ Optional Arguments:
     --schema             Path to OpenLabel JSON schema file (default: savant_openlabel_subset.schema.json)
     --ontology           Path to SAVANT ontology file for class mapping (default: savant_ontology_1.2.0.ttl)
     --output_video       Path to output annotated video file (optional)
+    --aruco-csv          Path to CSV file with ArUco marker GPS positions (enables ArUco detection)
 
 Detection Configuration:
     --detection-method   Detection method: yolo, optical_flow, or both (default: yolo)
@@ -111,6 +112,7 @@ Examples:
     parser.add_argument('--output_video', help='Path to output annotated video file (optional)')
     parser.add_argument('--ontology', default='savant_ontology_1.2.0.ttl',
                        help='Path to SAVANT ontology file for class mapping (default: savant_ontology_1.2.0.ttl)')
+    parser.add_argument('--aruco-csv', dest='aruco_csv', help='Path to CSV file with ArUco marker GPS positions (enables ArUco detection)')
 
     # Detection method selection
     parser.add_argument('--detection-method',
@@ -237,6 +239,8 @@ def main():
             engines.append("YOLO")
         if config.use_optical_flow:
             engines.append("OpticalFlow")
+        if config.use_aruco:
+            engines.append("ArUco")
 
         logger.info(f"Markit v{__version__} starting with engines: {', '.join(engines)}")
         if config.enable_conflict_resolution and len(engines) > 1:

@@ -110,35 +110,94 @@ class OpenLabelHandler:
                 # Map source engine to annotator name
                 annotator_map = {
                     'yolo': 'markit_yolo',
-                    'optical_flow': 'markit_oflow'
+                    'optical_flow': 'markit_oflow',
+                    'aruco': 'markit_aruco'
                 }
                 annotator_name = annotator_map.get(detection.source_engine, f"markit_{detection.source_engine}")
 
+                # Check if this is an ArUco marker with GPS data
+                is_aruco = hasattr(detection, 'aruco_id') and hasattr(detection, 'gps_data')
+
                 # Add new object to global objects list if not seen before
                 if obj_id_str not in self.openlabel_data["openlabel"]["objects"]:
-                    self.openlabel_data["openlabel"]["objects"][obj_id_str] = {
-                        "name": f"Object-{obj_id_str}",
-                        "type": class_map.get(detection.class_id, str(detection.class_id)),
-                        "ontology_uid": "0"
-                    }
+                    if is_aruco:
+                        # ArUco marker - use special naming and type
+                        object_name = getattr(detection, 'aruco_name', f"ArUco_{detection.aruco_id}")
+                        self.openlabel_data["openlabel"]["objects"][obj_id_str] = {
+                            "name": object_name,
+                            "type": "ArUco",
+                            "ontology_uid": "0"
+                        }
+                    else:
+                        # Regular detection
+                        self.openlabel_data["openlabel"]["objects"][obj_id_str] = {
+                            "name": f"Object-{obj_id_str}",
+                            "type": class_map.get(detection.class_id, str(detection.class_id)),
+                            "ontology_uid": "0"
+                        }
 
-                # Add object data for this frame (matching original markit.py format exactly)
+                # Build vec data based on detection type
+                vec_data = [
+                    {
+                        "name": "annotator",
+                        "val": [annotator_name]
+                    },
+                    {
+                        "name": "confidence",
+                        "val": [float(detection.confidence)]
+                    }
+                ]
+
+                # Add GPS data for ArUco markers
+                if is_aruco:
+                    gps_data = detection.gps_data
+                    aruco_id = detection.aruco_id
+
+                    # Build corner identifiers and GPS coordinates
+                    corner_ids = []
+                    latitudes = []
+                    longitudes = []
+
+                    # Sort corners alphabetically (a, b, c, d) for consistent output
+                    for corner in sorted(gps_data.keys()):
+                        corner_data = gps_data[corner]
+                        corner_ids.append(f"{aruco_id}{corner}")
+                        latitudes.append(str(corner_data['lat']))
+                        longitudes.append(str(corner_data['lon']))
+
+                    # Add ArUco-specific vectors (only if GPS data exists)
+                    if corner_ids:
+                        vec_data.extend([
+                            {
+                                "name": "arucoID",
+                                "val": corner_ids
+                            },
+                            {
+                                "name": "lat",
+                                "val": latitudes
+                            },
+                            {
+                                "name": "long",
+                                "val": longitudes
+                            }
+                        ])
+
+                        # Add description (base name from CSV filename)
+                        description = getattr(detection, 'aruco_name', '').split('_')[0]
+                        if description:
+                            vec_data.append({
+                                "name": "description",
+                                "val": description
+                            })
+
+                # Add object data for this frame
                 frame_objects[obj_id_str] = {
                     "object_data": {
                         "rbbox": [{
                             "name": "shape",
                             "val": xywhr_formatted
                         }],
-                        "vec": [
-                            {
-                                "name": "annotator",
-                                "val": [annotator_name]
-                            },
-                            {
-                                "name": "confidence",
-                                "val": [float(detection.confidence)]
-                            }
-                        ]
+                        "vec": vec_data
                     }
                 }
 

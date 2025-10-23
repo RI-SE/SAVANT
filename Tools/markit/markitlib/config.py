@@ -81,8 +81,17 @@ class MarkitConfig:
         self.output_video_path = args.output_video
         self.ontology_path = args.ontology
 
+        # ArUco detection configuration
+        self.aruco_csv_path = args.aruco_csv if hasattr(args, 'aruco_csv') else None
+        self.use_aruco = self.aruco_csv_path is not None
+
         # Load class map from ontology if provided, otherwise use default
         self.class_map = self._load_class_map()
+
+        # Get ArUco class ID from ontology (if ArUco detection enabled)
+        self.aruco_class_id = None
+        if self.use_aruco:
+            self.aruco_class_id = self._get_aruco_class_id()
 
         # Detection method configuration
         self.use_yolo = args.detection_method in ['yolo', 'both']
@@ -116,12 +125,14 @@ class MarkitConfig:
         required_files = [self.video_path, self.schema_path]
         if self.use_yolo:
             required_files.append(self.weights_path)
+        if self.use_aruco:
+            required_files.append(self.aruco_csv_path)
 
         for file_path in required_files:
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"Required file not found: {file_path}")
 
-        if not any([self.use_yolo, self.use_optical_flow]):
+        if not any([self.use_yolo, self.use_optical_flow, self.use_aruco]):
             raise ValueError("At least one detection method must be enabled")
 
         # Validate IoU threshold
@@ -167,3 +178,25 @@ class MarkitConfig:
             logger.warning(f"Failed to load ontology: {e}")
             logger.info("Class map source: DEFAULT_CLASS_MAP (fallback)")
             return Constants.DEFAULT_CLASS_MAP.copy()
+
+    def _get_aruco_class_id(self) -> int:
+        """Get class ID for MarkerAruco from ontology.
+
+        Returns:
+            Class ID for ArUco markers
+
+        Raises:
+            ValueError: If MarkerAruco class not found in ontology
+        """
+        logger = logging.getLogger(__name__)
+
+        # Search for MarkerAruco in class_map
+        for class_id, class_name in self.class_map.items():
+            if class_name == "Aruco" or class_name == "MarkerAruco":
+                logger.info(f"Found ArUco class in ontology: ID={class_id}, Name={class_name}")
+                return class_id
+
+        # MarkerAruco not found - log error and raise exception
+        logger.error("MarkerAruco class not found in ontology")
+        logger.error("Please ensure the ontology contains a 'MarkerAruco' class with label 'Aruco'")
+        raise ValueError("MarkerAruco class not found in ontology - ArUco detection cannot proceed")
