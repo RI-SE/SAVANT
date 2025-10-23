@@ -67,14 +67,13 @@ def _toggle_play(main_window):
 def _start(main_window):
     _reset_timer_connection(main_window)
 
-    total = main_window.video_controller.total_frames()
+    total = main_window.project_state_controller.get_frame_count()
     idx = main_window.video_controller.current_index()
     if idx < 0 or (total and idx >= total - 1):
         pixmap, j = main_window.video_controller.jump_to_frame(0)
         show_frame(main_window, pixmap, j)
 
-    fps = 0
-    fps = main_window.video_controller.fps()
+    fps = main_window.project_state_controller.get_fps()
     if not fps or fps <= 0:
         fps = 25
 

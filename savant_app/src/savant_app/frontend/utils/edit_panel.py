@@ -3,8 +3,16 @@ from __future__ import annotations
 from typing import Callable, Dict, Any
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QWidget, QFrame, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QToolButton, QLabel, QLineEdit, QComboBox, QSizePolicy
+    QWidget,
+    QFrame,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
+    QToolButton,
+    QLabel,
+    QLineEdit,
+    QComboBox,
+    QSizePolicy,
 )
 
 
@@ -61,7 +69,9 @@ def create_collapsible_object_details(
     root_v.addWidget(content)
 
     def _on_toggle(checked: bool):
-        toggle.setArrowType(Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow)
+        toggle.setArrowType(
+            Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow
+        )
         content.setVisible(bool(checked))
 
     toggle.toggled.connect(_on_toggle)

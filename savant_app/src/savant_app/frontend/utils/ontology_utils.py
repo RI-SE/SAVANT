@@ -62,7 +62,8 @@ def _get_ontology_path() -> Path:
     path = Path(str(get_ontology_path())).resolve()
     if not path.is_file():
         raise OntologyNotFound(
-            "Ontology file not found, please select an ontology file in settings.")
+            "Ontology file not found, please select an ontology file in settings."
+        )
     return path
 
 

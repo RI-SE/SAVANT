@@ -344,3 +344,45 @@ class OpenLabel(BaseModel):
             # Create empty frame if needed
             self.frames[fkey] = FrameObjects(objects={})
         self.frames[fkey].objects[object_key] = frame_obj
+
+    def get_boxes_with_ids_for_frame(self, frame_idx: int) -> list:
+        """Return bounding boxes for a specific frame.
+
+        Returns:
+            List of tuples containing:
+            (object_id: str, object_type: str,
+             x_center: float, y_center: float,
+             width: float, height: float, rotation: float)
+        """
+        results = []
+        frame_key = str(frame_idx)
+
+        # Check if frame exists
+        if frame_key not in self.frames:
+            return results
+
+        frame = self.frames[frame_key]
+
+        for object_id, frame_obj in frame.objects.items():
+            # Get object metadata
+            metadata = self.objects.get(object_id)
+            object_type = metadata.type if metadata else "unknown"
+
+            for geometry_data in frame_obj.object_data.rbbox:
+                if geometry_data.name != "shape":
+                    continue
+
+                # Extract RotatedBBox values
+                rbbox = geometry_data.val
+                bbox_info = (
+                    object_id,
+                    object_type,
+                    rbbox.x_center,
+                    rbbox.y_center,
+                    rbbox.width,
+                    rbbox.height,
+                    rbbox.rotation,
+                )
+                results.append(bbox_info)
+
+        return results

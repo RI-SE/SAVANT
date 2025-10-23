@@ -22,7 +22,7 @@ if __name__ == "__main__":
     install_menu_styler(app)
 
     # Initialize services
-    video_service = VideoReader()
+    video_service = VideoReader(project_state)
     annotation_service = AnnotationService(project_state)
 
     # Initialize controllers

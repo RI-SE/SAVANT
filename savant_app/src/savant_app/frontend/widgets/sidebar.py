@@ -22,6 +22,7 @@ from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.widgets.settings import get_action_interval_offset
 from savant_app.frontend.utils.settings_store import get_ontology_path
 from savant_app.frontend.exceptions import InvalidObjectIDFormat
+from savant_app.controllers.project_state_controller import ProjectStateController
 from PyQt6.QtGui import QShortcut, QKeySequence
 from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
 from PyQt6.QtGui import QFont
@@ -45,6 +46,7 @@ class Sidebar(QWidget):
         video_actors: list[str],
         annotation_controller: AnnotationController,
         video_controller: VideoController,
+        project_state_controller: ProjectStateController,
         state: SidebarState,
     ):
         super().__init__()
@@ -54,6 +56,7 @@ class Sidebar(QWidget):
         # Temporary controller until refactor.
         self.annotation_controller: AnnotationController = annotation_controller
         self.video_controller: VideoController = video_controller
+        self.project_state_controller: ProjectStateController = project_state_controller
 
         # State for sidebar
         self.state: SidebarState = state
@@ -130,7 +133,9 @@ class Sidebar(QWidget):
         self.active_objects.model().rowsInserted.connect(self.adjust_list_sizes)
         self.active_objects.model().rowsRemoved.connect(self.adjust_list_sizes)
         self.active_objects.itemClicked.connect(self._on_active_object_selected)
-        self.active_objects.itemSelectionChanged.connect(self._on_active_objects_selection_changed)
+        self.active_objects.itemSelectionChanged.connect(
+            self._on_active_objects_selection_changed
+        )
         main_layout.addWidget(self.active_objects)
 
         # --- Active Frame Tags ---
@@ -192,7 +197,9 @@ class Sidebar(QWidget):
             for item in active_objects:
                 obj_id = item["name"]
                 numeric_id = obj_id.split("-")[-1] if "-" in obj_id else obj_id
-                self.active_objects.addItem(f'{item["type"].lower()} (ID: {numeric_id})')
+                self.active_objects.addItem(
+                    f'{item["type"].lower()} (ID: {numeric_id})'
+                )
             self.select_active_object_by_id(self._selected_annotation_object_id)
 
         self.update()
@@ -352,7 +359,9 @@ class Sidebar(QWidget):
     def _open_frame_tag_dialog(self):
         path = get_ontology_path()
         if path is None:
-            QMessageBox.warning(self, "No Ontology", "Set an ontology file in settings first.")
+            QMessageBox.warning(
+                self, "No Ontology", "Set an ontology file in settings first."
+            )
             return
         print(get_ontology_path())
 
@@ -365,7 +374,7 @@ class Sidebar(QWidget):
         form.addRow("Tag:", tag_combo)
 
         try:
-            total = max(0, int(self.video_controller.total_frames()))
+            total = max(0, int(self.project_state_controller.get_frame_count()))
         except Exception:
             total = 0
         try:
@@ -570,7 +579,9 @@ class Sidebar(QWidget):
         try:
             idx = -1
             for i in range(self._details_type_combo.count()):
-                if (self._details_type_combo.itemText(i) or "").lower() == desired_type_lc:
+                if (
+                    self._details_type_combo.itemText(i) or ""
+                ).lower() == desired_type_lc:
                     idx = i
                     break
             self._details_type_combo.setCurrentIndex(idx)
@@ -604,7 +615,9 @@ class Sidebar(QWidget):
         if not new_name:
             QMessageBox.warning(self, "Invalid name", "Name cannot be empty.")
             try:
-                meta = self.annotation_controller.get_object_metadata(self._editing_object_id)
+                meta = self.annotation_controller.get_object_metadata(
+                    self._editing_object_id
+                )
                 self._details_name_edit.blockSignals(True)
                 self._details_name_edit.setText(meta.get("name", "") or "")
             finally:

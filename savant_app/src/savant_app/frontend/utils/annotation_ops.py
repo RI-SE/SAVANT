@@ -1,10 +1,10 @@
 # savant_app/frontend/utils/annotation_ops.py
 from dataclasses import asdict
-from savant_app.frontend.exceptions import MissingObjectIDError
+from savant_app.frontend.exceptions import MissingObjectIDError, InvalidFrameRangeInput
 from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
 from .render import refresh_frame
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QMenu, QMessageBox
+from PyQt6.QtWidgets import QMenu, QMessageBox, QInputDialog
 
 
 def wire(main_window):
@@ -45,13 +45,34 @@ def wire(main_window):
         )
 
     if hasattr(main_window.sidebar, "object_details_changed"):
-        main_window.sidebar.object_details_changed.connect(lambda: refresh_frame(main_window))
+        main_window.sidebar.object_details_changed.connect(
+            lambda: refresh_frame(main_window)
+        )
 
     main_window.overlay.boxMoved.connect(lambda i, x, y: _moved(main_window, i, x, y))
+
     main_window.overlay.boxResized.connect(
-        lambda id, x, y, w, h: _resized(main_window, id, x, y, w, h)
+        lambda id, x, y, w, h, rotation: _resized(main_window, id, x, y, w, h, rotation)
     )
-    main_window.overlay.boxRotated.connect(lambda id, r: _rotated(main_window, id, r))
+    main_window.overlay.boxRotated.connect(
+        lambda id, width, height, rotation: _rotated(
+            main_window, id, width, height, rotation
+        )
+    )
+
+    # Connect cascade signals
+    if hasattr(main_window.overlay, "cascadeApplyAll"):
+        main_window.overlay.cascadeApplyAll.connect(
+            lambda object_id, width, height, rotation: _apply_cascade_all_frames(
+                main_window, object_id, width, height, rotation
+            )
+        )
+    if hasattr(main_window.overlay, "cascadeApplyFrameRange"):
+        main_window.overlay.cascadeApplyFrameRange.connect(
+            lambda object_id, width, height, rotation: _apply_cascade_next_frames(
+                main_window, object_id, width, height, rotation
+            )
+        )
 
     # Keep this here so that right-click works without having to select a bbox first
     _install_overlay_context_menu(main_window)
@@ -204,19 +225,128 @@ def _moved(main_window, object_id: str, x: float, y: float):
     refresh_frame(main_window)
 
 
-def _resized(main_window, object_id: str, x: float, y: float, w: float, h: float):
-    fk = main_window.video_controller.current_index()
+def _resized(
+    main_window,
+    object_id: str,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    rotation: float,
+):
+    frame_key = main_window.video_controller.current_index()
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=fk, object_key=object_id, x_center=x, y_center=y, width=w, height=h
+        frame_key=frame_key,
+        object_key=object_id,
+        x_center=x,
+        y_center=y,
+        width=width,
+        height=height,
     )
     refresh_frame(main_window)
 
 
-def _rotated(main_window, object_id: str, rotation: float):
-    fk = main_window.video_controller.current_index()
+def _rotated(main_window, object_id: str, width: float, height: float, rotation: float):
+    frame_key = main_window.video_controller.current_index()
+
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=fk, object_key=object_id, rotation=rotation
+        frame_key=frame_key, object_key=object_id, rotation=rotation
     )
+    refresh_frame(main_window)
+
+
+def _frames_to_ranges(frames: list[int]) -> str:
+    """Convert a list of frame numbers into contiguous ranges as a string."""
+    if not frames:
+        return ""
+    ranges = []
+    start = prev = frames[0]
+    for f in frames[1:]:
+        if f == prev + 1:
+            prev = f
+        else:
+            ranges.append((start, prev))
+            start = prev = f
+    ranges.append((start, prev))
+    range_strs = [f"{s}-{e}" if s != e else f"{s}" for s, e in ranges]
+    return ", ".join(range_strs)
+
+
+def _apply_cascade_all_frames(
+    main_window,
+    object_id: str,
+    new_width: float,
+    new_height: float,
+    new_rotation: float = 0.0,
+):
+    """Apply the resize/rotation to all frames containing the object."""
+    last_frame = main_window.project_state_controller.get_frame_count() - 1
+    current_frame = main_window.video_controller.current_index()
+    modified_frames = main_window.annotation_controller.cascade_bbox_edit(
+        frame_start=current_frame,  # Start from current frame
+        frame_end=last_frame,
+        object_key=object_id,
+        width=new_width,
+        height=new_height,
+        rotation=new_rotation,
+    )
+
+    # Show confirmation
+    frame_ranges_str = _frames_to_ranges(modified_frames)
+    QMessageBox.information(
+        main_window,
+        "Cascade Operation Complete",
+        f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}",
+    )
+
+    refresh_frame(main_window)
+
+
+def _apply_cascade_next_frames(
+    main_window, object_id: str, width: float, height: float, rotation: float
+):
+    """Ask user for number of frames and apply the resize/rotation to those frames."""
+    current_frame = main_window.video_controller.current_index()
+    max_frames = (
+        main_window.project_state_controller.get_frame_count() - current_frame - 1
+    )
+
+    # Ask user for number of frames
+    num_frames, ok = QInputDialog.getInt(
+        main_window,
+        "Cascade Operation",
+        "Apply to how many subsequent frames?",
+        5,  # default value
+        1,  # min value
+        max_frames,  # max value
+    )
+
+    if not ok:
+        return
+
+    if num_frames > max_frames or num_frames < 1:
+        raise InvalidFrameRangeInput(
+            f"Please enter a valid number of frames (1-{max_frames})."
+        )
+
+    end_frame = current_frame + num_frames
+    modified_frames = main_window.annotation_controller.cascade_bbox_edit(
+        frame_start=current_frame + 1,  # Start from next frame
+        frame_end=end_frame,
+        object_key=object_id,
+        width=width,
+        height=height,
+        rotation=rotation,
+    )
+
+    # Show confirmation
+    frame_ranges_str = _frames_to_ranges(modified_frames)
+    QMessageBox.information(
+        main_window,
+        "Cascade Operation Complete",
+        f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}",
+    )
+
     refresh_frame(main_window)
 
 
