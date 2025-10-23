@@ -52,10 +52,6 @@ def create_collapsible_object_details(
 
     type_combo = QComboBox(content)
     type_combo.setEditable(False)
-    try:
-        populate_types(type_combo)
-    except Exception:
-        pass
 
     form.addRow("ID:", id_label)
     form.addRow("Name:", name_edit)
