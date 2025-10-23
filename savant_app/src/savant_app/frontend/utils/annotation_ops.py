@@ -45,7 +45,9 @@ def wire(main_window):
         )
 
     if hasattr(main_window.sidebar, "object_details_changed"):
-        main_window.sidebar.object_details_changed.connect(lambda: refresh_frame(main_window))
+        main_window.sidebar.object_details_changed.connect(
+            lambda: refresh_frame(main_window)
+        )
 
     main_window.overlay.boxMoved.connect(lambda i, x, y: _moved(main_window, i, x, y))
 
@@ -148,6 +150,7 @@ def delete_selected_bbox(main_window):
 
     main_window.overlay.clear_selection()
     refresh_frame(main_window)
+
 
 def undo_delete(main_window):
     """Restore the last deletion (single bbox or batch cascade) and show a summary."""

@@ -35,7 +35,10 @@ def _menu_css() -> str:
 
 class _MenuStyler(QObject):
     def eventFilter(self, obj, event):
-        if isinstance(obj, QMenu) and event.type() in (QEvent.Type.Polish, QEvent.Type.Show):
+        if isinstance(obj, QMenu) and event.type() in (
+            QEvent.Type.Polish,
+            QEvent.Type.Show,
+        ):
             obj.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
             obj.setStyleSheet(_menu_css())
         return False

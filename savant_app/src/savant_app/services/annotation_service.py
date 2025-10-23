@@ -434,8 +434,11 @@ class AnnotationService:
         Returns True if something was removed.
         """
         openlabel_config = self.project_state.annotation_config
-        if (not openlabel_config or not openlabel_config.actions or
-                tag_name not in openlabel_config.actions):
+        if (
+            not openlabel_config
+            or not openlabel_config.actions
+            or tag_name not in openlabel_config.actions
+        ):
             return False
 
         action = openlabel_config.actions[tag_name]
@@ -499,7 +502,9 @@ class AnnotationService:
             raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
 
         allowed = self.bbox_types()
-        allowed_set = set(allowed.get("DynamicObject", [])) | set(allowed.get("StaticObject", []))
+        allowed_set = set(allowed.get("DynamicObject", [])) | set(
+            allowed.get("StaticObject", [])
+        )
         target_type_lower = (new_type or "").strip().lower()
         canonical = None
         for type in allowed_set:

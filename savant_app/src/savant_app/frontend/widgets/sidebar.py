@@ -133,7 +133,9 @@ class Sidebar(QWidget):
         self.active_objects.model().rowsInserted.connect(self.adjust_list_sizes)
         self.active_objects.model().rowsRemoved.connect(self.adjust_list_sizes)
         self.active_objects.itemClicked.connect(self._on_active_object_selected)
-        self.active_objects.itemSelectionChanged.connect(self._on_active_objects_selection_changed)
+        self.active_objects.itemSelectionChanged.connect(
+            self._on_active_objects_selection_changed
+        )
         main_layout.addWidget(self.active_objects)
 
         # --- Active Frame Tags ---
@@ -195,7 +197,9 @@ class Sidebar(QWidget):
             for item in active_objects:
                 obj_id = item["name"]
                 numeric_id = obj_id.split("-")[-1] if "-" in obj_id else obj_id
-                self.active_objects.addItem(f'{item["type"].lower()} (ID: {numeric_id})')
+                self.active_objects.addItem(
+                    f'{item["type"].lower()} (ID: {numeric_id})'
+                )
             self.select_active_object_by_id(self._selected_annotation_object_id)
 
         self.update()
@@ -550,7 +554,9 @@ class Sidebar(QWidget):
         try:
             idx = -1
             for i in range(self._details_type_combo.count()):
-                if (self._details_type_combo.itemText(i) or "").lower() == desired_type_lc:
+                if (
+                    self._details_type_combo.itemText(i) or ""
+                ).lower() == desired_type_lc:
                     idx = i
                     break
             self._details_type_combo.setCurrentIndex(idx)
@@ -584,7 +590,9 @@ class Sidebar(QWidget):
         if not new_name:
             QMessageBox.warning(self, "Invalid name", "Name cannot be empty.")
             try:
-                meta = self.annotation_controller.get_object_metadata(self._editing_object_id)
+                meta = self.annotation_controller.get_object_metadata(
+                    self._editing_object_id
+                )
                 self._details_name_edit.blockSignals(True)
                 self._details_name_edit.setText(meta.get("name", "") or "")
             finally:
