@@ -131,6 +131,7 @@ class MainWindow(QMainWindow):
             action_interval_offset=get_action_interval_offset(),
             parent=self,
         )
+        dlg.ontology_path_selected.connect(self.sidebar.reload_bbox_type_combo)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             vals = dlg.values()
             self.sidebar_state.historic_obj_frame_count = vals["previous_frame_count"]
