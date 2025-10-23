@@ -1,6 +1,7 @@
 # savant_app/frontend/widgets/cascade_button.py
 from PyQt6.QtWidgets import QWidget, QPushButton, QVBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal
+from savant_app.frontend.theme.menu_styler import cascade_button_css 
 
 
 class CascadeButton(QWidget):
@@ -36,22 +37,7 @@ class CascadeButton(QWidget):
 
         # Style the button
         self.cascade_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #0078d4;
-                border: 1px solid #005a9e;
-                border-radius: 4px;
-                color: #ffffff;
-                font-size: 11px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1088e4;
-            }
-            QPushButton:pressed {
-                background-color: #005a9e;
-            }
-        """
+            cascade_button_css()
         )
 
         layout.addWidget(self.cascade_btn)

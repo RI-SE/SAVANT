@@ -1,6 +1,7 @@
 # savant_app/frontend/widgets/cascade_dropdown.py
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QSizePolicy
 from PyQt6.QtCore import Qt, pyqtSignal
+from savant_app.frontend.theme.menu_styler import cascade_dropdown_css 
 
 
 class CascadeDropdown(QWidget):
@@ -67,28 +68,7 @@ class CascadeDropdown(QWidget):
 
         # Style the widget
         self.setStyleSheet(
-            """
-            QWidget {
-                background-color: #2d2d2d;
-                border: 1px solid #555555;
-                border-radius: 4px;
-            }
-            QPushButton {
-                background-color: #3d3d3d;
-                border: 1px solid #555555;
-                border-radius: 3px;
-                color: #ffffff;
-                padding: 4px 8px;
-                font-size: 12px;
-                text-align: left;
-            }
-            QPushButton:hover {
-                background-color: #4d4d4d;
-            }
-            QPushButton:pressed {
-                background-color: #1d1d1d;
-            }
-        """
+            cascade_dropdown_css()
         )
 
         self.setLayout(layout)

@@ -32,6 +32,47 @@ def _menu_css() -> str:
     }}
     """
 
+def cascade_button_css() -> str:
+    return """
+            QPushButton {
+                background-color: #0078d4;
+                border: 1px solid #005a9e;
+                border-radius: 4px;
+                color: #ffffff;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1088e4;
+            }
+            QPushButton:pressed {
+                background-color: #005a9e;
+            }
+        """
+
+def cascade_dropdown_css() -> str:
+    return """
+            QWidget {
+                background-color: #2d2d2d;
+                border: 1px solid #555555;
+                border-radius: 4px;
+            }
+            QPushButton {
+                background-color: #3d3d3d;
+                border: 1px solid #555555;
+                border-radius: 3px;
+                color: #ffffff;
+                padding: 4px 8px;
+                font-size: 12px;
+                text-align: left;
+            }
+            QPushButton:hover {
+                background-color: #4d4d4d;
+            }
+            QPushButton:pressed {
+                background-color: #1d1d1d;
+            }
+        """
 
 class _MenuStyler(QObject):
     def eventFilter(self, obj, event):
