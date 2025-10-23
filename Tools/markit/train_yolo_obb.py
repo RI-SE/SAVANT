@@ -26,6 +26,7 @@ Advanced Training Parameters (optional - uses YOLO defaults if not specified):
     --warmup-epochs    Number of warmup epochs (default: 3.0)
     --warmup-momentum  Warmup initial momentum (default: 0.8)
     --patience         Early stopping patience in epochs (default: 50)
+    --save-period      Save checkpoint every N epochs (default: -1, disabled)
     --cache            Cache images: true, false, ram, disk (default: false)
     --workers          Number of dataloader workers (default: 8)
     --close-mosaic     Disable mosaic in final N epochs (default: 10)
@@ -65,6 +66,9 @@ Examples:
 
     # Custom warmup settings
     python train_yolo_obb.py --data UAV.yaml --warmup-epochs 5.0 --warmup-momentum 0.9
+
+    # Save checkpoint every 5 epochs
+    python train_yolo_obb.py --data UAV.yaml --save-period 5
 
     # Transfer learning - freeze backbone layers
     python train_yolo_obb.py --data UAV.yaml --freeze 10
@@ -133,6 +137,7 @@ class YOLOTrainingConfig:
         self.warmup_epochs = args.warmup_epochs
         self.warmup_momentum = args.warmup_momentum
         self.patience = args.patience
+        self.save_period = args.save_period
         self.cache = self._parse_cache(args.cache)
         self.workers = args.workers
         self.close_mosaic = args.close_mosaic
@@ -259,6 +264,8 @@ class YOLOTrainer:
             advanced_params.append(f"Warmup momentum: {self.config.warmup_momentum}")
         if self.config.patience is not None:
             advanced_params.append(f"Patience: {self.config.patience}")
+        if self.config.save_period is not None:
+            advanced_params.append(f"Save period: {self.config.save_period}")
         if self.config.cache is not None:
             advanced_params.append(f"Cache: {self.config.cache}")
         if self.config.workers is not None:
@@ -349,6 +356,7 @@ class YOLOTrainer:
                 'warmup_epochs': self.config.warmup_epochs,
                 'warmup_momentum': self.config.warmup_momentum,
                 'patience': self.config.patience,
+                'save_period': self.config.save_period,
                 'cache': self.config.cache,
                 'workers': self.config.workers,
                 'close_mosaic': self.config.close_mosaic,
@@ -501,6 +509,9 @@ Examples:
   # Custom warmup for smoother training start
   python train_yolo_obb.py --data UAV.yaml --warmup-epochs 5.0 --warmup-momentum 0.9
 
+  # Save checkpoint every 5 epochs
+  python train_yolo_obb.py --data UAV.yaml --save-period 5
+
   # Transfer learning - freeze backbone layers
   python train_yolo_obb.py --data UAV.yaml --freeze 10
 
@@ -556,6 +567,8 @@ Examples:
                        help="Warmup initial momentum (YOLO default: 0.8)")
     parser.add_argument("--patience", type=int, default=None,
                        help="Early stopping patience in epochs (YOLO default: 50)")
+    parser.add_argument("--save-period", type=int, default=None,
+                       help="Save checkpoint every N epochs (YOLO default: -1, disabled)")
     parser.add_argument("--cache", type=str, default=None,
                        choices=['true', 'false', 'ram', 'disk'],
                        help="Cache images to RAM/disk for faster training (YOLO default: false)")
