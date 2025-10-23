@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QFileDialog,
     QMessageBox,
-    QGroupBox
+    QGroupBox,
 )
 from savant_app.frontend.utils.settings_store import (
     get_ontology_path,

@@ -1,7 +1,7 @@
 # savant_app/frontend/widgets/cascade_button.py
 from PyQt6.QtWidgets import QWidget, QPushButton, QVBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal
-from savant_app.frontend.theme.menu_styler import cascade_button_css 
+from savant_app.frontend.theme.menu_styler import cascade_button_css
 
 
 class CascadeButton(QWidget):
@@ -36,9 +36,7 @@ class CascadeButton(QWidget):
         self.cascade_btn.setFixedSize(60, 24)
 
         # Style the button
-        self.cascade_btn.setStyleSheet(
-            cascade_button_css()
-        )
+        self.cascade_btn.setStyleSheet(cascade_button_css())
 
         layout.addWidget(self.cascade_btn)
         self.setLayout(layout)

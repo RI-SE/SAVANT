@@ -32,6 +32,7 @@ def _menu_css() -> str:
     }}
     """
 
+
 def cascade_button_css() -> str:
     return """
             QPushButton {
@@ -49,6 +50,7 @@ def cascade_button_css() -> str:
                 background-color: #005a9e;
             }
         """
+
 
 def cascade_dropdown_css() -> str:
     return """
@@ -73,6 +75,7 @@ def cascade_dropdown_css() -> str:
                 background-color: #1d1d1d;
             }
         """
+
 
 class _MenuStyler(QObject):
     def eventFilter(self, obj, event):
