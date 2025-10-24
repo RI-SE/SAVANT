@@ -113,6 +113,8 @@ class MarkitConfig:
         self.duplicate_avg_iou = args.duplicate_avg_iou
         self.duplicate_min_iou = args.duplicate_min_iou
         self.rotation_threshold = args.rotation_threshold
+        self.min_movement_pixels = args.min_movement_pixels
+        self.temporal_smoothing = args.temporal_smoothing
         self.edge_distance = args.edge_distance
         self.static_threshold = args.static_threshold
         self.static_mark = args.static_mark

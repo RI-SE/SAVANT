@@ -457,17 +457,27 @@ class DuplicateRemovalPass(PostprocessingPass):
 
 
 class RotationAdjustmentPass(PostprocessingPass):
-    """Adjust rotation values based on movement direction."""
+    """Adjust rotation values based on movement direction with improved temporal smoothing."""
 
-    def __init__(self, rotation_threshold: float = 0.01):
+    def __init__(self, rotation_threshold: float = 0.1, min_movement_pixels: float = 5.0,
+                 temporal_smoothing: float = 0.3):
+        """Initialize rotation adjustment pass.
+
+        Args:
+            rotation_threshold: Minimum angle difference to trigger adjustment (radians, default: 0.1)
+            min_movement_pixels: Minimum movement distance to consider for rotation calculation (default: 5.0)
+            temporal_smoothing: Temporal smoothing factor (0-1, higher = more smoothing between frames, default: 0.3)
+        """
         self.rotations_adjusted = 0
         self.rotations_kept = 0
         self.rotations_copied = 0
         self.objects_processed = 0
         self.rotation_threshold = rotation_threshold
+        self.min_movement_pixels = min_movement_pixels
+        self.temporal_smoothing = temporal_smoothing
 
     def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Adjust rotation values based on movement direction.
+        """Adjust rotation values based on movement direction with temporal smoothing.
 
         Args:
             openlabel_data: Complete OpenLabel data structure
@@ -493,6 +503,7 @@ class RotationAdjustmentPass(PostprocessingPass):
             self.objects_processed += 1
             frame_list_sorted = sorted(frame_list)
             last_valid_angle = None
+            previous_smoothed_angle = None
 
             for i in range(len(frame_list_sorted)):
                 current_frame = frame_list_sorted[i]
@@ -526,7 +537,12 @@ class RotationAdjustmentPass(PostprocessingPass):
                         self.rotations_copied += 1
                     continue
                 else:
+                    # Apply temporal smoothing with previous frame's smoothed angle
+                    if previous_smoothed_angle is not None:
+                        r_new = self._apply_temporal_smoothing(previous_smoothed_angle, r_new)
+
                     last_valid_angle = r_new
+                    previous_smoothed_angle = r_new
 
                 if abs(r_new - r_current) > self.rotation_threshold:
                     self._apply_rotation_adjustment(frame_obj_data, r_new)
@@ -570,10 +586,48 @@ class RotationAdjustmentPass(PostprocessingPass):
                 "val": [0.8888]
             })
 
+    def _apply_temporal_smoothing(self, prev_angle: float, curr_angle: float) -> float:
+        """Apply temporal smoothing between consecutive frames using exponential moving average.
+
+        Args:
+            prev_angle: Previous frame's smoothed angle (radians)
+            curr_angle: Current frame's calculated angle (radians)
+
+        Returns:
+            Temporally smoothed angle (radians)
+        """
+        # Handle angle wraparound: ensure angles are within π of each other
+        angle_diff = curr_angle - prev_angle
+
+        # Normalize to [-π, π]
+        while angle_diff > np.pi:
+            angle_diff -= 2 * np.pi
+        while angle_diff < -np.pi:
+            angle_diff += 2 * np.pi
+
+        # Apply exponential moving average
+        smoothed = prev_angle + (1 - self.temporal_smoothing) * angle_diff
+
+        # Normalize result to [-π, π]
+        while smoothed > np.pi:
+            smoothed -= 2 * np.pi
+        while smoothed < -np.pi:
+            smoothed += 2 * np.pi
+
+        return float(smoothed)
+
     def _calculate_smoothed_rotation(self, frames: Dict[str, Any], obj_id: str,
                                      current_frame: int, frame_list_sorted: List[int],
                                      current_idx: int) -> Optional[float]:
-        """Calculate smoothed rotation using weighted average of 1-8 frames ahead.
+        """Calculate smoothed rotation using bidirectional weighted average with movement threshold.
+
+        This improved version:
+        - Uses CORRECTED arctan2(delta_y, delta_x) argument order
+        - Looks both backward (1-4 frames) and forward (1-8 frames)
+        - Applies minimum movement threshold to filter noise
+        - Handles angle wraparound with np.unwrap
+        - Uses normalized weighting regardless of available frames
+        - Validates against bbox aspect ratio
 
         Args:
             frames: Frame data
@@ -583,16 +637,42 @@ class RotationAdjustmentPass(PostprocessingPass):
             current_idx: Index in frame_list_sorted
 
         Returns:
-            Smoothed rotation angle in radians, or None if no movement detected
+            Smoothed rotation angle in radians, or None if insufficient movement
         """
         current_frame_str = str(current_frame)
         current_obj = frames[current_frame_str]["objects"][obj_id]
         current_rbbox = current_obj["object_data"]["rbbox"][0]["val"]
         x_current, y_current = current_rbbox[0], current_rbbox[1]
+        w_current, h_current = current_rbbox[2], current_rbbox[3]
 
         angles = []
         weights = []
+        distances = []
 
+        # Look backward (1-4 frames) with lower weights
+        for lookback in range(1, 5):
+            if current_idx - lookback < 0:
+                break
+
+            past_frame = frame_list_sorted[current_idx - lookback]
+            past_frame_str = str(past_frame)
+            past_obj = frames[past_frame_str]["objects"][obj_id]
+            past_rbbox = past_obj["object_data"]["rbbox"][0]["val"]
+            x_past, y_past = past_rbbox[0], past_rbbox[1]
+
+            delta_x = x_current - x_past
+            delta_y = y_current - y_past
+            distance = np.sqrt(delta_x**2 + delta_y**2)
+
+            # Apply minimum movement threshold (Fix #2)
+            if distance >= self.min_movement_pixels:
+                # FIXED: Correct arctan2 argument order (Fix #1)
+                angle = np.arctan2(delta_y, delta_x)
+                angles.append(angle)
+                weights.append(2.0 / lookback)  # Lower weight for past frames
+                distances.append(distance)
+
+        # Look forward (1-8 frames) with higher weights
         for lookahead in range(1, 9):
             if current_idx + lookahead >= len(frame_list_sorted):
                 break
@@ -605,23 +685,74 @@ class RotationAdjustmentPass(PostprocessingPass):
 
             delta_x = x_future - x_current
             delta_y = y_future - y_current
+            distance = np.sqrt(delta_x**2 + delta_y**2)
 
-            if delta_x != 0 or delta_y != 0:
-                angle = np.arctan2(delta_x, delta_y)
+            # Apply minimum movement threshold (Fix #2)
+            if distance >= self.min_movement_pixels:
+                # FIXED: Correct arctan2 argument order (Fix #1)
+                angle = np.arctan2(delta_y, delta_x)
                 angles.append(angle)
-                weights.append(9 - lookahead)
+                weights.append(9.0 - lookahead)  # Higher weight for near-future frames
+                distances.append(distance)
 
         if not angles:
             return None
 
-        weighted_sin = sum(np.sin(angle) * weight for angle, weight in zip(angles, weights))
-        weighted_cos = sum(np.cos(angle) * weight for angle, weight in zip(angles, weights))
+        # Calculate average movement distance to assess confidence
+        avg_distance = sum(distances) / len(distances)
+
+        # For very slow movement, don't adjust - insufficient data to determine direction
+        # Adjusting on slow movement often makes things worse due to noise
+        if avg_distance < 10.0:
+            return None
+
+        # Handle angle wraparound (Fix #4)
+        angles_array = np.array(angles)
+        angles_unwrapped = np.unwrap(angles_array)
+
+        # Circular averaging with normalized weights
+        weighted_sin = sum(np.sin(angle) * weight for angle, weight in zip(angles_unwrapped, weights))
+        weighted_cos = sum(np.cos(angle) * weight for angle, weight in zip(angles_unwrapped, weights))
         weight_sum = sum(weights)
 
         avg_sin = weighted_sin / weight_sum
         avg_cos = weighted_cos / weight_sum
 
-        return float(np.arctan2(avg_sin, avg_cos))
+        # Movement direction in OpenLabel format (clockwise from horizontal right)
+        # arctan2(delta_y, delta_x) with Y pointing down gives correct clockwise angle
+        movement_direction = float(np.arctan2(avg_sin, avg_cos))
+
+        # Determine correct rotation based on which axis should align with movement
+        # OpenLabel format: [cx, cy, width, height, rotation]
+        # - rotation = angle of the WIDTH axis (clockwise from horizontal right)
+        # - For vehicles, the LONG axis should align with movement direction
+
+        aspect_ratio = max(w_current, h_current) / max(min(w_current, h_current), 1.0)
+
+        if aspect_ratio > 1.5:  # Elongated object (likely vehicle)
+            if w_current > h_current:
+                # Width is the long axis
+                # The width axis should point in the movement direction
+                # rotation = angle of width axis = movement direction
+                correct_rotation = movement_direction
+            else:
+                # Height is the long axis (taller than wide)
+                # The height axis should point in the movement direction
+                # Height axis is perpendicular to width axis (width + π/2)
+                # We want: width_axis + π/2 = movement_direction
+                # So: width_axis = movement_direction - π/2
+                correct_rotation = movement_direction - np.pi / 2
+        else:
+            # Not elongated (circular or square) - default to width axis = movement direction
+            correct_rotation = movement_direction
+
+        # Normalize final result to [-π, π]
+        while correct_rotation > np.pi:
+            correct_rotation -= 2 * np.pi
+        while correct_rotation < -np.pi:
+            correct_rotation += 2 * np.pi
+
+        return correct_rotation
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get rotation adjustment statistics.

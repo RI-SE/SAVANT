@@ -34,7 +34,9 @@ Postprocessing (Housekeeping):
     --housekeeping       Enable postprocessing passes (gap detection, filling, duplicate removal, etc.)
     --duplicate-avg-iou  Average IOU threshold for duplicate detection (default: 0.7)
     --duplicate-min-iou  Minimum IOU threshold for duplicate detection (default: 0.3)
-    --rotation-threshold Rotation angle threshold in radians for adjustment (default: 0.01)
+    --rotation-threshold Rotation angle threshold in radians for adjustment (default: 0.1)
+    --min-movement-pixels Minimum movement in pixels for rotation calculation (default: 5.0)
+    --temporal-smoothing Temporal smoothing factor for rotation, 0-1 (default: 0.3)
     --edge-distance      Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)
     --static-threshold   Movement threshold in pixels for static object removal (default: 5, negative disables)
     --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
@@ -142,8 +144,12 @@ Examples:
                        help='Average IOU threshold for duplicate detection (default: 0.7)')
     parser.add_argument('--duplicate-min-iou', type=float, default=0.3,
                        help='Minimum IOU threshold for duplicate detection (default: 0.3)')
-    parser.add_argument('--rotation-threshold', type=float, default=0.01,
-                       help='Rotation angle threshold in radians for adjustment (default: 0.01)')
+    parser.add_argument('--rotation-threshold', type=float, default=0.1,
+                       help='Rotation angle threshold in radians for adjustment (default: 0.1)')
+    parser.add_argument('--min-movement-pixels', type=float, default=5.0,
+                       help='Minimum movement in pixels for rotation calculation (default: 5.0)')
+    parser.add_argument('--temporal-smoothing', type=float, default=0.3,
+                       help='Temporal smoothing factor for rotation (0-1, higher = more smoothing, default: 0.3)')
     parser.add_argument('--edge-distance', type=int, default=200,
                        help='Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)')
     parser.add_argument('--static-threshold', type=int, default=5,
@@ -279,7 +285,11 @@ def main():
                     )
                 )
             postprocessing_pipeline.add_pass(
-                RotationAdjustmentPass(rotation_threshold=config.rotation_threshold)
+                RotationAdjustmentPass(
+                    rotation_threshold=config.rotation_threshold,
+                    min_movement_pixels=config.min_movement_pixels,
+                    temporal_smoothing=config.temporal_smoothing
+                )
             )
             postprocessing_pipeline.add_pass(SuddenPass(edge_distance=config.edge_distance))
             postprocessing_pipeline.add_pass(FrameIntervalPass())

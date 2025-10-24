@@ -223,17 +223,14 @@ class OpenLabelHandler:
             # Calculate width and height from oriented bounding box points
             bbox_points = detection.oriented_bbox
             if len(bbox_points) >= 4:
-                # Calculate distances between consecutive points to get width and height
+                # Corner points are ordered: p1 (top-left), p2 (top-right), p3 (bottom-right), p4 (bottom-left)
+                # relative to center before rotation, then rotated by detection.angle
                 p1, p2, p3, p4 = bbox_points[0], bbox_points[1], bbox_points[2], bbox_points[3]
 
-                # Distance between first two points (width or height)
-                d1 = np.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
-                # Distance between second and third points (height or width)
-                d2 = np.sqrt((p3[0] - p2[0])**2 + (p3[1] - p2[1])**2)
-
-                # Assign width and height (larger dimension is usually width)
-                width = max(d1, d2)
-                height = min(d1, d2)
+                # Distance p1->p2 represents the WIDTH dimension (always!)
+                width = np.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+                # Distance p2->p3 represents the HEIGHT dimension (always!)
+                height = np.sqrt((p3[0] - p2[0])**2 + (p3[1] - p2[1])**2)
             else:
                 # Fallback if bbox points are invalid
                 width = height = 50.0
