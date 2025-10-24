@@ -56,6 +56,7 @@ import sys
 from markitlib import MarkitConfig, __version__
 from markitlib.processing import VideoProcessor, FrameAnnotator
 from markitlib.openlabel import OpenLabelHandler
+from markitlib.outputvideo import render_output_video
 from markitlib.postprocessing import (
     PostprocessingPipeline,
     GapDetectionPass,
@@ -179,11 +180,6 @@ def process_video(video_processor: VideoProcessor, openlabel_handler: OpenLabelH
             # Add to OpenLabel structure
             openlabel_handler.add_frame_objects(frame_idx, detection_results, config.class_map)
 
-            # Annotate and write frame if output video requested
-            if config.output_video_path:
-                annotated_frame = FrameAnnotator.annotate_frame(frame, detection_results)
-                video_processor.write_frame(annotated_frame)
-
             frame_idx += 1
             total_frames += 1
 
@@ -293,6 +289,10 @@ def main():
             )
         else:
             logger.info("Housekeeping disabled, skipping postprocessing")
+
+        # Render output video from postprocessed data (if requested)
+        if config.output_video_path:
+            render_output_video(config, openlabel_handler.openlabel_data)
 
         # Cleanup and save results
         cleanup(video_processor, openlabel_handler, config)

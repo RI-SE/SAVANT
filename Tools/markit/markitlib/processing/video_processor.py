@@ -30,7 +30,6 @@ class VideoProcessor:
         self.engines = []
         self.conflict_resolver = None
         self.cap = None
-        self.out = None
         self.frame_width = 0
         self.frame_height = 0
         self.fps = 0.0
@@ -53,7 +52,7 @@ class VideoProcessor:
             self.conflict_resolver = DetectionConflictResolver(conflict_config)
 
     def initialize(self) -> None:
-        """Initialize video capture and writer."""
+        """Initialize video capture."""
         try:
             logger.info(f"Opening video file: {self.config.video_path}")
             self.cap = cv2.VideoCapture(self.config.video_path)
@@ -62,9 +61,6 @@ class VideoProcessor:
                 raise RuntimeError(f"Failed to open video file: {self.config.video_path}")
 
             self._get_video_properties()
-
-            if self.config.output_video_path:
-                self._setup_video_writer()
 
         except Exception as e:
             logger.error(f"Failed to initialize video processor: {e}")
@@ -77,21 +73,6 @@ class VideoProcessor:
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
 
         logger.info(f"Video properties - Width: {self.frame_width}, Height: {self.frame_height}, FPS: {self.fps}")
-
-    def _setup_video_writer(self) -> None:
-        """Setup video writer for output."""
-        try:
-            fourcc = cv2.VideoWriter_fourcc(*Constants.MP4V_FOURCC)
-            self.out = cv2.VideoWriter(
-                self.config.output_video_path,
-                fourcc,
-                self.fps,
-                (self.frame_width, self.frame_height)
-            )
-            logger.info(f"Video writer initialized for output: {self.config.output_video_path}")
-        except Exception as e:
-            logger.error(f"Failed to setup video writer: {e}")
-            raise
 
     def read_frame(self) -> Tuple[bool, Optional[np.ndarray]]:
         """Read next frame from video.
@@ -129,15 +110,6 @@ class VideoProcessor:
 
         return all_results
 
-    def write_frame(self, frame: np.ndarray) -> None:
-        """Write frame to output video.
-
-        Args:
-            frame: Frame to write
-        """
-        if self.out is not None:
-            self.out.write(frame)
-
     def get_detection_statistics(self) -> dict:
         """Get detection and conflict resolution statistics.
 
@@ -168,10 +140,6 @@ class VideoProcessor:
             self.cap.release()
             logger.info("Video capture released")
 
-        if self.out is not None:
-            self.out.release()
-            logger.info("Video writer released")
-
         cv2.destroyAllWindows()
 
 
@@ -196,6 +164,8 @@ class FrameAnnotator:
             'yolo': (0, 255, 0),  # Green
             'optical_flow': (255, 0, 0),  # Blue
             'aruco': (0, 165, 255),  # Orange
+            'postprocessed_gap': (255, 0, 255),  # Magenta (gap filling - higher priority)
+            'postprocessed_rot': (255, 255, 0),  # Cyan (rotation adjustment)
         }
 
         for detection in detection_results:

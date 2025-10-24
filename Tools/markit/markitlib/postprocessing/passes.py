@@ -552,7 +552,7 @@ class RotationAdjustmentPass(PostprocessingPass):
 
         for vec_item in vec_list:
             if vec_item.get("name") == "annotator":
-                vec_item["val"].append("markit_housekeep(rot)")
+                vec_item["val"].append("markit_housekeeping(rot)")
                 annotator_found = True
             elif vec_item.get("name") == "confidence":
                 vec_item["val"].append(0.8888)
@@ -561,7 +561,7 @@ class RotationAdjustmentPass(PostprocessingPass):
         if not annotator_found:
             vec_list.insert(0, {
                 "name": "annotator",
-                "val": ["markit_housekeep(rot)"]
+                "val": ["markit_housekeeping(rot)"]
             })
 
         if not confidence_found:
