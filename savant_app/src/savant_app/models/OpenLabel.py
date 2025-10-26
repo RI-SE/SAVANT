@@ -244,6 +244,7 @@ class OpenLabel(BaseModel):
         object_key: Union[int, str],
         *,
         bbox_index: int = 0,
+        annotator: str,
         # absolute values (optional)
         x_center: Optional[float] = None,
         y_center: Optional[float] = None,
@@ -259,7 +260,6 @@ class OpenLabel(BaseModel):
         # clamps
         min_width: float = 1e-6,
         min_height: float = 1e-6,
-        annotator: str,
     ) -> RotatedBBox:
         """
         Update a rotated bbox in-place (pure domain logic) and return the updated box.

@@ -79,6 +79,7 @@ class TestAnnotationController:
             frame_number=frame_number,
             coordinates=bbox_info["coordinates"],
             object_name=bbox_info["object_id"],
+            annotator="test_user",
         )
 
     def test_create_bbox_existing_object_propagates_errors(
