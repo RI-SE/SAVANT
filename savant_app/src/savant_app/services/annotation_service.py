@@ -1,25 +1,33 @@
-from .project_state import ProjectState
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
+from pydantic import ValidationError
+
+from savant_app.frontend.utils.ontology_utils import (
+    get_action_labels,
+    get_bbox_type_labels,
+)
+from savant_app.frontend.utils.settings_store import get_ontology_path
+from savant_app.models.OpenLabel import (
+    ActionMetadata,
+    FrameInterval,
+    FrameLevelObject,
+    OpenLabel,
+    RotatedBBox,
+)
+
 from .exceptions import (
-    ObjectInFrameError,
-    ObjectNotFoundError,
+    BBoxNotFoundError,
     FrameNotFoundError,
     InvalidFrameRangeError,
     InvalidInputError,
-    BBoxNotFoundError,
     NoFrameLabelFoundError,
-    UnsportedTagTypeError,
+    ObjectInFrameError,
+    ObjectNotFoundError,
     OntologyNotFound,
+    UnsportedTagTypeError,
 )
-from typing import Optional, Union, Tuple
-from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
-from savant_app.models.OpenLabel import FrameLevelObject
-from pydantic import ValidationError
-from savant_app.models.OpenLabel import ActionMetadata, FrameInterval
-from savant_app.frontend.utils.settings_store import get_ontology_path
-from savant_app.frontend.utils.ontology_utils import get_action_labels
-from typing import Dict, List
-from savant_app.frontend.utils.ontology_utils import get_bbox_type_labels
-from pathlib import Path
+from .project_state import ProjectState
 
 
 class AnnotationService:
@@ -37,7 +45,7 @@ class AnnotationService:
         self._bbox_cache_vals: Dict[str, List[str]] | None = None
 
     def create_new_object_bbox(
-        self, frame_number: int, obj_type: str, coordinates: tuple
+        self, frame_number: int, obj_type: str, coordinates: tuple, annotator: str
     ) -> None:
         """Handles both, the creation of a new object and adding a bbox for it."""
         try:
@@ -47,7 +55,10 @@ class AnnotationService:
             # Add new object and bbox
             self._add_new_object(obj_type=obj_type, obj_id=obj_id)
             self._add_object_bbox(
-                frame_number=frame_number, bbox_coordinates=coordinates, obj_id=obj_id
+                frame_number=frame_number,
+                bbox_coordinates=coordinates,
+                obj_id=obj_id,
+                annotator=annotator,
             )
         except ValidationError as e:
             errors = "; ".join(
@@ -56,7 +67,7 @@ class AnnotationService:
             raise InvalidInputError(f"Invalid input data: {errors}", e)
 
     def create_existing_object_bbox(
-        self, frame_number: int, coordinates: tuple, object_name: str
+        self, frame_number: int, coordinates: tuple, object_name: str, annotator: str
     ) -> None:
         """Handles adding a bbox for an existing object."""
 
@@ -74,6 +85,7 @@ class AnnotationService:
                 frame_number=frame_number,
                 bbox_coordinates=coordinates,
                 obj_id=object_id,
+                annotator=annotator,
             )
         except ValidationError as e:
             errors = "; ".join(
@@ -168,6 +180,7 @@ class AnnotationService:
         # clamps
         min_width: float = 1e-6,
         min_height: float = 1e-6,
+        annotator: str,
     ) -> RotatedBBox:
         """
         Update bbox geometry in the model; return the updated RotatedBBox.
@@ -190,6 +203,7 @@ class AnnotationService:
                 delta_theta=delta_theta,
                 min_width=min_width,
                 min_height=min_height,
+                annotator=annotator,
             )
             # place for side-effects, e.g. mark project dirty, log, mirror, etc.
             return updated_bbox
@@ -203,6 +217,7 @@ class AnnotationService:
         frame_start: int,
         object_key: Union[int, str],
         frame_end: Optional[int],
+        annotator: str,
         *,
         # size values
         width: Optional[float] = None,
@@ -248,6 +263,7 @@ class AnnotationService:
                 rotation=rotation,
                 min_width=min_width,
                 min_height=min_height,
+                annotator=annotator,
             )
             edited_frames.append(frame_num)
 
@@ -277,22 +293,18 @@ class AnnotationService:
         )
 
     def _add_object_bbox(
-        self, frame_number: int, bbox_coordinates: dict, obj_id: str
+        self, frame_number: int, bbox_coordinates: dict, obj_id: str, annotator: str
     ) -> None:
         """
         Service function to add new annotations to the config.
         """
-        # Temporary hard code of annotater and confidence score.
-        annotater_data = {"val": ["example_name"]}
-        confidence_data = {"val": [0.9]}
 
         # Append new bounding box (under frames)
         self.project_state.annotation_config.append_object_bbox(
             frame_id=frame_number,
             bbox_coordinates=bbox_coordinates,
-            confidence_data=confidence_data,
-            annotater_data=annotater_data,
             obj_id=obj_id,
+            annotator=annotator,
         )
 
     def _does_object_exist(self, object_name: str) -> bool:

@@ -16,7 +16,7 @@ from savant_app.frontend.utils.settings_store import (
     get_action_interval_offset,
     get_ontology_path,
 )
-from savant_app.frontend.widgets.annotater_dialog import AnnotatorDialog
+from savant_app.frontend.widgets.annotator_dialog import AnnotatorDialog
 from savant_app.frontend.widgets.menu import AppMenu
 from savant_app.frontend.widgets.overlay import Overlay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
@@ -105,7 +105,7 @@ class MainWindow(QMainWindow):
         playback.wire(self)
         navigation.wire(self)
         render.wire(self)
-        annotation_ops.wire(self)
+        annotation_ops.wire(self, self.state)
         zoom.wire(self, initial=1.15)
 
         QShortcut(
