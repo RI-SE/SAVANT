@@ -65,7 +65,11 @@ class TestAnnotationController:
             "object_id": "car_123",
         }
 
-        annotation_controller.create_bbox_existing_object(frame_number, bbox_info)
+        annotation_controller.create_bbox_existing_object(
+            frame_number, 
+            bbox_info,
+            annotator="test_user"
+        )
 
         # Verify service method is called with correct parameters
         mock_annotation_service.create_existing_object_bbox.assert_called_once_with(
@@ -89,4 +93,8 @@ class TestAnnotationController:
         )
 
         with pytest.raises(ObjectNotFoundError):
-            annotation_controller.create_bbox_existing_object(frame_number, bbox_info)
+            annotation_controller.create_bbox_existing_object(
+                frame_number, 
+                bbox_info,
+                annotator="test_user"
+            )
