@@ -21,7 +21,8 @@ def on_open_video(main_window, path: str):
     pixmap, idx = main_window.video_controller.jump_to_frame(0)
     show_frame(main_window, pixmap, idx)
 
-    main_window.seek_bar.update_range(main_window.video_controller.total_frames())
+    frame_count = main_window.project_state_controller.get_frame_count()
+    main_window.seek_bar.update_range(frame_count or 0)
     if hasattr(main_window, "_apply_confidence_markers"):
         main_window._apply_confidence_markers()
 

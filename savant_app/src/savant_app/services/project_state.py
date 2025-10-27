@@ -111,37 +111,6 @@ class ProjectState:
         ]
 
     def boxes_with_ids_for_frame(self, frame_idx: int) -> List[FrameBBoxData]:
-        if not self.annotation_config or not self.annotation_config.frames:
-            return []
-
-        # Preserve fallback logic for frame index
-        fkey = str(frame_idx)
-        if fkey not in self.annotation_config.frames:
-            alt = str(frame_idx + 1)
-            if alt not in self.annotation_config.frames:
-                return []
-            fkey = alt
-            frame_idx = int(fkey)  # Use the valid frame index
-
-        out: List[Tuple[float, float, float, float, float]] = []
-        frame = self.annotation_config.frames[fkey]
-        for _obj_id, fobj in frame.objects.items():
-            for geom in fobj.object_data.rbbox:
-                if geom.name != "shape":
-                    continue
-                rb = geom.val
-                out.append(
-                    (
-                        float(rb.x_center),
-                        float(rb.y_center),
-                        float(rb.width),
-                        float(rb.height),
-                        float(rb.rotation),
-                    )
-                )
-        return out
-
-    def boxes_with_ids_for_frame(self, frame_idx: int) -> List[FrameBBoxData]:
         results: List[FrameBBoxData] = []
 
         frame = self.annotation_config.frames.get(str(frame_idx))
