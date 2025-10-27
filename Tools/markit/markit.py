@@ -54,6 +54,10 @@ import argparse
 import logging
 import sys
 
+import cv2
+import numpy as np
+from ultralytics import __version__ as ultralytics_version
+
 # Import from markitlib package
 from markitlib import MarkitConfig, __version__
 from markitlib.processing import VideoProcessor, FrameAnnotator
@@ -157,6 +161,10 @@ Examples:
     parser.add_argument('--static-mark', action='store_true',
                        help='Mark static objects instead of removing them (adds "staticdynamic" annotation)')
 
+    # Logging and debug
+    parser.add_argument('--verbose', action='store_true',
+                       help='Enable verbose output with detailed angle and detection logging')
+
     return parser.parse_args()
 
 
@@ -245,12 +253,16 @@ def main():
             engines.append("ArUco")
 
         logger.info(f"Markit v{__version__} starting with engines: {', '.join(engines)}")
+
+        # Log library versions
+        logger.info(f"Library versions: OpenCV {cv2.__version__}, NumPy {np.__version__}, Ultralytics {ultralytics_version}")
+
         if config.enable_conflict_resolution and len(engines) > 1:
             logger.info(f"Conflict resolution enabled with IoU threshold: {config.iou_threshold:.2f}")
 
         # Initialize components
         video_processor = VideoProcessor(config)
-        openlabel_handler = OpenLabelHandler(config.schema_path)
+        openlabel_handler = OpenLabelHandler(config.schema_path, verbose=config.verbose)
 
         # Initialize video processing
         video_processor.initialize()
@@ -302,7 +314,7 @@ def main():
 
         # Render output video from postprocessed data (if requested)
         if config.output_video_path:
-            render_output_video(config, openlabel_handler.openlabel_data)
+            render_output_video(config, openlabel_handler.openlabel_data, openlabel_handler.debug_data)
 
         # Cleanup and save results
         cleanup(video_processor, openlabel_handler, config)

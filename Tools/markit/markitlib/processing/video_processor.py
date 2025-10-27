@@ -5,7 +5,7 @@ Contains video processor with multi-engine support and frame annotation.
 """
 
 import logging
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -147,17 +147,23 @@ class FrameAnnotator:
     """Handles frame annotation with bounding boxes and labels."""
 
     @staticmethod
-    def annotate_frame(frame: np.ndarray, detection_results: List[DetectionResult]) -> np.ndarray:
+    def annotate_frame(frame: np.ndarray, detection_results: List[DetectionResult],
+                      class_map: Dict[int, str] = None) -> np.ndarray:
         """Annotate frame with oriented bounding boxes and labels.
 
         Args:
             frame: Input frame
             detection_results: Detection results from engines
+            class_map: Optional class ID to name mapping (uses DEFAULT_CLASS_MAP if None)
 
         Returns:
             Annotated frame
         """
         annotated_frame = frame.copy()
+
+        # Use provided class_map or fall back to default
+        if class_map is None:
+            class_map = Constants.DEFAULT_CLASS_MAP
 
         # Color map for different engines
         color_map = {
@@ -186,7 +192,7 @@ class FrameAnnotator:
                 if detection.object_id is not None:
                     label_parts.append(f"ID:{detection.object_id}")
 
-                class_name = Constants.DEFAULT_CLASS_MAP.get(detection.class_id, f"cls_{detection.class_id}")
+                class_name = class_map.get(detection.class_id, f"cls_{detection.class_id}")
                 label_parts.append(f"{class_name}")
                 label_parts.append(f"{detection.confidence:.2f}")
                 label_parts.append(f"[{detection.source_engine}]")

@@ -52,6 +52,50 @@ def _class_name_to_id(class_name: str, class_map: Dict[int, str]) -> int:
     return 0  # Default
 
 
+def _draw_raw_yolo_boxes(frame: np.ndarray, frame_idx: int, debug_data: Dict) -> np.ndarray:
+    """Draw original YOLO boxes (before OpenLabel conversion) in red for debugging.
+
+    Args:
+        frame: Input frame
+        frame_idx: Current frame index
+        debug_data: Separate debug data structure with raw YOLO xywhr
+
+    Returns:
+        Frame with raw YOLO boxes drawn in red
+    """
+    annotated_frame = frame.copy()
+    red = (0, 0, 255)  # Red color for raw YOLO boxes (distinct from all other colors)
+
+    # Get debug data for this frame
+    frame_debug = debug_data.get(frame_idx, {})
+
+    for obj_id, obj_debug_data in frame_debug.items():
+        try:
+            raw_xywhr = obj_debug_data.get("raw_xywhr")
+
+            if raw_xywhr and len(raw_xywhr) >= 5:
+                cx, cy, w, h, r = raw_xywhr[:5]
+
+                # Draw raw YOLO box using original dimensions and angle
+                bbox_points = _xywhr_to_bbox_points(cx, cy, w, h, r)
+                cv2.drawContours(annotated_frame, [bbox_points], 0, red, 2)
+
+                # Draw center point
+                center = (int(cx), int(cy))
+                cv2.circle(annotated_frame, center, 3, red, -1)
+
+                # Add label "RAW YOLO"
+                label = f"RAW:{obj_id}"
+                label_pos = (int(cx) - 30, int(cy) - 10)
+                cv2.putText(annotated_frame, label, label_pos, cv2.FONT_HERSHEY_SIMPLEX,
+                           0.4, red, 1, cv2.LINE_AA)
+
+        except Exception as e:
+            logger.debug(f"Error drawing raw YOLO box for object {obj_id}: {e}")
+
+    return annotated_frame
+
+
 def _openlabel_to_detections(frame_data: Dict, objects_data: Dict, class_map: Dict[int, str]) -> List[DetectionResult]:
     """Convert OpenLabel frame data back to DetectionResult objects for annotation.
 
@@ -141,17 +185,23 @@ def _openlabel_to_detections(frame_data: Dict, objects_data: Dict, class_map: Di
     return detection_results
 
 
-def render_output_video(config: MarkitConfig, openlabel_data: Dict) -> None:
+def render_output_video(config: MarkitConfig, openlabel_data: Dict, debug_data: Dict = None) -> None:
     """Render annotated video from final postprocessed OpenLabel data.
 
     Args:
         config: Application configuration
         openlabel_data: Final OpenLabel data with postprocessing applied
+        debug_data: Optional separate debug data structure (for verbose mode)
     """
     if not config.output_video_path:
         return
 
+    if debug_data is None:
+        debug_data = {}
+
     logger.info("Rendering output video from postprocessed data...")
+    if config.verbose:
+        logger.info("Verbose mode: Drawing both original YOLO boxes (red) and OpenLabel boxes (green/other colors)")
 
     # Open input video
     cap = cv2.VideoCapture(config.video_path)
@@ -181,12 +231,18 @@ def render_output_video(config: MarkitConfig, openlabel_data: Dict) -> None:
             # Get detections for this frame from OpenLabel data
             frame_str = str(frame_idx)
             if frame_str in frames_data:
+                # If verbose, draw original YOLO boxes first (in red)
+                annotated_frame = frame.copy()
+                if config.verbose:
+                    annotated_frame = _draw_raw_yolo_boxes(annotated_frame, frame_idx, debug_data)
+
+                # Then draw OpenLabel boxes on top (via standard annotator)
                 detection_results = _openlabel_to_detections(
                     frames_data[frame_str],
                     objects_data,
                     config.class_map
                 )
-                annotated_frame = FrameAnnotator.annotate_frame(frame, detection_results)
+                annotated_frame = FrameAnnotator.annotate_frame(annotated_frame, detection_results, config.class_map)
                 out.write(annotated_frame)
             else:
                 out.write(frame)  # No detections, write original frame

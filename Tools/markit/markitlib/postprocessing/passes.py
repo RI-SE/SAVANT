@@ -13,6 +13,7 @@ import numpy as np
 
 from .base import PostprocessingPass
 from ..geometry import BBoxOverlapCalculator
+from ..utils import normalize_angle_to_pi, normalize_angle_to_half_pi
 
 logger = logging.getLogger(__name__)
 
@@ -600,21 +601,15 @@ class RotationAdjustmentPass(PostprocessingPass):
         angle_diff = curr_angle - prev_angle
 
         # Normalize to [-π, π]
-        while angle_diff > np.pi:
-            angle_diff -= 2 * np.pi
-        while angle_diff < -np.pi:
-            angle_diff += 2 * np.pi
+        angle_diff = normalize_angle_to_pi(angle_diff)
 
         # Apply exponential moving average
         smoothed = prev_angle + (1 - self.temporal_smoothing) * angle_diff
 
-        # Normalize result to [-π, π]
-        while smoothed > np.pi:
-            smoothed -= 2 * np.pi
-        while smoothed < -np.pi:
-            smoothed += 2 * np.pi
+        # Normalize result to [-π/2, π/2] for OpenLabel convention
+        smoothed = normalize_angle_to_half_pi(smoothed)
 
-        return float(smoothed)
+        return smoothed
 
     def _calculate_smoothed_rotation(self, frames: Dict[str, Any], obj_id: str,
                                      current_frame: int, frame_list_sorted: List[int],
@@ -746,11 +741,8 @@ class RotationAdjustmentPass(PostprocessingPass):
             # Not elongated (circular or square) - default to width axis = movement direction
             correct_rotation = movement_direction
 
-        # Normalize final result to [-π, π]
-        while correct_rotation > np.pi:
-            correct_rotation -= 2 * np.pi
-        while correct_rotation < -np.pi:
-            correct_rotation += 2 * np.pi
+        # Normalize final result to [-π/2, π/2] for OpenLabel convention
+        correct_rotation = normalize_angle_to_half_pi(correct_rotation)
 
         return correct_rotation
 

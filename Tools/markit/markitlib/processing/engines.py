@@ -111,7 +111,9 @@ class YOLOEngine(BaseDetectionEngine):
                             oriented_bbox=oriented_bbox,
                             center=(float(center_x), float(center_y)),
                             angle=float(rotation),
-                            source_engine='yolo'
+                            source_engine='yolo',
+                            width=float(width),
+                            height=float(height)
                         ))
 
             return detection_results
@@ -380,14 +382,19 @@ class OpticalFlowEngine(BaseDetectionEngine):
                     area = cv2.contourArea(contour)
                     confidence = min(0.9, max(0.3, area / 10000.0))  # Simple area-based confidence
 
+                    # Convert angle from degrees to radians (cv2.minAreaRect returns degrees)
+                    angle_rad = np.radians(angle)
+
                     results.append(DetectionResult(
                         object_id=obj_id,
                         class_id=0,  # Generic "moving object" class
                         confidence=confidence,
                         oriented_bbox=box.astype(np.float32),
                         center=(center_x, center_y),
-                        angle=angle,
-                        source_engine='optical_flow'
+                        angle=angle_rad,
+                        source_engine='optical_flow',
+                        width=float(width),
+                        height=float(height)
                     ))
 
             self.prev_gray = gray.copy()

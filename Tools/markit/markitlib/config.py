@@ -47,6 +47,8 @@ class DetectionResult:
     center: Tuple[float, float]
     angle: float
     source_engine: str  # 'yolo' or 'optical_flow'
+    width: Optional[float] = None  # Original width from detection engine
+    height: Optional[float] = None  # Original height from detection engine
 
 
 @dataclass
@@ -118,6 +120,9 @@ class MarkitConfig:
         self.edge_distance = args.edge_distance
         self.static_threshold = args.static_threshold
         self.static_mark = args.static_mark
+
+        # Logging configuration
+        self.verbose = args.verbose if hasattr(args, 'verbose') else False
 
         self.validate_config()
 
