@@ -23,6 +23,11 @@ from savant_app.frontend.widgets.settings import get_action_interval_offset
 from savant_app.frontend.utils.settings_store import get_ontology_path
 from savant_app.frontend.exceptions import InvalidObjectIDFormat
 from PyQt6.QtGui import QShortcut, QKeySequence
+from savant_app.frontend.theme.constants import (
+    SIDEBAR_ERROR_HIGHLIGHT,
+    SIDEBAR_WARNING_HIGHLIGHT,
+    SIDEBAR_HIGHLIGHT_TEXT_COLOUR
+)
 
 
 class Sidebar(QWidget):
@@ -150,9 +155,16 @@ class Sidebar(QWidget):
                 f"Cannot extract object ID from text: {text}"
             ) from e
 
+    def _item_object_id(self, item: QListWidgetItem) -> str:
+        stored_id = item.data(Qt.ItemDataRole.UserRole)
+        if stored_id is not None:
+            return str(stored_id)
+        return self._extract_object_id_from_text(item.text())
+
     def _on_active_object_selected(self, item):
         # Trigger highlight in the UI
-        object_id = self._extract_object_id_from_text(item.text())
+        object_id = self._item_object_id(item)
+        self._selected_annotation_object_id = object_id
         self.highlight_selected_object.emit(object_id)
 
     def select_active_object_by_id(self, object_id: str):
@@ -162,23 +174,39 @@ class Sidebar(QWidget):
 
         for i in range(self.active_objects.count()):
             item = self.active_objects.item(i)
-            item_id = self._extract_object_id_from_text(item.text())
+            item_id = self._item_object_id(item)
             if object_id == item_id:
                 item.setSelected(True)
                 self.active_objects.setCurrentItem(item)
                 self.active_objects.scrollToItem(item)
                 break
 
-    def refresh_active_objects(self, active_objects: list[str]):
+    def refresh_active_objects(
+        self,
+        active_objects: list[dict],
+        confidence_flags: dict[str, str] | None = None,
+    ):
         """Refresh the list of active objects and update recent IDs."""
         self.active_objects.clear()
-        current_ids = []
+        flags = confidence_flags or {}
         for item in active_objects:
-            obj_id = item["name"]
+            obj_name = item.get("name") or ""
+            obj_key = item.get("id") or obj_name
             # Display only numeric part of ID
-            numeric_id = obj_id.split("-")[-1] if "-" in obj_id else obj_id
-            self.active_objects.addItem(f'{item["type"]} (ID: {numeric_id})')
-            current_ids.append(obj_id)
+            numeric_id = obj_name.split("-")[-1] if "-" in obj_name else obj_name
+            display_text = f'{item.get("type", "Object")} (ID: {numeric_id})'
+            list_item = QListWidgetItem(display_text)
+            list_item.setData(Qt.ItemDataRole.UserRole, obj_key)
+
+            severity = flags.get(obj_key)
+            if severity == "error":
+                list_item.setBackground(SIDEBAR_ERROR_HIGHLIGHT)
+                list_item.setForeground(SIDEBAR_HIGHLIGHT_TEXT_COLOUR)
+            elif severity == "warning":
+                list_item.setBackground(SIDEBAR_WARNING_HIGHLIGHT)
+                list_item.setForeground(SIDEBAR_HIGHLIGHT_TEXT_COLOUR)
+
+            self.active_objects.addItem(list_item)
 
         self.select_active_object_by_id(
             self._selected_annotation_object_id

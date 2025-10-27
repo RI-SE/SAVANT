@@ -92,8 +92,8 @@ class TestAnnotationService:
 
         result = annotation_service.get_active_objects(frame_number)
         expected = [
-            {"type": "car", "name": "car_1"},
-            {"type": "person", "name": "person_1"},
+            {"type": "car", "name": "car_1", "id": "1"},
+            {"type": "person", "name": "person_1", "id": "2"},
         ]
         assert result == expected
 

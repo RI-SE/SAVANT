@@ -21,6 +21,8 @@ def on_open_video(main_window, path: str):
     pixmap, idx = main_window.video_controller.jump_to_frame(0)
     show_frame(main_window, pixmap, idx)
     main_window.seek_bar.update_range(main_window.video_controller.total_frames())
+    if hasattr(main_window, "_apply_confidence_markers"):
+        main_window._apply_confidence_markers()
     if hasattr(main_window.playback_controls, "set_fps"):
         main_window.playback_controls.set_fps(main_window.video_controller.fps())
     stop(main_window)
@@ -28,6 +30,8 @@ def on_open_video(main_window, path: str):
 
 def open_openlabel_config(main_window, path: str):
     main_window.project_state_controller.load_openlabel_config(path)
+    if hasattr(main_window, "refresh_confidence_issues"):
+        main_window.refresh_confidence_issues()
 
 
 def quick_save(main_window):

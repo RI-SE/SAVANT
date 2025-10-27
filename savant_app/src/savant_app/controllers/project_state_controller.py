@@ -45,5 +45,21 @@ class ProjectStateController:
         """
         return self.project_state.object_id_for_frame_index(frame_idx, overlay_index)
 
+    @error_handler
+    def confidence_issues(
+        self,
+        warning_range: tuple[float, float],
+        error_range: tuple[float, float],
+        *,
+        show_warnings: bool = True,
+        show_errors: bool = True,
+    ):
+        return self.project_state.confidence_issues(
+            warning_range=warning_range,
+            error_range=error_range,
+            show_warnings=show_warnings,
+            show_errors=show_errors,
+        )
+
     def validate_before_save(self) -> None:
         self.project_state.validate_before_save()

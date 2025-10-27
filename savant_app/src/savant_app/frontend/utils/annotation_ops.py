@@ -52,6 +52,15 @@ def wire(main_window):
     main_window.overlay.boxRotated.connect(lambda id, r: _rotated(main_window, id, r))
 
 
+def _refresh_after_bbox_update(main_window):
+    """Refresh confidence markers and the current frame after bbox changes."""
+    refresh_conf = getattr(main_window, "refresh_confidence_issues", None)
+    if callable(refresh_conf):
+        refresh_conf()
+    else:
+        refresh_frame(main_window)
+
+
 def highlight_selected_object(main_window, object_id: str):
     """Highlight the selected object in the overlay."""
     main_window.overlay.select_box_by_obj_id(object_id)
@@ -91,7 +100,7 @@ def handle_drawn_bbox(main_window, annotation: AnnotationState):
         main_window.annotation_controller.create_new_object_bbox(
             frame_number=frame_idx, bbox_info=asdict(annotation)
         )
-    refresh_frame(main_window)
+    _refresh_after_bbox_update(main_window)
 
 
 def delete_selected_bbox(main_window):
@@ -120,7 +129,7 @@ def delete_selected_bbox(main_window):
     )
 
     main_window.overlay.clear_selection()
-    refresh_frame(main_window)
+    _refresh_after_bbox_update(main_window)
 
 
 def undo_delete(main_window):
@@ -167,7 +176,7 @@ def undo_delete(main_window):
         QMessageBox.information(main_window, "Undo Delete (Cascade)", msg)
 
         main_window.overlay.clear_selection()
-        refresh_frame(main_window)
+        _refresh_after_bbox_update(main_window)
         return
 
     frame_key = rec["frame_key"]
@@ -185,7 +194,7 @@ def undo_delete(main_window):
     )
 
     main_window.overlay.clear_selection()
-    refresh_frame(main_window)
+    _refresh_after_bbox_update(main_window)
 
 
 def _moved(main_window, object_id: str, x: float, y: float):
@@ -324,4 +333,4 @@ def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
     )
 
     main_window.overlay.clear_selection()
-    refresh_frame(main_window)
+    _refresh_after_bbox_update(main_window)

@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QDialog,
+    QMessageBox,
 )
 from PyQt6.QtGui import QKeySequence, QShortcut
 
@@ -18,6 +19,13 @@ from savant_app.frontend.widgets.settings import SettingsDialog
 from savant_app.frontend.utils.settings_store import (
     get_ontology_path,
     get_action_interval_offset,
+    get_warning_range,
+    get_error_range,
+    get_show_warnings,
+    get_show_errors,
+    set_threshold_ranges,
+    set_show_warnings,
+    set_show_errors,
 )
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.states.frontend_state import FrontendState
@@ -52,6 +60,9 @@ class MainWindow(QMainWindow):
 
         # state
         self.state = FrontendState(self)
+        self.state.confidenceIssuesChanged.connect(
+            lambda _: self._apply_confidence_markers()
+        )
 
         # Menu
         self.menu = AppMenu(
@@ -111,13 +122,15 @@ class MainWindow(QMainWindow):
         navigation.wire(self)
         render.wire(self)
         annotation_ops.wire(self)
-        zoom.wire(self, initial=1.15)
+        zoom.wire(self, initial=1.0)
 
         QShortcut(
             QKeySequence.StandardKey.Undo,
             self,
             activated=lambda: annotation_ops.undo_delete(self),
         )
+
+        self.refresh_confidence_issues()
 
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")
@@ -133,6 +146,79 @@ class MainWindow(QMainWindow):
         if dlg.exec() == QDialog.DialogCode.Accepted:
             vals = dlg.values()
             self.sidebar_state.historic_obj_frame_count = vals["previous_frame_count"]
+            warning_vals = vals.get("warning_range", get_warning_range())
+            error_vals = vals.get("error_range", get_error_range())
+            warning_range = tuple(float(v) for v in warning_vals)
+            error_range = tuple(float(v) for v in error_vals)
+            show_warnings = vals.get("show_warnings", get_show_warnings())
+            show_errors = vals.get("show_errors", get_show_errors())
+            thresholds_valid = True
+            if (
+                show_warnings
+                and show_errors
+                and not (
+                    warning_range[1] <= error_range[0]
+                    or error_range[1] <= warning_range[0]
+                )
+            ):
+                QMessageBox.critical(
+                    self,
+                    "Invalid Ranges",
+                    "Warning and error ranges must not overlap when both markers are visible.",
+                )
+                thresholds_valid = False
+
+            if thresholds_valid:
+                try:
+                    set_threshold_ranges(
+                        warning_range=warning_range,
+                        error_range=error_range,
+                        show_warnings=show_warnings,
+                        show_errors=show_errors,
+                    )
+                    set_show_warnings(show_warnings)
+                    set_show_errors(show_errors)
+                except ValueError as ex:
+                    QMessageBox.critical(self, "Invalid Ranges", str(ex))
+                    thresholds_valid = False
+            if thresholds_valid:
+                self.refresh_confidence_issues()
+            else:
+                self._apply_confidence_markers()
 
     def noop(*args, **kwargs):
         print("Not implemented yet")
+
+    def refresh_confidence_issues(self):
+        project_state = getattr(self.project_state_controller, "project_state", None)
+        annotation_config = getattr(project_state, "annotation_config", None)
+        if not project_state or annotation_config is None:
+            self.state.set_confidence_issues({})
+            self._apply_confidence_markers()
+            return
+
+        try:
+            issues = self.project_state_controller.confidence_issues(
+                warning_range=get_warning_range(),
+                error_range=get_error_range(),
+                show_warnings=get_show_warnings(),
+                show_errors=get_show_errors(),
+            )
+        except Exception:
+            issues = {}
+        self.state.set_confidence_issues(issues or {})
+        self._apply_confidence_markers()
+        try:
+            render.refresh_frame(self)
+        except Exception:
+            pass
+
+    def _apply_confidence_markers(self):
+        warning_frames = sorted(self.state.warning_frames())
+        error_frames = sorted(self.state.error_frames())
+        self.seek_bar.set_warning_frames(warning_frames)
+        self.seek_bar.set_error_frames(error_frames)
+        self.seek_bar.set_warning_visibility(get_show_warnings())
+        self.seek_bar.set_error_visibility(get_show_errors())
+        self.overlay.set_warning_flag_visibility(get_show_warnings())
+        self.overlay.set_error_flag_visibility(get_show_errors())
