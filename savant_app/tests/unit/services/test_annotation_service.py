@@ -56,7 +56,7 @@ class TestAnnotationService:
 
         # Extract values from bbox_info and pass as separate arguments
         annotation_service.create_new_object_bbox(
-            frame_number, bbox_info["type"], bbox_info["coordinates"]
+            frame_number, bbox_info["type"], bbox_info["coordinates"], "test_annotator"
         )
 
         # Verify config methods were called
@@ -127,15 +127,14 @@ class TestAnnotationService:
         annotation_service._get_objectid_by_name = MagicMock(return_value=object_id)
 
         annotation_service.create_existing_object_bbox(
-            frame_number, coordinates, object_name
+            frame_number, coordinates, object_name, "test_annotator"
         )
 
         # Verify config method was called
         mock_project_state.annotation_config.append_object_bbox.assert_called_once_with(
             frame_id=frame_number,
             bbox_coordinates=coordinates,
-            confidence_data={"val": [0.9]},
-            annotater_data={"val": ["example_name"]},
+            annotator="test_annotator",
             obj_id=object_id,
         )
 
@@ -152,7 +151,7 @@ class TestAnnotationService:
 
         with pytest.raises(ObjectNotFoundError):
             annotation_service.create_existing_object_bbox(
-                frame_number, coordinates, object_id
+                frame_number, coordinates, object_id, "test_annotator"
             )
 
     def test_does_object_exist_true(self, annotation_service, mock_project_state):
@@ -208,6 +207,7 @@ class TestCascadeBboxEdit:
             frame_start=20,
             frame_end=90,
             object_key="obj1",
+            annotator="test_annotator",
             width=5,
             height=-3,
             rotation=15,
@@ -227,6 +227,7 @@ class TestCascadeBboxEdit:
                 rotation=15,
                 min_width=1e-6,
                 min_height=1e-6,
+                annotator="test_annotator",
             )
             for frame in [20, 30, 40, 50, 60, 70, 80, 90]
         ]
@@ -244,6 +245,7 @@ class TestCascadeBboxEdit:
             frame_start=40,
             frame_end=90,
             object_key="obj1",
+            annotator="test_annotator",
             width=60,
             height=40,
             rotation=10,
@@ -263,6 +265,7 @@ class TestCascadeBboxEdit:
                 rotation=10,
                 min_width=1e-6,
                 min_height=1e-6,
+                annotator="test_annotator",
             )
             for frame in [40, 50, 60, 70, 80, 90]
         ]
@@ -280,6 +283,7 @@ class TestCascadeBboxEdit:
             frame_start=0,
             frame_end=90,
             object_key="obj1",
+            annotator="test_annotator",
         )
 
         # Verify only frames 10-90 were edited (not frame 0)
@@ -298,6 +302,7 @@ class TestCascadeBboxEdit:
             frame_start=50,
             frame_end=90,
             object_key="obj1",
+            annotator="test_annotator",
             width=-100,  # Would make width too small
             min_width=10,
             min_height=10,
@@ -317,6 +322,7 @@ class TestCascadeBboxEdit:
                 rotation=None,
                 min_width=10,
                 min_height=10,
+                annotator="test_annotator",
             )
             for frame in [50, 60, 70, 80, 90]
         ]

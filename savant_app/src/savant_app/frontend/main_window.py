@@ -1,35 +1,29 @@
 # main_window.py
-from PyQt6.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QDialog,
-)
 from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtWidgets import QDialog, QHBoxLayout, QMainWindow, QVBoxLayout, QWidget
 
-from savant_app.frontend.widgets.video_display import VideoDisplay
-from savant_app.frontend.widgets.playback_controls import PlaybackControls
-from savant_app.frontend.widgets.sidebar import Sidebar
-from savant_app.frontend.widgets.seek_bar import SeekBar
-from savant_app.frontend.widgets.overlay import Overlay
-from savant_app.frontend.widgets.menu import AppMenu
-from savant_app.frontend.widgets.settings import SettingsDialog
-from savant_app.frontend.utils.settings_store import (
-    get_ontology_path,
-    get_action_interval_offset,
-)
-from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.states.frontend_state import FrontendState
-
+from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.utils import (
-    project_io,
-    playback,
-    navigation,
-    render,
     annotation_ops,
+    navigation,
+    playback,
+    project_io,
+    render,
     zoom,
 )
+from savant_app.frontend.utils.settings_store import (
+    get_action_interval_offset,
+    get_ontology_path,
+)
+from savant_app.frontend.widgets.annotator_dialog import AnnotatorDialog
+from savant_app.frontend.widgets.menu import AppMenu
+from savant_app.frontend.widgets.overlay import Overlay
+from savant_app.frontend.widgets.playback_controls import PlaybackControls
+from savant_app.frontend.widgets.seek_bar import SeekBar
+from savant_app.frontend.widgets.settings import SettingsDialog
+from savant_app.frontend.widgets.sidebar import Sidebar
+from savant_app.frontend.widgets.video_display import VideoDisplay
 
 
 class MainWindow(QMainWindow):
@@ -111,7 +105,7 @@ class MainWindow(QMainWindow):
         playback.wire(self)
         navigation.wire(self)
         render.wire(self)
-        annotation_ops.wire(self)
+        annotation_ops.wire(self, self.state)
         zoom.wire(self, initial=1.15)
 
         QShortcut(
@@ -119,6 +113,12 @@ class MainWindow(QMainWindow):
             self,
             activated=lambda: annotation_ops.undo_delete(self),
         )
+
+        # Display dialog for annotater name input
+        annotator_name_dialog = AnnotatorDialog()
+        annotator_name_dialog.exec()
+        current_annotator_name = annotator_name_dialog.get_annotator_name()
+        self.state.set_current_annotator(current_annotator_name)
 
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")

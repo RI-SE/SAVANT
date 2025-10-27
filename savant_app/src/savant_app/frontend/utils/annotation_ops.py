@@ -1,13 +1,17 @@
 # savant_app/frontend/utils/annotation_ops.py
 from dataclasses import asdict
-from savant_app.frontend.exceptions import MissingObjectIDError, InvalidFrameRangeInput
-from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
-from .render import refresh_frame
+
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QMenu, QMessageBox, QInputDialog
+from PyQt6.QtWidgets import QInputDialog, QMenu, QMessageBox
+
+from savant_app.frontend.exceptions import InvalidFrameRangeInput, MissingObjectIDError
+from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
+from savant_app.frontend.states.frontend_state import FrontendState
+
+from .render import refresh_frame
 
 
-def wire(main_window):
+def wire(main_window, frontend_state: FrontendState):
     """
     Connect all annotation-related signals. Safe to call once in MainWindow.__init__.
     """
@@ -31,7 +35,9 @@ def wire(main_window):
 
     if hasattr(main_window.video_widget, "bbox_drawn"):
         main_window.video_widget.bbox_drawn.connect(
-            lambda ann: handle_drawn_bbox(main_window, ann)
+            lambda annotation: handle_drawn_bbox(
+                main_window, annotation, frontend_state.get_current_annotator()
+            )
         )
 
     if hasattr(main_window.overlay, "bounding_box_selected"):
@@ -49,14 +55,32 @@ def wire(main_window):
             lambda: refresh_frame(main_window)
         )
 
-    main_window.overlay.boxMoved.connect(lambda i, x, y: _moved(main_window, i, x, y))
+    main_window.overlay.boxMoved.connect(
+        lambda i, x, y: _moved(
+            main_window, i, x, y, frontend_state.get_current_annotator()
+        )
+    )
 
     main_window.overlay.boxResized.connect(
-        lambda id, x, y, w, h, rotation: _resized(main_window, id, x, y, w, h, rotation)
+        lambda id, x, y, w, h, rotation: _resized(
+            main_window,
+            id,
+            x,
+            y,
+            w,
+            h,
+            rotation,
+            frontend_state.get_current_annotator(),
+        )
     )
     main_window.overlay.boxRotated.connect(
         lambda id, width, height, rotation: _rotated(
-            main_window, id, width, height, rotation
+            main_window,
+            id,
+            width,
+            height,
+            rotation,
+            frontend_state.get_current_annotator(),
         )
     )
 
@@ -64,13 +88,23 @@ def wire(main_window):
     if hasattr(main_window.overlay, "cascadeApplyAll"):
         main_window.overlay.cascadeApplyAll.connect(
             lambda object_id, width, height, rotation: _apply_cascade_all_frames(
-                main_window, object_id, width, height, rotation
+                main_window,
+                object_id,
+                width,
+                height,
+                frontend_state.get_current_annotator(),
+                rotation,
             )
         )
     if hasattr(main_window.overlay, "cascadeApplyFrameRange"):
         main_window.overlay.cascadeApplyFrameRange.connect(
             lambda object_id, width, height, rotation: _apply_cascade_next_frames(
-                main_window, object_id, width, height, rotation
+                main_window,
+                object_id,
+                width,
+                height,
+                frontend_state.get_current_annotator(),
+                rotation,
             )
         )
 
@@ -107,18 +141,22 @@ def on_existing_object_bbox(main_window, object_id: str):
     )
 
 
-def handle_drawn_bbox(main_window, annotation: AnnotationState):
+def handle_drawn_bbox(main_window, annotation: AnnotationState, annotator: str):
     """Finalize newly drawn bbox → controller → refresh."""
     frame_idx = main_window.video_controller.current_index()
     if annotation.mode == AnnotationMode.EXISTING:
         if not annotation.object_id:
             return
         main_window.annotation_controller.create_bbox_existing_object(
-            frame_number=frame_idx, bbox_info=asdict(annotation)
+            frame_number=frame_idx,
+            bbox_info=asdict(annotation),
+            annotator=annotator,
         )
     elif annotation.mode == AnnotationMode.NEW:
         main_window.annotation_controller.create_new_object_bbox(
-            frame_number=frame_idx, bbox_info=asdict(annotation)
+            frame_number=frame_idx,
+            bbox_info=asdict(annotation),
+            annotator=annotator,
         )
     refresh_frame(main_window)
 
@@ -217,10 +255,10 @@ def undo_delete(main_window):
     refresh_frame(main_window)
 
 
-def _moved(main_window, object_id: str, x: float, y: float):
+def _moved(main_window, object_id: str, x: float, y: float, annotator: str):
     fk = main_window.video_controller.current_index()
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=fk, object_key=object_id, x_center=x, y_center=y
+        frame_key=fk, object_key=object_id, x_center=x, y_center=y, annotator=annotator
     )
     refresh_frame(main_window)
 
@@ -233,6 +271,7 @@ def _resized(
     width: float,
     height: float,
     rotation: float,
+    annotator: str,
 ):
     frame_key = main_window.video_controller.current_index()
     main_window.annotation_controller.move_resize_bbox(
@@ -242,15 +281,26 @@ def _resized(
         y_center=y,
         width=width,
         height=height,
+        annotator=annotator,
     )
     refresh_frame(main_window)
 
 
-def _rotated(main_window, object_id: str, width: float, height: float, rotation: float):
+def _rotated(
+    main_window,
+    object_id: str,
+    width: float,
+    height: float,
+    rotation: float,
+    annotator: str,
+):
     frame_key = main_window.video_controller.current_index()
 
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=frame_key, object_key=object_id, rotation=rotation
+        frame_key=frame_key,
+        object_key=object_id,
+        rotation=rotation,
+        annotator=annotator,
     )
     refresh_frame(main_window)
 
@@ -277,6 +327,7 @@ def _apply_cascade_all_frames(
     object_id: str,
     new_width: float,
     new_height: float,
+    annotator: str,
     new_rotation: float = 0.0,
 ):
     """Apply the resize/rotation to all frames containing the object."""
@@ -288,6 +339,7 @@ def _apply_cascade_all_frames(
         object_key=object_id,
         width=new_width,
         height=new_height,
+        annotator=annotator,
         rotation=new_rotation,
     )
 
@@ -303,7 +355,12 @@ def _apply_cascade_all_frames(
 
 
 def _apply_cascade_next_frames(
-    main_window, object_id: str, width: float, height: float, rotation: float
+    main_window,
+    object_id: str,
+    width: float,
+    height: float,
+    annotator: str,
+    rotation: float,
 ):
     """Ask user for number of frames and apply the resize/rotation to those frames."""
     current_frame = main_window.video_controller.current_index()
@@ -336,6 +393,7 @@ def _apply_cascade_next_frames(
         object_key=object_id,
         width=width,
         height=height,
+        annotator=annotator,
         rotation=rotation,
     )
 
