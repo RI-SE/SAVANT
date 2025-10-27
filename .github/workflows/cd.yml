@@ -9,7 +9,8 @@ jobs:
   deploy:
     strategy:
       matrix:
-        os: [ubuntu-22.04, windows-latest, macos-latest]
+        #os: [ubuntu-22.04, windows-latest, macos-latest]
+        os: [ubuntu-22.04, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -32,9 +33,9 @@ jobs:
           if [ "${{ runner.os }}" = "Windows" ]; then
             ADD_DATA="frontend/assets;assets"
             OUTPUT="SAVANT-windows.exe"
-          elif [ "${{ runner.os }}" = "macOS" ]; then
-            ADD_DATA="frontend/assets:assets"
-            OUTPUT="SAVANT-macos"
+          #elif [ "${{ runner.os }}" = "macOS" ]; then
+            #ADD_DATA="frontend/assets:assets"
+            #OUTPUT="SAVANT-macos"
           else
             ADD_DATA="frontend/assets:assets"
             OUTPUT="SAVANT-linux"
@@ -68,11 +69,11 @@ jobs:
           name: SAVANT-windows-latest
           path: ./artifacts/windows
 
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: SAVANT-macos-latest
-          path: ./artifacts/macos
+      #- name: Download macOS artifact
+      #  uses: actions/download-artifact@v4
+      #  with:
+      #    name: SAVANT-macos-latest
+      #    path: ./artifacts/macos
 
       # Create GitHub Release with all artifacts
       - name: Create GitHub Release

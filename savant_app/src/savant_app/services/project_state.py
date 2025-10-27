@@ -10,6 +10,7 @@ from .exceptions import (
 from pydantic import ValidationError
 from typing import Dict, List, Tuple, Literal
 from dataclasses import dataclass
+from .types import VideoMetadata
 
 
 @dataclass
@@ -40,6 +41,7 @@ class ProjectState:
     def __init__(self):
         self.annotation_config: OpenLabel = None
         self.open_label_path: str = None
+        self.video_metadata: VideoMetadata = VideoMetadata()
 
     def load_openlabel_config(self, path: str) -> None:
         """Load and validate OpenLabel configuration from JSON file.
@@ -96,15 +98,30 @@ class ProjectState:
         Return list of rotated boxes for a frame in video pixel coords:
         (cx, cy, w, h, theta_radians).
         """
+        boxes = self.boxes_with_ids_for_frame(frame_idx)
+        return [
+            (
+                bbox.bbox.cx,
+                bbox.bbox.cy,
+                bbox.bbox.width,
+                bbox.bbox.height,
+                bbox.bbox.theta,
+            )
+            for bbox in boxes
+        ]
+
+    def boxes_with_ids_for_frame(self, frame_idx: int) -> List[FrameBBoxData]:
         if not self.annotation_config or not self.annotation_config.frames:
             return []
 
+        # Preserve fallback logic for frame index
         fkey = str(frame_idx)
         if fkey not in self.annotation_config.frames:
             alt = str(frame_idx + 1)
             if alt not in self.annotation_config.frames:
                 return []
             fkey = alt
+            frame_idx = int(fkey)  # Use the valid frame index
 
         out: List[Tuple[float, float, float, float, float]] = []
         frame = self.annotation_config.frames[fkey]
@@ -241,7 +258,7 @@ class ProjectState:
             raise OverlayIndexError(
                 f"overlay_index {overlay_index} out of range for frame {frame_idx}"
             )
-        return pairs[overlay_index][0]
+        return pairs[overlay_index].object_id
 
     def validate_before_save(self) -> None:
         """

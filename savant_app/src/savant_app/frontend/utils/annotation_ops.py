@@ -1,13 +1,17 @@
 # savant_app/frontend/utils/annotation_ops.py
 from dataclasses import asdict
-from savant_app.frontend.exceptions import MissingObjectIDError
-from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
-from .render import refresh_frame
+
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QMenu, QMessageBox
+from PyQt6.QtWidgets import QInputDialog, QMenu, QMessageBox
+
+from savant_app.frontend.exceptions import InvalidFrameRangeInput, MissingObjectIDError
+from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
+from savant_app.frontend.states.frontend_state import FrontendState
+
+from .render import refresh_frame
 
 
-def wire(main_window):
+def wire(main_window, frontend_state: FrontendState):
     """
     Connect all annotation-related signals. Safe to call once in MainWindow.__init__.
     """
@@ -31,7 +35,9 @@ def wire(main_window):
 
     if hasattr(main_window.video_widget, "bbox_drawn"):
         main_window.video_widget.bbox_drawn.connect(
-            lambda ann: handle_drawn_bbox(main_window, ann)
+            lambda annotation: handle_drawn_bbox(
+                main_window, annotation, frontend_state.get_current_annotator()
+            )
         )
 
     if hasattr(main_window.overlay, "bounding_box_selected"):
@@ -39,17 +45,71 @@ def wire(main_window):
             lambda object_id: highlight_active_obj_list(main_window, object_id)
         )
 
-    main_window.overlay.boxMoved.connect(lambda id, x, y: _moved(main_window, id, x, y))
     if hasattr(main_window.overlay, "deletePressed"):
         main_window.overlay.deletePressed.connect(
             lambda: delete_selected_bbox(main_window)
         )
 
-    main_window.overlay.boxMoved.connect(lambda i, x, y: _moved(main_window, i, x, y))
-    main_window.overlay.boxResized.connect(
-        lambda id, x, y, w, h: _resized(main_window, id, x, y, w, h)
+    if hasattr(main_window.sidebar, "object_details_changed"):
+        main_window.sidebar.object_details_changed.connect(
+            lambda: refresh_frame(main_window)
+        )
+
+    main_window.overlay.boxMoved.connect(
+        lambda i, x, y: _moved(
+            main_window, i, x, y, frontend_state.get_current_annotator()
+        )
     )
-    main_window.overlay.boxRotated.connect(lambda id, r: _rotated(main_window, id, r))
+
+    main_window.overlay.boxResized.connect(
+        lambda id, x, y, w, h, rotation: _resized(
+            main_window,
+            id,
+            x,
+            y,
+            w,
+            h,
+            rotation,
+            frontend_state.get_current_annotator(),
+        )
+    )
+    main_window.overlay.boxRotated.connect(
+        lambda id, width, height, rotation: _rotated(
+            main_window,
+            id,
+            width,
+            height,
+            rotation,
+            frontend_state.get_current_annotator(),
+        )
+    )
+
+    # Connect cascade signals
+    if hasattr(main_window.overlay, "cascadeApplyAll"):
+        main_window.overlay.cascadeApplyAll.connect(
+            lambda object_id, width, height, rotation: _apply_cascade_all_frames(
+                main_window,
+                object_id,
+                width,
+                height,
+                frontend_state.get_current_annotator(),
+                rotation,
+            )
+        )
+    if hasattr(main_window.overlay, "cascadeApplyFrameRange"):
+        main_window.overlay.cascadeApplyFrameRange.connect(
+            lambda object_id, width, height, rotation: _apply_cascade_next_frames(
+                main_window,
+                object_id,
+                width,
+                height,
+                frontend_state.get_current_annotator(),
+                rotation,
+            )
+        )
+
+    # Keep this here so that right-click works without having to select a bbox first
+    _install_overlay_context_menu(main_window)
 
 
 def _refresh_after_bbox_update(main_window):
@@ -68,9 +128,12 @@ def highlight_selected_object(main_window, object_id: str):
 
 def highlight_active_obj_list(main_window, object_id: str):
     """Highlight the selected object in the active object list."""
-    main_window.sidebar.select_active_object_by_id(object_id)
-    main_window.overlay.boxRotated.connect(lambda i, r: _rotated(main_window, i, r))
-    _install_overlay_context_menu(main_window)
+    if object_id:
+        main_window.sidebar.select_active_object_by_id(object_id)
+        main_window.sidebar.show_object_editor(object_id, expand=True)
+    else:
+        main_window.sidebar.active_objects.clearSelection()
+        main_window.sidebar.hide_object_editor()
 
 
 def on_new_object_bbox(main_window, object_type: str):
@@ -87,18 +150,22 @@ def on_existing_object_bbox(main_window, object_id: str):
     )
 
 
-def handle_drawn_bbox(main_window, annotation: AnnotationState):
+def handle_drawn_bbox(main_window, annotation: AnnotationState, annotator: str):
     """Finalize newly drawn bbox → controller → refresh."""
     frame_idx = main_window.video_controller.current_index()
     if annotation.mode == AnnotationMode.EXISTING:
         if not annotation.object_id:
             return
         main_window.annotation_controller.create_bbox_existing_object(
-            frame_number=frame_idx, bbox_info=asdict(annotation)
+            frame_number=frame_idx,
+            bbox_info=asdict(annotation),
+            annotator=annotator,
         )
     elif annotation.mode == AnnotationMode.NEW:
         main_window.annotation_controller.create_new_object_bbox(
-            frame_number=frame_idx, bbox_info=asdict(annotation)
+            frame_number=frame_idx,
+            bbox_info=asdict(annotation),
+            annotator=annotator,
         )
     _refresh_after_bbox_update(main_window)
 
@@ -197,27 +264,156 @@ def undo_delete(main_window):
     _refresh_after_bbox_update(main_window)
 
 
-def _moved(main_window, object_id: str, x: float, y: float):
+def _moved(main_window, object_id: str, x: float, y: float, annotator: str):
     fk = main_window.video_controller.current_index()
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=fk, object_key=object_id, x_center=x, y_center=y
+        frame_key=fk, object_key=object_id, x_center=x, y_center=y, annotator=annotator
     )
     refresh_frame(main_window)
 
 
-def _resized(main_window, object_id: str, x: float, y: float, w: float, h: float):
-    fk = main_window.video_controller.current_index()
+def _resized(
+    main_window,
+    object_id: str,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    rotation: float,
+    annotator: str,
+):
+    frame_key = main_window.video_controller.current_index()
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=fk, object_key=object_id, x_center=x, y_center=y, width=w, height=h
+        frame_key=frame_key,
+        object_key=object_id,
+        x_center=x,
+        y_center=y,
+        width=width,
+        height=height,
+        annotator=annotator,
     )
     refresh_frame(main_window)
 
 
-def _rotated(main_window, object_id: str, rotation: float):
-    fk = main_window.video_controller.current_index()
+def _rotated(
+    main_window,
+    object_id: str,
+    width: float,
+    height: float,
+    rotation: float,
+    annotator: str,
+):
+    frame_key = main_window.video_controller.current_index()
+
     main_window.annotation_controller.move_resize_bbox(
-        frame_key=fk, object_key=object_id, rotation=rotation
+        frame_key=frame_key,
+        object_key=object_id,
+        rotation=rotation,
+        annotator=annotator,
     )
+    refresh_frame(main_window)
+
+
+def _frames_to_ranges(frames: list[int]) -> str:
+    """Convert a list of frame numbers into contiguous ranges as a string."""
+    if not frames:
+        return ""
+    ranges = []
+    start = prev = frames[0]
+    for f in frames[1:]:
+        if f == prev + 1:
+            prev = f
+        else:
+            ranges.append((start, prev))
+            start = prev = f
+    ranges.append((start, prev))
+    range_strs = [f"{s}-{e}" if s != e else f"{s}" for s, e in ranges]
+    return ", ".join(range_strs)
+
+
+def _apply_cascade_all_frames(
+    main_window,
+    object_id: str,
+    new_width: float,
+    new_height: float,
+    annotator: str,
+    new_rotation: float = 0.0,
+):
+    """Apply the resize/rotation to all frames containing the object."""
+    last_frame = main_window.project_state_controller.get_frame_count() - 1
+    current_frame = main_window.video_controller.current_index()
+    modified_frames = main_window.annotation_controller.cascade_bbox_edit(
+        frame_start=current_frame,  # Start from current frame
+        frame_end=last_frame,
+        object_key=object_id,
+        width=new_width,
+        height=new_height,
+        annotator=annotator,
+        rotation=new_rotation,
+    )
+
+    # Show confirmation
+    frame_ranges_str = _frames_to_ranges(modified_frames)
+    QMessageBox.information(
+        main_window,
+        "Cascade Operation Complete",
+        f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}",
+    )
+
+    refresh_frame(main_window)
+
+
+def _apply_cascade_next_frames(
+    main_window,
+    object_id: str,
+    width: float,
+    height: float,
+    annotator: str,
+    rotation: float,
+):
+    """Ask user for number of frames and apply the resize/rotation to those frames."""
+    current_frame = main_window.video_controller.current_index()
+    max_frames = (
+        main_window.project_state_controller.get_frame_count() - current_frame - 1
+    )
+
+    # Ask user for number of frames
+    num_frames, ok = QInputDialog.getInt(
+        main_window,
+        "Cascade Operation",
+        "Apply to how many subsequent frames?",
+        5,  # default value
+        1,  # min value
+        max_frames,  # max value
+    )
+
+    if not ok:
+        return
+
+    if num_frames > max_frames or num_frames < 1:
+        raise InvalidFrameRangeInput(
+            f"Please enter a valid number of frames (1-{max_frames})."
+        )
+
+    end_frame = current_frame + num_frames
+    modified_frames = main_window.annotation_controller.cascade_bbox_edit(
+        frame_start=current_frame + 1,  # Start from next frame
+        frame_end=end_frame,
+        object_key=object_id,
+        width=width,
+        height=height,
+        annotator=annotator,
+        rotation=rotation,
+    )
+
+    # Show confirmation
+    frame_ranges_str = _frames_to_ranges(modified_frames)
+    QMessageBox.information(
+        main_window,
+        "Cascade Operation Complete",
+        f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}",
+    )
+
     refresh_frame(main_window)
 
 
@@ -238,17 +434,21 @@ def _install_overlay_context_menu(main_window):
 def _on_overlay_context_menu(main_window, click_position):
     """Handle right-clicks on the overlay and show a context menu for bbox actions."""
     overlay_widget = main_window.overlay
-    bbox_index, hit_mode = overlay_widget._hit_test(click_position)
+    bbox_index, _ = overlay_widget.hit_test(click_position)
 
     if bbox_index is None:
         return
 
     overlay_widget._selected_idx = bbox_index
     overlay_widget.update()
+    obj_id = overlay_widget.selected_object_id()
+    if obj_id:
+        overlay_widget.bounding_box_selected.emit(obj_id)
 
     context_menu = QMenu(overlay_widget)
     action_delete_single = context_menu.addAction("Delete this bbox")
     action_delete_cascade = context_menu.addAction("Cascade delete all with this ID")
+    action_edit_bbox = context_menu.addAction("Edit bounding box details")
 
     selected_action = context_menu.exec(overlay_widget.mapToGlobal(click_position))
     if selected_action is None:
@@ -261,12 +461,19 @@ def _on_overlay_context_menu(main_window, click_position):
             _cascade_delete_same_id(main_window, bbox_index)
         except MissingObjectIDError as e:
             QMessageBox.warning(main_window, "Cascade Delete", str(e))
+    elif selected_action == action_edit_bbox:
+        obj_id = overlay_widget.selected_object_id()
+        if obj_id:
+            overlay_widget.bounding_box_selected.emit(obj_id)
+            # Open the editor, enabled + expanded
+            main_window.sidebar.show_object_editor(obj_id, expand=True)
 
 
 def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
     """Delete all bboxes across all frames with the same object ID as the clicked bbox."""
     try:
-        object_id = main_window._overlay_ids[overlay_bbox_index]
+        main_window.overlay._selected_idx = overlay_bbox_index
+        object_id = main_window.overlay.selected_object_id()
     except Exception as e:
         raise MissingObjectIDError(
             "Could not determine object ID for the selected bounding box."

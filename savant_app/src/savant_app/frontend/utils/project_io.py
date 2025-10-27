@@ -20,11 +20,15 @@ def on_open_video(main_window, path: str):
     main_window.video_controller.load_video(path)
     pixmap, idx = main_window.video_controller.jump_to_frame(0)
     show_frame(main_window, pixmap, idx)
+
     main_window.seek_bar.update_range(main_window.video_controller.total_frames())
     if hasattr(main_window, "_apply_confidence_markers"):
         main_window._apply_confidence_markers()
+
     if hasattr(main_window.playback_controls, "set_fps"):
-        main_window.playback_controls.set_fps(main_window.video_controller.fps())
+        main_window.playback_controls.set_fps(
+            main_window.project_state_controller.get_fps()
+        )
     stop(main_window)
 
 

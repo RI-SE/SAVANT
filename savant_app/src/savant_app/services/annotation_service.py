@@ -1,25 +1,33 @@
-from .project_state import ProjectState
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
+from pydantic import ValidationError
+
+from savant_app.frontend.utils.ontology_utils import (
+    get_action_labels,
+    get_bbox_type_labels,
+)
+from savant_app.frontend.utils.settings_store import get_ontology_path
+from savant_app.models.OpenLabel import (
+    ActionMetadata,
+    FrameInterval,
+    FrameLevelObject,
+    OpenLabel,
+    RotatedBBox,
+)
+
 from .exceptions import (
-    ObjectInFrameError,
-    ObjectNotFoundError,
+    BBoxNotFoundError,
     FrameNotFoundError,
     InvalidFrameRangeError,
     InvalidInputError,
-    BBoxNotFoundError,
     NoFrameLabelFoundError,
-    UnsportedTagTypeError,
+    ObjectInFrameError,
+    ObjectNotFoundError,
     OntologyNotFound,
+    UnsportedTagTypeError,
 )
-from typing import Optional, Union, Tuple
-from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
-from savant_app.models.OpenLabel import FrameLevelObject
-from pydantic import ValidationError
-from savant_app.models.OpenLabel import ActionMetadata, FrameInterval
-from savant_app.frontend.utils.settings_store import get_ontology_path
-from savant_app.frontend.utils.ontology_utils import get_action_labels
-from typing import Dict, List
-from savant_app.frontend.utils.ontology_utils import get_bbox_type_labels
-from pathlib import Path
+from .project_state import ProjectState
 
 
 class AnnotationService:
@@ -37,7 +45,7 @@ class AnnotationService:
         self._bbox_cache_vals: Dict[str, List[str]] | None = None
 
     def create_new_object_bbox(
-        self, frame_number: int, obj_type: str, coordinates: tuple
+        self, frame_number: int, obj_type: str, coordinates: tuple, annotator: str
     ) -> None:
         """Handles both, the creation of a new object and adding a bbox for it."""
         try:
@@ -47,7 +55,10 @@ class AnnotationService:
             # Add new object and bbox
             self._add_new_object(obj_type=obj_type, obj_id=obj_id)
             self._add_object_bbox(
-                frame_number=frame_number, bbox_coordinates=coordinates, obj_id=obj_id
+                frame_number=frame_number,
+                bbox_coordinates=coordinates,
+                obj_id=obj_id,
+                annotator=annotator,
             )
         except ValidationError as e:
             errors = "; ".join(
@@ -56,13 +67,11 @@ class AnnotationService:
             raise InvalidInputError(f"Invalid input data: {errors}", e)
 
     def create_existing_object_bbox(
-        self, frame_number: int, coordinates: tuple, object_name: str
+        self, frame_number: int, coordinates: tuple, object_name: str, annotator: str
     ) -> None:
         """Handles adding a bbox for an existing object."""
 
         # verify the object exists
-        # if not self._does_object_exist(object_name):
-        #    raise ObjectNotFoundError(f"Object: {object_name} does not exist.")
         try:
             object_id = self._get_objectid_by_name(object_name)
 
@@ -76,6 +85,7 @@ class AnnotationService:
                 frame_number=frame_number,
                 bbox_coordinates=coordinates,
                 obj_id=object_id,
+                annotator=annotator,
             )
         except ValidationError as e:
             errors = "; ".join(
@@ -170,6 +180,7 @@ class AnnotationService:
         # clamps
         min_width: float = 1e-6,
         min_height: float = 1e-6,
+        annotator: str,
     ) -> RotatedBBox:
         """
         Update bbox geometry in the model; return the updated RotatedBBox.
@@ -192,6 +203,7 @@ class AnnotationService:
                 delta_theta=delta_theta,
                 min_width=min_width,
                 min_height=min_height,
+                annotator=annotator,
             )
             # place for side-effects, e.g. mark project dirty, log, mirror, etc.
             return updated_bbox
@@ -199,6 +211,63 @@ class AnnotationService:
             raise InvalidInputError(
                 f"Invalid input data: {[err["msg"] for err in e.errors()]}", e
             )
+
+    def cascade_bbox_edit(
+        self,
+        frame_start: int,
+        object_key: Union[int, str],
+        frame_end: Optional[int],
+        annotator: str,
+        *,
+        # size values
+        width: Optional[float] = None,
+        height: Optional[float] = None,
+        rotation: Optional[float] = None,
+        # clamps
+        min_width: float = 1e-6,
+        min_height: float = 1e-6,
+    ):
+        """Apply size changes to frames from frame_start to frame_end (inclusive)."""
+        # Get all frames that contain this object (after frame_start)
+        frames_with_object = sorted(
+            int(frame_key)
+            for frame_key, frame_data in getattr(
+                self.project_state.annotation_config, "frames", {}
+            ).items()
+            if getattr(frame_data, "objects", None) and object_key in frame_data.objects
+        )
+        frames_with_object = [
+            frame
+            for frame in frames_with_object
+            if frame >= frame_start and frame <= frame_end
+        ]
+
+        if not frames_with_object:
+            return []
+
+        edited_frames = []
+        for frame_num in frames_with_object:
+            frame_objects = self.project_state.annotation_config.frames[
+                str(frame_num)
+            ].objects
+            if object_key not in frame_objects:
+                continue
+
+            # Apply size changes only
+            self.project_state.annotation_config.update_bbox(
+                frame_key=str(frame_num),
+                object_key=object_key,
+                bbox_index=0,
+                width=width,
+                height=height,
+                rotation=rotation,
+                min_width=min_width,
+                min_height=min_height,
+                annotator=annotator,
+            )
+            edited_frames.append(frame_num)
+
+        return edited_frames
 
     def delete_bbox(
         self, frame_key: int, object_key: str
@@ -224,22 +293,18 @@ class AnnotationService:
         )
 
     def _add_object_bbox(
-        self, frame_number: int, bbox_coordinates: dict, obj_id: str
+        self, frame_number: int, bbox_coordinates: dict, obj_id: str, annotator: str
     ) -> None:
         """
         Service function to add new annotations to the config.
         """
-        # Temporary hard code of annotater and confidence score.
-        annotater_data = {"val": ["example_name"]}
-        confidence_data = {"val": [0.9]}
 
         # Append new bounding box (under frames)
         self.project_state.annotation_config.append_object_bbox(
             frame_id=frame_number,
             bbox_coordinates=bbox_coordinates,
-            confidence_data=confidence_data,
-            annotater_data=annotater_data,
             obj_id=obj_id,
+            annotator=annotator,
         )
 
     def _does_object_exist(self, object_name: str) -> bool:
@@ -286,7 +351,8 @@ class AnnotationService:
         if not labels:
             raise NoFrameLabelFoundError(
                 "No Action labels found in ontology,\n"
-                "please ensure an ontology file is selected in settings.")
+                "please ensure an ontology file is selected in settings."
+            )
         self._tag_cache_key, self._tag_cache_vals = key, labels
         return labels
 
@@ -363,7 +429,8 @@ class AnnotationService:
             key = (str(path), float(modified_time))
         except FileNotFoundError:
             raise OntologyNotFound(
-                "Ontology file not found, please select an ontology file in settings.")
+                "Ontology file not found, please select an ontology file in settings."
+            )
 
         if self._bbox_cache_key == key and self._bbox_cache_vals is not None:
             return self._bbox_cache_vals
@@ -378,11 +445,15 @@ class AnnotationService:
         If the tag has no intervals left, remove the tag entry.
         Returns True if something was removed.
         """
-        ol = self.project_state.annotation_config
-        if not ol or not ol.actions or tag_name not in ol.actions:
+        openlabel_config = self.project_state.annotation_config
+        if (
+            not openlabel_config
+            or not openlabel_config.actions
+            or tag_name not in openlabel_config.actions
+        ):
             return False
 
-        action = ol.actions[tag_name]
+        action = openlabel_config.actions[tag_name]
         intervals = list(getattr(action, "frame_intervals", []) or [])
         new_intervals = [
             iv
@@ -398,9 +469,9 @@ class AnnotationService:
         if new_intervals:
             action.frame_intervals = new_intervals
         else:
-            del ol.actions[tag_name]
-            if not ol.actions:
-                ol.actions = None
+            del openlabel_config.actions[tag_name]
+            if not openlabel_config.actions:
+                openlabel_config.actions = None
         return True
 
     def delete_bboxes_by_object(
@@ -420,3 +491,40 @@ class AnnotationService:
             if removed is not None:
                 out.append((int(frame_key), removed))
         return out
+
+    def get_object_metadata(self, object_id: str) -> dict:
+        openlabel_config = self.project_state.annotation_config
+        if not openlabel_config or object_id not in openlabel_config.objects:
+            raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
+        meta = openlabel_config.objects[object_id]
+        return {"id": object_id, "name": meta.name, "type": meta.type}
+
+    def update_object_name(self, object_id: str, new_name: str) -> None:
+        new_name = (new_name or "").strip()
+        if not new_name:
+            raise InvalidInputError("Name cannot be empty.")
+        openlabel_config = self.project_state.annotation_config
+        if not openlabel_config or object_id not in openlabel_config.objects:
+            raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
+        openlabel_config.objects[object_id].name = new_name
+
+    def update_object_type(self, object_id: str, new_type: str) -> None:
+        openlabel_config = self.project_state.annotation_config
+        if not openlabel_config or object_id not in openlabel_config.objects:
+            raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
+
+        allowed = self.bbox_types()
+        allowed_set = set(allowed.get("DynamicObject", [])) | set(
+            allowed.get("StaticObject", [])
+        )
+        target_type_lower = (new_type or "").strip().lower()
+        canonical = None
+        for type in allowed_set:
+            if type.lower() == target_type_lower:
+                canonical = type
+                break
+
+        if canonical is None:
+            raise InvalidInputError(f"Unsupported type '{new_type}' (not in ontology).")
+
+        openlabel_config.objects[object_id].type = canonical

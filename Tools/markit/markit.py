@@ -1,392 +1,160 @@
+#!/usr/bin/env python3
 """
 markit.py
 
-Refactored command-line tool for running YOLO OBB tracking on a video and exporting results in OpenLabel JSON format and optionally as an annotated video.
+Advanced command-line tool for running multi-engine object detection (YOLO + Optical Flow)
+with IoU-based conflict resolution. Exports results in OpenLabel JSON format with SAVANT
+ontology integration and optionally as annotated video.
 
 Usage:
-    python markit.py --weights WEIGHTS_PATH --input INPUT_VIDEO --output_json OUTPUT_JSON --schema SCHEMA_JSON [--output_video OUTPUT_VIDEO]
+    python markit.py --input INPUT_VIDEO --output_json OUTPUT_JSON [OPTIONS]
 
-Arguments:
-    --weights      Path to YOLO weights file (.pt)
-    --input        Path to input video file
-    --output_json  Path to output OpenLabel JSON file
-    --schema       Path to OpenLabel JSON schema file
-    --output_video Path to output annotated video file (optional)
+Required Arguments:
+    --input              Path to input video file
+    --output_json        Path to output OpenLabel JSON file
 
-This script uses the Ultralytics YOLO model for oriented bounding box (OBB) tracking, annotates the video frames if requested, and saves results in OpenLabel format.
+Optional Arguments:
+    --weights            Path to YOLO weights file (.pt) - required if using YOLO detection
+    --schema             Path to OpenLabel JSON schema file (default: savant_openlabel_subset.schema.json)
+    --ontology           Path to SAVANT ontology file for class mapping (default: savant_ontology_1.2.0.ttl)
+    --output_video       Path to output annotated video file (optional)
+
+Detection Configuration:
+    --detection-method   Detection method: yolo, optical_flow, or both (default: yolo)
+    --motion-threshold   Optical flow motion threshold (default: 0.5)
+    --min-object-area    Minimum object area for optical flow detection (default: 200)
+
+Conflict Resolution:
+    --iou-threshold      IoU threshold for conflict resolution when using both engines (default: 0.3)
+    --verbose-conflicts  Enable verbose conflict resolution logging
+    --disable-conflict-resolution  Disable conflict resolution (keep all detections)
+
+Postprocessing (Housekeeping):
+    --housekeeping       Enable postprocessing passes (gap detection, filling, duplicate removal, etc.)
+    --duplicate-avg-iou  Average IOU threshold for duplicate detection (default: 0.7)
+    --duplicate-min-iou  Minimum IOU threshold for duplicate detection (default: 0.3)
+    --rotation-threshold Rotation angle threshold in radians for adjustment (default: 0.01)
+    --edge-distance      Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)
+    --static-threshold   Movement threshold in pixels for static object removal (default: 5, negative disables)
+    --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
+
+Features:
+    - YOLO OBB (Oriented Bounding Box) detection with tracking
+    - Background subtraction + optical flow detection
+    - IoU-based conflict resolution with YOLO precedence
+    - OpenLabel JSON export with SAVANT ontology integration
+    - Dynamic class mapping from ontology (41 classes)
+    - Configurable postprocessing pipeline for data quality improvement
 """
-
-__version__ = '1.0.0'
 
 import argparse
 import logging
 import sys
-import os
-import json
-from typing import Dict, List, Tuple, Optional, Any
-from collections import defaultdict
 
-import cv2
-import numpy as np
-from ultralytics import YOLO
+# Import from markitlib package
+from markitlib import MarkitConfig, __version__
+from markitlib.processing import VideoProcessor, FrameAnnotator
+from markitlib.openlabel import OpenLabelHandler
+from markitlib.postprocessing import (
+    PostprocessingPipeline,
+    GapDetectionPass,
+    GapFillingPass,
+    DuplicateRemovalPass,
+    RotationAdjustmentPass,
+    SuddenPass,
+    FrameIntervalPass,
+    StaticObjectRemovalPass,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
-class Constants:
-    """Constants used throughout the application."""
-    MP4V_FOURCC = "mp4v"
-    SCHEMA_VERSION = "0.1"
-    ANNOTATOR_NAME = f"SAVANT Markit {__version__}"
-    ONTOLOGY_URL = "https://savant.ri.se/savant_ontology_1.0.0.ttl"
-    # FIXME: To be replaced with uid defined in our ontology
-    DEFAULT_CLASS_MAP = {
-        0: "vehicle",
-        1: "car", 
-        2: "truck",
-        3: "bus"
-    }
-
-
-class MarkitConfig:
-    """Configuration class for Markit application."""
-    
-    def __init__(self, args: argparse.Namespace):
-        """Initialize configuration from command line arguments.
-        
-        Args:
-            args: Parsed command line arguments
-        """
-        self.weights_path = args.weights
-        self.video_path = args.input
-        self.output_json_path = args.output_json
-        self.schema_path = args.schema
-        self.output_video_path = args.output_video
-        self.class_map = Constants.DEFAULT_CLASS_MAP.copy()
-        
-        self.validate_config()
-    
-    def validate_config(self) -> None:
-        """Validate configuration parameters."""
-        required_files = [self.weights_path, self.video_path, self.schema_path]
-        for file_path in required_files:
-            if not os.path.exists(file_path):
-                raise FileNotFoundError(f"Required file not found: {file_path}")
-
-
-class VideoProcessor:
-    """Handles video input/output operations and YOLO model processing."""
-    
-    def __init__(self, config: MarkitConfig):
-        """Initialize video processor.
-        
-        Args:
-            config: Application configuration
-        """
-        self.config = config
-        self.model = None
-        self.cap = None
-        self.out = None
-        self.frame_width = 0
-        self.frame_height = 0
-        self.fps = 0.0
-        
-    def initialize(self) -> None:
-        """Initialize YOLO model and video capture."""
-        try:
-            logger.info(f"Loading YOLO model from {self.config.weights_path}")
-            self.model = YOLO(self.config.weights_path)
-            
-            logger.info(f"Opening video file: {self.config.video_path}")
-            self.cap = cv2.VideoCapture(self.config.video_path)
-            
-            if not self.cap.isOpened():
-                raise RuntimeError(f"Failed to open video file: {self.config.video_path}")
-                
-            self._get_video_properties()
-            
-            if self.config.output_video_path:
-                self._setup_video_writer()
-                
-        except Exception as e:
-            logger.error(f"Failed to initialize video processor: {e}")
-            raise
-    
-    def _get_video_properties(self) -> None:
-        """Extract video properties from capture."""
-        self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
-        
-        logger.info(f"Video properties - Width: {self.frame_width}, Height: {self.frame_height}, FPS: {self.fps}")
-    
-    def _setup_video_writer(self) -> None:
-        """Setup video writer for output."""
-        try:
-            fourcc = cv2.VideoWriter_fourcc(*Constants.MP4V_FOURCC)
-            self.out = cv2.VideoWriter(
-                self.config.output_video_path, 
-                fourcc, 
-                self.fps, 
-                (self.frame_width, self.frame_height)
-            )
-            logger.info(f"Video writer initialized for output: {self.config.output_video_path}")
-        except Exception as e:
-            logger.error(f"Failed to setup video writer: {e}")
-            raise
-    
-    def read_frame(self) -> Tuple[bool, Optional[np.ndarray]]:
-        """Read next frame from video.
-        
-        Returns:
-            Tuple of (success, frame)
-        """
-        if self.cap is None:
-            return False, None
-        return self.cap.read()
-    
-    def process_frame(self, frame: np.ndarray) -> List[Any]:
-        """Process frame with YOLO model.
-        
-        Args:
-            frame: Input frame
-            
-        Returns:
-            YOLO tracking results
-        """
-        try:
-            return self.model.track(frame, persist=True)
-        except Exception as e:
-            logger.error(f"Error processing frame: {e}")
-            return []
-    
-    def write_frame(self, frame: np.ndarray) -> None:
-        """Write frame to output video.
-        
-        Args:
-            frame: Frame to write
-        """
-        if self.out is not None:
-            self.out.write(frame)
-    
-    def cleanup(self) -> None:
-        """Clean up video resources."""
-        if self.cap is not None:
-            self.cap.release()
-            logger.info("Video capture released")
-            
-        if self.out is not None:
-            self.out.release()
-            logger.info("Video writer released")
-            
-        cv2.destroyAllWindows()
-
-
-class FrameAnnotator:
-    """Handles frame annotation with bounding boxes and labels."""
-    
-    @staticmethod
-    def annotate_frame(frame: np.ndarray, results: List[Any]) -> np.ndarray:
-        """Annotate frame with bounding boxes and labels.
-        
-        Args:
-            frame: Input frame
-            results: YOLO tracking results
-            
-        Returns:
-            Annotated frame
-        """
-        annotated_frame = frame.copy()
-        
-        for result in results:
-            if result.obb.id is not None:
-                obbs_xyxyxyxy = result.obb.xyxyxyxy.cpu()
-                labels = [f"ID {id} Class {cls}" for id, cls in
-                         zip(result.obb.id.int().cpu(), result.obb.cls.int().cpu())]
-                
-                for box, label in zip(obbs_xyxyxyxy, labels):
-                    points = np.array(box, dtype=np.int32).reshape((4, 2))
-                    cv2.polylines(annotated_frame, [points], isClosed=True, color=(0, 255, 0), thickness=2)
-                    cv2.putText(annotated_frame, label, (points[0][0], points[0][1] - 10),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        
-        return annotated_frame
-
-
-class OpenLabelHandler:
-    """Handles OpenLabel format operations."""
-    
-    def __init__(self, schema_path: str):
-        """Initialize OpenLabel handler.
-        
-        Args:
-            schema_path: Path to OpenLabel schema file
-        """
-        self.schema_path = schema_path
-        self.sol = None
-    
-    def initialize_from_schema(self) -> None:
-        """Initialize OpenLabel structure from schema."""
-        try:
-            self.sol = self._create_empty_from_schema(self.schema_path)
-            logger.info(f"OpenLabel schema loaded from {self.schema_path}")
-        except Exception as e:
-            logger.error(f"Failed to load schema: {e}")
-            raise
-    
-    def _create_empty_from_schema(self, schema_path: str) -> Dict[str, Any]:
-        """Create empty OpenLabel structure from schema.
-        
-        Args:
-            schema_path: Path to schema file
-            
-        Returns:
-            Empty OpenLabel structure
-        """
-        def build_empty(schema: Dict[str, Any]) -> Any:
-            schema_type = schema.get("type")
-            if schema_type == "object":
-                props = schema.get("properties", {})
-                obj = {}
-                for k, v in props.items():
-                    obj[k] = build_empty(v)
-                return obj
-            elif schema_type == "array":
-                return []
-            elif schema_type in ("string", "number", "integer", "boolean"):
-                return None
-            else:
-                return None
-        
-        with open(schema_path, "r", encoding="utf-8") as f:
-            schema = json.load(f)
-        return build_empty(schema)
-    
-    def add_metadata(self, video_path: str) -> None:
-        """Add metadata to OpenLabel structure.
-        
-        Args:
-            video_path: Path to input video
-        """
-        if self.sol is None:
-            raise RuntimeError("OpenLabel structure not initialized")
-            
-        self.sol["openlabel"]["metadata"]["schema_version"] = Constants.SCHEMA_VERSION
-        self.sol["openlabel"]["metadata"]["tagged_file"] = video_path
-        self.sol["openlabel"]["metadata"]["annotator"] = Constants.ANNOTATOR_NAME
-        self.sol["openlabel"]["ontologies"]["0"] = Constants.ONTOLOGY_URL
-        
-        logger.info("OpenLabel metadata initialized")
-    
-    def add_frame_objects(self, frame_idx: int, results: List[Any], class_map: Dict[int, str]) -> None:
-        """Add frame objects to OpenLabel structure.
-        
-        Args:
-            frame_idx: Current frame index
-            results: YOLO tracking results
-            class_map: Mapping of class IDs to names
-        """
-        if self.sol is None:
-            raise RuntimeError("OpenLabel structure not initialized")
-        
-        frame_objects = {}
-        seen_object = False
-        
-        for result in results:
-            if result.obb.id is not None:
-                ids = result.obb.id.int().cpu().tolist()
-                classes = result.obb.cls.int().cpu().tolist()
-                obbs_xywhr = result.obb.xywhr.cpu().tolist()
-                obbs_conf = result.obb.conf.cpu().tolist()
-                
-                for obj_id, cls, xywhr, conf in zip(ids, classes, obbs_xywhr, obbs_conf):
-                    obj_id_str = str(obj_id)
-                    seen_object = True
-                    xywhr_formatted = [
-                        int(xywhr[0]), int(xywhr[1]), int(xywhr[2]), 
-                        int(xywhr[3]), round(float(xywhr[4]), 4)
-                    ]
-                    
-                    # Add new object if not seen before
-                    if obj_id_str not in self.sol["openlabel"]["objects"]:
-                        self.sol["openlabel"]["objects"][obj_id_str] = {
-                            "name": f"Object-{obj_id_str}",
-                            "type": class_map.get(cls, str(cls)),
-                            "ontology_uid": "0"
-                        }
-                    
-                    # Add object data for this frame
-                    frame_objects[obj_id_str] = {
-                        "object_data": {
-                            "rbbox": [{
-                                "name": "shape",
-                                "val": xywhr_formatted
-                            }],
-                            "vec": [{
-                                "name": "confidence",
-                                "val": [float(conf)]
-                            }]
-                        }
-                    }
-        
-        # Only add frame if there are objects
-        if seen_object:
-            self.sol["openlabel"]["frames"][str(frame_idx)] = {
-                "objects": frame_objects
-            }
-    
-    def sort_objects(self) -> None:
-        """Sort objects dictionary numerically by key."""
-        if self.sol is None:
-            return
-            
-        objects = self.sol["openlabel"]["objects"]
-        sorted_objects = dict(sorted(objects.items(), key=lambda item: int(item[0])))
-        self.sol["openlabel"]["objects"] = sorted_objects
-    
-    def save_to_file(self, output_path: str) -> None:
-        """Save OpenLabel data to JSON file.
-        
-        Args:
-            output_path: Output file path
-        """
-        if self.sol is None:
-            raise RuntimeError("OpenLabel structure not initialized")
-        
-        try:
-            self.sort_objects()
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(self.sol, f, indent=2, ensure_ascii=False)
-            logger.info(f"OpenLabel data written to {output_path}")
-        except Exception as e:
-            logger.error(f"Failed to save OpenLabel data: {e}")
-            raise
-
-
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments.
-    
+
     Returns:
-        Parsed arguments
+        Parsed arguments namespace
     """
     parser = argparse.ArgumentParser(
-        description="Run YOLO OBB tracking and output OpenLabel JSON and optionally annotated video."
+        description='Advanced markit tool with multi-engine detection and IoU-based conflict resolution',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # YOLO only (uses default schema and ontology)
+  python markit.py --weights model.pt --input video.mp4 --output_json output.json
+
+  # With custom schema and ontology files
+  python markit.py --weights model.pt --input video.mp4 --output_json output.json --schema custom.schema.json --ontology custom_ontology.ttl
+
+  # Optical flow only
+  python markit.py --detection-method optical_flow --input video.mp4 --output_json output.json
+
+  # Both engines with default IoU threshold (0.3)
+  python markit.py --detection-method both --weights model.pt --input video.mp4 --output_json output.json
+
+  # Both engines with custom IoU threshold
+  python markit.py --detection-method both --weights model.pt --input video.mp4 --output_json output.json --iou-threshold 0.5
+
+  # Both engines without conflict resolution
+  python markit.py --detection-method both --weights model.pt --input video.mp4 --output_json output.json --disable-conflict-resolution
+        """
     )
-    parser.add_argument("--weights", required=True, help="Path to YOLO weights file (.pt)")
-    parser.add_argument("--input", required=True, help="Path to input video file")
-    parser.add_argument("--output_json", required=True, help="Path to output OpenLabel JSON file")
-    parser.add_argument("--schema", required=True, help="Path to OpenLabel JSON schema file")
-    parser.add_argument("--output_video", required=False, help="Path to output annotated video file (optional)")
-    
+
+    # Required arguments
+    parser.add_argument('--weights', help='Path to YOLO weights file (.pt)')
+    parser.add_argument('--input', required=True, help='Path to input video file')
+    parser.add_argument('--output_json', required=True, help='Path to output OpenLabel JSON file')
+    parser.add_argument('--schema', default='savant_openlabel_subset.schema.json',
+                       help='Path to OpenLabel JSON schema file (default: savant_openlabel_subset.schema.json)')
+    parser.add_argument('--output_video', help='Path to output annotated video file (optional)')
+    parser.add_argument('--ontology', default='savant_ontology_1.2.0.ttl',
+                       help='Path to SAVANT ontology file for class mapping (default: savant_ontology_1.2.0.ttl)')
+
+    # Detection method selection
+    parser.add_argument('--detection-method',
+                       choices=['yolo', 'optical_flow', 'both'],
+                       default='yolo',
+                       help='Detection method(s) to use (default: yolo)')
+
+    # Optical flow parameters
+    parser.add_argument('--motion-threshold', type=float, default=0.5,
+                       help='Optical flow motion threshold (default: 0.5)')
+    parser.add_argument('--min-object-area', type=int, default=200,
+                       help='Minimum object area for optical flow detection (default: 200)')
+
+    # IoU-based conflict resolution
+    parser.add_argument('--iou-threshold', type=float, default=0.3,
+                       help='IoU threshold for conflict resolution (default: 0.3)')
+    parser.add_argument('--verbose-conflicts', action='store_true',
+                       help='Enable verbose conflict resolution logging')
+    parser.add_argument('--disable-conflict-resolution', action='store_true',
+                       help='Disable conflict resolution (keep all detections)')
+
+    # Postprocessing
+    parser.add_argument('--housekeeping', action='store_true',
+                       help='Enable postprocessing passes (gap detection and filling)')
+    parser.add_argument('--duplicate-avg-iou', type=float, default=0.7,
+                       help='Average IOU threshold for duplicate detection (default: 0.7)')
+    parser.add_argument('--duplicate-min-iou', type=float, default=0.3,
+                       help='Minimum IOU threshold for duplicate detection (default: 0.3)')
+    parser.add_argument('--rotation-threshold', type=float, default=0.01,
+                       help='Rotation angle threshold in radians for adjustment (default: 0.01)')
+    parser.add_argument('--edge-distance', type=int, default=200,
+                       help='Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)')
+    parser.add_argument('--static-threshold', type=int, default=5,
+                       help='Movement threshold in pixels for static object removal (default: 5, negative value disables this pass)')
+    parser.add_argument('--static-mark', action='store_true',
+                       help='Mark static objects instead of removing them (adds "staticdynamic" annotation)')
+
     return parser.parse_args()
 
 
-def process_video(video_processor: VideoProcessor, openlabel_handler: OpenLabelHandler, 
+def process_video(video_processor: VideoProcessor, openlabel_handler: OpenLabelHandler,
                  config: MarkitConfig) -> None:
-    """Main video processing loop.
-    
+    """Main video processing loop with multi-engine support.
+
     Args:
         video_processor: Video processor instance
         openlabel_handler: OpenLabel handler instance
@@ -394,44 +162,47 @@ def process_video(video_processor: VideoProcessor, openlabel_handler: OpenLabelH
     """
     frame_idx = 0
     total_frames = 0
-    
-    logger.info("Starting video processing...")
-    
+
+    logger.info("Starting multi-engine video processing...")
+
     try:
         while True:
             success, frame = video_processor.read_frame()
             if not success:
                 break
-            
-            # Process frame with YOLO
-            results = video_processor.process_frame(frame)
-            
+
+            # Process frame with all configured engines
+            detection_results = video_processor.process_frame(frame)
+
             # Add to OpenLabel structure
-            openlabel_handler.add_frame_objects(frame_idx, results, config.class_map)
-            
+            openlabel_handler.add_frame_objects(frame_idx, detection_results, config.class_map)
+
             # Annotate and write frame if output video requested
             if config.output_video_path:
-                annotated_frame = FrameAnnotator.annotate_frame(frame, results)
+                annotated_frame = FrameAnnotator.annotate_frame(frame, detection_results)
                 video_processor.write_frame(annotated_frame)
-            
+
             frame_idx += 1
             total_frames += 1
-            
+
             # Log progress periodically
             if frame_idx % 100 == 0:
                 logger.info(f"Processed {frame_idx} frames...")
-    
+
     except Exception as e:
         logger.error(f"Error during video processing: {e}")
         raise
-    
+
+    # Log final statistics
+    stats = video_processor.get_detection_statistics()
     logger.info(f"Video processing completed. Total frames processed: {total_frames}")
+    logger.info(f"Detection statistics: {stats}")
 
 
-def cleanup(video_processor: VideoProcessor, openlabel_handler: OpenLabelHandler, 
+def cleanup(video_processor: VideoProcessor, openlabel_handler: OpenLabelHandler,
            config: MarkitConfig) -> None:
     """Cleanup and finalization.
-    
+
     Args:
         video_processor: Video processor instance
         openlabel_handler: OpenLabel handler instance
@@ -440,46 +211,95 @@ def cleanup(video_processor: VideoProcessor, openlabel_handler: OpenLabelHandler
     try:
         # Save OpenLabel data
         openlabel_handler.save_to_file(config.output_json_path)
-        
+
         # Clean up video resources
         video_processor.cleanup()
-        
+
         logger.info("Cleanup completed successfully")
-        
+
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
         raise
 
 
 def main():
-    """Main function to orchestrate the video processing workflow."""
+    """Main function to orchestrate the multi-engine video processing workflow."""
     try:
-        # Parse arguments and create configuration
+        # Parse arguments
         args = parse_arguments()
+
+        # Create configuration
         config = MarkitConfig(args)
-        
+
+        # Log configuration
+        engines = []
+        if config.use_yolo:
+            engines.append("YOLO")
+        if config.use_optical_flow:
+            engines.append("OpticalFlow")
+
+        logger.info(f"Markit v{__version__} starting with engines: {', '.join(engines)}")
+        if config.enable_conflict_resolution and len(engines) > 1:
+            logger.info(f"Conflict resolution enabled with IoU threshold: {config.iou_threshold:.2f}")
+
         # Initialize components
         video_processor = VideoProcessor(config)
         openlabel_handler = OpenLabelHandler(config.schema_path)
-        
-        # Setup
+
+        # Initialize video processing
         video_processor.initialize()
-        openlabel_handler.initialize_from_schema()
         openlabel_handler.add_metadata(config.video_path)
-        
-        # Main processing loop
+
+        # Process video
         process_video(video_processor, openlabel_handler, config)
-        
+
+        # Postprocessing pipeline (only if housekeeping enabled)
+        if config.enable_housekeeping:
+            logger.info("Starting postprocessing...")
+            postprocessing_pipeline = PostprocessingPipeline()
+            postprocessing_pipeline.set_video_properties(
+                video_processor.frame_width,
+                video_processor.frame_height,
+                video_processor.fps
+            )
+            postprocessing_pipeline.set_ontology_path(config.ontology_path)
+            postprocessing_pipeline.add_pass(GapDetectionPass())
+            postprocessing_pipeline.add_pass(GapFillingPass())
+            postprocessing_pipeline.add_pass(
+                DuplicateRemovalPass(
+                    avg_iou_threshold=config.duplicate_avg_iou,
+                    min_iou_threshold=config.duplicate_min_iou
+                )
+            )
+            if config.static_threshold >= 0:
+                postprocessing_pipeline.add_pass(
+                    StaticObjectRemovalPass(
+                        static_threshold=config.static_threshold,
+                        mark_only=config.static_mark
+                    )
+                )
+            postprocessing_pipeline.add_pass(
+                RotationAdjustmentPass(rotation_threshold=config.rotation_threshold)
+            )
+            postprocessing_pipeline.add_pass(SuddenPass(edge_distance=config.edge_distance))
+            postprocessing_pipeline.add_pass(FrameIntervalPass())
+
+            openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
+                openlabel_handler.openlabel_data
+            )
+        else:
+            logger.info("Housekeeping disabled, skipping postprocessing")
+
         # Cleanup and save results
         cleanup(video_processor, openlabel_handler, config)
-        
-        logger.info("Application completed successfully")
-        
+
+        logger.info("Multi-engine video processing completed successfully")
+
     except KeyboardInterrupt:
-        logger.info("Application interrupted by user")
+        logger.info("Processing interrupted by user")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"Application failed: {e}")
+        logger.error(f"Processing failed: {e}")
         sys.exit(1)
 
 

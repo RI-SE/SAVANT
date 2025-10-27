@@ -1,12 +1,8 @@
-from pydantic import (
-    BaseModel,
-    conint,
-    confloat,
-    model_serializer,
-    model_validator,
-)
-from typing import Dict, List, Literal, Union, Optional
+from collections import deque
 from math import isfinite
+from typing import Dict, List, Literal, Optional, Union
+
+from pydantic import BaseModel, confloat, conint, model_serializer, model_validator
 
 
 class RotatedBBox(BaseModel):
@@ -51,14 +47,14 @@ class ConfidenceData(BaseModel):
     """Contains confidence score for detection"""
 
     name: Literal["confidence"] = "confidence"
-    val: List[confloat(ge=0, le=1)]  # List of confidence scores
+    val: deque[confloat(ge=0, le=1)]  # List of confidence scores
 
 
 class AnnotatorData(BaseModel):
     """Contains annotator information"""
 
     name: Literal["annotator"] = "annotator"
-    val: List[str]
+    val: deque[str]
 
 
 class ObjectData(BaseModel):
@@ -157,9 +153,8 @@ class OpenLabel(BaseModel):
         self,
         frame_id: int,
         bbox_coordinates: dict,
-        confidence_data: dict,
-        annotater_data: dict,
         obj_id: str,
+        annotator: str,
     ):
         """
         Adds a new bounding box for an object with no existing
@@ -175,6 +170,11 @@ class OpenLabel(BaseModel):
         )
 
         bbox_geometry_data = GeometryData(val=rbbox)
+        confidence_data = ConfidenceData(
+            val=deque([1.0])
+        )  # Confidence set to 1 for humans
+        annotater_data = AnnotatorData(val=deque([annotator]))
+
         new_obj_data = ObjectData(
             rbbox=[bbox_geometry_data], vec=[annotater_data, confidence_data]
         )
@@ -244,6 +244,7 @@ class OpenLabel(BaseModel):
         object_key: Union[int, str],
         *,
         bbox_index: int = 0,
+        annotator: str,
         # absolute values (optional)
         x_center: Optional[float] = None,
         y_center: Optional[float] = None,
@@ -317,6 +318,10 @@ class OpenLabel(BaseModel):
             [new_x_center, new_y_center, new_width, new_height, new_rotation]
         )
         geometry_entry.val = updated_bbox
+
+        self._update_annotator(annotator, frame_object.object_data.vec[0])
+        self._update_annotator_confidence(1.0, frame_object.object_data.vec[1])
+
         return updated_bbox
 
     def delete_bbox(
@@ -344,3 +349,56 @@ class OpenLabel(BaseModel):
             # Create empty frame if needed
             self.frames[fkey] = FrameObjects(objects={})
         self.frames[fkey].objects[object_key] = frame_obj
+
+    def get_boxes_with_ids_for_frame(self, frame_idx: int) -> list:
+        """Return bounding boxes for a specific frame.
+
+        Returns:
+            List of tuples containing:
+            (object_id: str, object_type: str,
+             x_center: float, y_center: float,
+             width: float, height: float, rotation: float)
+        """
+        results = []
+        frame_key = str(frame_idx)
+
+        # Check if frame exists
+        if frame_key not in self.frames:
+            return results
+
+        frame = self.frames[frame_key]
+
+        for object_id, frame_obj in frame.objects.items():
+            # Get object metadata
+            metadata = self.objects.get(object_id)
+            object_type = metadata.type if metadata else "unknown"
+
+            for geometry_data in frame_obj.object_data.rbbox:
+                if geometry_data.name != "shape":
+                    continue
+
+                # Extract RotatedBBox values
+                rbbox = geometry_data.val
+                bbox_info = (
+                    object_id,
+                    object_type,
+                    rbbox.x_center,
+                    rbbox.y_center,
+                    rbbox.width,
+                    rbbox.height,
+                    rbbox.rotation,
+                )
+                results.append(bbox_info)
+
+        return results
+
+    def _update_annotator(self, annotater: str, current_annotator_data: AnnotatorData):
+        """Internal: Update annotator data for a bbox."""
+        if annotater not in current_annotator_data.val:
+            current_annotator_data.val.appendleft(annotater)
+
+    def _update_annotator_confidence(
+        self, confidence: float, current_confidence_data: ConfidenceData
+    ):
+        """Internal: Update confidence data for a bbox."""
+        current_confidence_data.val.appendleft(confidence)

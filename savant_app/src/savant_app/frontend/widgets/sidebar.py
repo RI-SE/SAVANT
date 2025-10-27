@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QListWidgetItem,
 )
-from PyQt6.QtCore import QSize, pyqtSignal, pyqtSlot, Qt, QEvent
+from PyQt6.QtCore import QSize, pyqtSignal, pyqtSlot, Qt, QEvent, QSignalBlocker
 from savant_app.frontend.utils.assets import icon
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.video_controller import VideoController
@@ -22,12 +22,15 @@ from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.widgets.settings import get_action_interval_offset
 from savant_app.frontend.utils.settings_store import get_ontology_path
 from savant_app.frontend.exceptions import InvalidObjectIDFormat
+from savant_app.controllers.project_state_controller import ProjectStateController
 from PyQt6.QtGui import QShortcut, QKeySequence
 from savant_app.frontend.theme.constants import (
     SIDEBAR_ERROR_HIGHLIGHT,
     SIDEBAR_WARNING_HIGHLIGHT,
     SIDEBAR_HIGHLIGHT_TEXT_COLOUR
 )
+from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
+from PyQt6.QtGui import QFont
 
 
 class Sidebar(QWidget):
@@ -41,12 +44,14 @@ class Sidebar(QWidget):
     quick_save = pyqtSignal()
     highlight_selected_object = pyqtSignal(str)
     object_selected = pyqtSignal(str)  # New signal for selection changes
+    object_details_changed = pyqtSignal()
 
     def __init__(
         self,
         video_actors: list[str],
         annotation_controller: AnnotationController,
         video_controller: VideoController,
+        project_state_controller: ProjectStateController,
         state: SidebarState,
     ):
         super().__init__()
@@ -56,6 +61,7 @@ class Sidebar(QWidget):
         # Temporary controller until refactor.
         self.annotation_controller: AnnotationController = annotation_controller
         self.video_controller: VideoController = video_controller
+        self.project_state_controller: ProjectStateController = project_state_controller
 
         # State for sidebar
         self.state: SidebarState = state
@@ -107,6 +113,24 @@ class Sidebar(QWidget):
         new_tag_btn.clicked.connect(self._open_frame_tag_dialog)
         main_layout.addWidget(new_tag_btn)
 
+        # --- Object Details ---
+        parts = create_collapsible_object_details(
+            parent=self,
+            title="Object details",
+            populate_types=self._populate_bbox_type_combo_grouped,
+            on_name_edited=self._on_details_name_edited,
+            on_type_changed=self._on_details_type_changed,
+        )
+
+        self.details_container = parts["container"]
+        self._details_toggle = parts["toggle"]
+        self._details_content = parts["content"]
+        self._details_id_label = parts["id_label"]
+        self._details_name_edit = parts["name_edit"]
+        self._details_type_combo = parts["type_combo"]
+        self._editing_object_id: str | None = None
+        main_layout.addWidget(self.details_container)
+
         # --- Active Objects ---
         main_layout.addWidget(QLabel("Active Objects:"))
         self.active_objects = QListWidget()
@@ -114,13 +138,10 @@ class Sidebar(QWidget):
         self.active_objects.model().rowsInserted.connect(self.adjust_list_sizes)
         self.active_objects.model().rowsRemoved.connect(self.adjust_list_sizes)
         self.active_objects.itemClicked.connect(self._on_active_object_selected)
+        self.active_objects.itemSelectionChanged.connect(
+            self._on_active_objects_selection_changed
+        )
         main_layout.addWidget(self.active_objects)
-
-        # --- Frame ID ---
-        # main_layout.addWidget(QLabel("Frame ID:"))
-        # self.frame_id = QListWidget()
-        # self.frame_id.setFixedHeight(40)
-        # main_layout.addWidget(self.frame_id)
 
         # --- Active Frame Tags ---
         main_layout.addWidget(QLabel("Frame Tags"))
@@ -139,10 +160,10 @@ class Sidebar(QWidget):
 
         self.setLayout(main_layout)
         try:
-            cur = int(self.video_controller.current_index())
+            current_index = int(self.video_controller.current_index())
         except Exception:
-            cur = 0
-        self._refresh_active_frame_tags(cur)
+            current_index = 0
+        self._refresh_active_frame_tags(current_index)
 
     def _extract_object_id_from_text(self, text: str) -> str:
         """Extract object ID from list item text in format 'Type (ID: 123)'"""
@@ -166,20 +187,20 @@ class Sidebar(QWidget):
         object_id = self._item_object_id(item)
         self._selected_annotation_object_id = object_id
         self.highlight_selected_object.emit(object_id)
+        self.show_object_editor(object_id, expand=False)
 
     def select_active_object_by_id(self, object_id: str):
         """Select the active object in the list by its ID."""
-        self.active_objects.clearSelection()
         self._selected_annotation_object_id = object_id
-
-        for i in range(self.active_objects.count()):
-            item = self.active_objects.item(i)
-            item_id = self._item_object_id(item)
-            if object_id == item_id:
-                item.setSelected(True)
-                self.active_objects.setCurrentItem(item)
-                self.active_objects.scrollToItem(item)
-                break
+        with QSignalBlocker(self.active_objects):
+            self.active_objects.clearSelection()
+            for i in range(self.active_objects.count()):
+                item = self.active_objects.item(i)
+                if object_id == self._extract_object_id_from_text(item.text()):
+                    item.setSelected(True)
+                    self.active_objects.setCurrentItem(item)
+                    self.active_objects.scrollToItem(item)
+                    break
 
     def refresh_active_objects(
         self,
@@ -187,6 +208,7 @@ class Sidebar(QWidget):
         confidence_flags: dict[str, str] | None = None,
     ):
         """Refresh the list of active objects and update recent IDs."""
+        with QSignalBlocker(self.active_objects):
         self.active_objects.clear()
         flags = confidence_flags or {}
         for item in active_objects:
@@ -211,6 +233,7 @@ class Sidebar(QWidget):
         self.select_active_object_by_id(
             self._selected_annotation_object_id
         )  # Reselect previously selected object if still present
+
 
         self.update()
 
@@ -286,8 +309,15 @@ class Sidebar(QWidget):
         new_obj_bbox_btn = QComboBox()
         new_obj_bbox_btn.setPlaceholderText("Select new object type")
         types = self.annotation_controller.allowed_bbox_types()
-        labels = types.get("DynamicObject", []) + types.get("StaticObject", [])
-        new_obj_bbox_btn.addItems(labels)
+        self._add_combo_separator(new_obj_bbox_btn, "— DynamicObject —")
+        for label in types.get("DynamicObject", []):
+            new_obj_bbox_btn.addItem(label)
+
+        self._add_combo_separator(new_obj_bbox_btn, "— StaticObject —")
+        for label in types.get("StaticObject", []):
+            new_obj_bbox_btn.addItem(label)
+
+        new_obj_bbox_btn.setCurrentIndex(-1)
 
         new_obj_bbox_btn.currentTextChanged.connect(
             lambda text: self.start_bbox_drawing.emit(text)
@@ -362,7 +392,9 @@ class Sidebar(QWidget):
     def _open_frame_tag_dialog(self):
         path = get_ontology_path()
         if path is None:
-            QMessageBox.warning(self, "No Ontology", "Set an ontology file in settings first.")
+            QMessageBox.warning(
+                self, "No Ontology", "Set an ontology file in settings first."
+            )
             return
         print(get_ontology_path())
 
@@ -375,21 +407,21 @@ class Sidebar(QWidget):
         form.addRow("Tag:", tag_combo)
 
         try:
-            total = max(0, int(self.video_controller.total_frames()))
+            total = max(0, int(self.project_state_controller.get_frame_count()))
         except Exception:
             total = 0
         try:
-            cur = max(0, int(self.video_controller.current_index()))
+            current_index = max(0, int(self.video_controller.current_index()))
         except Exception:
-            cur = 0
+            current_index = 0
 
         try:
             offset = max(0, int(get_action_interval_offset()))
         except Exception:
             offset = 0
 
-        start_default = max(0, cur - offset)
-        end_default = cur + offset
+        start_default = max(0, current_index - offset)
+        end_default = current_index + offset
         if total > 0:
             end_default = min(total - 1, end_default)
 
@@ -426,10 +458,10 @@ class Sidebar(QWidget):
         try:
             self.annotation_controller.add_frame_tag(tag, start, end)
             try:
-                cur_now = int(self.video_controller.current_index())
+                current_index = int(self.video_controller.current_index())
             except Exception:
-                cur_now = 0
-            self._refresh_active_frame_tags(cur_now)
+                current_index = 0
+            self._refresh_active_frame_tags(current_index)
             QMessageBox.information(self, "Tag added", f"{tag}: {start} → {end}")
         except Exception as e:
             QMessageBox.critical(self, "Failed to add tag", str(e))
@@ -469,6 +501,35 @@ class Sidebar(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, (tag, int(start), int(end)))
             self.frame_tag_list.addItem(item)
 
+    def _add_combo_separator(self, combo: QComboBox, text: str) -> None:
+        """Insert a disabled, italic separator item into a combo box."""
+        combo.addItem(text)
+        idx = combo.count() - 1
+        item = combo.model().item(idx)
+        if item is None:
+            return
+        item.setEnabled(False)
+        item.setSelectable(False)
+        font = item.font() or QFont()
+        font.setItalic(True)
+        item.setFont(font)
+
+    def reload_bbox_type_combo(self, _: object | None = None) -> None:
+        """Repopulate the type combo after the ontology path changes."""
+        if not hasattr(self, "_details_type_combo") or self._details_type_combo is None:
+            return
+
+        current_text = self._details_type_combo.currentText()
+        self._populate_bbox_type_combo_grouped(self._details_type_combo)
+
+        if current_text and not current_text.strip().startswith("—"):
+            for idx in range(self._details_type_combo.count()):
+                if (
+                    self._details_type_combo.itemText(idx) or ""
+                ).lower() == current_text.lower():
+                    self._details_type_combo.setCurrentIndex(idx)
+                    break
+
     def _populate_bbox_type_combo_grouped(self, type_combo) -> None:
         """
         Group bbox types by ontology category in the combo box.
@@ -484,20 +545,13 @@ class Sidebar(QWidget):
         type_combo.blockSignals(True)
         type_combo.clear()
 
-        def add_separator(text: str):
-            type_combo.addItem(text)
-            idx = type_combo.count() - 1
-            item = type_combo.model().item(idx)
-            if item:
-                item.setEnabled(False)
+        self._add_combo_separator(type_combo, "— DynamicObject —")
+        for label in types.get("DynamicObject", []):
+            type_combo.addItem(label.lower())
 
-        add_separator("— DynamicObject —")
-        for lbl in types.get("DynamicObject", []):
-            type_combo.addItem(lbl)
-
-        add_separator("— StaticObject —")
-        for lbl in types.get("StaticObject", []):
-            type_combo.addItem(lbl)
+        self._add_combo_separator(type_combo, "— StaticObject —")
+        for label in types.get("StaticObject", []):
+            type_combo.addItem(label.lower())
 
         type_combo.blockSignals(False)
 
@@ -535,5 +589,111 @@ class Sidebar(QWidget):
         if not self.annotation_controller.remove_frame_tag(tag, start, end):
             QMessageBox.information(self, "Delete Frame Tag", "Nothing was deleted.")
             return
-        cur = int(self.video_controller.current_index())
-        self._refresh_active_frame_tags(cur)
+        current_index = int(self.video_controller.current_index())
+        self._refresh_active_frame_tags(current_index)
+
+    def show_object_editor(self, object_id: str, *, expand: bool) -> None:
+        """
+        Enable the details panel and load the object metadata.
+        If expand=True, also expand the content.
+        """
+        if not object_id:
+            return
+        self._editing_object_id = object_id
+        meta = self.annotation_controller.get_object_metadata(object_id)
+
+        self.details_container.setEnabled(True)
+        self._details_id_label.setText(object_id)
+        self._details_name_edit.blockSignals(True)
+        self._details_name_edit.setText(meta.get("name", "") or "")
+        self._details_name_edit.blockSignals(False)
+        desired_type_lc = (meta.get("type", "") or "").lower()
+        self._details_type_combo.blockSignals(True)
+        try:
+            idx = -1
+            for i in range(self._details_type_combo.count()):
+                if (
+                    self._details_type_combo.itemText(i) or ""
+                ).lower() == desired_type_lc:
+                    idx = i
+                    break
+            self._details_type_combo.setCurrentIndex(idx)
+        finally:
+            self._details_type_combo.blockSignals(False)
+
+        if expand and not self._details_toggle.isChecked():
+            self._details_toggle.setChecked(True)
+
+    def hide_object_editor(self) -> None:
+        """Collapse, disable, and clear details when nothing is selected."""
+        self._editing_object_id = None
+        self.details_container.setEnabled(False)
+        if self._details_toggle.isChecked():
+            self._details_toggle.setChecked(False)
+
+        self._details_id_label.setText("-")
+        self._details_name_edit.blockSignals(True)
+        self._details_type_combo.blockSignals(True)
+        try:
+            self._details_name_edit.clear()
+            self._details_type_combo.setCurrentIndex(-1)
+        finally:
+            self._details_name_edit.blockSignals(False)
+            self._details_type_combo.blockSignals(False)
+
+    def _on_details_name_edited(self):
+        if not self._editing_object_id:
+            return
+        new_name = (self._details_name_edit.text() or "").strip()
+        if not new_name:
+            QMessageBox.warning(self, "Invalid name", "Name cannot be empty.")
+            try:
+                meta = self.annotation_controller.get_object_metadata(
+                    self._editing_object_id
+                )
+                self._details_name_edit.blockSignals(True)
+                self._details_name_edit.setText(meta.get("name", "") or "")
+            finally:
+                self._details_name_edit.blockSignals(False)
+            return
+
+        self.annotation_controller.update_object_name(self._editing_object_id, new_name)
+        self._refresh_active_objects_after_edit()
+
+    def _on_details_type_changed(self, text: str):
+        if not self._editing_object_id:
+            return
+        chosen = (text or "").strip()
+        if not chosen:
+            return
+
+        self.annotation_controller.update_object_type(self._editing_object_id, chosen)
+        self._refresh_active_objects_after_edit()
+        self.object_details_changed.emit()
+
+    def _refresh_active_objects_after_edit(self):
+        """Reloads Active Objects list to reflect edited metadata."""
+
+        current_index = int(self.video_controller.current_index())
+
+        with QSignalBlocker(self.active_objects):
+            self.active_objects.clear()
+            active = self.annotation_controller.get_active_objects(current_index)
+            for item in active:
+                obj_name = item["name"]
+                obj_type = (item["type"] or "").lower()
+                numeric_id = obj_name.split("-")[-1] if "-" in obj_name else obj_name
+                self.active_objects.addItem(f"{obj_type} (ID: {numeric_id})")
+
+            self.select_active_object_by_id(self._editing_object_id)
+
+    def _on_active_objects_selection_changed(self):
+        if self.active_objects.selectedItems():
+            return
+        self.hide_object_editor()
+
+    def _on_details_toggle_clicked(self, checked: bool):
+        self._details_toggle.setArrowType(
+            Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow
+        )
+        self._details_content.setVisible(bool(checked))

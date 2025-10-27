@@ -21,6 +21,7 @@ class FrontendState(QObject):
         self._confidence_issues: dict[int, list] = {}
         self._warning_frames: set[int] = set()
         self._error_frames: set[int] = set()
+        self._current_annotator: str = ""
 
     @property
     def frame_index(self):
@@ -41,6 +42,12 @@ class FrontendState(QObject):
     @property
     def tool(self):
         return self._tool
+
+    def set_current_annotator(self, new_annotator: str) -> str:
+        self.current_annotator = new_annotator
+
+    def get_current_annotator(self) -> str:
+        return self.current_annotator
 
     def set_frame(self, idx: int):
         if idx != self._frame_index and idx >= 0:

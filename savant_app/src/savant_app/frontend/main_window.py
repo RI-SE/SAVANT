@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtGui import QKeySequence, QShortcut
-
 from savant_app.frontend.widgets.video_display import VideoDisplay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
 from savant_app.frontend.widgets.sidebar import Sidebar
@@ -16,6 +15,9 @@ from savant_app.frontend.widgets.seek_bar import SeekBar
 from savant_app.frontend.widgets.overlay import Overlay
 from savant_app.frontend.widgets.menu import AppMenu
 from savant_app.frontend.widgets.settings import SettingsDialog
+from savant_app.frontend.states.frontend_state import FrontendState
+from savant_app.frontend.states.sidebar_state import SidebarState
+from savant_app.frontend.widgets.annotator_dialog import AnnotatorDialog
 from savant_app.frontend.utils.settings_store import (
     get_ontology_path,
     get_action_interval_offset,
@@ -27,15 +29,12 @@ from savant_app.frontend.utils.settings_store import (
     set_show_warnings,
     set_show_errors,
 )
-from savant_app.frontend.states.sidebar_state import SidebarState
-from savant_app.frontend.states.frontend_state import FrontendState
-
 from savant_app.frontend.utils import (
-    project_io,
-    playback,
-    navigation,
-    render,
     annotation_ops,
+    navigation,
+    playback,
+    project_io,
+    render,
     zoom,
 )
 
@@ -100,10 +99,11 @@ class MainWindow(QMainWindow):
         self.sidebar_state = SidebarState()
         actors: dict[str, list[str]] = {}
         self.sidebar = Sidebar(
-            video_actors=actors,
-            annotation_controller=self.annotation_controller,
-            video_controller=self.video_controller,
-            state=self.sidebar_state,
+            actors,
+            self.annotation_controller,
+            self.video_controller,
+            self.project_state_controller,
+            self.sidebar_state,
         )
         self.seek_bar.frame_changed.connect(self.sidebar.on_frame_changed)
 
@@ -121,7 +121,8 @@ class MainWindow(QMainWindow):
         playback.wire(self)
         navigation.wire(self)
         render.wire(self)
-        annotation_ops.wire(self)
+
+        annotation_ops.wire(self, self.state)
         zoom.wire(self, initial=1.0)
 
         QShortcut(
@@ -131,6 +132,12 @@ class MainWindow(QMainWindow):
         )
 
         self.refresh_confidence_issues()
+
+        # Display dialog for annotater name input
+        annotator_name_dialog = AnnotatorDialog()
+        annotator_name_dialog.exec()
+        current_annotator_name = annotator_name_dialog.get_annotator_name()
+        self.state.set_current_annotator(current_annotator_name)
 
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")
@@ -143,6 +150,7 @@ class MainWindow(QMainWindow):
             action_interval_offset=get_action_interval_offset(),
             parent=self,
         )
+        dlg.ontology_path_selected.connect(self.sidebar.reload_bbox_type_combo)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             vals = dlg.values()
             self.sidebar_state.historic_obj_frame_count = vals["previous_frame_count"]

@@ -63,3 +63,24 @@ class ProjectStateController:
 
     def validate_before_save(self) -> None:
         self.project_state.validate_before_save()
+
+    @error_handler
+    def get_video_metadata(self):
+        """Return the entire video metadata dictionary"""
+        return self.project_state.video_metadata
+
+    @error_handler
+    def get_frame_count(self) -> int:
+        """Return total number of frames in the loaded video"""
+        return self.project_state.video_metadata.frame_count
+
+    @error_handler
+    def get_fps(self) -> float:
+        """Return frames per second of the loaded video"""
+        return self.project_state.video_metadata.fps
+
+    @error_handler
+    def get_video_size(self):
+        """Return video dimensions as (width, height) tuple"""
+        metadata = self.project_state.video_metadata
+        return (metadata.width, metadata.height)
