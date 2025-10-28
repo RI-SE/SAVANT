@@ -4,20 +4,25 @@ from pathlib import Path
 from typing import Optional
 
 
-_ONTOLOGY_PATH: Optional[Path] = None
+_ontology_path: Optional[Path] = None
 
-_ACTION_INTERVAL_OFFSET: int = 0
+_action_interval_offset: int = 0
 
-_DEFAULT_ONTOLOGY_NAMESPACE = "http://savant.ri.se/ontology#"
+_default_ontology_namespace = "http://savant.ri.se/ontology#"
 
-_ONTOLOGY_NAMESPACE: str = _DEFAULT_ONTOLOGY_NAMESPACE
+_ontology_namespace: str = _default_ontology_namespace
+
+_warning_range: tuple[float, float] = (0.4, 0.6)
+_error_range: tuple[float, float] = (0.0, 0.4)
+_show_warnings: bool = False
+_show_errors: bool = False
 
 
 def get_ontology_path() -> Optional[Path]:
     """
     Return the current Turtle (.ttl) ontology path used for frame tags.
     """
-    return _ONTOLOGY_PATH
+    return _ontology_path
 
 
 def set_ontology_path(path: str | Path) -> None:
@@ -27,18 +32,18 @@ def set_ontology_path(path: str | Path) -> None:
     Raises:
         ValueError: If the file is invalid or not a .ttl.
     """
-    global _ONTOLOGY_PATH
+    global _ontology_path
     p = Path(path)
     if not p.is_file() or p.suffix.lower() != ".ttl":
         raise ValueError(f"Invalid ontology file: {path}")
-    _ONTOLOGY_PATH = p
+    _ontology_path = p
 
 
 def get_action_interval_offset() -> int:
     """
     Return the default action interval offset (in frames).
     """
-    return int(_ACTION_INTERVAL_OFFSET)
+    return int(_action_interval_offset)
 
 
 def set_action_interval_offset(value: int) -> None:
@@ -51,18 +56,18 @@ def set_action_interval_offset(value: int) -> None:
     Raises:
         ValueError: If value is negative.
     """
-    global _ACTION_INTERVAL_OFFSET
+    global _action_interval_offset
     interval = int(value)
     if interval < 0:
         raise ValueError("Action interval offset must be >= 0.")
-    _ACTION_INTERVAL_OFFSET = interval
+    _action_interval_offset = interval
 
 
 def get_ontology_namespace() -> str:
     """
     Return the base namespace IRI for the ontology.
     """
-    return _ONTOLOGY_NAMESPACE
+    return _ontology_namespace
 
 
 def set_ontology_namespace(ns: str) -> None:
@@ -75,10 +80,68 @@ def set_ontology_namespace(ns: str) -> None:
     Raises:
         ValueError: If empty or doesn’t end with an allowed delimiter.
     """
-    global _ONTOLOGY_NAMESPACE
+    global _ontology_namespace
     ns = str(ns).strip()
     if not ns:
         raise ValueError("Ontology namespace cannot be empty.")
     if not (ns.endswith("#") or ns.endswith("/") or ns.endswith(":")):
         raise ValueError(f"Ontology namespace '{ns}' must end with '#', '/' or ':'.")
-    _ONTOLOGY_NAMESPACE = ns
+    _ontology_namespace = ns
+
+
+def get_warning_range() -> tuple[float, float]:
+    return tuple(_warning_range)
+
+
+def get_error_range() -> tuple[float, float]:
+    return tuple(_error_range)
+
+
+def set_threshold_ranges(
+    *,
+    warning_range: tuple[float, float],
+    error_range: tuple[float, float],
+    show_warnings: bool,
+    show_errors: bool,
+) -> None:
+    global _warning_range, _error_range
+
+    warn_min, warn_max = (float(warning_range[0]), float(warning_range[1]))
+    err_min, err_max = (float(error_range[0]), float(error_range[1]))
+
+    for label, minimum, maximum in (
+        ("Warning", warn_min, warn_max),
+        ("Error", err_min, err_max),
+    ):
+        if minimum < 0.0 or maximum > 1.0:
+            raise ValueError(f"{label} range values must be between 0.0 and 1.0.")
+        if minimum > maximum:
+            raise ValueError(f"{label} range minimum cannot exceed its maximum.")
+
+    if show_warnings and show_errors:
+        overlaps = not (warn_max <= err_min or err_max <= warn_min)
+        if overlaps:
+            raise ValueError(
+                "Warning and error ranges must not overlap when both markers are visible."
+            )
+
+    _warning_range = (warn_min, warn_max)
+    _error_range = (err_min, err_max)
+
+
+def get_show_warnings() -> bool:
+    return bool(_show_warnings)
+
+
+def set_show_warnings(value: bool) -> None:
+    global _show_warnings
+    _show_warnings = bool(value)
+
+
+def get_show_errors() -> bool:
+    return bool(_show_errors)
+
+
+def set_show_errors(value: bool) -> None:
+    global _show_errors
+    _show_errors = bool(value)

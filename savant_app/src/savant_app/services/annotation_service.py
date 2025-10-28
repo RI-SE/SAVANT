@@ -105,7 +105,7 @@ class AnnotationService:
         active_object_keys = frame.objects.keys()
 
         return [
-            {"type": obj.type, "name": obj.name}
+            {"type": obj.type, "name": obj.name, "id": key}
             for key, obj in self.project_state.annotation_config.objects.items()
             if key in active_object_keys
         ]

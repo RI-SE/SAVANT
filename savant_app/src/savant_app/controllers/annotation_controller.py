@@ -122,7 +122,7 @@ class AnnotationController:
         )
 
     @error_handler
-    def get_active_objects(self, frame_number: int) -> list[str]:
+    def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number."""
         return self.annotation_service.get_active_objects(frame_number)
 

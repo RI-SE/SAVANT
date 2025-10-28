@@ -1,29 +1,44 @@
 # main_window.py
+from PyQt6.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QDialog,
+    QMessageBox,
+)
 from PyQt6.QtGui import QKeySequence, QShortcut
-from PyQt6.QtWidgets import QDialog, QHBoxLayout, QMainWindow, QVBoxLayout, QWidget
-
+from savant_app.frontend.widgets.video_display import VideoDisplay
+from savant_app.frontend.widgets.playback_controls import PlaybackControls
+from savant_app.frontend.widgets.sidebar import Sidebar
+from savant_app.frontend.widgets.seek_bar import SeekBar
+from savant_app.frontend.widgets.overlay import Overlay
+from savant_app.frontend.widgets.menu import AppMenu
+from savant_app.frontend.widgets.settings import SettingsDialog
 from savant_app.frontend.states.frontend_state import FrontendState
 from savant_app.frontend.states.sidebar_state import SidebarState
+from savant_app.frontend.widgets.annotator_dialog import AnnotatorDialog
+from savant_app.frontend.exceptions import InvalidWarningErrorRange
+from savant_app.frontend.utils.settings_store import (
+    get_ontology_path,
+    get_action_interval_offset,
+    get_warning_range,
+    get_error_range,
+    get_show_warnings,
+    get_show_errors,
+    set_threshold_ranges,
+    set_show_warnings,
+    set_show_errors,
+)
 from savant_app.frontend.utils import (
     annotation_ops,
+    confidence_ops,
     navigation,
     playback,
     project_io,
     render,
     zoom,
 )
-from savant_app.frontend.utils.settings_store import (
-    get_action_interval_offset,
-    get_ontology_path,
-)
-from savant_app.frontend.widgets.annotator_dialog import AnnotatorDialog
-from savant_app.frontend.widgets.menu import AppMenu
-from savant_app.frontend.widgets.overlay import Overlay
-from savant_app.frontend.widgets.playback_controls import PlaybackControls
-from savant_app.frontend.widgets.seek_bar import SeekBar
-from savant_app.frontend.widgets.settings import SettingsDialog
-from savant_app.frontend.widgets.sidebar import Sidebar
-from savant_app.frontend.widgets.video_display import VideoDisplay
 
 
 class MainWindow(QMainWindow):
@@ -46,6 +61,9 @@ class MainWindow(QMainWindow):
 
         # state
         self.state = FrontendState(self)
+        self.state.confidenceIssuesChanged.connect(
+            lambda _: confidence_ops.apply_confidence_markers(self)
+        )
 
         # Menu
         self.menu = AppMenu(
@@ -105,14 +123,17 @@ class MainWindow(QMainWindow):
         playback.wire(self)
         navigation.wire(self)
         render.wire(self)
+
         annotation_ops.wire(self, self.state)
-        zoom.wire(self, initial=1.15)
+        zoom.wire(self, initial=1.0)
 
         QShortcut(
             QKeySequence.StandardKey.Undo,
             self,
             activated=lambda: annotation_ops.undo_delete(self),
         )
+
+        self.refresh_confidence_issues()
 
         # Display dialog for annotater name input
         annotator_name_dialog = AnnotatorDialog()
@@ -135,6 +156,51 @@ class MainWindow(QMainWindow):
         if dlg.exec() == QDialog.DialogCode.Accepted:
             vals = dlg.values()
             self.sidebar_state.historic_obj_frame_count = vals["previous_frame_count"]
+            warning_vals = vals.get("warning_range", get_warning_range())
+            error_vals = vals.get("error_range", get_error_range())
+            warning_range = tuple(float(v) for v in warning_vals)
+            error_range = tuple(float(v) for v in error_vals)
+            show_warnings = vals.get("show_warnings", get_show_warnings())
+            show_errors = vals.get("show_errors", get_show_errors())
+            thresholds_valid = True
+            if (
+                show_warnings
+                and show_errors
+                and not (
+                    warning_range[1] <= error_range[0]
+                    or error_range[1] <= warning_range[0]
+                )
+            ):
+                QMessageBox.critical(
+                    self,
+                    "Invalid Ranges",
+                    "Warning and error ranges must not overlap when both markers are visible.",
+                )
+                thresholds_valid = False
+
+            if thresholds_valid:
+                try:
+                    set_threshold_ranges(
+                        warning_range=warning_range,
+                        error_range=error_range,
+                        show_warnings=show_warnings,
+                        show_errors=show_errors,
+                    )
+                    set_show_warnings(show_warnings)
+                    set_show_errors(show_errors)
+                except InvalidWarningErrorRange as ex:
+                    QMessageBox.critical(self, "Invalid Ranges", str(ex))
+                    thresholds_valid = False
+            if thresholds_valid:
+                confidence_ops.refresh_confidence_issues(self)
+            else:
+                confidence_ops.apply_confidence_markers(self)
 
     def noop(*args, **kwargs):
         print("Not implemented yet")
+
+    def refresh_confidence_issues(self):
+        confidence_ops.refresh_confidence_issues(self)
+
+    def apply_confidence_markers(self):
+        confidence_ops.apply_confidence_markers(self)

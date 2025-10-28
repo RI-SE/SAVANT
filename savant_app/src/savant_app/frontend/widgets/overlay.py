@@ -1,9 +1,15 @@
 from PyQt6.QtWidgets import QWidget
-from PyQt6.QtGui import QPainter, QPen, QColor, QPolygonF, QBrush
+from PyQt6.QtGui import QPainter, QPen, QColor, QPolygonF, QBrush, QPixmap
 from PyQt6.QtCore import Qt, QPointF, pyqtSignal, QRectF
 from typing import List, Tuple
 import math
-from savant_app.frontend.types import BBoxData
+from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
+from savant_app.frontend.theme.constants import (
+    get_warning_icon,
+    get_error_icon,
+    OVERLAY_CONFIDENCE_ICON_SIZE,
+    OVERLAY_ICON_SPACING,
+)
 from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 from savant_app.frontend.widgets.cascade_button import CascadeButton
 
@@ -89,6 +95,15 @@ class Overlay(QWidget):
         self._orig_theta = 0.0
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
+        # Confidence issue flags
+        self._bbox_flags: ConfidenceFlagMap = {}
+        self._warning_icon = get_warning_icon()
+        self._error_icon = get_error_icon()
+        self._confidence_icon_size = OVERLAY_CONFIDENCE_ICON_SIZE
+        self._warning_icon_scaled = self._scale_icon(self._warning_icon)
+        self._error_icon_scaled = self._scale_icon(self._error_icon)
+        self._show_warning_flags: bool = True
+        self._show_error_flags: bool = True
         # Cascade dropdown
         self.cascade_dropdown = CascadeDropdown(self)
         self.cascade_dropdown.applySizeToAll.connect(self._on_cascade_size_to_all)
@@ -145,6 +160,37 @@ class Overlay(QWidget):
         """Enable/disable selection and drag/resize in the overlay."""
         self._interactive = bool(enabled)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, not enabled)
+
+    def set_confidence_flags(self, flags: ConfidenceFlagMap | None):
+        """Map object_id -> 'warning' or 'error' for overlay icons."""
+        self._bbox_flags = dict(flags) if flags else {}
+        self.update()
+
+    def set_confidence_icon_size(self, size: int):
+        """Resize warning/error icons to the requested square dimension."""
+        size = max(8, min(int(size), 256))
+        if size == self._confidence_icon_size:
+            return
+        self._confidence_icon_size = size
+        self._warning_icon_scaled = self._scale_icon(self._warning_icon)
+        self._error_icon_scaled = self._scale_icon(self._error_icon)
+        self.update()
+
+    def set_warning_flag_visibility(self, show: bool):
+        if self._show_warning_flags != bool(show):
+            self._show_warning_flags = bool(show)
+            self.update()
+
+    def set_error_flag_visibility(self, show: bool):
+        if self._show_error_flags != bool(show):
+            self._show_error_flags = bool(show)
+            self.update()
+
+    def confidence_flags(self) -> ConfidenceFlagMap:
+        return dict(self._bbox_flags)
+
+    def confidence_icon_size(self) -> int:
+        return self._confidence_icon_size
 
     def selected_object_id(self) -> str | None:
         """Return selected overlay object ID or None if nothing selected."""
@@ -658,29 +704,51 @@ class Overlay(QWidget):
             text_y = mid_top.y() + ny * text_margin
             text_str = f"{object_id} ({object_type})"
 
+            flag = self._bbox_flags.get(object_id)
+            icon_pixmap: QPixmap | None = None
+            if flag == "error" and self._show_error_flags:
+                icon_pixmap = (
+                    self._error_icon_scaled
+                    if self._error_icon_scaled and not self._error_icon_scaled.isNull()
+                    else None
+                )
+            elif flag == "warning" and self._show_warning_flags:
+                icon_pixmap = (
+                    self._warning_icon_scaled
+                    if self._warning_icon_scaled
+                    and not self._warning_icon_scaled.isNull()
+                    else None
+                )
+            icon_width = icon_pixmap.width() if icon_pixmap else 0
+            icon_height = icon_pixmap.height() if icon_pixmap else 0
+            icon_spacing = OVERLAY_ICON_SPACING if icon_pixmap else 0
+
             painter.save()
             painter.translate(text_x, text_y)
             painter.rotate(edge_angle)
 
-            # Measure text
             metrics = painter.fontMetrics()
             text_width = metrics.horizontalAdvance(text_str)
             text_height = metrics.height()
             padding = 2
+            background_top = -metrics.ascent() - padding
+            background_height = text_height + 2 * padding
 
-            # Draw semi-transparent black background
+            if icon_pixmap:
+                icon_x = 0
+                icon_y = background_top + (background_height - icon_height) / 2
+                painter.drawPixmap(int(icon_x), int(icon_y), icon_pixmap)
+            text_offset_x = icon_width + icon_spacing
             painter.setBrush(QColor(0, 0, 0, 160))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRect(
-                -padding,
-                -metrics.ascent() - padding,
+                text_offset_x - padding,
+                background_top,
                 text_width + 2 * padding,
-                text_height + 2 * padding,
+                background_height,
             )
-
-            # Draw text
-            painter.setPen(QColor(255, 255, 0))  # bright yellow
-            painter.drawText(0, 0, text_str)
+            painter.setPen(QColor(255, 255, 0))
+            painter.drawText(text_offset_x, 0, text_str)
             painter.restore()
 
             # --- Draw side handles if selected ---
@@ -745,6 +813,17 @@ class Overlay(QWidget):
                 )
 
         painter.end()
+
+    def _scale_icon(self, pixmap: QPixmap | None) -> QPixmap | None:
+        if pixmap is None or pixmap.isNull():
+            return None
+        size = self._confidence_icon_size
+        return pixmap.scaled(
+            size,
+            size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key.Key_Delete and not (

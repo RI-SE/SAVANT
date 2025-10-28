@@ -3,12 +3,14 @@ from PyQt6.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QFormLayout,
+    QHBoxLayout,
     QDialogButtonBox,
     QWidget,
     QDoubleSpinBox,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
+    QAbstractItemView,
     QCheckBox,
     QPushButton,
     QColorDialog,
@@ -25,9 +27,14 @@ from savant_app.frontend.utils.settings_store import (
     set_ontology_namespace,
     set_action_interval_offset,
     set_ontology_path,
+    get_warning_range,
+    get_error_range,
+    get_show_warnings,
+    get_show_errors,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from pathlib import Path
+from savant_app.frontend.theme.forms import style_checkbox
 
 
 class SettingsDialog(QDialog):
@@ -37,7 +44,7 @@ class SettingsDialog(QDialog):
         self,
         *,
         theme="System",
-        zoom_rate=1.2,
+        zoom_rate=1,
         frame_count=100,
         ontology_path: Path,
         action_interval_offset: int,
@@ -85,6 +92,8 @@ class SettingsDialog(QDialog):
         self.annotator_table.horizontalHeader().setStretchLastSection(True)
         self.annotator_table.verticalHeader().setVisible(False)
         self.annotator_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.annotator_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.annotator_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         # TODO: Change to retrieve names from config
         self._annotator = [
@@ -140,6 +149,87 @@ class SettingsDialog(QDialog):
 
         form.addRow(ontology_group)
 
+        # Confidence group
+        confidence_group = QGroupBox("Confidence Issues", self)
+        confidence_form = QFormLayout(confidence_group)
+
+        warning_min, warning_max = get_warning_range()
+        error_min, error_max = get_error_range()
+
+        self.warning_min_spin = QDoubleSpinBox()
+        self.warning_min_spin.setRange(0.0, 1.0)
+        self.warning_min_spin.setDecimals(2)
+        self.warning_min_spin.setSingleStep(0.01)
+        self.warning_min_spin.setValue(float(warning_min))
+        self.warning_min_spin.setMinimumWidth(80)
+
+        self.warning_max_spin = QDoubleSpinBox()
+        self.warning_max_spin.setRange(0.0, 1.0)
+        self.warning_max_spin.setDecimals(2)
+        self.warning_max_spin.setSingleStep(0.01)
+        self.warning_max_spin.setValue(float(warning_max))
+        self.warning_max_spin.setMinimumWidth(80)
+
+        warning_row = QWidget(self)
+        warning_layout = QHBoxLayout(warning_row)
+        warning_layout.setContentsMargins(0, 0, 0, 0)
+        warning_layout.addWidget(QLabel("Min:"))
+        warning_layout.addWidget(self.warning_min_spin)
+        warning_layout.addSpacing(12)
+        warning_layout.addWidget(QLabel("Max:"))
+        warning_layout.addWidget(self.warning_max_spin)
+        self.warning_toggle_cb = QCheckBox()
+        self.warning_toggle_cb.setChecked(bool(get_show_warnings()))
+        style_checkbox(self.warning_toggle_cb)
+        warning_toggle_label = QLabel("Display warnings:  ")
+        warning_toggle_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        warning_layout.addSpacing(24)
+        warning_layout.addWidget(warning_toggle_label)
+        warning_layout.addWidget(self.warning_toggle_cb)
+        warning_layout.addStretch(1)
+        confidence_form.addRow("Warning range:", warning_row)
+
+        self.error_min_spin = QDoubleSpinBox()
+        self.error_min_spin.setRange(0.0, 1.0)
+        self.error_min_spin.setDecimals(2)
+        self.error_min_spin.setSingleStep(0.01)
+        self.error_min_spin.setValue(float(error_min))
+        self.error_min_spin.setMinimumWidth(80)
+
+        self.error_max_spin = QDoubleSpinBox()
+        self.error_max_spin.setRange(0.0, 1.0)
+        self.error_max_spin.setDecimals(2)
+        self.error_max_spin.setSingleStep(0.01)
+        self.error_max_spin.setValue(float(error_max))
+        self.error_max_spin.setMinimumWidth(80)
+
+        error_row = QWidget(self)
+        error_layout = QHBoxLayout(error_row)
+        error_layout.setContentsMargins(0, 0, 0, 0)
+        error_layout.addWidget(QLabel("Min:"))
+        error_layout.addWidget(self.error_min_spin)
+        error_layout.addSpacing(12)
+        error_layout.addWidget(QLabel("Max:"))
+        error_layout.addWidget(self.error_max_spin)
+        self.error_toggle_cb = QCheckBox()
+        self.error_toggle_cb.setChecked(bool(get_show_errors()))
+        style_checkbox(self.error_toggle_cb)
+        error_toggle_label = QLabel("Display errors:        ")
+        error_toggle_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        error_layout.addSpacing(24)
+        error_layout.addWidget(error_toggle_label)
+        error_layout.addWidget(self.error_toggle_cb)
+        error_layout.addStretch(1)
+        confidence_form.addRow("Error range:", error_row)
+
+        self.warning_toggle_cb.stateChanged.connect(self._on_warning_toggle_changed)
+        self.error_toggle_cb.stateChanged.connect(self._on_error_toggle_changed)
+
+        self._previous_warning_range = (float(warning_min), float(warning_max))
+        self._previous_error_range = (float(error_min), float(error_max))
+        self._normalize_ranges()
+        form.addRow(confidence_group)
+
         # Dialog buttons
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
@@ -175,7 +265,14 @@ class SettingsDialog(QDialog):
 
         cb = QCheckBox()
         cb.setChecked(bool(annotator.get("enabled", False)))
-        self.annotator_table.setCellWidget(row, 1, cb)
+        style_checkbox(cb)
+        cb_container = QWidget()
+        cb_layout = QHBoxLayout(cb_container)
+        cb_layout.setContentsMargins(0, 0, 0, 0)
+        cb_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cb_layout.addWidget(cb)
+        cb_container.setProperty("checkbox", cb)
+        self.annotator_table.setCellWidget(row, 1, cb_container)
 
         btn = QPushButton()
         btn.setText(annotator.get("colour", "#000000"))
@@ -191,6 +288,10 @@ class SettingsDialog(QDialog):
             dict: A dictionary with:
                 - "zoom_rate" (float): The current zoom factor from the spinbox.
                 - "frame_count" (int): The number of frames to look back for object IDs.
+                - "warning_range" (tuple[float, float]): Min/max boundaries for warnings.
+                - "error_range" (tuple[float, float]): Min/max boundaries for errors.
+                - "show_warnings" (bool): Whether to display warning markers/icons.
+                - "show_errors" (bool): Whether to display error markers/icons.
                 - "Annotators" (list of dict): List of annotators, where each entry has:
                     * "name" (str): Annotator's name.
                     * "enabled" (bool): Checkbox state.
@@ -200,7 +301,15 @@ class SettingsDialog(QDialog):
         rows = self.annotator_table.rowCount()
         for r in range(rows):
             name = self.annotator_table.item(r, 0).text()
-            enabled = self.annotator_table.cellWidget(r, 1).isChecked()
+            enabled_widget = self.annotator_table.cellWidget(r, 1)
+            checkbox = None
+            if isinstance(enabled_widget, QCheckBox):
+                checkbox = enabled_widget
+            elif enabled_widget is not None:
+                checkbox = enabled_widget.property("checkbox")
+                if checkbox is None:
+                    checkbox = enabled_widget.findChild(QCheckBox)
+            enabled = checkbox.isChecked() if isinstance(checkbox, QCheckBox) else False
             color_btn = self.annotator_table.cellWidget(r, 2)
             color_hex = color_btn.text()
             annotators.append({"name": name, "enabled": enabled, "color": color_hex})
@@ -208,8 +317,133 @@ class SettingsDialog(QDialog):
         return {
             "zoom_rate": float(self.zoom_spin.value()),
             "previous_frame_count": int(self.frame_count_spin.value()),
+            "warning_range": (
+                float(self.warning_min_spin.value()),
+                float(self.warning_max_spin.value()),
+            ),
+            "error_range": (
+                float(self.error_min_spin.value()),
+                float(self.error_max_spin.value()),
+            ),
+            "show_warnings": bool(self.warning_toggle_cb.isChecked()),
+            "show_errors": bool(self.error_toggle_cb.isChecked()),
             "Annotators": annotators,
         }
+
+    def _set_spin_value(self, spin: QDoubleSpinBox, value: float) -> None:
+        spin.blockSignals(True)
+        spin.setValue(float(value))
+        spin.blockSignals(False)
+
+    def _ranges_overlap(
+        self, warning_range: tuple[float, float], error_range: tuple[float, float]
+    ) -> bool:
+        warning_min, warning_max = warning_range
+        error_min, error_max = error_range
+        return (warning_min < error_max) and (error_min < warning_max)
+
+    def _normalize_ranges(self) -> None:
+        warning_min = float(self.warning_min_spin.value())
+        warning_max = float(self.warning_max_spin.value())
+        error_min = float(self.error_min_spin.value())
+        error_max = float(self.error_max_spin.value())
+
+        if warning_min > warning_max:
+            self._set_spin_value(self.warning_max_spin, warning_min)
+            warning_max = warning_min
+            QMessageBox.warning(
+                self,
+                "Invalid Warning Range",
+                "The warning minimum value can not be greater than the maximum value."
+                "\n\nThe minimum value will be set to the maximum value.",
+            )
+        if error_min > error_max:
+            self._set_spin_value(self.error_min_spin, error_max)
+            error_min = error_max
+            QMessageBox.warning(
+                self,
+                "Invalid Error Range",
+                "The error minimum value can not be greater than the maximum value."
+                "\n\nThe minimum value will be set to the maximum value.",
+            )
+
+        warning_range = (warning_min, warning_max)
+        error_range = (error_min, error_max)
+
+        if (
+            self.warning_toggle_cb.isChecked()
+            and self.error_toggle_cb.isChecked()
+            and self._ranges_overlap(warning_range, error_range)
+        ):
+            QMessageBox.warning(
+                self,
+                "Invalid Ranges",
+                "Warning and error ranges must not overlap when both markers are enabled.",
+            )
+            self._set_spin_value(
+                self.warning_min_spin, self._previous_warning_range[0]
+            )
+            self._set_spin_value(
+                self.warning_max_spin, self._previous_warning_range[1]
+            )
+            self._set_spin_value(self.error_min_spin, self._previous_error_range[0])
+            self._set_spin_value(self.error_max_spin, self._previous_error_range[1])
+            return
+
+        self._previous_warning_range = (
+            float(self.warning_min_spin.value()),
+            float(self.warning_max_spin.value()),
+        )
+        self._previous_error_range = (
+            float(self.error_min_spin.value()),
+            float(self.error_max_spin.value()),
+        )
+
+    def _on_warning_toggle_changed(self, state: int):
+        if state == Qt.CheckState.Checked.value and self.error_toggle_cb.isChecked():
+            warning_range = (
+                float(self.warning_min_spin.value()),
+                float(self.warning_max_spin.value()),
+            )
+            error_range = (
+                float(self.error_min_spin.value()),
+                float(self.error_max_spin.value()),
+            )
+            if self._ranges_overlap(warning_range, error_range):
+                QMessageBox.warning(
+                    self,
+                    "Invalid Ranges",
+                    "Warning and error ranges must not overlap when both markers are enabled.",
+                )
+                self.warning_toggle_cb.blockSignals(True)
+                self.warning_toggle_cb.setChecked(False)
+                self.warning_toggle_cb.blockSignals(False)
+                self._normalize_ranges()
+                return
+        self._normalize_ranges()
+
+    def _on_error_toggle_changed(self, state: int):
+        if state == Qt.CheckState.Checked.value and self.warning_toggle_cb.isChecked():
+            warning_range = (
+                float(self.warning_min_spin.value()),
+                float(self.warning_max_spin.value()),
+            )
+            error_range = (
+                float(self.error_min_spin.value()),
+                float(self.error_max_spin.value()),
+            )
+            if self._ranges_overlap(warning_range, error_range):
+                QMessageBox.warning(
+                    self,
+                    "Invalid Ranges",
+                    "Warning and error ranges must not overlap when both markers are enabled.",
+                )
+                self.error_toggle_cb.blockSignals(True)
+                self.error_toggle_cb.setChecked(False)
+                self.error_toggle_cb.blockSignals(False)
+                self._normalize_ranges()
+                return
+        self._normalize_ranges()
 
     def _pick_color_for_row(self, row: int):
         """
@@ -276,3 +510,7 @@ class SettingsDialog(QDialog):
             self._namespace_edit.blockSignals(True)
             self._namespace_edit.setText(get_ontology_namespace())
             self._namespace_edit.blockSignals(False)
+
+    def accept(self):
+        self._normalize_ranges()
+        super().accept()

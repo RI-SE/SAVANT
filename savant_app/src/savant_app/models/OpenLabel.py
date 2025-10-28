@@ -319,8 +319,25 @@ class OpenLabel(BaseModel):
         )
         geometry_entry.val = updated_bbox
 
-        self._update_annotator(annotator, frame_object.object_data.vec[0])
-        self._update_annotator_confidence(1.0, frame_object.object_data.vec[1])
+        vec_entries = frame_object.object_data.vec
+        if vec_entries is None:
+            vec_entries = []
+            frame_object.object_data.vec = vec_entries
+
+        confidence_entry = None
+        for entry in vec_entries:
+            if getattr(entry, "name", None) == "confidence" and confidence_entry is None:
+                confidence_entry = entry
+
+        current_annotator_entry = AnnotatorData(val=deque())
+        vec_entries.insert(0, current_annotator_entry)
+
+        if confidence_entry is None:
+            confidence_entry = ConfidenceData(val=deque())
+            vec_entries.append(confidence_entry)
+
+        self._update_annotator(annotator, current_annotator_entry)
+        self._update_annotator_confidence(1.0, confidence_entry)
 
         return updated_bbox
 
