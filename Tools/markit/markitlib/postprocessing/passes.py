@@ -13,7 +13,7 @@ import numpy as np
 
 from .base import PostprocessingPass
 from ..geometry import BBoxOverlapCalculator
-from ..utils import normalize_angle_to_pi, normalize_angle_to_half_pi
+from ..utils import normalize_angle_to_pi, normalize_angle_to_half_pi, normalize_bbox_representation
 
 logger = logging.getLogger(__name__)
 
@@ -556,12 +556,29 @@ class RotationAdjustmentPass(PostprocessingPass):
     def _apply_rotation_adjustment(self, frame_obj_data: Dict[str, Any], r_new: float) -> None:
         """Apply rotation adjustment and update annotator/confidence.
 
+        Uses normalize_bbox_representation to ensure width/height are swapped
+        if the new rotation would put them outside the canonical [-π/4, π/4] range.
+
         Args:
             frame_obj_data: Frame object data
             r_new: New rotation value
         """
         rbbox = frame_obj_data["object_data"]["rbbox"][0]["val"]
-        rbbox[4] = r_new
+
+        # Get current width and height
+        current_width = rbbox[2]
+        current_height = rbbox[3]
+
+        # Normalize bbox representation to ensure width is always more horizontal
+        # This may swap width/height and adjust the angle if needed
+        adjusted_width, adjusted_height, adjusted_rotation = normalize_bbox_representation(
+            current_width, current_height, r_new
+        )
+
+        # Update all three values in rbbox
+        rbbox[2] = adjusted_width
+        rbbox[3] = adjusted_height
+        rbbox[4] = adjusted_rotation
 
         vec_list = frame_obj_data["object_data"]["vec"]
         annotator_found = False
