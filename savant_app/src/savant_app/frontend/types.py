@@ -1,6 +1,11 @@
 """Module to hold data types used in the frontend."""
 
 from dataclasses import dataclass
+from typing import Literal
+
+
+ConfidenceSeverity = Literal["warning", "error"]
+ConfidenceFlagMap = dict[str, ConfidenceSeverity]
 
 
 @dataclass

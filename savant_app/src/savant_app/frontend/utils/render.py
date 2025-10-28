@@ -1,6 +1,6 @@
 # savant_app/frontend/utils/render.py
 from __future__ import annotations
-from savant_app.frontend.types import BBoxData
+from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
 
 
 def wire(main_window):
@@ -85,7 +85,7 @@ def _update_overlay_from_model(main_window):
         main_window.overlay.set_rotated_boxes(frame_bounding_boxes_frontend_data)
         frame_issues_map = main_window.state.confidence_issues()
         frame_issues = frame_issues_map.get(current_frame_index, [])
-        flags: dict[str, str] = {}
+        flags: ConfidenceFlagMap = {}
         for issue in frame_issues:
             object_id = getattr(issue, "object_id", None)
             severity = getattr(issue, "severity", None)

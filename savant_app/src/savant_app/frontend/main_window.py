@@ -18,6 +18,7 @@ from savant_app.frontend.widgets.settings import SettingsDialog
 from savant_app.frontend.states.frontend_state import FrontendState
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.widgets.annotator_dialog import AnnotatorDialog
+from savant_app.frontend.exceptions import InvalidWarningErrorRange
 from savant_app.frontend.utils.settings_store import (
     get_ontology_path,
     get_action_interval_offset,
@@ -31,6 +32,7 @@ from savant_app.frontend.utils.settings_store import (
 )
 from savant_app.frontend.utils import (
     annotation_ops,
+    confidence_ops,
     navigation,
     playback,
     project_io,
@@ -60,7 +62,7 @@ class MainWindow(QMainWindow):
         # state
         self.state = FrontendState(self)
         self.state.confidenceIssuesChanged.connect(
-            lambda _: self._apply_confidence_markers()
+            lambda _: confidence_ops.apply_confidence_markers(self)
         )
 
         # Menu
@@ -186,47 +188,19 @@ class MainWindow(QMainWindow):
                     )
                     set_show_warnings(show_warnings)
                     set_show_errors(show_errors)
-                except ValueError as ex:
+                except InvalidWarningErrorRange as ex:
                     QMessageBox.critical(self, "Invalid Ranges", str(ex))
                     thresholds_valid = False
             if thresholds_valid:
-                self.refresh_confidence_issues()
+                confidence_ops.refresh_confidence_issues(self)
             else:
-                self._apply_confidence_markers()
+                confidence_ops.apply_confidence_markers(self)
 
     def noop(*args, **kwargs):
         print("Not implemented yet")
 
     def refresh_confidence_issues(self):
-        project_state = getattr(self.project_state_controller, "project_state", None)
-        annotation_config = getattr(project_state, "annotation_config", None)
-        if not project_state or annotation_config is None:
-            self.state.set_confidence_issues({})
-            self._apply_confidence_markers()
-            return
+        confidence_ops.refresh_confidence_issues(self)
 
-        try:
-            issues = self.project_state_controller.confidence_issues(
-                warning_range=get_warning_range(),
-                error_range=get_error_range(),
-                show_warnings=get_show_warnings(),
-                show_errors=get_show_errors(),
-            )
-        except Exception:
-            issues = {}
-        self.state.set_confidence_issues(issues or {})
-        self._apply_confidence_markers()
-        try:
-            render.refresh_frame(self)
-        except Exception:
-            pass
-
-    def _apply_confidence_markers(self):
-        warning_frames = sorted(self.state.warning_frames())
-        error_frames = sorted(self.state.error_frames())
-        self.seek_bar.set_warning_frames(warning_frames)
-        self.seek_bar.set_error_frames(error_frames)
-        self.seek_bar.set_warning_visibility(get_show_warnings())
-        self.seek_bar.set_error_visibility(get_show_errors())
-        self.overlay.set_warning_flag_visibility(get_show_warnings())
-        self.overlay.set_error_flag_visibility(get_show_errors())
+    def apply_confidence_markers(self):
+        confidence_ops.apply_confidence_markers(self)

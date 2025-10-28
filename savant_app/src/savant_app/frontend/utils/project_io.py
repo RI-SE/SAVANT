@@ -23,8 +23,8 @@ def on_open_video(main_window, path: str):
 
     frame_count = main_window.project_state_controller.get_frame_count()
     main_window.seek_bar.update_range(frame_count or 0)
-    if hasattr(main_window, "_apply_confidence_markers"):
-        main_window._apply_confidence_markers()
+    if hasattr(main_window, "apply_confidence_markers"):
+        main_window.apply_confidence_markers()
 
     if hasattr(main_window.playback_controls, "set_fps"):
         main_window.playback_controls.set_fps(

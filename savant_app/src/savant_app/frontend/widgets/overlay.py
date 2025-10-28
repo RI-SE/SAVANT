@@ -3,7 +3,7 @@ from PyQt6.QtGui import QPainter, QPen, QColor, QPolygonF, QBrush, QPixmap
 from PyQt6.QtCore import Qt, QPointF, pyqtSignal, QRectF
 from typing import List, Tuple
 import math
-from savant_app.frontend.types import BBoxData
+from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
 from savant_app.frontend.theme.constants import (
     get_warning_icon,
     get_error_icon,
@@ -96,7 +96,7 @@ class Overlay(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         # Confidence issue flags
-        self._bbox_flags: dict[str, str] = {}
+        self._bbox_flags: ConfidenceFlagMap = {}
         self._warning_icon = get_warning_icon()
         self._error_icon = get_error_icon()
         self._confidence_icon_size = OVERLAY_CONFIDENCE_ICON_SIZE
@@ -161,7 +161,7 @@ class Overlay(QWidget):
         self._interactive = bool(enabled)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, not enabled)
 
-    def set_confidence_flags(self, flags: dict[str, str] | None):
+    def set_confidence_flags(self, flags: ConfidenceFlagMap | None):
         """Map object_id -> 'warning' or 'error' for overlay icons."""
         self._bbox_flags = dict(flags) if flags else {}
         self.update()
@@ -186,7 +186,7 @@ class Overlay(QWidget):
             self._show_error_flags = bool(show)
             self.update()
 
-    def confidence_flags(self) -> dict[str, str]:
+    def confidence_flags(self) -> ConfidenceFlagMap:
         return dict(self._bbox_flags)
 
     def confidence_icon_size(self) -> int:
