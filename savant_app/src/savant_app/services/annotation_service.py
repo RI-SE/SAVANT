@@ -1,3 +1,4 @@
+from collections import deque
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -10,6 +11,8 @@ from savant_app.frontend.utils.ontology_utils import (
 from savant_app.frontend.utils.settings_store import get_ontology_path
 from savant_app.models.OpenLabel import (
     ActionMetadata,
+    AnnotatorData,
+    ConfidenceData,
     FrameInterval,
     FrameLevelObject,
     OpenLabel,
@@ -286,6 +289,46 @@ class AnnotationService:
         self.project_state.annotation_config.restore_bbox(
             frame_key, object_key, frame_obj
         )
+
+    def mark_confidence_resolved(
+        self, frame_number: int, object_id: str, annotator: str
+    ) -> None:
+        """Mark a warning/error as resolved by setting confidence to 1.0."""
+        openlabel_model: OpenLabel = self.project_state.annotation_config
+        if openlabel_model is None:
+            raise FrameNotFoundError("No annotation configuration loaded.")
+
+        frame_key = str(frame_number)
+        frame = openlabel_model.frames.get(frame_key)
+        if frame is None:
+            raise FrameNotFoundError(f"Frame {frame_number} not found.")
+
+        frame_obj = frame.objects.get(object_id)
+        if frame_obj is None:
+            raise ObjectNotFoundError(
+                f"Object ID {object_id} not found in frame {frame_number}."
+            )
+
+        vec_entries = getattr(frame_obj.object_data, "vec", None)
+        if vec_entries is None:
+            vec_entries = []
+            frame_obj.object_data.vec = vec_entries
+
+        confidence_entry = None
+        for entry in vec_entries:
+            if getattr(entry, "name", None) == "confidence":
+                confidence_entry = entry
+                break
+
+        if confidence_entry is None:
+            confidence_entry = ConfidenceData(val=deque())
+            vec_entries.append(confidence_entry)
+
+        annotator_entry = AnnotatorData(val=deque())
+        vec_entries.insert(0, annotator_entry)
+
+        openlabel_model._update_annotator(annotator, annotator_entry)
+        openlabel_model._update_annotator_confidence(1.0, confidence_entry)
 
     def _add_new_object(self, obj_type: str, obj_id: str) -> None:
         self.project_state.annotation_config.add_new_object(

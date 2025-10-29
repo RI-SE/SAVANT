@@ -149,6 +149,14 @@ class AnnotationController:
         self.annotation_service.restore_bbox(frame_key, object_key, frame_obj)
 
     @error_handler
+    def mark_confidence_resolved(
+        self, frame_number: int, object_id: str, annotator: str
+    ) -> None:
+        self.annotation_service.mark_confidence_resolved(
+            frame_number=frame_number, object_id=object_id, annotator=annotator
+        )
+
+    @error_handler
     def allowed_frame_tags(self) -> list[str]:
         """Return the frame tag names from the service."""
         return self.annotation_service.get_frame_tags()
