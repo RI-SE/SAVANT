@@ -451,7 +451,7 @@ def _on_overlay_context_menu(main_window, click_position):
     confidence_flags = overlay_widget.confidence_flags()
     mark_resolved_action = None
     if obj_id and confidence_flags.get(obj_id):
-        mark_resolved_action = context_menu.addAction("Mark confidence resolved")
+        mark_resolved_action = context_menu.addAction("Mark issue as resolved")
 
     selected_action = context_menu.exec(overlay_widget.mapToGlobal(click_position))
     if selected_action is None:
