@@ -269,7 +269,7 @@ def _moved(main_window, object_id: str, x: float, y: float, annotator: str):
     main_window.annotation_controller.move_resize_bbox(
         frame_key=fk, object_key=object_id, x_center=x, y_center=y, annotator=annotator
     )
-    refresh_frame(main_window)
+    _refresh_after_bbox_update(main_window)
 
 
 def _resized(
@@ -292,7 +292,7 @@ def _resized(
         height=height,
         annotator=annotator,
     )
-    refresh_frame(main_window)
+    _refresh_after_bbox_update(main_window)
 
 
 def _rotated(
@@ -311,7 +311,7 @@ def _rotated(
         rotation=rotation,
         annotator=annotator,
     )
-    refresh_frame(main_window)
+    _refresh_after_bbox_update(main_window)
 
 
 def _frames_to_ranges(frames: list[int]) -> str:
@@ -360,7 +360,7 @@ def _apply_cascade_all_frames(
         f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}",
     )
 
-    refresh_frame(main_window)
+    _refresh_after_bbox_update(main_window)
 
 
 def _apply_cascade_next_frames(
@@ -414,7 +414,7 @@ def _apply_cascade_next_frames(
         f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}",
     )
 
-    refresh_frame(main_window)
+    _refresh_after_bbox_update(main_window)
 
 
 def _ensure_undo_stack(main_window):
@@ -448,7 +448,10 @@ def _on_overlay_context_menu(main_window, click_position):
     context_menu = QMenu(overlay_widget)
     action_delete_single = context_menu.addAction("Delete this bbox")
     action_delete_cascade = context_menu.addAction("Cascade delete all with this ID")
-    action_edit_bbox = context_menu.addAction("Edit bounding box details")
+    confidence_flags = overlay_widget.confidence_flags()
+    mark_resolved_action = None
+    if obj_id and confidence_flags.get(obj_id):
+        mark_resolved_action = context_menu.addAction("Mark issue as resolved")
 
     selected_action = context_menu.exec(overlay_widget.mapToGlobal(click_position))
     if selected_action is None:
@@ -461,12 +464,12 @@ def _on_overlay_context_menu(main_window, click_position):
             _cascade_delete_same_id(main_window, bbox_index)
         except MissingObjectIDError as e:
             QMessageBox.warning(main_window, "Cascade Delete", str(e))
-    elif selected_action == action_edit_bbox:
-        obj_id = overlay_widget.selected_object_id()
-        if obj_id:
-            overlay_widget.bounding_box_selected.emit(obj_id)
-            # Open the editor, enabled + expanded
-            main_window.sidebar.show_object_editor(obj_id, expand=True)
+    elif selected_action == mark_resolved_action:
+        annotator = ""
+        state = getattr(main_window, "state", None)
+        if state and hasattr(state, "get_current_annotator"):
+            annotator = state.get_current_annotator() or ""
+        _mark_confidence_issue_resolved(main_window, obj_id, annotator)
 
 
 def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
@@ -541,3 +544,23 @@ def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
 
     main_window.overlay.clear_selection()
     _refresh_after_bbox_update(main_window)
+
+
+def _mark_confidence_issue_resolved(
+    main_window, object_id: str, annotator: str
+) -> None:
+    """Set the confidence for the selected bbox to 'resolved' (confidence = 1.0)."""
+    try:
+        frame_index = int(main_window.video_controller.current_index())
+    except Exception:
+        return
+
+    if not object_id:
+        return
+
+    mark_confidence = getattr(
+        main_window.annotation_controller, "mark_confidence_resolved", None
+    )
+    if callable(mark_confidence):
+        mark_confidence(frame_index, object_id, annotator)
+        _refresh_after_bbox_update(main_window)

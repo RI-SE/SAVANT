@@ -78,6 +78,8 @@ class Overlay(QWidget):
         self._orig_box: BBoxData | None = None
         self._hit_tol_px: float = 14.0
         self._handle_draw_px: float = 14.0
+        self._mouse_drag_active: bool = False
+        self._drag_start_threshold_px: float = 4.0
 
         # Hover feedback
         self.setMouseTracking(True)
@@ -204,6 +206,7 @@ class Overlay(QWidget):
         """Clear any current selection and hover/drag state."""
         self._selected_idx = None
         self._drag_mode = None
+        self._mouse_drag_active = False
         self._hover_idx = None
         self._hover_mode = None
         self._press_pos_disp = None
@@ -257,6 +260,7 @@ class Overlay(QWidget):
         # Hit → select & start drag
         self._selected_idx = idx
         self._drag_mode = mode
+        self._mouse_drag_active = False
         self._press_pos_disp = ev.position()
         self._orig_box = self._boxes[idx]
 
@@ -284,18 +288,18 @@ class Overlay(QWidget):
             return super().mouseMoveEvent(ev)
 
         if self._drag_mode is None:
-            idx, mode = self.hit_test(ev.position())
-            if idx != self._hover_idx or mode != self._hover_mode:
-                self._hover_idx, self._hover_mode = idx, mode
+            hit_index, hit_mode = self.hit_test(ev.position())
+            if hit_index != self._hover_idx or hit_mode != self._hover_mode:
+                self._hover_idx, self._hover_mode = hit_index, hit_mode
                 self.update()
 
-            if mode in ("E", "W", "N", "S"):
-                theta = self._boxes[idx].theta
-                ax_x, ax_y = self._axis_from_mode(theta, mode)
-                self.setCursor(self._cursor_for_axis(ax_x, ax_y))
-            elif mode == "move":
+            if hit_mode in ("E", "W", "N", "S"):
+                theta = self._boxes[hit_index].theta
+                axis_x, axis_y = self._axis_from_mode(theta, hit_mode)
+                self.setCursor(self._cursor_for_axis(axis_x, axis_y))
+            elif hit_mode == "move":
                 self.setCursor(Qt.CursorShape.SizeAllCursor)
-            elif mode == "R":
+            elif hit_mode == "R":
                 self.setCursor(Qt.CursorShape.OpenHandCursor)
             else:
                 self.unsetCursor()
@@ -307,27 +311,46 @@ class Overlay(QWidget):
         if self._selected_idx is None or self._orig_box is None:
             return super().mouseMoveEvent(ev)
 
-        cur_disp = ev.position()
-        dx_disp = cur_disp.x() - self._press_pos_disp.x()
-        dy_disp = cur_disp.y() - self._press_pos_disp.y()
+        cursor_pos_disp = ev.position()
+        delta_x_pixels = cursor_pos_disp.x() - self._press_pos_disp.x()
+        delta_y_pixels = cursor_pos_disp.y() - self._press_pos_disp.y()
+
+        if not self._mouse_drag_active:
+            if math.hypot(delta_x_pixels, delta_y_pixels) < self._drag_start_threshold_px:
+                if self._drag_mode == "move":
+                    self.setCursor(Qt.CursorShape.SizeAllCursor)
+                elif self._drag_mode == "R":
+                    self.setCursor(Qt.CursorShape.OpenHandCursor)
+                else:
+                    theta = self._orig_box.theta
+                    ax_x, ax_y = self._axis_from_mode(theta, self._drag_mode)
+                    self.setCursor(self._cursor_for_axis(ax_x, ax_y))
+                ev.accept()
+                return
+            self._mouse_drag_active = True
 
         scale, off_x, off_y, _ = self._compute_transform()
         if scale <= 0:
             return
-        dx_vid = dx_disp / scale
-        dy_vid = dy_disp / scale
+        delta_x_video = delta_x_pixels / scale
+        delta_y_video = delta_y_pixels / scale
 
         # Get current bbox properties
-        cx0 = self._orig_box.center_x
-        cy0 = self._orig_box.center_y
-        w0 = self._orig_box.width
-        h0 = self._orig_box.height
+        original_cx = self._orig_box.center_x
+        original_cy = self._orig_box.center_y
+        original_width = self._orig_box.width
+        original_height = self._orig_box.height
         theta = self._orig_box.theta
-        cx, cy, w, h = cx0, cy0, w0, h0
+        new_cx, new_cy, new_width, new_height = (
+            original_cx,
+            original_cy,
+            original_width,
+            original_height,
+        )
 
         if self._drag_mode == "move":
-            cx = cx0 + dx_vid
-            cy = cy0 + dy_vid
+            new_cx = original_cx + delta_x_video
+            new_cy = original_cy + delta_y_video
 
         elif self._drag_mode in ("E", "W", "N", "S"):
             angle_rad = -theta if self._theta_is_clockwise else theta
@@ -338,46 +361,48 @@ class Overlay(QWidget):
             ey_x, ey_y = -st, ct
 
             # Project mouse delta (video coords) onto each local axis
-            d_along_x = dx_vid * ex_x + dy_vid * ex_y
-            d_along_y = dx_vid * ey_x + dy_vid * ey_y
+            delta_along_x = delta_x_video * ex_x + delta_y_video * ex_y
+            delta_along_y = delta_x_video * ey_x + delta_y_video * ey_y
 
             if self._drag_mode == "E":
-                d = d_along_x
-                w = max(1e-6, w0 + d)
-                cx = cx0 + 0.5 * d * ex_x
-                cy = cy0 + 0.5 * d * ex_y
+                delta_extent = delta_along_x
+                new_width = max(1e-6, original_width + delta_extent)
+                new_cx = original_cx + 0.5 * delta_extent * ex_x
+                new_cy = original_cy + 0.5 * delta_extent * ex_y
 
             elif self._drag_mode == "W":
-                d = d_along_x
-                w = max(1e-6, w0 - d)
-                cx = cx0 + 0.5 * d * ex_x
-                cy = cy0 + 0.5 * d * ex_y
+                delta_extent = delta_along_x
+                new_width = max(1e-6, original_width - delta_extent)
+                new_cx = original_cx + 0.5 * delta_extent * ex_x
+                new_cy = original_cy + 0.5 * delta_extent * ex_y
 
             elif self._drag_mode == "S":
-                d = d_along_y
-                h = max(1e-6, h0 + d)
-                cx = cx0 + 0.5 * d * ey_x
-                cy = cy0 + 0.5 * d * ey_y
+                delta_extent = delta_along_y
+                new_height = max(1e-6, original_height + delta_extent)
+                new_cx = original_cx + 0.5 * delta_extent * ey_x
+                new_cy = original_cy + 0.5 * delta_extent * ey_y
 
             elif self._drag_mode == "N":
-                d = d_along_y
-                h = max(1e-6, h0 - d)
-                cx = cx0 + 0.5 * d * ey_x
-                cy = cy0 + 0.5 * d * ey_y
+                delta_extent = delta_along_y
+                new_height = max(1e-6, original_height - delta_extent)
+                new_cx = original_cx + 0.5 * delta_extent * ey_x
+                new_cy = original_cy + 0.5 * delta_extent * ey_y
 
         elif self._drag_mode == "R":
-            mx = (ev.position().x() - off_x) / scale
-            my = (ev.position().y() - off_y) / scale
-            cur_angle = math.atan2(my - cy0, mx - cx0)
-            d_theta = cur_angle - self._press_angle
-            if d_theta > math.pi:
-                d_theta -= 2 * math.pi
-            if d_theta <= -math.pi:
-                d_theta += 2 * math.pi
+            cursor_video_x = (ev.position().x() - off_x) / scale
+            cursor_video_y = (ev.position().y() - off_y) / scale
+            current_angle = math.atan2(
+                cursor_video_y - original_cy, cursor_video_x - original_cx
+            )
+            delta_theta = current_angle - self._press_angle
+            if delta_theta > math.pi:
+                delta_theta -= 2 * math.pi
+            if delta_theta <= -math.pi:
+                delta_theta += 2 * math.pi
             if self._theta_is_clockwise:
-                theta = self._orig_theta - d_theta
+                theta = self._orig_theta - delta_theta
             else:
-                theta = self._orig_theta + d_theta
+                theta = self._orig_theta + delta_theta
 
         # Create new BBox for live preview
         current_box = self._boxes[self._selected_idx]
@@ -388,10 +413,10 @@ class Overlay(QWidget):
         new_bbox = BBoxData(
             object_id=object_id,
             object_type=current_box.object_type,
-            center_x=cx,
-            center_y=cy,
-            width=w,
-            height=h,
+            center_x=new_cx,
+            center_y=new_cy,
+            width=new_width,
+            height=new_height,
             theta=theta,
         )
         self._boxes[self._selected_idx] = new_bbox
@@ -407,7 +432,7 @@ class Overlay(QWidget):
             return
 
         selected_bbox = self._get_selected_bbox()
-        if selected_bbox is not None:
+        if self._mouse_drag_active and selected_bbox is not None:
             if self._drag_mode == "move":
                 self.boxMoved.emit(
                     selected_bbox.object_id,
@@ -434,6 +459,7 @@ class Overlay(QWidget):
         # clear drag/hover state
         self._hover_idx, self._hover_mode = None, None
         self._drag_mode = None
+        self._mouse_drag_active = False
         self._press_pos_disp = None
         self._orig_box = None
         ev.accept()
