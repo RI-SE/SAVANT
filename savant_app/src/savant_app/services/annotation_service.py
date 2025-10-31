@@ -26,6 +26,7 @@ from .exceptions import (
     InvalidInputError,
     NoFrameLabelFoundError,
     ObjectInFrameError,
+    ObjectLinkConflictError,
     ObjectNotFoundError,
     OntologyNotFound,
     UnsportedTagTypeError,
@@ -104,7 +105,9 @@ class AnnotationService:
         whereas the model handles what the data is and manipulating itself.
         """
         # Get frame object keys
-        frame = self.project_state.annotation_config.frames[str(frame_number)]
+        frame = self.project_state.annotation_config.frames.get(str(frame_number))
+        if frame is None:
+            return []
         active_object_keys = frame.objects.keys()
 
         return [
@@ -289,6 +292,96 @@ class AnnotationService:
         self.project_state.annotation_config.restore_bbox(
             frame_key, object_key, frame_obj
         )
+
+    def list_object_ids(self) -> list[str]:
+        """Return all object IDs currently defined in the annotation config."""
+        config = self.project_state.annotation_config
+        if not config or not getattr(config, "objects", None):
+            return []
+
+        def _sort_key(value: str) -> tuple[int, str]:
+            text = str(value)
+            if text.isdigit():
+                return (0, f"{int(text):010d}")
+            return (1, text)
+
+        return sorted(config.objects.keys(), key=_sort_key)
+
+    def frames_for_object(self, object_id: str) -> list[int]:
+        """Return sorted frame indices that contain the specified object ID."""
+        config = self.project_state.annotation_config
+        if config is None:
+            raise FrameNotFoundError("No annotation configuration loaded.")
+        if object_id not in getattr(config, "objects", {}):
+            raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
+
+        frames_with_object: list[int] = []
+        for frame_key, frame in config.frames.items():
+            if object_id in getattr(frame, "objects", {}):
+                try:
+                    frames_with_object.append(int(frame_key))
+                except (TypeError, ValueError):
+                    continue
+        return sorted(frames_with_object)
+
+    def link_object_ids(
+        self,
+        primary_object_id: str,
+        secondary_object_id: str,
+    ) -> list[int]:
+        """
+        Replace all occurrences of secondary_object_id with primary_object_id.
+
+        Args:
+            primary_object_id: The object ID that should remain.
+            secondary_object_id: The object ID to replace.
+
+        Returns:
+            A sorted list of affected frame indices.
+        """
+        if primary_object_id == secondary_object_id:
+            raise ObjectLinkConflictError("Cannot link an object ID to itself.")
+
+        config = self.project_state.annotation_config
+        if config is None:
+            raise FrameNotFoundError("No annotation configuration loaded.")
+
+        objects_map = getattr(config, "objects", {})
+        if primary_object_id not in objects_map:
+            raise ObjectNotFoundError(f"Object ID '{primary_object_id}' does not exist.")
+        if secondary_object_id not in objects_map:
+            raise ObjectNotFoundError(f"Object ID '{secondary_object_id}' does not exist.")
+
+        affected_frames: list[int] = []
+        for frame_key, frame in config.frames.items():
+            frame_objects = getattr(frame, "objects", {})
+            if secondary_object_id in frame_objects:
+                if primary_object_id in frame_objects:
+                    raise ObjectLinkConflictError(
+                        f"Frame {frame_key} already contains both object IDs."
+                    )
+                try:
+                    affected_frames.append(int(frame_key))
+                except (TypeError, ValueError):
+                    continue
+
+        if not affected_frames:
+            return []
+
+        for frame_key in list(config.frames.keys()):
+            frame = config.frames[frame_key]
+            frame_objects = getattr(frame, "objects", {})
+            if secondary_object_id not in frame_objects:
+                continue
+
+            frame_obj = frame_objects.pop(secondary_object_id)
+            frame_objects[primary_object_id] = frame_obj
+
+        # Remove secondary metadata; primary metadata remains authoritative.
+        if secondary_object_id in objects_map:
+            objects_map.pop(secondary_object_id)
+
+        return sorted(affected_frames)
 
     def mark_confidence_resolved(
         self, frame_number: int, object_id: str, annotator: str
