@@ -31,6 +31,7 @@ from .exceptions import (
     UnsportedTagTypeError,
 )
 from .project_state import ProjectState
+from .interpolation_service import InterpolationService
 
 
 class AnnotationService:
@@ -571,3 +572,67 @@ class AnnotationService:
             raise InvalidInputError(f"Unsupported type '{new_type}' (not in ontology).")
 
         openlabel_config.objects[object_id].type = canonical
+        
+    def interpolate_annotations(
+        self,
+        object_id: str,
+        start_frame: int,
+        end_frame: int,
+        control_points: Dict[str, List],
+        annotator: str
+    ) -> None:
+        """Create interpolated annotations between two frames using Bezier splines"""
+        if start_frame >= end_frame:
+            raise InvalidFrameRangeError("Start frame must be before end frame")
+            
+        # Validate frames exist
+        if str(start_frame) not in self.project_state.annotation_config.frames:
+            raise FrameNotFoundError(f"Start frame {start_frame} does not exist")
+        if str(end_frame) not in self.project_state.annotation_config.frames:
+            raise FrameNotFoundError(f"End frame {end_frame} does not exist")
+            
+        # Validate object exists in frames
+        if not self._does_object_exist_in_frame(start_frame, object_id):
+            raise ObjectNotFoundError(f"Object {object_id} not found in start frame {start_frame}")
+        if not self._does_object_exist_in_frame(end_frame, object_id):
+            raise ObjectNotFoundError(f"Object {object_id} not found in end frame {end_frame}")
+            
+        # Get the bboxes to interpolate between
+        start_bbox = self.get_bbox(start_frame, object_id)
+        end_bbox = self.get_bbox(end_frame, object_id)
+
+        # Calculate number of frames to interpolate
+        num_frames = end_frame - start_frame - 1
+        if num_frames <= 0:
+            raise InvalidFrameRangeError("No frames to interpolate between start and end frame")
+        
+        # Extract center control points from the control_points dictionary
+        center_control_points = []
+        if 'center_x' in control_points and 'center_y' in control_points:
+            xs = control_points['center_x']
+            ys = control_points['center_y']
+            if len(xs) == len(ys):
+                center_control_points = list(zip(xs, ys))
+        
+        print(xs, ys, center_control_points)
+        
+        # Interpolate bboxes for intermediate frames using the new spline method
+        interpolated_bboxes = InterpolationService.interpolate_annotations(
+            start_bbox, 
+            end_bbox, 
+            num_frames, 
+            center_control_points
+        )
+        
+        # Save interpolated bboxes
+        for i, bbox in enumerate(interpolated_bboxes):
+            frame_num = start_frame + i + 1
+            self._add_object_bbox(frame_num, bbox, object_id, annotator)
+            
+        # Store interpolation metadata for visual distinction
+        for frame_num in range(start_frame + 1, end_frame):
+            self.project_state.interpolation_metadata.add((frame_num, object_id))
+
+    def is_interpolated(self, frame_num: int, object_id: str) -> bool:
+        """Check if annotation is interpolated at given frame"""
+        return (frame_num, object_id) in self.project_state.interpolation_metadata

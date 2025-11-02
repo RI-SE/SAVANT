@@ -113,6 +113,11 @@ class Sidebar(QWidget):
         new_tag_btn.clicked.connect(self._open_frame_tag_dialog)
         main_layout.addWidget(new_tag_btn)
 
+        # --- Interpolation Button ---
+        self.interpolate_btn = QPushButton("Interpolate")
+        self.interpolate_btn.setEnabled(True)  # Enable now that we have implementation
+        self.interpolate_btn.clicked.connect(self._open_interpolation_dialog)
+        main_layout.addWidget(self.interpolate_btn)
         # --- Object Details ---
         parts = create_collapsible_object_details(
             parent=self,
@@ -691,6 +696,35 @@ class Sidebar(QWidget):
             return
         self.hide_object_editor()
 
+    def _open_interpolation_dialog(self):
+        # Get current frame and total frames
+        try:
+            current_frame = int(self.video_controller.current_index())
+            total_frames = int(self.project_state_controller.get_frame_count())
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Cannot get frame data: {str(e)}")
+            return
+            
+        # Get active objects in current frame
+        active_objs = self.annotation_controller.get_active_objects(current_frame)
+        if not active_objs:
+            QMessageBox.warning(self, "No Objects", "No active objects in current frame")
+            return
+            
+        # Extract object IDs
+        obj_ids = [obj['id'] for obj in active_objs if 'id' in obj]
+        
+        # Create and show dialog
+        from .interpolation_dialog import InterpolationDialog
+        dialog = InterpolationDialog(
+            self,
+            obj_ids,
+            current_frame,
+            total_frames,
+            self.annotation_controller
+        )
+        dialog.exec()
+        
     def _on_details_toggle_clicked(self, checked: bool):
         self._details_toggle.setArrowType(
             Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow

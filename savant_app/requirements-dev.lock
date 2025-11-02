@@ -27,6 +27,7 @@ mypy-extensions==1.1.0
 numpy==2.2.6
     # via opencv-python
     # via savant-app
+    # via scipy
 opencv-python==4.12.0.88
     # via savant-app
 packaging==25.0
@@ -62,6 +63,8 @@ pytest==8.4.1
 pytest-mock==3.14.1
     # via savant-app
 rdflib==7.2.1
+    # via savant-app
+scipy==1.16.3
     # via savant-app
 typing-extensions==4.14.1
     # via pydantic

@@ -47,7 +47,9 @@ class VideoController:
         return self._convert_frame_to_pixmap(frame), self.reader.current_index
 
     @error_handler
-    def current_index(self) -> int:
+    def current_index(self):
+        if not self.reader or not hasattr(self.reader, 'current_index'):
+            return 0
         return self.reader.current_index
 
     # TODO: Can eventually move this to frontend for full SOC

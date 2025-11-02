@@ -42,6 +42,7 @@ class ProjectState:
         self.annotation_config: OpenLabel = None
         self.open_label_path: str = None
         self.video_metadata: VideoMetadata = VideoMetadata()
+        self.interpolation_metadata = set()  # Stores frame numbers with interpolated metadata
 
     def load_openlabel_config(self, path: str) -> None:
         """Load and validate OpenLabel configuration from JSON file.
