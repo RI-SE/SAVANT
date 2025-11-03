@@ -92,7 +92,9 @@ class SettingsDialog(QDialog):
         self.annotator_table.horizontalHeader().setStretchLastSection(True)
         self.annotator_table.verticalHeader().setVisible(False)
         self.annotator_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.annotator_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.annotator_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.NoSelection
+        )
         self.annotator_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         # TODO: Change to retrieve names from config
@@ -380,12 +382,8 @@ class SettingsDialog(QDialog):
                 "Invalid Ranges",
                 "Warning and error ranges must not overlap when both markers are enabled.",
             )
-            self._set_spin_value(
-                self.warning_min_spin, self._previous_warning_range[0]
-            )
-            self._set_spin_value(
-                self.warning_max_spin, self._previous_warning_range[1]
-            )
+            self._set_spin_value(self.warning_min_spin, self._previous_warning_range[0])
+            self._set_spin_value(self.warning_max_spin, self._previous_warning_range[1])
             self._set_spin_value(self.error_min_spin, self._previous_error_range[0])
             self._set_spin_value(self.error_max_spin, self._previous_error_range[1])
             return

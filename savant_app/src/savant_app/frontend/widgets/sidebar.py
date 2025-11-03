@@ -22,13 +22,15 @@ from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.widgets.settings import get_action_interval_offset
 from savant_app.frontend.utils.settings_store import get_ontology_path
 from savant_app.frontend.exceptions import InvalidObjectIDFormat
+from savant_app.frontend.states.frontend_state import FrontendState
 from savant_app.controllers.project_state_controller import ProjectStateController
 from PyQt6.QtGui import QShortcut, QKeySequence
 from savant_app.frontend.theme.constants import (
     SIDEBAR_ERROR_HIGHLIGHT,
     SIDEBAR_WARNING_HIGHLIGHT,
-    SIDEBAR_HIGHLIGHT_TEXT_COLOUR
+    SIDEBAR_HIGHLIGHT_TEXT_COLOUR,
 )
+from savant_app.frontend.widgets.interpolation_dialog import InterpolationDialog
 from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
 from PyQt6.QtGui import QFont
 
@@ -52,6 +54,7 @@ class Sidebar(QWidget):
         annotation_controller: AnnotationController,
         video_controller: VideoController,
         project_state_controller: ProjectStateController,
+        frontend_state: FrontendState,
         state: SidebarState,
     ):
         super().__init__()
@@ -62,6 +65,7 @@ class Sidebar(QWidget):
         self.annotation_controller: AnnotationController = annotation_controller
         self.video_controller: VideoController = video_controller
         self.project_state_controller: ProjectStateController = project_state_controller
+        self.frontend_state: FrontendState = frontend_state
 
         # State for sidebar
         self.state: SidebarState = state
@@ -113,6 +117,11 @@ class Sidebar(QWidget):
         new_tag_btn.clicked.connect(self._open_frame_tag_dialog)
         main_layout.addWidget(new_tag_btn)
 
+        # --- Interpolation Button ---
+        self.interpolate_btn = QPushButton("Interpolate")
+        self.interpolate_btn.setEnabled(True)  # Enable now that we have implementation
+        self.interpolate_btn.clicked.connect(self._open_interpolation_dialog)
+        main_layout.addWidget(self.interpolate_btn)
         # --- Object Details ---
         parts = create_collapsible_object_details(
             parent=self,
@@ -690,6 +699,34 @@ class Sidebar(QWidget):
         if self.active_objects.selectedItems():
             return
         self.hide_object_editor()
+
+    def _open_interpolation_dialog(self):
+        # Get current frame and total frames
+        current_frame = int(self.video_controller.current_index())
+        total_frames = int(self.project_state_controller.get_frame_count())
+
+        # Get active objects in current frame
+        active_objs = self.annotation_controller.get_active_objects(current_frame)
+        if not active_objs:
+            QMessageBox.warning(
+                self, "No Objects", "No active objects in current frame"
+            )
+            return
+
+        # Extract object IDs
+        obj_ids = [obj["id"] for obj in active_objs if "id" in obj]
+
+        # Create and show dialog
+        dialog = InterpolationDialog(
+            self, obj_ids, current_frame, total_frames, self.on_interpolate
+        )
+        dialog.exec()
+
+    def on_interpolate(self, object_id: str, start_frame: int, end_frame: int):
+        current_annotator = self.frontend_state.get_current_annotator()
+        self.annotation_controller.interpolate_annotations(
+            object_id, start_frame, end_frame, current_annotator
+        )
 
     def _on_details_toggle_clicked(self, checked: bool):
         self._details_toggle.setArrowType(

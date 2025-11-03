@@ -17,3 +17,4 @@ class BBoxData:
     width: float
     height: float
     theta: float  # in radians
+    is_interpolated: bool = False

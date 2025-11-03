@@ -105,6 +105,7 @@ class MainWindow(QMainWindow):
             self.annotation_controller,
             self.video_controller,
             self.project_state_controller,
+            self.state,
             self.sidebar_state,
         )
         self.seek_bar.frame_changed.connect(self.sidebar.on_frame_changed)

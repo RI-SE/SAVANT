@@ -152,7 +152,7 @@ class OpenLabel(BaseModel):
     def append_object_bbox(
         self,
         frame_id: int,
-        bbox_coordinates: dict,
+        bbox_coordinates: List[float],
         obj_id: str,
         annotator: str,
     ):
@@ -160,23 +160,68 @@ class OpenLabel(BaseModel):
         Adds a new bounding box for an object with no existing
         annotations.
         """
-        # TODO: Add rotation. Hard coded to 0 for now.
+        # Handle bbox_coordinates: support both list and dict
+        if isinstance(bbox_coordinates, dict):
+            # Extract values from dictionary
+            x_center_val = bbox_coordinates.get("x_center", 0.0)
+            y_center_val = bbox_coordinates.get("y_center", 0.0)
+            width_val = bbox_coordinates.get("width", 0.0)
+            height_val = bbox_coordinates.get("height", 0.0)
+            rotation_val = bbox_coordinates.get("rotation", 0.0)
+        else:
+            try:
+                # Try to treat as list
+                x_center_val = (
+                    bbox_coordinates[0]
+                    if bbox_coordinates and len(bbox_coordinates) > 0
+                    else 0.0
+                )
+                y_center_val = (
+                    bbox_coordinates[1]
+                    if bbox_coordinates and len(bbox_coordinates) > 1
+                    else 0.0
+                )
+                width_val = (
+                    bbox_coordinates[2]
+                    if bbox_coordinates and len(bbox_coordinates) > 2
+                    else 0.0
+                )
+                height_val = (
+                    bbox_coordinates[3]
+                    if bbox_coordinates and len(bbox_coordinates) > 3
+                    else 0.0
+                )
+                rotation_val = (
+                    bbox_coordinates[4]
+                    if bbox_coordinates and len(bbox_coordinates) > 4
+                    else 0.0
+                )
+            except (TypeError, IndexError):
+                # If there's an exception, set to default
+                x_center_val, y_center_val, width_val, height_val, rotation_val = (
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                )
+
         rbbox = RotatedBBox(
-            x_center=bbox_coordinates[0],
-            y_center=bbox_coordinates[1],
-            width=bbox_coordinates[2],
-            height=bbox_coordinates[3],
-            rotation=0,
+            x_center=x_center_val,
+            y_center=y_center_val,
+            width=width_val,
+            height=height_val,
+            rotation=rotation_val,
         )
 
         bbox_geometry_data = GeometryData(val=rbbox)
         confidence_data = ConfidenceData(
             val=deque([1.0])
         )  # Confidence set to 1 for humans
-        annotater_data = AnnotatorData(val=deque([annotator]))
+        annotator_data = AnnotatorData(val=deque([annotator]))
 
         new_obj_data = ObjectData(
-            rbbox=[bbox_geometry_data], vec=[annotater_data, confidence_data]
+            rbbox=[bbox_geometry_data], vec=[annotator_data, confidence_data]
         )
         new_frame_obj = FrameLevelObject(object_data=new_obj_data)
 

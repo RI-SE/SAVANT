@@ -39,9 +39,12 @@ class VideoReader:
         OpenCV points CAP_PROP_POS_FRAMES to the *next* frame,
         so subtract 1 to get the last successfully returned frame.
         """
-        self._validate_video_loaded()
-        pos = int(self.capture.get(cv2.CAP_PROP_POS_FRAMES))
-        return pos - 1
+        try:
+            self._validate_video_loaded()
+            pos = int(self.capture.get(cv2.CAP_PROP_POS_FRAMES))
+            return pos - 1
+        except VideoLoadError:
+            return 0
 
     def __iter__(self):
         """Return self as iterator."""
