@@ -578,7 +578,7 @@ class AnnotationService:
         object_id: str,
         start_frame: int,
         end_frame: int,
-        control_points: Dict[str, List],
+        #control_points: Dict[str, List],
         annotator: str
     ) -> None:
         """Create interpolated annotations between two frames using Bezier splines"""

@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QMessageBox
 )
 from PyQt6.QtCore import Qt
-from typing import List, Dict
+from typing import List, Dict, Callable
 from savant_app.controllers.annotation_controller import AnnotationController
 
 class InterpolationDialog(QDialog):
@@ -20,13 +20,13 @@ class InterpolationDialog(QDialog):
         object_ids: List[str],
         current_frame: int,
         total_frames: int,
-        annotation_controller: AnnotationController
+        on_interpolate: Callable
     ):
         super().__init__(parent)
         self.setWindowTitle("Interpolate Annotations")
         self.setMinimumSize(400, 200)
-        self.annotation_controller = annotation_controller
         self.control_points: Dict[int, Dict] = {}  # {frame: bbox_data}
+        self.on_interpolate = on_interpolate
         
         layout = QVBoxLayout()
         
@@ -49,7 +49,7 @@ class InterpolationDialog(QDialog):
         self.end_frame_spin.valueChanged.connect(self._validate_frames)
         form.addRow(QLabel("End Frame:"), self.end_frame_spin)
         
-        # Buttons
+        # Interpolate and cancel button 
         self.interpolate_btn = QPushButton("Interpolate")
         self.interpolate_btn.clicked.connect(self._interpolate)
         cancel_btn = QPushButton("Cancel")
@@ -113,22 +113,26 @@ class InterpolationDialog(QDialog):
         
         #try:
             # Format control points for backend
-        formatted_ctrl = {}
-        for prop in ['center_x', 'center_y', 'width', 'height', 'rotation']:
-            # Collect property values from control points in frame order
-            ctrl_vals = []
-            for frame in sorted(self.control_points.keys()):
-                ctrl_vals.append(self.control_points[frame][prop])
-            formatted_ctrl[prop] = ctrl_vals
+        #formatted_ctrl = {}
+        #for prop in ['center_x', 'center_y', 'width', 'height', 'rotation']:
+        #    # Collect property values from control points in frame order
+            #ctrl_vals = []
+            #for frame in sorted(self.control_points.keys()):
+            #    ctrl_vals.append(self.control_points[frame][prop])
+            #formatted_ctrl[prop] = ctrl_vals
         
-        # Call controller
-        self.annotation_controller.interpolate_annotations(
-            object_id,
-            start_frame,
-            end_frame,
-            formatted_ctrl,
-            "auto"  # annotator
+        self.on_interpolate(object_id, 
+            start_frame, 
+            end_frame, 
         )
+
+        #self.annotation_controller.interpolate_annotations(
+        #    object_id,
+        #    start_frame,
+        #    end_frame,
+        #    formatted_ctrl,
+        #    "auto"  # annotator
+        #)
         
         QMessageBox.information(
             self, 

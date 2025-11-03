@@ -223,10 +223,10 @@ class AnnotationController:
         object_id: str,
         start_frame: int,
         end_frame: int,
-        control_points: Dict[str, List],
+        #control_points: Dict[str, List],
         annotator: str
     ) -> None:
         """Create interpolated annotations between two keyframes"""
         self.annotation_service.interpolate_annotations(
-            object_id, start_frame, end_frame, control_points, annotator
+            object_id, start_frame, end_frame, annotator
         )
