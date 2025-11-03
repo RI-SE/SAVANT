@@ -12,12 +12,12 @@ class InterpolationService:
     ) -> List[tuple[float, float]]:
         """
         Interpolate center trajectory using cubic Bezier spline for 2D points.
-        
+
         Args:
             start_point: Starting (x,y) coordinate
             end_point: Ending (x,y) coordinate
             num_frames: Number of frames to interpolate (must be >= 1)
-            
+
         Raises:
             ValueError: If num_frames is less than 1
         """
@@ -54,13 +54,12 @@ class InterpolationService:
         for prop in properties:
             start_val = start_dict.get(prop, 0)
             end_val = end_dict.get(prop, 0)
-            
+
             if prop == "rotation":
                 # Handle angle wrapping for rotation
                 diff = ((end_val - start_val + 180) % 360) - 180
                 interpolated_values[prop] = [
-                    (start_val + diff * t) % 360 
-                    for t in np.linspace(0, 1, num_frames)
+                    (start_val + diff * t) % 360 for t in np.linspace(0, 1, num_frames)
                 ]
             else:
                 interpolated_values[prop] = np.linspace(
