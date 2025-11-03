@@ -694,17 +694,9 @@ def _link_object_ids_interactive(
     if confirm != QMessageBox.StandardButton.Yes:
         return
 
-    try:
-        affected_frames = main_window.annotation_controller.link_object_ids(
-            primary_object_id,
-            target_object_id,
-        )
-    except (ObjectLinkConflictError, ObjectNotFoundError, FrameNotFoundError) as exc:
-        QMessageBox.warning(main_window, "Link Object IDs", str(exc))
-        return
-    except Exception as exc:
-        QMessageBox.critical(main_window, "Link Object IDs", str(exc))
-        return
+    affected_frames = main_window.annotation_controller.link_object_ids(
+        primary_object_id,
+        target_object_id,)
 
     _refresh_after_bbox_update(main_window)
     result_summary = _frames_to_ranges(affected_frames)
