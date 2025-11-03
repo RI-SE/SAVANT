@@ -2,7 +2,17 @@
 from dataclasses import asdict
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QInputDialog, QMenu, QMessageBox
+from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QInputDialog,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QVBoxLayout,
+)
 
 from savant_app.frontend.exceptions import InvalidFrameRangeInput, MissingObjectIDError
 from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
@@ -453,6 +463,20 @@ def _on_overlay_context_menu(main_window, click_position):
     if obj_id and confidence_flags.get(obj_id):
         mark_resolved_action = context_menu.addAction("Mark issue as resolved")
 
+    link_ids_action = None
+    available_ids: list[str] = []
+    if obj_id:
+        try:
+            available_ids = [
+                candidate_id
+                for candidate_id in main_window.annotation_controller.list_object_ids()
+                if candidate_id != obj_id
+            ]
+        except Exception:
+            available_ids = []
+    if obj_id and available_ids:
+        link_ids_action = context_menu.addAction("Link object IDs")
+
     selected_action = context_menu.exec(overlay_widget.mapToGlobal(click_position))
     if selected_action is None:
         return
@@ -470,6 +494,8 @@ def _on_overlay_context_menu(main_window, click_position):
         if state and hasattr(state, "get_current_annotator"):
             annotator = state.get_current_annotator() or ""
         _mark_confidence_issue_resolved(main_window, obj_id, annotator)
+    elif selected_action == link_ids_action:
+        _link_object_ids_interactive(main_window, obj_id, available_ids)
 
 
 def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
@@ -564,3 +590,121 @@ def _mark_confidence_issue_resolved(
     if callable(mark_confidence):
         mark_confidence(frame_index, object_id, annotator)
         _refresh_after_bbox_update(main_window)
+
+
+def _prompt_link_target_object(
+    main_window, source_object_id: str, candidate_ids: list[str]
+) -> str | None:
+    """Display a dialog allowing the user to choose an object ID to link."""
+    dialog = QDialog(main_window)
+    dialog.setWindowTitle("Link Object IDs")
+    layout = QVBoxLayout(dialog)
+
+    selection_combo = QComboBox(dialog)
+    selection_combo.setEditable(True)
+    selection_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+    placeholder_text = "Type or select ID"
+    selection_combo.lineEdit().setPlaceholderText(placeholder_text)
+    selection_combo.setMinimumWidth(len(placeholder_text) * 10)
+
+    unique_candidates = sorted(
+        {candidate for candidate in candidate_ids if candidate != source_object_id},
+        key=lambda value: (0, f"{int(value):010d}") if str(value).isdigit() else (1, str(value)),
+    )
+    if unique_candidates:
+        selection_combo.addItems(unique_candidates)
+    selection_combo.setCurrentIndex(-1)
+    layout.addWidget(selection_combo)
+
+    layout.addSpacing(8)
+
+    selection_description = QLabel(
+        "Select the target object ID that should be merged into the current object.", dialog
+    )
+    selection_description.setWordWrap(True)
+    hint_font: QFont = selection_description.font()
+    hint_font.setItalic(True)
+    hint_font.setPointSize(max(8, hint_font.pointSize() - 1))
+    selection_description.setFont(hint_font)
+    layout.addWidget(selection_description)
+
+    buttons = QDialogButtonBox(
+        QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+        parent=dialog,
+    )
+    layout.addWidget(buttons)
+
+    selection_state: dict[str, object] = {"value": None}
+
+    def _accept():
+        candidate = selection_combo.currentText().strip()
+        if not candidate:
+            QMessageBox.warning(dialog, "Link Object IDs", "Select an object ID to link.")
+            return
+        selection_state["value"] = candidate
+        dialog.accept()
+
+    buttons.accepted.connect(_accept)
+    buttons.rejected.connect(dialog.reject)
+
+    if dialog.exec() == QDialog.DialogCode.Accepted:
+        return selection_state["value"]
+    return None
+
+
+def _link_object_ids_interactive(
+    main_window, primary_object_id: str, candidate_ids: list[str]
+) -> None:
+    """Interactive flow for replacing one object ID with another across frames."""
+    if not primary_object_id:
+        return
+
+    target_object_id = _prompt_link_target_object(
+        main_window, primary_object_id, candidate_ids
+    )
+    if not target_object_id:
+        return
+
+    frames_with_target = main_window.annotation_controller.frames_for_object(
+        target_object_id)
+    frame_summary = _frames_to_ranges(frames_with_target)
+    frame_count = len(frames_with_target)
+    confirmation_text = (
+        f"Replace all occurrences of ID '{target_object_id}' with '{primary_object_id}' "
+        f"across {frame_count} frame(s)"
+    )
+    if frame_summary:
+        confirmation_text += f": {frame_summary}"
+    else:
+        confirmation_text += "."
+    confirmation_text += "\nThis action cannot be undone."
+
+    confirm = QMessageBox.question(
+        main_window,
+        "Link Object IDs",
+        confirmation_text,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    if confirm != QMessageBox.StandardButton.Yes:
+        return
+
+    affected_frames = main_window.annotation_controller.link_object_ids(
+        primary_object_id,
+        target_object_id,)
+
+    _refresh_after_bbox_update(main_window)
+    result_summary = _frames_to_ranges(affected_frames)
+    success_message = (
+        f"Linked ID '{target_object_id}' into '{primary_object_id}' across "
+        f"{len(affected_frames)} frame(s)"
+    )
+    if result_summary:
+        success_message += f": {result_summary}"
+    else:
+        success_message += "."
+    QMessageBox.information(main_window, "Link Object IDs", success_message)
+
+    overlay = getattr(main_window, "overlay", None)
+    if overlay is not None:
+        overlay.bounding_box_selected.emit(primary_object_id)

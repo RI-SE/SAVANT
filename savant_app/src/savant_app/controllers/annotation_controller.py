@@ -149,6 +149,25 @@ class AnnotationController:
         self.annotation_service.restore_bbox(frame_key, object_key, frame_obj)
 
     @error_handler
+    def list_object_ids(self) -> list[str]:
+        return self.annotation_service.list_object_ids()
+
+    @error_handler
+    def frames_for_object(self, object_id: str) -> list[int]:
+        return self.annotation_service.frames_for_object(object_id)
+
+    @error_handler
+    def link_object_ids(
+        self,
+        primary_object_id: str,
+        secondary_object_id: str,
+    ) -> list[int]:
+        return self.annotation_service.link_object_ids(
+            primary_object_id,
+            secondary_object_id,
+        )
+
+    @error_handler
     def mark_confidence_resolved(
         self, frame_number: int, object_id: str, annotator: str
     ) -> None:

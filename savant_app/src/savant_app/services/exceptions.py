@@ -111,3 +111,9 @@ class OntologyNotFound(DomainException):
     """Raised when an ontology file can not be found"""
 
     pass
+
+
+class ObjectLinkConflictError(DomainException):
+    """Raised when linking object IDs would create an invalid state."""
+
+    pass
