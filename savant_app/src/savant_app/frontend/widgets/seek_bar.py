@@ -59,7 +59,10 @@ class SeekSlider(QSlider):
                 pos = int(click_x - groove.x() - handle_w / 2)
                 pos = max(0, min(pos, available))
                 value = QStyle.sliderValueFromPosition(
-                    self.minimum(), self.maximum(), pos, available if available > 0 else 1
+                    self.minimum(),
+                    self.maximum(),
+                    pos,
+                    available if available > 0 else 1,
                 )
                 self.setValue(value)
                 event.accept()
@@ -71,7 +74,10 @@ class SeekSlider(QSlider):
                 pos = int(click_y - groove.y() - handle_h / 2)
                 pos = max(0, min(pos, available))
                 value = QStyle.sliderValueFromPosition(
-                    self.minimum(), self.maximum(), pos, available if available > 0 else 1
+                    self.minimum(),
+                    self.maximum(),
+                    pos,
+                    available if available > 0 else 1,
                 )
                 self.setValue(value)
                 event.accept()
@@ -195,8 +201,7 @@ class SeekSlider(QSlider):
             {
                 int(frame)
                 for frame in frames
-                if isinstance(frame, (int, float))
-                and minimum <= int(frame) <= maximum
+                if isinstance(frame, (int, float)) and minimum <= int(frame) <= maximum
             }
         )
         return normalized

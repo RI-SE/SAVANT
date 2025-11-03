@@ -1,4 +1,4 @@
-from typing import Optional, Union, Dict, List
+from typing import Optional, Union
 
 from savant_app.models.OpenLabel import FrameLevelObject, RotatedBBox
 from savant_app.services.annotation_service import AnnotationService
@@ -216,15 +216,15 @@ class AnnotationController:
     @error_handler
     def update_object_type(self, object_id: str, new_type: str) -> None:
         self.annotation_service.update_object_type(object_id, new_type)
-        
+
     @error_handler
     def interpolate_annotations(
         self,
         object_id: str,
         start_frame: int,
         end_frame: int,
-        #control_points: Dict[str, List],
-        annotator: str
+        # control_points: Dict[str, List],
+        annotator: str,
     ) -> None:
         """Create interpolated annotations between two keyframes"""
         self.annotation_service.interpolate_annotations(

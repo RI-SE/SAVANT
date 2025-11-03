@@ -28,7 +28,7 @@ from PyQt6.QtGui import QShortcut, QKeySequence
 from savant_app.frontend.theme.constants import (
     SIDEBAR_ERROR_HIGHLIGHT,
     SIDEBAR_WARNING_HIGHLIGHT,
-    SIDEBAR_HIGHLIGHT_TEXT_COLOUR
+    SIDEBAR_HIGHLIGHT_TEXT_COLOUR,
 )
 from savant_app.frontend.widgets.interpolation_dialog import InterpolationDialog
 from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
@@ -704,35 +704,30 @@ class Sidebar(QWidget):
         # Get current frame and total frames
         current_frame = int(self.video_controller.current_index())
         total_frames = int(self.project_state_controller.get_frame_count())
-            
+
         # Get active objects in current frame
         active_objs = self.annotation_controller.get_active_objects(current_frame)
         if not active_objs:
-            QMessageBox.warning(self, "No Objects", "No active objects in current frame")
+            QMessageBox.warning(
+                self, "No Objects", "No active objects in current frame"
+            )
             return
-            
+
         # Extract object IDs
-        obj_ids = [obj['id'] for obj in active_objs if 'id' in obj]
-        
+        obj_ids = [obj["id"] for obj in active_objs if "id" in obj]
+
         # Create and show dialog
         dialog = InterpolationDialog(
-            self,
-            obj_ids,
-            current_frame,
-            total_frames,
-            self.on_interpolate
+            self, obj_ids, current_frame, total_frames, self.on_interpolate
         )
         dialog.exec()
-    
+
     def on_interpolate(self, object_id: str, start_frame: int, end_frame: int):
         current_annotator = self.frontend_state.get_current_annotator()
         self.annotation_controller.interpolate_annotations(
-            object_id,
-            start_frame,
-            end_frame,
-            current_annotator
+            object_id, start_frame, end_frame, current_annotator
         )
-        
+
     def _on_details_toggle_clicked(self, checked: bool):
         self._details_toggle.setArrowType(
             Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow

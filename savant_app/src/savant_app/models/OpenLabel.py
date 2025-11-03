@@ -163,22 +163,48 @@ class OpenLabel(BaseModel):
         # Handle bbox_coordinates: support both list and dict
         if isinstance(bbox_coordinates, dict):
             # Extract values from dictionary
-            x_center_val = bbox_coordinates.get('x_center', 0.0)
-            y_center_val = bbox_coordinates.get('y_center', 0.0)
-            width_val = bbox_coordinates.get('width', 0.0)
-            height_val = bbox_coordinates.get('height', 0.0)
-            rotation_val = bbox_coordinates.get('rotation', 0.0)
+            x_center_val = bbox_coordinates.get("x_center", 0.0)
+            y_center_val = bbox_coordinates.get("y_center", 0.0)
+            width_val = bbox_coordinates.get("width", 0.0)
+            height_val = bbox_coordinates.get("height", 0.0)
+            rotation_val = bbox_coordinates.get("rotation", 0.0)
         else:
             try:
                 # Try to treat as list
-                x_center_val = bbox_coordinates[0] if bbox_coordinates and len(bbox_coordinates) > 0 else 0.0
-                y_center_val = bbox_coordinates[1] if bbox_coordinates and len(bbox_coordinates) > 1 else 0.0
-                width_val = bbox_coordinates[2] if bbox_coordinates and len(bbox_coordinates) > 2 else 0.0
-                height_val = bbox_coordinates[3] if bbox_coordinates and len(bbox_coordinates) > 3 else 0.0
-                rotation_val = bbox_coordinates[4] if bbox_coordinates and len(bbox_coordinates) > 4 else 0.0
+                x_center_val = (
+                    bbox_coordinates[0]
+                    if bbox_coordinates and len(bbox_coordinates) > 0
+                    else 0.0
+                )
+                y_center_val = (
+                    bbox_coordinates[1]
+                    if bbox_coordinates and len(bbox_coordinates) > 1
+                    else 0.0
+                )
+                width_val = (
+                    bbox_coordinates[2]
+                    if bbox_coordinates and len(bbox_coordinates) > 2
+                    else 0.0
+                )
+                height_val = (
+                    bbox_coordinates[3]
+                    if bbox_coordinates and len(bbox_coordinates) > 3
+                    else 0.0
+                )
+                rotation_val = (
+                    bbox_coordinates[4]
+                    if bbox_coordinates and len(bbox_coordinates) > 4
+                    else 0.0
+                )
             except (TypeError, IndexError):
                 # If there's an exception, set to default
-                x_center_val, y_center_val, width_val, height_val, rotation_val = 0.0, 0.0, 0.0, 0.0, 0.0
+                x_center_val, y_center_val, width_val, height_val, rotation_val = (
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                )
 
         rbbox = RotatedBBox(
             x_center=x_center_val,

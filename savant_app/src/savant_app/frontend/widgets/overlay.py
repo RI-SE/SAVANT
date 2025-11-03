@@ -316,7 +316,10 @@ class Overlay(QWidget):
         delta_y_pixels = cursor_pos_disp.y() - self._press_pos_disp.y()
 
         if not self._mouse_drag_active:
-            if math.hypot(delta_x_pixels, delta_y_pixels) < self._drag_start_threshold_px:
+            if (
+                math.hypot(delta_x_pixels, delta_y_pixels)
+                < self._drag_start_threshold_px
+            ):
                 if self._drag_mode == "move":
                     self.setCursor(Qt.CursorShape.SizeAllCursor)
                 elif self._drag_mode == "R":

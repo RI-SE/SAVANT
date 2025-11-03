@@ -48,7 +48,7 @@ class VideoController:
 
     @error_handler
     def current_index(self):
-        if not self.reader or not hasattr(self.reader, 'current_index'):
+        if not self.reader or not hasattr(self.reader, "current_index"):
             return 0
         return self.reader.current_index
 
