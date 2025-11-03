@@ -69,6 +69,7 @@ class InterpolationDialog(QDialog):
         else:
             self.interpolate_btn.setEnabled(True)
     
+    """
     def _add_control_point(self):
         frame = self.control_frame_spin.value()
         start = self.start_frame_spin.value()
@@ -90,7 +91,9 @@ class InterpolationDialog(QDialog):
         self.control_points[frame] = bbox_data
         self.ctrl_points_list.addItem(f"Control at frame {frame}")
         self.del_ctrl_btn.setEnabled(True)
+    """
         
+    """
     def _remove_control_point(self):
         idx = self.ctrl_points_list.currentIndex()
         if idx < 0:
@@ -101,6 +104,7 @@ class InterpolationDialog(QDialog):
         self.ctrl_points_list.removeItem(idx)
         if not self.control_points:
             self.del_ctrl_btn.setEnabled(False)
+    """
     
     def _interpolate(self):
         object_id = self.object_combo.currentText()
