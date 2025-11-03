@@ -597,7 +597,6 @@ class AnnotationService:
         if not self._does_object_exist_in_frame(end_frame, object_id):
             raise ObjectNotFoundError(f"Object {object_id} not found in end frame {end_frame}")
             
-        # Get the bboxes to interpolate between
         start_bbox = self.get_bbox(start_frame, object_id)
         end_bbox = self.get_bbox(end_frame, object_id)
 
@@ -607,21 +606,21 @@ class AnnotationService:
             raise InvalidFrameRangeError("No frames to interpolate between start and end frame")
         
         # Extract center control points from the control_points dictionary
-        center_control_points = []
-        if 'center_x' in control_points and 'center_y' in control_points:
-            xs = control_points['center_x']
-            ys = control_points['center_y']
-            if len(xs) == len(ys):
-                center_control_points = list(zip(xs, ys))
+        #center_control_points = []
+        #if 'center_x' in control_points and 'center_y' in control_points:
+        #    xs = control_points['center_x']
+        #    ys = control_points['center_y']
+        #    if len(xs) == len(ys):
+        #        center_control_points = list(zip(xs, ys))
         
-        print(xs, ys, center_control_points)
+        #print(xs, ys, center_control_points)
         
         # Interpolate bboxes for intermediate frames using the new spline method
         interpolated_bboxes = InterpolationService.interpolate_annotations(
             start_bbox, 
             end_bbox, 
             num_frames, 
-            center_control_points
+        #    center_control_points
         )
         
         # Save interpolated bboxes

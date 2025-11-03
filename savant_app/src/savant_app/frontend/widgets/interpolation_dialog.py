@@ -24,7 +24,7 @@ class InterpolationDialog(QDialog):
     ):
         super().__init__(parent)
         self.setWindowTitle("Interpolate Annotations")
-        self.setMinimumSize(400, 500)
+        self.setMinimumSize(400, 200)
         self.annotation_controller = annotation_controller
         self.control_points: Dict[int, Dict] = {}  # {frame: bbox_data}
         
@@ -49,31 +49,6 @@ class InterpolationDialog(QDialog):
         self.end_frame_spin.valueChanged.connect(self._validate_frames)
         form.addRow(QLabel("End Frame:"), self.end_frame_spin)
         
-        # Control points group
-        control_group = QGroupBox("Control Points")
-        control_layout = QVBoxLayout()
-        
-        self.control_frame_spin = QSpinBox()
-        self.control_frame_spin.setRange(0, total_frames-1)
-        self.control_frame_spin.setValue((current_frame + self.end_frame_spin.value()) // 2)
-        control_layout.addWidget(QLabel("Frame:"))
-        control_layout.addWidget(self.control_frame_spin)
-        
-        self.add_ctrl_btn = QPushButton("Add Control Point")
-        self.add_ctrl_btn.clicked.connect(self._add_control_point)
-        control_layout.addWidget(self.add_ctrl_btn)
-        
-        self.ctrl_points_list = QComboBox()
-        self.ctrl_points_list.setEditable(False)
-        control_layout.addWidget(self.ctrl_points_list)
-        
-        self.del_ctrl_btn = QPushButton("Remove Control Point")
-        self.del_ctrl_btn.setEnabled(False)
-        self.del_ctrl_btn.clicked.connect(self._remove_control_point)
-        control_layout.addWidget(self.del_ctrl_btn)
-        
-        control_group.setLayout(control_layout)
-        
         # Buttons
         self.interpolate_btn = QPushButton("Interpolate")
         self.interpolate_btn.clicked.connect(self._interpolate)
@@ -81,7 +56,6 @@ class InterpolationDialog(QDialog):
         cancel_btn.clicked.connect(self.reject)
         
         layout.addLayout(form)
-        layout.addWidget(control_group)
         layout.addWidget(self.interpolate_btn)
         layout.addWidget(cancel_btn)
         self.setLayout(layout)
@@ -133,35 +107,35 @@ class InterpolationDialog(QDialog):
         start_frame = self.start_frame_spin.value()
         end_frame = self.end_frame_spin.value()
         
-        try:
+        #try:
             # Format control points for backend
-            formatted_ctrl = {}
-            for prop in ['center_x', 'center_y', 'width', 'height', 'rotation']:
-                # Collect property values from control points in frame order
-                ctrl_vals = []
-                for frame in sorted(self.control_points.keys()):
-                    ctrl_vals.append(self.control_points[frame][prop])
-                formatted_ctrl[prop] = ctrl_vals
+        formatted_ctrl = {}
+        for prop in ['center_x', 'center_y', 'width', 'height', 'rotation']:
+            # Collect property values from control points in frame order
+            ctrl_vals = []
+            for frame in sorted(self.control_points.keys()):
+                ctrl_vals.append(self.control_points[frame][prop])
+            formatted_ctrl[prop] = ctrl_vals
+        
+        # Call controller
+        self.annotation_controller.interpolate_annotations(
+            object_id,
+            start_frame,
+            end_frame,
+            formatted_ctrl,
+            "auto"  # annotator
+        )
+        
+        QMessageBox.information(
+            self, 
+            "Interpolation Complete", 
+            f"Interpolated {object_id} from frame {start_frame} to {end_frame}"
+        )
+        self.accept()
             
-            # Call controller
-            self.annotation_controller.interpolate_annotations(
-                object_id,
-                start_frame,
-                end_frame,
-                formatted_ctrl,
-                "auto"  # annotator
-            )
-            
-            QMessageBox.information(
-                self, 
-                "Interpolation Complete", 
-                f"Interpolated {object_id} from frame {start_frame} to {end_frame}"
-            )
-            self.accept()
-            
-        except Exception as e:
-            QMessageBox.critical(
-                self, 
-                "Interpolation Error", 
-                f"Failed to interpolate: {str(e)}"
-            )
+#        except Exception as e:
+#            QMessageBox.critical(
+#                self, 
+#                "Interpolation Error", 
+#                f"Failed to interpolate: {str(e)}"
+#            )
