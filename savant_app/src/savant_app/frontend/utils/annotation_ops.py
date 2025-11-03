@@ -670,17 +670,8 @@ def _link_object_ids_interactive(
     if not target_object_id:
         return
 
-    try:
-        frames_with_target = main_window.annotation_controller.frames_for_object(
-            target_object_id
-        )
-    except (ObjectNotFoundError, FrameNotFoundError) as exc:
-        QMessageBox.warning(main_window, "Link Object IDs", str(exc))
-        return
-    except Exception as exc:
-        QMessageBox.critical(main_window, "Link Object IDs", str(exc))
-        return
-
+    frames_with_target = main_window.annotation_controller.frames_for_object(
+        target_object_id)
     frame_summary = _frames_to_ranges(frames_with_target)
     frame_count = len(frames_with_target)
     confirmation_text = (
