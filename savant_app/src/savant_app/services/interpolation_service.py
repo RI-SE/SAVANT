@@ -13,9 +13,13 @@ class InterpolationService:
             raise ValueError("Number of frames must be positive")
 
         interpolation_factors = np.linspace(0, 1, num_frames + 2)[1:-1]
-        x_positions = start_point[0] + (end_point[0] - start_point[0]) * interpolation_factors
-        y_positions = start_point[1] + (end_point[1] - start_point[1]) * interpolation_factors
-        
+        x_positions = (
+            start_point[0] + (end_point[0] - start_point[0]) * interpolation_factors
+        )
+        y_positions = (
+            start_point[1] + (end_point[1] - start_point[1]) * interpolation_factors
+        )
+
         return list(zip(x_positions, y_positions))
 
     @staticmethod
