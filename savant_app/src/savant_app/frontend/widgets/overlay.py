@@ -6,12 +6,10 @@ from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import QWidget
 
-from savant_app.frontend.theme.constants import (
-    OVERLAY_CONFIDENCE_ICON_SIZE,
-    OVERLAY_ICON_SPACING,
-    get_error_icon,
-    get_warning_icon,
-)
+from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
+                                                 OVERLAY_ICON_SPACING,
+                                                 get_error_icon,
+                                                 get_warning_icon)
 from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
 from savant_app.frontend.utils.settings_store import get_movement_sensitivity
 from savant_app.frontend.widgets.cascade_button import CascadeButton
@@ -873,10 +871,9 @@ class Overlay(QWidget):
         if self._selected_idx is None:
             return super().keyPressEvent(event)
 
-        # TODO: Allow this to be adjustable via settings?
         movement_step = get_movement_sensitivity()
 
-        selected_bbox = self._boxes[self._selected_idx]
+        selected_bbox = self._get_selected_bbox()
 
         # Initialize variables that will be updated based
         # on key presses
