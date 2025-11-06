@@ -6,10 +6,12 @@ from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import QWidget
 
-from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
-                                                 OVERLAY_ICON_SPACING,
-                                                 get_error_icon,
-                                                 get_warning_icon)
+from savant_app.frontend.theme.constants import (
+    OVERLAY_CONFIDENCE_ICON_SIZE,
+    OVERLAY_ICON_SPACING,
+    get_error_icon,
+    get_warning_icon,
+)
 from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
 from savant_app.frontend.utils.settings_store import get_movement_sensitivity
 from savant_app.frontend.widgets.cascade_button import CascadeButton
@@ -897,19 +899,14 @@ class Overlay(QWidget):
                 return super().keyPressEvent(event)
 
         updated_bbox = replace(
-            selected_bbox,
-            center_x=new_center_x,
-            center_y=new_center_y
+            selected_bbox, center_x=new_center_x, center_y=new_center_y
         )
 
         self._boxes[self._selected_idx] = updated_bbox
         self.update()
         self.boxMoved.emit(
-            updated_bbox.object_id,
-            updated_bbox.center_x,
-            updated_bbox.center_y
+            updated_bbox.object_id, updated_bbox.center_x, updated_bbox.center_y
         )
-
 
     def _on_cascade_size_to_all(self):
         """Handle cascade apply to all frames."""

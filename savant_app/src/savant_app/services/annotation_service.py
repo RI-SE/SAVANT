@@ -349,9 +349,13 @@ class AnnotationService:
 
         objects_map = getattr(config, "objects", {})
         if primary_object_id not in objects_map:
-            raise ObjectNotFoundError(f"Object ID '{primary_object_id}' does not exist.")
+            raise ObjectNotFoundError(
+                f"Object ID '{primary_object_id}' does not exist."
+            )
         if secondary_object_id not in objects_map:
-            raise ObjectNotFoundError(f"Object ID '{secondary_object_id}' does not exist.")
+            raise ObjectNotFoundError(
+                f"Object ID '{secondary_object_id}' does not exist."
+            )
 
         affected_frames: list[int] = []
         for frame_key, frame in config.frames.items():
