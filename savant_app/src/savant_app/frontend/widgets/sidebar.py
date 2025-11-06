@@ -311,7 +311,7 @@ class Sidebar(QWidget):
         visible_issues = self._collect_visible_confidence_issues(frame_override)
         with QSignalBlocker(self.confidence_issue_list):
             self.confidence_issue_list.clear()
-            for frame_index, severity, object_id in visible_issues:
+            for frame_index, object_id, severity in visible_issues:
                 display_text = f"Frame {frame_index} – ID: {object_id}"
                 entry_key = (frame_index, object_id, severity)
                 list_item = QListWidgetItem(display_text)
@@ -325,7 +325,7 @@ class Sidebar(QWidget):
     def _collect_visible_confidence_issues(
         self, frame_override: int | None = None
     ) -> list[tuple[int, str, str]]:
-        """Return sorted (frame, severity, object_id) tuples within the visible range."""
+        """Return sorted (frame, object_id, severity) tuples within the visible range."""
         frame_history = max(0, int(self.state.historic_obj_frame_count))
         if frame_override is not None:
             current_frame = int(frame_override)
@@ -352,9 +352,15 @@ class Sidebar(QWidget):
                 object_id = getattr(issue, "object_id", None)
                 if not object_id or severity not in ("warning", "error"):
                     continue
-                entries.append((frame_index, severity, object_id))
+                entries.append((frame_index, str(object_id), severity))
 
-        entries.sort(key=lambda value: (value[0], 0 if value[1] == "error" else 1, value[2]))
+        entries.sort(
+            key=lambda value: (
+                value[0],
+                0 if value[2] == "error" else 1,
+                value[1],
+            )
+        )
         return entries
 
     def _confidence_icon_for(self, severity: str) -> QIcon:
