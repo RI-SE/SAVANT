@@ -11,6 +11,7 @@ from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
                                                  get_error_icon,
                                                  get_warning_icon)
 from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
+from savant_app.frontend.utils.settings_store import get_movement_sensitivity
 from savant_app.frontend.widgets.cascade_button import CascadeButton
 from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 
@@ -871,7 +872,7 @@ class Overlay(QWidget):
             return super().keyPressEvent(event)
 
         # TODO: Allow this to be adjustable via settings?
-        movement_step = 1.0
+        movement_step = get_movement_sensitivity()
 
         selected_bbox = self._boxes[self._selected_idx]
 
@@ -902,7 +903,7 @@ class Overlay(QWidget):
         )
 
         self._boxes[self._selected_idx] = updated_bbox
-        self.update(selected_bbox.united(updated_bbox))
+        self.update()
         self.boxMoved.emit(
             updated_bbox.object_id,
             updated_bbox.center_x,
