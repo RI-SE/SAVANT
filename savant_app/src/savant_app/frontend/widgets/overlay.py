@@ -1,17 +1,18 @@
-from PyQt6.QtWidgets import QWidget
-from PyQt6.QtGui import QPainter, QPen, QColor, QPolygonF, QBrush, QPixmap
-from PyQt6.QtCore import Qt, QPointF, pyqtSignal, QRectF
-from typing import List, Tuple
 import math
+from dataclasses import replace
+from typing import List, Tuple
+
+from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
+from PyQt6.QtWidgets import QWidget
+
+from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
+                                                 OVERLAY_ICON_SPACING,
+                                                 get_error_icon,
+                                                 get_warning_icon)
 from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
-from savant_app.frontend.theme.constants import (
-    get_warning_icon,
-    get_error_icon,
-    OVERLAY_CONFIDENCE_ICON_SIZE,
-    OVERLAY_ICON_SPACING,
-)
-from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 from savant_app.frontend.widgets.cascade_button import CascadeButton
+from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 
 
 class Overlay(QWidget):
@@ -854,14 +855,60 @@ class Overlay(QWidget):
             Qt.TransformationMode.SmoothTransformation,
         )
 
-    def keyPressEvent(self, e):
-        if e.key() == Qt.Key.Key_Delete and not (
-            e.modifiers() & Qt.KeyboardModifier.ControlModifier
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Delete and not (
+            event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
             self.deletePressed.emit()
-            e.accept()
+            event.accept()
             return
-        super().keyPressEvent(e)
+        super().keyPressEvent(event)
+
+        self.on_arrow_key_press(event)
+
+    def on_arrow_key_press(self, event):
+        if self._selected_idx is None:
+            return super().keyPressEvent(event)
+
+        # TODO: Allow this to be adjustable via settings?
+        movement_step = 1.0
+
+        selected_bbox = self._boxes[self._selected_idx]
+
+        # Initialize variables that will be updated based
+        # on key presses
+        new_center_x = selected_bbox.center_x
+        new_center_y = selected_bbox.center_y
+
+        match event.key():
+            # note: Y-axis movement is inverted.
+            case Qt.Key.Key_Up:
+                new_center_y -= movement_step
+            case Qt.Key.Key_Down:
+                new_center_y += movement_step
+            case Qt.Key.Key_Right:
+                new_center_x += movement_step
+            case Qt.Key.Key_Left:
+                new_center_x -= movement_step
+            case _:
+                # If it is not an arrow key movement,
+                # return control back to the parent class.
+                return super().keyPressEvent(event)
+
+        updated_bbox = replace(
+            selected_bbox,
+            center_x=new_center_x,
+            center_y=new_center_y
+        )
+
+        self._boxes[self._selected_idx] = updated_bbox
+        self.update(selected_bbox.united(updated_bbox))
+        self.boxMoved.emit(
+            updated_bbox.object_id,
+            updated_bbox.center_x,
+            updated_bbox.center_y
+        )
+
 
     def _on_cascade_size_to_all(self):
         """Handle cascade apply to all frames."""
