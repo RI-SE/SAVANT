@@ -26,67 +26,61 @@ def normalize_angle_to_pi(angle: float) -> float:
     return float(angle)
 
 
-def normalize_angle_to_half_pi(angle: float) -> float:
-    """Normalize angle to [-π/2, π/2] range.
+def rebase_angle_if_needed(angle: float) -> float:
+    """Rebase angle by ±2π only if magnitude exceeds 2π.
 
-    Used for OpenLabel rotation angles where width is always horizontal extent
-    and rotation represents the angle of the width axis from horizontal.
-    This ensures rotation stays within ±90° range.
+    Maintains continuity by keeping rotations unlimited, only wrapping
+    when necessary to prevent numerical issues with very large values.
 
     Args:
         angle: Angle in radians
 
     Returns:
-        Normalized angle in [-π/2, π/2] range
+        Rebased angle (still continuous, just shifted by 2π if needed)
     """
-    while angle > np.pi / 2:
-        angle -= np.pi
-    while angle < -np.pi / 2:
-        angle += np.pi
-    return float(angle)
+    if angle > 2 * np.pi:
+        return angle - 2 * np.pi
+    elif angle < -2 * np.pi:
+        return angle + 2 * np.pi
+    return angle
 
 
-def normalize_bbox_representation(width: float, height: float, rotation: float) -> Tuple[float, float, float]:
-    """Normalize oriented bounding box to canonical representation.
-
-    Ensures width is always the more horizontal dimension by adjusting width/height
-    and rotation so that the rotation angle stays in [-π/4, π/4] range where width
-    represents the more horizontal extent.
-
-    This maintains the OpenLabel convention where width should be closer to horizontal
-    than vertical. If the rotation is outside [-45°, 45°], it means the height dimension
-    has become more horizontal, so we swap dimensions and adjust the angle.
+def normalize_angle_to_2pi_range(angle: float) -> float:
+    """Normalize angle to [0, 2π) range for OpenLabel output.
 
     Args:
-        width: Current width value
-        height: Current height value
-        rotation: Current rotation angle in radians (should be in [-π/2, π/2])
+        angle: Angle in radians (can be any value)
 
     Returns:
-        Tuple of (adjusted_width, adjusted_height, adjusted_rotation) where:
-        - adjusted_rotation is in [-π/4, π/4] range
-        - adjusted_width is the more horizontal dimension
-        - adjusted_height is the more vertical dimension
+        Normalized angle in [0, 2π) range
+    """
+    result = angle % (2 * np.pi)
+    if result < 0:
+        result += 2 * np.pi
+    return float(result)
+
+
+def find_continuous_angle(new_angle: float, previous_angle: float,
+                          ambiguity_period: float = np.pi/2) -> float:
+    """Find continuous rotation closest to previous angle.
+
+    Used when converting from YOLO's ambiguous [0, π/2) format.
+    YOLO gives the same angle for orientations differing by π/2, so we find which
+    multiple of the ambiguity period maintains continuity with the previous frame.
+
+    Args:
+        new_angle: Raw angle from YOLO (in [0, π/2))
+        previous_angle: Previous frame's continuous angle
+        ambiguity_period: YOLO's π/2 ambiguity period
+
+    Returns:
+        Continuous angle closest to previous_angle
 
     Example:
-        >>> # Object rotated 80° (nearly vertical)
-        >>> w, h, r = normalize_bbox_representation(100, 60, np.radians(80))
-        >>> # Returns (60, 100, -0.175) meaning swap dimensions and angle is now -10°
+        >>> # Previous angle was 1.8 rad (≈103°), new YOLO angle is 0.2 rad (≈11°)
+        >>> # YOLO angle 0.2 could represent 0.2, 0.2+π/2, 0.2+π, 0.2+3π/2, etc.
+        >>> find_continuous_angle(0.2, 1.8, np.pi/2)
+        1.77...  # Returns ~1.77 (0.2 + π/2) as it's closest to 1.8
     """
-    # First normalize rotation to [-π/2, π/2] range
-    rot = normalize_angle_to_half_pi(rotation)
-
-    # Check if rotation magnitude exceeds π/4 (45°)
-    # Beyond this threshold, the other dimension becomes more horizontal
-    if rot > np.pi / 4:
-        # Rotation is between 45° and 90° - height is now more horizontal
-        # Swap dimensions and subtract 90° to bring angle back to canonical range
-        return float(height), float(width), float(rot - np.pi / 2)
-    elif rot < -np.pi / 4:
-        # Rotation is between -45° and -90° - height is now more horizontal
-        # Swap dimensions and add 90° to bring angle back to canonical range
-        return float(height), float(width), float(rot + np.pi / 2)
-    else:
-        # Rotation is in [-45°, 45°] - width is already more horizontal
-        # No adjustment needed
-        return float(width), float(height), float(rot)
+    k = round((previous_angle - new_angle) / ambiguity_period)
+    return new_angle + k * ambiguity_period

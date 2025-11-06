@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 import numpy as np
 
 from ..config import Constants, DetectionResult
-from ..utils import normalize_angle_to_half_pi
+from ..utils import normalize_angle_to_2pi_range
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,7 @@ class OpenLabelHandler:
         self.openlabel_data = {}
         self.debug_data = {}  # Separate structure for debug info (verbose mode only)
         self._debug_frame_count = 0
+        self._class_translation_count = 0  # Counter for verbose class translation logging
         self.initialize_from_schema()
 
     def initialize_from_schema(self) -> None:
@@ -165,10 +166,18 @@ class OpenLabelHandler:
                             "ontology_uid": "0"
                         }
                     else:
-                        # Regular detection
+                        # Regular detection - translate YOLO class ID to ontology label
+                        class_label = class_map.get(detection.class_id, str(detection.class_id))
+
+                        # Verbose logging for first 25 class translations
+                        if self.verbose and self._class_translation_count < 25:
+                            logger.info(f"Class translation: YOLO class_id={detection.class_id} → "
+                                       f"ontology_label='{class_label}' (source={detection.source_engine})")
+                            self._class_translation_count += 1
+
                         self.openlabel_data["openlabel"]["objects"][obj_id_str] = {
                             "name": f"Object-{obj_id_str}",
-                            "type": class_map.get(detection.class_id, str(detection.class_id)),
+                            "type": class_label,
                             "ontology_uid": "0"
                         }
 
@@ -261,15 +270,12 @@ class OpenLabelHandler:
             }
 
     def _detection_to_xywhr(self, detection: DetectionResult, frame_idx: int) -> List:
-        """Convert DetectionResult to OpenLabel xywhr format [center_x, center_y, width, height, rotation].
+        """Convert DetectionResult to OpenLabel xywhr format.
 
-        Converts from YOLO/OpenCV convention (minimum area rectangle with angle in [0, π/2))
-        to OpenLabel convention (width=horizontal extent, height=vertical extent, [-π/4, π/4)).
-
-        OpenLabel convention (I think, but it is not well documented):
-        - width (w) is always the horizontal (x-direction) extent
-        - height (h) is always the vertical (y-direction) extent
-        - rotation (r) is right-handed from x to y axis (positive = clockwise in image coordinates)
+        New convention:
+        - width/height are semantic (long/short axis) and never swap
+        - rotation is continuous, normalized to [0, 2π) for output
+        - positive x-axis is 0 radians
 
         Args:
             detection: Detection result with oriented bbox
@@ -279,71 +285,29 @@ class OpenLabelHandler:
             List in xywhr format: [center_x, center_y, width, height, rotation]
         """
         try:
-            # Use the center from detection
             center_x, center_y = detection.center
+            width = detection.width if detection.width is not None else 50.0
+            height = detection.height if detection.height is not None else 50.0
+            rotation = detection.angle if detection.angle is not None else 0.0
 
-            # Get the oriented bounding box corners
-            bbox_points = detection.oriented_bbox
-
-            if len(bbox_points) >= 4:
-                # Corners from YOLO: p0, p1, p2, p3
-                # Edge p0->p1 is the "width" edge in YOLO's minimum-area-rectangle
-                # Edge p1->p2 is the "height" edge in YOLO's minimum-area-rectangle
-                p0, p1, p2, p3 = bbox_points[0], bbox_points[1], bbox_points[2], bbox_points[3]
-
-                # Calculate edge vectors and their properties
-                edge_01 = p1 - p0  # YOLO's "width" edge
-                edge_12 = p2 - p1  # YOLO's "height" edge
-
-                # Calculate lengths
-                len_01 = np.sqrt(edge_01[0]**2 + edge_01[1]**2)
-                len_12 = np.sqrt(edge_12[0]**2 + edge_12[1]**2)
-
-                # Calculate angles of these edges (arctan2 gives angle in [-π, π])
-                angle_01 = np.arctan2(edge_01[1], edge_01[0])
-                angle_12 = np.arctan2(edge_12[1], edge_12[0])
-
-                # Determine which edge is more horizontal (for OpenLabel width)
-                # An edge is more "horizontal" if its angle is closer to 0
-                # Use |cos(angle)| as a measure of horizontalness (1.0 = perfectly horizontal)
-                horizontalness_01 = abs(np.cos(angle_01))
-                horizontalness_12 = abs(np.cos(angle_12))
-
-                if horizontalness_01 >= horizontalness_12:
-                    # Edge 01 is more horizontal -> use as OpenLabel width
-                    width = len_01
-                    height = len_12
-                    rotation = angle_01
-                else:
-                    # Edge 12 is more horizontal -> use as OpenLabel width
-                    # When swapping dimensions, subtract 90° (π/2) from YOLO's angle
-                    width = len_12
-                    height = len_01
-                    rotation = angle_01 - np.pi / 2
-
-                # Normalize rotation to [-π/2, π/2] range for OpenLabel (should not be needed if yolo output is indeed between 0 and π/2 but just in case)
-                rotation = normalize_angle_to_half_pi(rotation)
-            else:
-                # Fallback if bbox points are invalid
-                width = height = 50.0
-                rotation = 0.0
+            # Normalize rotation to [0, 2π) for OpenLabel output
+            rotation_output = normalize_angle_to_2pi_range(rotation)
 
             # Verbose logging for angle analysis (first 1000 detections)
             if self.verbose and self._debug_frame_count < 1000:
-                # Show YOLO original values vs OpenLabel converted values
-                yolo_w = detection.width if detection.width is not None else 0.0
-                yolo_h = detection.height if detection.height is not None else 0.0
-                yolo_r = detection.angle if detection.angle is not None else 0.0
-
-                logger.info(f"Frame {frame_idx}: obj_id={detection.object_id}, "
-                           f"YOLO(w={yolo_w:.1f}, h={yolo_h:.1f}, r={yolo_r:.4f}rad/{np.degrees(yolo_r):.1f}°) -> "
-                           f"OpenLabel(w={width:.1f}, h={height:.1f}, r={rotation:.4f}rad/{np.degrees(rotation):.1f}°), "
-                           f"source={detection.source_engine}")
+                logger.info(f"Frame {frame_idx}: obj={detection.object_id}, "
+                           f"internal_angle={rotation:.4f}rad ({np.degrees(rotation):.1f}°) → "
+                           f"output={rotation_output:.4f}rad ({np.degrees(rotation_output):.1f}°), "
+                           f"w={width:.1f}px, h={height:.1f}px, source={detection.source_engine}")
                 self._debug_frame_count += 1
 
-            # Format as integers for position/size, rounded float for rotation (matching original)
+            # Format for OpenLabel: [center_x, center_y, width, height, rotation]
             xywhr_formatted = [
-                int(center_x), int(center_y), int(width), int(height), round(rotation, 4)
+                int(center_x),
+                int(center_y),
+                int(width),
+                int(height),
+                round(rotation_output, 4)
             ]
 
             return xywhr_formatted

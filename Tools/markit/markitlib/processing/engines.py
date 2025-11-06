@@ -36,14 +36,21 @@ class BaseDetectionEngine(ABC):
 class YOLOEngine(BaseDetectionEngine):
     """YOLO-based detection engine."""
 
-    def __init__(self, weights_path: str):
+    def __init__(self, weights_path: str, class_map: Optional[Dict[int, str]] = None, verbose: bool = False):
         """Initialize YOLO engine.
 
         Args:
             weights_path: Path to YOLO weights file
+            class_map: Expected class mapping from ontology (for validation)
+            verbose: Enable verbose logging
         """
         self.weights_path = weights_path
         self.model = None
+        self.class_map = class_map
+        self.verbose = verbose
+        # Track semantic dimensions and angles per object for continuity
+        self.object_tracking: Dict[int, Dict[str, float]] = {}
+        # Structure: {obj_id: {'w_sem': float, 'h_sem': float, 'angle': float}}
         self._initialize()
 
     def _initialize(self) -> None:
@@ -52,9 +59,63 @@ class YOLOEngine(BaseDetectionEngine):
             logger.info(f"Loading YOLO model from {self.weights_path}")
             self.model = YOLO(self.weights_path)
             self.model.verbose = False
+
+            # Validate model classes against ontology
+            self._validate_model_classes()
+
         except Exception as e:
             logger.error(f"Failed to initialize YOLO model: {e}")
             raise
+
+    def _validate_model_classes(self) -> None:
+        """Validate YOLO model class names against ontology class map.
+
+        Logs warnings if there are mismatches that could indicate using
+        an old/wrong model trained with different class labels.
+        """
+        if not self.class_map or not self.model or not hasattr(self.model, 'names'):
+            return
+
+        model_names = self.model.names  # Dict: {class_id: class_name}
+
+        # Check number of classes
+        num_model_classes = len(model_names)
+        num_ontology_classes = len([k for k in self.class_map.keys() if k < 100])  # Exclude high UIDs like ArUco
+
+        if num_model_classes != num_ontology_classes:
+            logger.warning(f"⚠️  Class count mismatch: YOLO model has {num_model_classes} classes, "
+                          f"ontology has {num_ontology_classes} classes (UID < 100)")
+            logger.warning("This may indicate using a model trained with different labels!")
+
+        # Compare class names for matching IDs
+        mismatches = []
+        for class_id, ontology_label in self.class_map.items():
+            if class_id >= 100:  # Skip high UIDs like ArUco markers
+                continue
+            if class_id in model_names:
+                model_label = model_names[class_id]
+                # Case-insensitive comparison
+                if model_label.lower() != ontology_label.lower():
+                    mismatches.append((class_id, model_label, ontology_label))
+
+        if mismatches:
+            logger.warning(f"⚠️  Found {len(mismatches)} class name mismatches between YOLO model and ontology:")
+            for class_id, model_label, ontology_label in mismatches[:10]:  # Show first 10
+                logger.warning(f"  Class {class_id}: model='{model_label}' vs ontology='{ontology_label}'")
+            if len(mismatches) > 10:
+                logger.warning(f"  ... and {len(mismatches) - 10} more mismatches")
+            logger.warning("⚠️  This indicates the YOLO model was trained with different class labels!")
+            logger.warning("⚠️  Detection results will have incorrect class labels!")
+
+        # If verbose, log all model classes
+        if self.verbose and model_names:
+            logger.info(f"YOLO model classes ({len(model_names)} total):")
+            for class_id in sorted(model_names.keys())[:25]:  # First 25
+                ontology_label = self.class_map.get(class_id, "N/A")
+                match = "✓" if model_names[class_id].lower() == ontology_label.lower() else "✗"
+                logger.info(f"  {match} Class {class_id:3d}: model='{model_names[class_id]:20s}' ontology='{ontology_label}'")
+            if len(model_names) > 25:
+                logger.info(f"  ... and {len(model_names) - 25} more classes")
 
     def process_frame(self, frame: np.ndarray) -> List[DetectionResult]:
         """Process frame with YOLO model.
@@ -78,18 +139,22 @@ class YOLOEngine(BaseDetectionEngine):
                     obbs_conf = result.obb.conf.cpu().numpy()
 
                     for obj_id, cls, xywhr, conf in zip(ids, classes, obbs_xywhr, obbs_conf):
-                        # Convert YOLO xywhr to 4 corner points
-                        center_x, center_y, width, height, rotation = xywhr
+                        # Extract YOLO format
+                        center_x, center_y, w_yolo, h_yolo, r_yolo = xywhr
 
-                        # Create oriented bounding box points
-                        cos_r = np.cos(rotation)
-                        sin_r = np.sin(rotation)
+                        # Convert YOLO format to semantic format with continuity
+                        w_sem, h_sem, continuous_angle = self._yolo_to_semantic(
+                            obj_id, w_yolo, h_yolo, r_yolo
+                        )
 
-                        # Half dimensions
-                        hw = width / 2
-                        hh = height / 2
+                        # Calculate corner points using semantic dimensions
+                        cos_r = np.cos(continuous_angle)
+                        sin_r = np.sin(continuous_angle)
 
-                        # Corner points relative to center
+                        hw = w_sem / 2
+                        hh = h_sem / 2
+
+                        # Corners with long axis along x in local coordinates
                         corners = np.array([
                             [-hw, -hh],
                             [hw, -hh],
@@ -97,11 +162,8 @@ class YOLOEngine(BaseDetectionEngine):
                             [-hw, hh]
                         ])
 
-                        # Rotate corners
                         rotation_matrix = np.array([[cos_r, -sin_r], [sin_r, cos_r]])
                         rotated_corners = corners @ rotation_matrix.T
-
-                        # Translate to center position
                         oriented_bbox = rotated_corners + np.array([center_x, center_y])
 
                         detection_results.append(DetectionResult(
@@ -110,10 +172,10 @@ class YOLOEngine(BaseDetectionEngine):
                             confidence=float(conf),
                             oriented_bbox=oriented_bbox,
                             center=(float(center_x), float(center_y)),
-                            angle=float(rotation),
+                            angle=float(continuous_angle),  # Continuous semantic angle
                             source_engine='yolo',
-                            width=float(width),
-                            height=float(height)
+                            width=float(w_sem),   # Semantic long axis
+                            height=float(h_sem)   # Semantic short axis
                         ))
 
             return detection_results
@@ -122,9 +184,93 @@ class YOLOEngine(BaseDetectionEngine):
             logger.error(f"Error processing frame with YOLO: {e}")
             return []
 
+    def _yolo_to_semantic(self, obj_id: Optional[int],
+                          w_yolo: float, h_yolo: float, r_yolo: float) -> Tuple[float, float, float]:
+        """Convert YOLO (w, h, angle) to semantic (w_sem, h_sem, continuous_angle).
+
+        Handles YOLO's w/h swapping by adjusting angle instead of swapping dimensions.
+        Maintains continuity with previous detections for same object ID.
+
+        Args:
+            obj_id: Object tracking ID (None for first detection)
+            w_yolo: YOLO width (may swap between frames)
+            h_yolo: YOLO height (may swap between frames)
+            r_yolo: YOLO rotation in [0, π/2)
+
+        Returns:
+            (w_sem, h_sem, continuous_angle) where w_sem is always long axis
+        """
+        from ..utils import find_continuous_angle, rebase_angle_if_needed
+
+        # First detection for this object
+        if obj_id is None or obj_id not in self.object_tracking:
+            # Establish semantic dimensions: long axis = width
+            if w_yolo >= h_yolo:
+                w_sem = w_yolo
+                h_sem = h_yolo
+                base_angle = r_yolo
+            else:
+                # YOLO's h is longer - make it our semantic width
+                w_sem = h_yolo
+                h_sem = w_yolo
+                base_angle = r_yolo + np.pi/2
+
+            continuous_angle = base_angle
+
+            # Store tracking data if we have an ID
+            if obj_id is not None:
+                self.object_tracking[obj_id] = {
+                    'w_sem': w_sem,
+                    'h_sem': h_sem,
+                    'angle': continuous_angle
+                }
+
+            return w_sem, h_sem, continuous_angle
+
+        # Subsequent detection - maintain continuity
+        prev_data = self.object_tracking[obj_id]
+        w_sem_prev = prev_data['w_sem']
+        h_sem_prev = prev_data['h_sem']
+        angle_prev = prev_data['angle']
+
+        # Detect if YOLO swapped w and h by comparing with previous semantic dims
+        # Use absolute difference to find best match
+        error_no_swap = abs(w_yolo - w_sem_prev) + abs(h_yolo - h_sem_prev)
+        error_swap = abs(w_yolo - h_sem_prev) + abs(h_yolo - w_sem_prev)
+
+        if error_no_swap <= error_swap:
+            # No swap: YOLO's w → semantic w
+            base_angle = r_yolo
+            w_raw = w_yolo
+            h_raw = h_yolo
+        else:
+            # Swap detected: YOLO's w → semantic h, adjust angle by π/2
+            base_angle = r_yolo + np.pi/2
+            w_raw = h_yolo
+            h_raw = w_yolo
+
+        # Apply continuity: find closest equivalent angle considering π/2 ambiguity
+        continuous_angle = find_continuous_angle(base_angle, angle_prev, np.pi/2)
+        continuous_angle = rebase_angle_if_needed(continuous_angle)
+
+        # Update semantic dimensions with smoothing (allows gradual aspect ratio changes)
+        alpha = 0.7  # Weight for previous value
+        w_sem = alpha * w_sem_prev + (1 - alpha) * w_raw
+        h_sem = alpha * h_sem_prev + (1 - alpha) * h_raw
+
+        # Update tracking
+        self.object_tracking[obj_id] = {
+            'w_sem': w_sem,
+            'h_sem': h_sem,
+            'angle': continuous_angle
+        }
+
+        return w_sem, h_sem, continuous_angle
+
     def cleanup(self) -> None:
         """Clean up YOLO engine resources."""
         self.model = None
+        self.object_tracking.clear()
 
 
 class SimpleTracker:

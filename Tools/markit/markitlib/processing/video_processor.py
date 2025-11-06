@@ -36,7 +36,7 @@ class VideoProcessor:
 
         # Initialize detection engines based on configuration
         if config.use_yolo:
-            self.engines.append(YOLOEngine(config.weights_path))
+            self.engines.append(YOLOEngine(config.weights_path, config.class_map, config.verbose))
         if config.use_optical_flow:
             self.engines.append(OpticalFlowEngine(config.optical_flow_params))
         if config.use_aruco:
@@ -186,6 +186,14 @@ class FrameAnnotator:
                 # Draw center point
                 center = (int(detection.center[0]), int(detection.center[1]))
                 cv2.circle(annotated_frame, center, 3, color, -1)
+
+                # Draw rotation direction indicator (arrow from center in angle direction)
+                if detection.angle is not None:
+                    arrow_length = 30  # pixels
+                    angle_rad = detection.angle
+                    end_x = int(detection.center[0] + arrow_length * np.cos(angle_rad))
+                    end_y = int(detection.center[1] + arrow_length * np.sin(angle_rad))
+                    cv2.arrowedLine(annotated_frame, center, (end_x, end_y), color, 2, tipLength=0.3)
 
                 # Prepare label text
                 label_parts = []

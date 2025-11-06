@@ -13,7 +13,7 @@ import numpy as np
 
 from .base import PostprocessingPass
 from ..geometry import BBoxOverlapCalculator
-from ..utils import normalize_angle_to_pi, normalize_angle_to_half_pi, normalize_bbox_representation
+from ..utils import normalize_angle_to_pi, normalize_angle_to_2pi_range, rebase_angle_if_needed
 
 logger = logging.getLogger(__name__)
 
@@ -457,6 +457,163 @@ class DuplicateRemovalPass(PostprocessingPass):
         }
 
 
+class FirstDetectionRefinementPass(PostprocessingPass):
+    """Refine initial angles for first detections using lookahead.
+
+    This is a MANDATORY pass that improves initial angle estimates for newly
+    detected objects by looking at their movement direction in subsequent frames.
+    Falls back to base angle for stationary objects.
+    """
+
+    def __init__(self, lookahead_frames: int = 5, min_movement_pixels: float = 5.0):
+        """Initialize first detection refinement pass.
+
+        Args:
+            lookahead_frames: Number of future frames to check for movement (default: 5)
+            min_movement_pixels: Minimum movement to use for angle refinement (default: 5.0)
+        """
+        self.lookahead_frames = lookahead_frames
+        self.min_movement_pixels = min_movement_pixels
+        self.refined_objects: Set[int] = set()  # Track which objects have been refined
+        self.objects_refined = 0
+        self.objects_kept_base = 0
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Refine first detection angles using lookahead.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Modified OpenLabel data with refined first detection angles
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+
+        # Build object frame map
+        object_frame_map = defaultdict(dict)
+
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            frame_objects = frame_data.get("objects", {})
+
+            for obj_id_str in frame_objects.keys():
+                # Extract rbbox data for this frame
+                rbbox = frame_objects[obj_id_str]["object_data"]["rbbox"][0]["val"]
+                object_frame_map[obj_id_str][frame_idx] = rbbox
+
+        # Iterate through all tracked objects
+        for obj_id_str, frames_data in object_frame_map.items():
+            obj_id = int(obj_id_str)
+
+            # Skip if already refined
+            if obj_id in self.refined_objects:
+                continue
+
+            # Find first frame where this object appears
+            frame_indices = sorted(frames_data.keys())
+            if not frame_indices:
+                continue
+
+            first_frame_idx = frame_indices[0]
+            first_rbbox = frames_data[first_frame_idx]
+
+            # Extract current position and dimensions
+            cx, cy = first_rbbox[0], first_rbbox[1]
+            w, h = first_rbbox[2], first_rbbox[3]
+            base_angle = first_rbbox[4]
+
+            # Try to find movement in future frames
+            movement_dir = self._calculate_movement_direction(
+                obj_id_str, first_frame_idx, frames_data
+            )
+
+            if movement_dir is not None:
+                # Object is moving - refine angle based on movement
+                aspect_ratio = max(w, h) / max(min(w, h), 1.0)
+
+                if aspect_ratio > 1.5:
+                    # Elongated object: align long axis (width) with movement
+                    # Since w is semantic long axis, directly use movement direction
+                    target_angle = movement_dir
+                else:
+                    # Circular/square object: use movement direction
+                    target_angle = movement_dir
+
+                # Find continuous angle closest to target
+                # The base_angle might be off by k*π from true orientation
+                angle_diff = target_angle - base_angle
+                k = round(angle_diff / np.pi)
+                refined_angle = base_angle + k * np.pi
+
+                # Update the first detection
+                first_rbbox[4] = refined_angle
+
+                logger.info(f"FirstDetection: obj {obj_id} base_angle={np.degrees(base_angle):.1f}° "
+                           f"→ refined={np.degrees(refined_angle):.1f}° (movement={np.degrees(movement_dir):.1f}°)")
+                self.objects_refined += 1
+            else:
+                # No significant movement detected - keep base angle
+                logger.debug(f"FirstDetection: obj {obj_id} - no movement, keeping base angle")
+                self.objects_kept_base += 1
+
+            # Mark as refined
+            self.refined_objects.add(obj_id)
+
+        return openlabel_data
+
+    def _calculate_movement_direction(self, obj_id_str: str, start_frame: int,
+                                     frames_data: Dict[int, List[float]]) -> Optional[float]:
+        """Calculate movement direction by looking ahead several frames.
+
+        Args:
+            obj_id_str: Object ID as string
+            start_frame: Starting frame index
+            frames_data: Frame data for this object
+
+        Returns:
+            Movement direction in radians (arctan2 result), or None if insufficient movement
+        """
+        frame_indices = sorted(frames_data.keys())
+        start_idx_in_list = frame_indices.index(start_frame)
+
+        # Look ahead up to lookahead_frames
+        lookahead_indices = frame_indices[start_idx_in_list + 1 : start_idx_in_list + 1 + self.lookahead_frames]
+
+        if not lookahead_indices:
+            return None
+
+        start_cx, start_cy = frames_data[start_frame][0], frames_data[start_frame][1]
+
+        # Check multiple future frames, use the one with most movement
+        max_movement = 0.0
+        best_direction = None
+
+        for future_frame in lookahead_indices:
+            future_cx, future_cy = frames_data[future_frame][0], frames_data[future_frame][1]
+
+            delta_x = future_cx - start_cx
+            delta_y = future_cy - start_cy
+            movement = np.sqrt(delta_x**2 + delta_y**2)
+
+            if movement > max_movement and movement >= self.min_movement_pixels:
+                max_movement = movement
+                best_direction = np.arctan2(delta_y, delta_x)
+
+        return best_direction
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get first detection refinement statistics.
+
+        Returns:
+            Dictionary with refinement statistics
+        """
+        return {
+            'objects_refined': self.objects_refined,
+            'objects_kept_base': self.objects_kept_base,
+            'total_processed': self.objects_refined + self.objects_kept_base
+        }
+
+
 class RotationAdjustmentPass(PostprocessingPass):
     """Adjust rotation values based on movement direction with improved temporal smoothing."""
 
@@ -556,8 +713,8 @@ class RotationAdjustmentPass(PostprocessingPass):
     def _apply_rotation_adjustment(self, frame_obj_data: Dict[str, Any], r_new: float) -> None:
         """Apply rotation adjustment and update annotator/confidence.
 
-        Uses normalize_bbox_representation to ensure width/height are swapped
-        if the new rotation would put them outside the canonical [-π/4, π/4] range.
+        With the new semantic representation, width/height never swap.
+        Only the rotation value is updated.
 
         Args:
             frame_obj_data: Frame object data
@@ -565,19 +722,10 @@ class RotationAdjustmentPass(PostprocessingPass):
         """
         rbbox = frame_obj_data["object_data"]["rbbox"][0]["val"]
 
-        # Get current width and height
-        current_width = rbbox[2]
-        current_height = rbbox[3]
+        # Rebase angle if needed (only if |angle| > 2π)
+        adjusted_rotation = rebase_angle_if_needed(r_new)
 
-        # Normalize bbox representation to ensure width is always more horizontal
-        # This may swap width/height and adjust the angle if needed
-        adjusted_width, adjusted_height, adjusted_rotation = normalize_bbox_representation(
-            current_width, current_height, r_new
-        )
-
-        # Update all three values in rbbox
-        rbbox[2] = adjusted_width
-        rbbox[3] = adjusted_height
+        # Update only rotation - width/height are semantic and don't swap
         rbbox[4] = adjusted_rotation
 
         vec_list = frame_obj_data["object_data"]["vec"]
@@ -608,23 +756,23 @@ class RotationAdjustmentPass(PostprocessingPass):
         """Apply temporal smoothing between consecutive frames using exponential moving average.
 
         Args:
-            prev_angle: Previous frame's smoothed angle (radians)
+            prev_angle: Previous frame's smoothed angle (radians, continuous)
             curr_angle: Current frame's calculated angle (radians)
 
         Returns:
-            Temporally smoothed angle (radians)
+            Temporally smoothed angle (radians, continuous)
         """
         # Handle angle wraparound: ensure angles are within π of each other
         angle_diff = curr_angle - prev_angle
 
-        # Normalize to [-π, π]
+        # Normalize to [-π, π] to get shortest rotation path
         angle_diff = normalize_angle_to_pi(angle_diff)
 
         # Apply exponential moving average
         smoothed = prev_angle + (1 - self.temporal_smoothing) * angle_diff
 
-        # Normalize result to [-π/2, π/2] for OpenLabel convention
-        smoothed = normalize_angle_to_half_pi(smoothed)
+        # Rebase if needed (only if |angle| > 2π)
+        smoothed = rebase_angle_if_needed(smoothed)
 
         return smoothed
 
@@ -735,32 +883,20 @@ class RotationAdjustmentPass(PostprocessingPass):
         movement_direction = float(np.arctan2(avg_sin, avg_cos))
 
         # Determine correct rotation based on which axis should align with movement
-        # OpenLabel format: [cx, cy, width, height, rotation]
-        # - rotation = angle of the WIDTH axis (clockwise from horizontal right)
-        # - For vehicles, the LONG axis should align with movement direction
+        # New semantic format: width is always the long axis
+        # - rotation = angle of the WIDTH axis (long axis)
+        # - For vehicles, the long axis should align with movement direction
 
         aspect_ratio = max(w_current, h_current) / max(min(w_current, h_current), 1.0)
 
         if aspect_ratio > 1.5:  # Elongated object (likely vehicle)
-            if w_current > h_current:
-                # Width is the long axis
-                # The width axis should point in the movement direction
-                # rotation = angle of width axis = movement direction
-                correct_rotation = movement_direction
-            else:
-                # Height is the long axis (taller than wide)
-                # The height axis should point in the movement direction
-                # Height axis is perpendicular to width axis (width + π/2)
-                # We want: width_axis + π/2 = movement_direction
-                # So: width_axis = movement_direction - π/2
-                correct_rotation = movement_direction - np.pi / 2
+            # Width (long axis) should align with movement direction
+            correct_rotation = movement_direction
         else:
-            # Not elongated (circular or square) - default to width axis = movement direction
+            # Not elongated (circular or square) - use movement direction
             correct_rotation = movement_direction
 
-        # Normalize final result to [-π/2, π/2] for OpenLabel convention
-        correct_rotation = normalize_angle_to_half_pi(correct_rotation)
-
+        # No normalization needed - angles are continuous
         return correct_rotation
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -1187,3 +1323,59 @@ class StaticObjectRemovalPass(PostprocessingPass):
                 'objects_removed': self.objects_removed,
                 'frames_modified': self.frames_modified
             }
+
+
+class AngleNormalizationPass(PostprocessingPass):
+    """Normalize all rotation angles to [0, 2π) for OpenLabel output.
+
+    This is a MANDATORY final pass that ensures all rotation values in the
+    OpenLabel output conform to the [0, 2π) range, regardless of what
+    internal continuous angle representation was used during postprocessing.
+
+    This pass should always be the LAST pass in the pipeline.
+    """
+
+    def __init__(self):
+        """Initialize angle normalization pass."""
+        self.angles_normalized = 0
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize all rotation angles to [0, 2π) range.
+
+        Args:
+            openlabel_data: OpenLabel structure with frame data
+
+        Returns:
+            Modified OpenLabel structure with normalized angles
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+
+        for frame_idx_str, frame_data in frames.items():
+            frame_objects = frame_data.get("objects", {})
+
+            for obj_id_str, obj_data in frame_objects.items():
+                # Get rbbox data
+                rbbox = obj_data["object_data"]["rbbox"][0]["val"]
+                rotation = rbbox[4]
+
+                # Normalize to [0, 2π) for OpenLabel output
+                normalized_rotation = normalize_angle_to_2pi_range(rotation)
+
+                # Update if changed
+                if rotation != normalized_rotation:
+                    rbbox[4] = normalized_rotation
+                    self.angles_normalized += 1
+
+        logger.info(f"AngleNormalization: Normalized {self.angles_normalized} angles to [0, 2π) range")
+
+        return openlabel_data
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get angle normalization statistics.
+
+        Returns:
+            Dictionary with normalization statistics
+        """
+        return {
+            'angles_normalized': self.angles_normalized
+        }

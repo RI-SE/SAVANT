@@ -68,10 +68,12 @@ from markitlib.postprocessing import (
     GapDetectionPass,
     GapFillingPass,
     DuplicateRemovalPass,
+    FirstDetectionRefinementPass,
     RotationAdjustmentPass,
     SuddenPass,
     FrameIntervalPass,
     StaticObjectRemovalPass,
+    AngleNormalizationPass,
 )
 
 # Configure logging
@@ -296,6 +298,14 @@ def main():
                         mark_only=config.static_mark
                     )
                 )
+            # MANDATORY: Refine initial detection angles using lookahead
+            postprocessing_pipeline.add_pass(
+                FirstDetectionRefinementPass(
+                    lookahead_frames=5,
+                    min_movement_pixels=5.0
+                )
+            )
+            # OPTIONAL: Further refine rotation using movement direction
             postprocessing_pipeline.add_pass(
                 RotationAdjustmentPass(
                     rotation_threshold=config.rotation_threshold,
@@ -305,6 +315,8 @@ def main():
             )
             postprocessing_pipeline.add_pass(SuddenPass(edge_distance=config.edge_distance))
             postprocessing_pipeline.add_pass(FrameIntervalPass())
+            # MANDATORY FINAL PASS: Normalize all angles to [0, 2π) for OpenLabel output
+            postprocessing_pipeline.add_pass(AngleNormalizationPass())
 
             openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
                 openlabel_handler.openlabel_data

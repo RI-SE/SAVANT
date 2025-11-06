@@ -39,16 +39,24 @@ class Constants:
 
 @dataclass
 class DetectionResult:
-    """Standardized detection result from any detection engine."""
+    """Standardized detection result with semantic representation.
+
+    Convention:
+    - width: Long axis (semantic, never swaps)
+    - height: Short axis (semantic, never swaps)
+    - angle: Continuous rotation in (-∞, +∞), rebased at ±2π
+    - positive x-axis is 0 radians, rotation increases counterclockwise
+      (or clockwise in image coordinates where y-axis points down)
+    """
     object_id: Optional[int]
     class_id: int
     confidence: float
     oriented_bbox: np.ndarray  # 4 corner points for OBB
     center: Tuple[float, float]
-    angle: float
-    source_engine: str  # 'yolo' or 'optical_flow'
-    width: Optional[float] = None  # Original width from detection engine
-    height: Optional[float] = None  # Original height from detection engine
+    angle: float  # Continuous semantic angle
+    source_engine: str  # 'yolo', 'optical_flow', or 'aruco'
+    width: Optional[float] = None  # Semantic long axis
+    height: Optional[float] = None  # Semantic short axis
 
 
 @dataclass
@@ -88,7 +96,9 @@ class MarkitConfig:
         self.use_aruco = self.aruco_csv_path is not None
 
         # Load class map from ontology if provided, otherwise use default
-        self.class_map = self._load_class_map()
+        # Pass verbose flag for debug logging
+        verbose = args.verbose if hasattr(args, 'verbose') else False
+        self.class_map = self._load_class_map(verbose)
 
         # Get ArUco class ID from ontology (if ArUco detection enabled)
         self.aruco_class_id = None
@@ -146,8 +156,11 @@ class MarkitConfig:
         if not (0.0 <= self.iou_threshold <= 1.0):
             raise ValueError(f"IoU threshold must be between 0.0 and 1.0, got: {self.iou_threshold}")
 
-    def _load_class_map(self) -> Dict[int, str]:
+    def _load_class_map(self, verbose: bool = False) -> Dict[int, str]:
         """Load class map from ontology file or use default.
+
+        Args:
+            verbose: Enable verbose logging of class mappings
 
         Returns:
             Dictionary mapping class_id → label
@@ -179,6 +192,13 @@ class MarkitConfig:
                 return Constants.DEFAULT_CLASS_MAP.copy()
 
             logger.info(f"Class map source: {self.ontology_path} ({len(class_map)} classes)")
+
+            # If verbose mode, log first 25 class mappings for debugging
+            if verbose:
+                logger.info("Class map (first 25 YOLO class IDs):")
+                for class_id in sorted(class_map.keys())[:25]:
+                    logger.info(f"  YOLO class {class_id:3d} → '{class_map[class_id]}'")
+
             return class_map
 
         except Exception as e:

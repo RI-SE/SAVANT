@@ -11,10 +11,12 @@ from .passes import (
     GapDetectionPass,
     GapFillingPass,
     DuplicateRemovalPass,
+    FirstDetectionRefinementPass,
     RotationAdjustmentPass,
     SuddenPass,
     FrameIntervalPass,
     StaticObjectRemovalPass,
+    AngleNormalizationPass,
 )
 from .pipeline import PostprocessingPipeline
 
@@ -23,9 +25,11 @@ __all__ = [
     'GapDetectionPass',
     'GapFillingPass',
     'DuplicateRemovalPass',
+    'FirstDetectionRefinementPass',
     'RotationAdjustmentPass',
     'SuddenPass',
     'FrameIntervalPass',
     'StaticObjectRemovalPass',
+    'AngleNormalizationPass',
     'PostprocessingPipeline',
 ]
