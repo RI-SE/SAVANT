@@ -280,9 +280,7 @@ class TestLinkObjectIds:
         with pytest.raises(ObjectNotFoundError):
             service.frames_for_object("missing")
 
-    def test_link_object_ids_replaces_secondary_object(
-        self, build_link_service
-    ):
+    def test_link_object_ids_replaces_secondary_object(self, build_link_service):
         ctx = build_link_service()
         service = ctx["service"]
         open_label = ctx["open_label"]

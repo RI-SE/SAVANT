@@ -609,7 +609,9 @@ def _prompt_link_target_object(
 
     unique_candidates = sorted(
         {candidate for candidate in candidate_ids if candidate != source_object_id},
-        key=lambda value: (0, f"{int(value):010d}") if str(value).isdigit() else (1, str(value)),
+        key=lambda value: (
+            (0, f"{int(value):010d}") if str(value).isdigit() else (1, str(value))
+        ),
     )
     if unique_candidates:
         selection_combo.addItems(unique_candidates)
@@ -619,7 +621,8 @@ def _prompt_link_target_object(
     layout.addSpacing(8)
 
     selection_description = QLabel(
-        "Select the target object ID that should be merged into the current object.", dialog
+        "Select the target object ID that should be merged into the current object.",
+        dialog,
     )
     selection_description.setWordWrap(True)
     hint_font: QFont = selection_description.font()
@@ -639,7 +642,9 @@ def _prompt_link_target_object(
     def _accept():
         candidate = selection_combo.currentText().strip()
         if not candidate:
-            QMessageBox.warning(dialog, "Link Object IDs", "Select an object ID to link.")
+            QMessageBox.warning(
+                dialog, "Link Object IDs", "Select an object ID to link."
+            )
             return
         selection_state["value"] = candidate
         dialog.accept()
@@ -666,7 +671,8 @@ def _link_object_ids_interactive(
         return
 
     frames_with_target = main_window.annotation_controller.frames_for_object(
-        target_object_id)
+        target_object_id
+    )
     frame_summary = _frames_to_ranges(frames_with_target)
     frame_count = len(frames_with_target)
     confirmation_text = (
@@ -691,7 +697,8 @@ def _link_object_ids_interactive(
 
     affected_frames = main_window.annotation_controller.link_object_ids(
         primary_object_id,
-        target_object_id,)
+        target_object_id,
+    )
 
     _refresh_after_bbox_update(main_window)
     result_summary = _frames_to_ranges(affected_frames)
