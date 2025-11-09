@@ -14,7 +14,7 @@ Required Arguments:
     --output_json        Path to output OpenLabel JSON file
 
 Optional Arguments:
-    --weights            Path to YOLO weights file (.pt) - required if using YOLO detection
+    --weights            Path to YOLO weights file (.pt) - required if using YOLO detection (default: markit_yolo.pt)
     --schema             Path to OpenLabel JSON schema file (default: savant_openlabel_subset.schema.json)
     --ontology           Path to SAVANT ontology file for class mapping (default: savant_ontology_1.2.0.ttl)
     --output_video       Path to output annotated video file (optional)
@@ -92,7 +92,10 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # YOLO only (uses default schema and ontology)
+  # YOLO only (uses default weights markit_yolo.pt, schema, and ontology)
+  python markit.py --input video.mp4 --output_json output.json
+
+  # YOLO with custom weights file
   python markit.py --weights model.pt --input video.mp4 --output_json output.json
 
   # With custom schema and ontology files
@@ -113,7 +116,8 @@ Examples:
     )
 
     # Required arguments
-    parser.add_argument('--weights', help='Path to YOLO weights file (.pt)')
+    parser.add_argument('--weights', default='markit_yolo.pt',
+                       help='Path to YOLO weights file (.pt) - required if using YOLO detection (default: markit_yolo.pt)')
     parser.add_argument('--input', required=True, help='Path to input video file')
     parser.add_argument('--output_json', required=True, help='Path to output OpenLabel JSON file')
     parser.add_argument('--schema', default='savant_openlabel_subset.schema.json',
