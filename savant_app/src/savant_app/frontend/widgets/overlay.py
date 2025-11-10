@@ -11,7 +11,8 @@ from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
                                                  get_error_icon,
                                                  get_warning_icon)
 from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
-from savant_app.frontend.utils.settings_store import get_movement_sensitivity
+from savant_app.frontend.utils.settings_store import (get_movement_sensitivity,
+                                                      get_rotation_sensitivity)
 from savant_app.frontend.widgets.cascade_button import CascadeButton
 from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 
@@ -872,6 +873,7 @@ class Overlay(QWidget):
             return super().keyPressEvent(event)
 
         movement_step = get_movement_sensitivity()
+        rotation_step = get_rotation_sensitivity()
 
         selected_bbox = self._get_selected_bbox()
 
@@ -879,6 +881,16 @@ class Overlay(QWidget):
         # on key presses
         new_center_x = selected_bbox.center_x
         new_center_y = selected_bbox.center_y
+        new_theta = selected_bbox.theta
+
+        # Check if shift is pressed to choose if left and right arrow keys
+        # move or rotate the box.
+        def _is_shift_pressed() -> bool:
+            return (
+                event.modifiers()
+                ==
+                Qt.KeyboardModifier.ShiftModifier
+            )
 
         match event.key():
             # note: Y-axis movement is inverted.
@@ -887,23 +899,44 @@ class Overlay(QWidget):
             case Qt.Key.Key_Down:
                 new_center_y += movement_step
             case Qt.Key.Key_Right:
-                new_center_x += movement_step
+                if _is_shift_pressed():
+                    # Inverted
+                    new_theta -= rotation_step
+                    print(new_theta)
+                else:
+                    new_center_x += movement_step
             case Qt.Key.Key_Left:
-                new_center_x -= movement_step
+                if _is_shift_pressed():
+                    # Inverted
+                    new_theta += rotation_step
+                    print(new_theta)
+                else:
+                    new_center_x -= movement_step
             case _:
                 # If it is not an arrow key movement,
                 # return control back to the parent class.
                 return super().keyPressEvent(event)
 
         updated_bbox = replace(
-            selected_bbox, center_x=new_center_x, center_y=new_center_y
+            selected_bbox, center_x=new_center_x, center_y=new_center_y,
+            theta=new_theta
         )
 
         self._boxes[self._selected_idx] = updated_bbox
         self.update()
         self.boxMoved.emit(
-            updated_bbox.object_id, updated_bbox.center_x, updated_bbox.center_y
+            updated_bbox.object_id,
+            updated_bbox.center_x,
+            updated_bbox.center_y,
         )
+
+        self.boxRotated.emit(
+            updated_bbox.object_id,
+            updated_bbox.width,
+            updated_bbox.height,
+            updated_bbox.theta
+        )
+        # TODO: Make differnet sensitivity option for theta
 
     def _on_cascade_size_to_all(self):
         """Handle cascade apply to all frames."""
