@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtCore import Qt
 from savant_app.frontend.widgets.video_display import VideoDisplay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
 from savant_app.frontend.widgets.sidebar import Sidebar
@@ -39,6 +40,12 @@ from savant_app.frontend.utils import (
     render,
     zoom,
 )
+from savant_app.frontend.utils.undo import (
+    UndoRedoManager,
+    UndoRedoContext,
+    ControllerAnnotationGateway,
+    ControllerFrameTagGateway,
+)
 
 
 class MainWindow(QMainWindow):
@@ -58,6 +65,15 @@ class MainWindow(QMainWindow):
         self.video_controller = video_controller
         self.annotation_controller = annotation_controller
         self.project_state_controller = project_state_controller
+
+        self.undo_manager = UndoRedoManager()
+        self.undo_context = UndoRedoContext(
+            annotation_gateway=ControllerAnnotationGateway(
+                annotation_controller=self.annotation_controller,
+                project_state_controller=self.project_state_controller,
+            ),
+            frame_tag_gateway=ControllerFrameTagGateway(self.annotation_controller),
+        )
 
         # state
         self.state = FrontendState(self)
@@ -117,9 +133,6 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
-
-        self._undo_stack: list[dict] = []
-
         project_io.wire(self)
         playback.wire(self)
         navigation.wire(self)
@@ -131,7 +144,17 @@ class MainWindow(QMainWindow):
         QShortcut(
             QKeySequence.StandardKey.Undo,
             self,
-            activated=lambda: annotation_ops.undo_delete(self),
+            activated=lambda: annotation_ops.undo_last_action(self),
+        )
+        QShortcut(
+            QKeySequence.StandardKey.Redo,
+            self,
+            activated=lambda: annotation_ops.redo_last_action(self),
+        )
+        QShortcut(
+            QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Y),
+            self,
+            activated=lambda: annotation_ops.redo_last_action(self),
         )
 
         self.refresh_confidence_issues()
@@ -205,3 +228,12 @@ class MainWindow(QMainWindow):
 
     def apply_confidence_markers(self):
         confidence_ops.apply_confidence_markers(self)
+
+    def execute_undoable_command(self, command):
+        self.undo_manager.execute(command, self.undo_context)
+
+    def undo_last_command(self):
+        return self.undo_manager.undo(self.undo_context)
+
+    def redo_last_command(self):
+        return self.undo_manager.redo(self.undo_context)
