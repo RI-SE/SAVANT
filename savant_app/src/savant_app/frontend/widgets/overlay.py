@@ -59,7 +59,7 @@ class Overlay(QWidget):
         self._boxes: List[BBoxData] = []
 
         # This flag flips the sign if needed (Rotation of boxes).
-        self._theta_is_clockwise: bool = True
+        self._theta_is_clockwise: bool = False
 
         # Debug helpers (Shows the center and axes of the boxes)
         self._show_centers: bool = True
@@ -149,7 +149,7 @@ class Overlay(QWidget):
         self.update()
 
     def set_theta_clockwise(self, clockwise: bool):
-        """If your dataset's theta increases clockwise, keep True (default)."""
+        """If your dataset's theta increases clockwise, keep False (default)."""
         self._theta_is_clockwise = clockwise
         self.update()
 
@@ -669,6 +669,12 @@ class Overlay(QWidget):
         self.update()
 
     def paintEvent(self, _):
+        """
+        Draw boxes on the current frame.
+
+        This overrides PyQT's paintEvent. It is triggered
+        on .show() and .update() of the widget.
+        """
         if not self._boxes or self._frame_size == (0, 0):
             return
 
@@ -697,7 +703,8 @@ class Overlay(QWidget):
             box_width_disp = box_width * scale
             box_height_disp = box_height * scale
 
-            angle_rad = -theta_val if self._theta_is_clockwise else theta_val
+            angle_rad = (-theta_val if self._theta_is_clockwise else theta_val)
+
             cos_angle, sin_angle = math.cos(angle_rad), math.sin(angle_rad)
             half_w = box_width_disp / 2.0
             half_h = box_height_disp / 2.0
@@ -838,8 +845,9 @@ class Overlay(QWidget):
                 )
             if self._show_axes:
                 painter.setPen(self._pen_axis)
-                axis_x = center_x_disp + half_w * cos_angle
-                axis_y = center_y_disp + half_h * sin_angle
+                axis_length = max(box_width_disp, box_height_disp)/2
+                axis_x = center_x_disp + axis_length * cos_angle
+                axis_y = center_y_disp + axis_length * sin_angle
                 painter.drawLine(
                     QPointF(center_x_disp, center_y_disp), QPointF(axis_x, axis_y)
                 )
@@ -900,14 +908,12 @@ class Overlay(QWidget):
                 new_center_y += movement_step
             case Qt.Key.Key_Right:
                 if _is_shift_pressed():
-                    # Inverted
-                    new_theta -= rotation_step
+                    new_theta += rotation_step
                 else:
                     new_center_x += movement_step
             case Qt.Key.Key_Left:
                 if _is_shift_pressed():
-                    # Inverted
-                    new_theta += rotation_step
+                    new_theta -= rotation_step
                 else:
                     new_center_x -= movement_step
             case _:
