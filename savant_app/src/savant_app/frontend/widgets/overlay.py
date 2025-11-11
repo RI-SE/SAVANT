@@ -902,14 +902,12 @@ class Overlay(QWidget):
                 if _is_shift_pressed():
                     # Inverted
                     new_theta -= rotation_step
-                    print(new_theta)
                 else:
                     new_center_x += movement_step
             case Qt.Key.Key_Left:
                 if _is_shift_pressed():
                     # Inverted
                     new_theta += rotation_step
-                    print(new_theta)
                 else:
                     new_center_x -= movement_step
             case _:
@@ -924,19 +922,27 @@ class Overlay(QWidget):
 
         self._boxes[self._selected_idx] = updated_bbox
         self.update()
-        self.boxMoved.emit(
-            updated_bbox.object_id,
-            updated_bbox.center_x,
-            updated_bbox.center_y,
-        )
 
-        self.boxRotated.emit(
-            updated_bbox.object_id,
-            updated_bbox.width,
-            updated_bbox.height,
-            updated_bbox.theta
-        )
-        # TODO: Make differnet sensitivity option for theta
+        # selected bbox still holds the old (unchanged) annotation.
+        if (  # Check if the center has changed.
+            new_center_x != selected_bbox.center_x
+            or
+            new_center_y != selected_bbox.center_y
+        ):
+            self.boxMoved.emit(
+                updated_bbox.object_id,
+                updated_bbox.center_x,
+                updated_bbox.center_y,
+            )
+
+        # Check if the rotation has changed
+        if not new_theta == selected_bbox.theta:
+            self.boxRotated.emit(
+                updated_bbox.object_id,
+                updated_bbox.width,
+                updated_bbox.height,
+                updated_bbox.theta
+            )
 
     def _on_cascade_size_to_all(self):
         """Handle cascade apply to all frames."""
