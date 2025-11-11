@@ -1,14 +1,13 @@
-import pytest
-from unittest.mock import MagicMock, call
 from collections import deque
 from types import SimpleNamespace
-from savant_app.services.annotation_service import AnnotationService
-from savant_app.services.project_state import ProjectState
+from unittest.mock import MagicMock, call
+
+import pytest
+
 from savant_app.models.OpenLabel import OpenLabel
-from savant_app.services.exceptions import (
-    ObjectLinkConflictError,
-    ObjectNotFoundError,
-)
+from savant_app.services.annotation_service import AnnotationService
+from savant_app.services.exceptions import ObjectLinkConflictError, ObjectNotFoundError
+from savant_app.services.project_state import ProjectState
 
 
 @pytest.fixture
@@ -197,12 +196,16 @@ class DummyOpenLabel:
         self.objects = objects
         self.frames = frames
 
-    def _update_annotator(self, annotator, annotator_data):
-        if annotator not in annotator_data.val:
-            annotator_data.val.appendleft(annotator)
-
-    def _update_annotator_confidence(self, confidence, confidence_data):
-        confidence_data.val.appendleft(confidence)
+    def update_annotator(
+        self,
+        annotater,
+        current_annotator_data,
+        confidence,
+        current_confidence_data,
+    ):
+        if annotater not in current_annotator_data.val[0]:
+            current_annotator_data.val.appendleft(annotater)
+            current_confidence_data.val.appendLeft(confidence)
 
 
 @pytest.fixture
