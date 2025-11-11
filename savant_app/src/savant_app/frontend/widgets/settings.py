@@ -31,6 +31,7 @@ from savant_app.frontend.utils.settings_store import (
     get_movement_sensitivity,
     get_ontology_namespace,
     get_ontology_path,
+    get_rotation_sensitivity,
     get_show_errors,
     get_show_warnings,
     get_warning_range,
@@ -38,6 +39,7 @@ from savant_app.frontend.utils.settings_store import (
     set_movement_sensitivity,
     set_ontology_namespace,
     set_ontology_path,
+    set_rotation_sensitivity,
 )
 
 
@@ -86,13 +88,30 @@ class SettingsDialog(QDialog):
         general_form.addRow("Frame history:", self.frame_count_spin)
 
         # Movement sensitivity
-        self.sensitivity_spin = QDoubleSpinBox()
-        self.sensitivity_spin.setRange(0.1, 10.0)
-        self.sensitivity_spin.setDecimals(2)
-        self.sensitivity_spin.setSingleStep(0.1)
-        self.sensitivity_spin.setValue(float(get_movement_sensitivity()))
-        self.sensitivity_spin.valueChanged.connect(self._on_sensitivity_changed)
-        general_form.addRow("Annotation Movement sensitivity:", self.sensitivity_spin)
+        self.movement_sensitivity_spin = QDoubleSpinBox()
+        self.movement_sensitivity_spin.setRange(0.1, 10.0)
+        self.movement_sensitivity_spin.setDecimals(2)
+        self.movement_sensitivity_spin.setSingleStep(0.1)
+        self.movement_sensitivity_spin.setValue(float(get_movement_sensitivity()))
+        self.movement_sensitivity_spin.valueChanged.connect(
+            self._on_movement_sensitivity_changed
+        )
+        general_form.addRow(
+            "Annotation Movement sensitivity:", self.movement_sensitivity_spin
+        )
+
+        # Rotation sensitivity
+        self.rotation_sensitivity_spin = QDoubleSpinBox()
+        self.rotation_sensitivity_spin.setRange(0.1, 10.0)
+        self.rotation_sensitivity_spin.setDecimals(2)
+        self.rotation_sensitivity_spin.setSingleStep(0.1)
+        self.rotation_sensitivity_spin.setValue(float(get_rotation_sensitivity()))
+        self.rotation_sensitivity_spin.valueChanged.connect(
+            self._on_rotation_sensitivity_changed
+        )
+        general_form.addRow(
+            "Annotation Rotation sensitivity:", self.rotation_sensitivity_spin
+        )
 
         form.addRow(general_group)
 
@@ -301,7 +320,8 @@ class SettingsDialog(QDialog):
         return {
             "zoom_rate": float(self.zoom_spin.value()),
             "previous_frame_count": int(self.frame_count_spin.value()),
-            "movement_sensitivity": float(self.sensitivity_spin.value()),
+            "movement_sensitivity": float(self.movement_sensitivity_spin.value()),
+            "rotation_sensitivity": float(self.rotation_sensitivity_spin.value()),
             "warning_range": (
                 float(self.warning_min_spin.value()),
                 float(self.warning_max_spin.value()),
@@ -459,14 +479,17 @@ class SettingsDialog(QDialog):
             self._offset_spin.setValue(get_action_interval_offset())
             self._offset_spin.blockSignals(False)
 
-    def _on_sensitivity_changed(self, value: float) -> None:
-        try:
-            set_movement_sensitivity(float(value))
-        except Exception as ex:
-            QMessageBox.critical(self, "Invalid Sensitivity", str(ex))
-            self.sensitivity_spin.blockSignals(True)
-            self.sensitivity_spin.setValue(get_movement_sensitivity())
-            self.sensitivity_spin.blockSignals(False)
+    def _on_movement_sensitivity_changed(self, value: float) -> None:
+        set_movement_sensitivity(float(value))
+        self.movement_sensitivity_spin.blockSignals(True)
+        self.movement_sensitivity_spin.setValue(get_movement_sensitivity())
+        self.movement_sensitivity_spin.blockSignals(False)
+
+    def _on_rotation_sensitivity_changed(self, value: float) -> None:
+        set_rotation_sensitivity(float(value))
+        self.rotation_sensitivity_spin.blockSignals(True)
+        self.rotation_sensitivity_spin.setValue(get_rotation_sensitivity())
+        self.rotation_sensitivity_spin.blockSignals(False)
 
     def _section_label(self, title: str) -> QLabel:
         lbl = QLabel(f"<b>{title}</b>", self)

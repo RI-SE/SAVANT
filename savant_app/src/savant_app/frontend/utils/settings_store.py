@@ -15,6 +15,7 @@ _show_errors: bool = False
 
 # New movement sensitivity setting
 _movement_sensitivity: float = 1.0  # default 1.0x
+_rotation_sensitivity: float = 0.1  # default 0.1
 
 
 def get_ontology_path() -> Optional[Path]:
@@ -117,7 +118,7 @@ def set_show_errors(value: bool) -> None:
 
 
 def get_movement_sensitivity() -> float:
-    """Return the current movement sensitivity multiplier."""
+    """Return the current movement sensitivity."""
     return float(_movement_sensitivity)
 
 
@@ -127,6 +128,18 @@ def set_movement_sensitivity(value: float) -> None:
     """
     global _movement_sensitivity
     float_value = float(value)
-    if float_value <= 0.0:
-        raise ValueError("Movement sensitivity must be greater than 0.")
+
     _movement_sensitivity = float_value
+
+
+def get_rotation_sensitivity() -> float:
+    """Return the current rotation senstivity."""
+    return float(_rotation_sensitivity)
+
+
+def set_rotation_sensitivity(value: float) -> None:
+    """Update rotation sensitivty."""
+    global _rotation_sensitivity
+    float_value = float(value)
+
+    _rotation_sensitivity = float_value
