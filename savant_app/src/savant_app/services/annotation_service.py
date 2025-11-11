@@ -31,8 +31,8 @@ from .exceptions import (
     OntologyNotFound,
     UnsportedTagTypeError,
 )
-from .project_state import ProjectState
 from .interpolation_service import InterpolationService
+from .project_state import ProjectState
 
 
 class AnnotationService:
@@ -349,9 +349,13 @@ class AnnotationService:
 
         objects_map = getattr(config, "objects", {})
         if primary_object_id not in objects_map:
-            raise ObjectNotFoundError(f"Object ID '{primary_object_id}' does not exist.")
+            raise ObjectNotFoundError(
+                f"Object ID '{primary_object_id}' does not exist."
+            )
         if secondary_object_id not in objects_map:
-            raise ObjectNotFoundError(f"Object ID '{secondary_object_id}' does not exist.")
+            raise ObjectNotFoundError(
+                f"Object ID '{secondary_object_id}' does not exist."
+            )
 
         affected_frames: list[int] = []
         for frame_key, frame in config.frames.items():
@@ -421,8 +425,9 @@ class AnnotationService:
         annotator_entry = AnnotatorData(val=deque())
         vec_entries.insert(0, annotator_entry)
 
-        openlabel_model._update_annotator(annotator, annotator_entry)
-        openlabel_model._update_annotator_confidence(1.0, confidence_entry)
+        openlabel_model.update_annotator(
+            annotator, annotator_entry, 1.0, confidence_entry
+        )
 
     def _add_new_object(self, obj_type: str, obj_id: str) -> None:
         self.project_state.annotation_config.add_new_object(

@@ -1,40 +1,46 @@
 # settings.py
+from pathlib import Path
+
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QColorDialog,
     QDialog,
-    QVBoxLayout,
-    QFormLayout,
-    QHBoxLayout,
     QDialogButtonBox,
-    QWidget,
     QDoubleSpinBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
-    QAbstractItemView,
-    QCheckBox,
-    QPushButton,
-    QColorDialog,
-    QLabel,
-    QLineEdit,
-    QFileDialog,
-    QMessageBox,
-    QGroupBox,
+    QVBoxLayout,
+    QWidget,
 )
-from savant_app.frontend.utils.settings_store import (
-    get_ontology_path,
-    get_action_interval_offset,
-    get_ontology_namespace,
-    set_ontology_namespace,
-    set_action_interval_offset,
-    set_ontology_path,
-    get_warning_range,
-    get_error_range,
-    get_show_warnings,
-    get_show_errors,
-)
-from PyQt6.QtCore import Qt, pyqtSignal
-from pathlib import Path
+
 from savant_app.frontend.theme.forms import style_checkbox
+from savant_app.frontend.utils.settings_store import (
+    get_action_interval_offset,
+    get_error_range,
+    get_movement_sensitivity,
+    get_ontology_namespace,
+    get_ontology_path,
+    get_rotation_sensitivity,
+    get_show_errors,
+    get_show_warnings,
+    get_warning_range,
+    set_action_interval_offset,
+    set_movement_sensitivity,
+    set_ontology_namespace,
+    set_ontology_path,
+    set_rotation_sensitivity,
+)
 
 
 class SettingsDialog(QDialog):
@@ -81,6 +87,32 @@ class SettingsDialog(QDialog):
         )
         general_form.addRow("Frame history:", self.frame_count_spin)
 
+        # Movement sensitivity
+        self.movement_sensitivity_spin = QDoubleSpinBox()
+        self.movement_sensitivity_spin.setRange(0.1, 10.0)
+        self.movement_sensitivity_spin.setDecimals(2)
+        self.movement_sensitivity_spin.setSingleStep(0.1)
+        self.movement_sensitivity_spin.setValue(float(get_movement_sensitivity()))
+        self.movement_sensitivity_spin.valueChanged.connect(
+            self._on_movement_sensitivity_changed
+        )
+        general_form.addRow(
+            "Annotation Movement sensitivity:", self.movement_sensitivity_spin
+        )
+
+        # Rotation sensitivity
+        self.rotation_sensitivity_spin = QDoubleSpinBox()
+        self.rotation_sensitivity_spin.setRange(0.1, 10.0)
+        self.rotation_sensitivity_spin.setDecimals(2)
+        self.rotation_sensitivity_spin.setSingleStep(0.1)
+        self.rotation_sensitivity_spin.setValue(float(get_rotation_sensitivity()))
+        self.rotation_sensitivity_spin.valueChanged.connect(
+            self._on_rotation_sensitivity_changed
+        )
+        general_form.addRow(
+            "Annotation Rotation sensitivity:", self.rotation_sensitivity_spin
+        )
+
         form.addRow(general_group)
 
         # Annotators group
@@ -97,7 +129,6 @@ class SettingsDialog(QDialog):
         )
         self.annotator_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        # TODO: Change to retrieve names from config
         self._annotator = [
             {"name": "Chris", "enabled": True, "colour": "#ff6666"},
             {"name": "Younis", "enabled": False, "colour": "#3aa3ff"},
@@ -128,7 +159,6 @@ class SettingsDialog(QDialog):
 
         self._ontology_edit = QLineEdit(self)
         self._ontology_edit.setReadOnly(True)
-        # self._ontology_edit.setText(str(get_ontology_path()))
         browse_btn = QPushButton("Browse…", self)
         browse_btn.clicked.connect(self._on_browse_ontology_clicked)
         ontology_form.addRow("Frame Tag Ontology:", self._ontology_edit)
@@ -245,19 +275,6 @@ class SettingsDialog(QDialog):
         lay.addWidget(buttons)
 
     def _add_annotator_row(self, annotator: dict):
-        """
-        Insert a new row into the annotator table for the given annotator.
-
-        Args:
-            annotator (dict): A dictionary containing:
-                - "name" (str): Annotator's name.
-                - "enabled" (bool): Whether the annotator is enabled.
-                - "colour" (str): Hex color code for the annotator.
-
-        This creates a read-only name cell, a checkbox in column 1,
-        and a color button in column 2 that opens a color picker when clicked.
-        """
-
         row = self.annotator_table.rowCount()
         self.annotator_table.insertRow(row)
 
@@ -283,22 +300,6 @@ class SettingsDialog(QDialog):
         self.annotator_table.setCellWidget(row, 2, btn)
 
     def values(self) -> dict:
-        """
-        Collect the current settings from the dialog.
-
-        Returns:
-            dict: A dictionary with:
-                - "zoom_rate" (float): The current zoom factor from the spinbox.
-                - "frame_count" (int): The number of frames to look back for object IDs.
-                - "warning_range" (tuple[float, float]): Min/max boundaries for warnings.
-                - "error_range" (tuple[float, float]): Min/max boundaries for errors.
-                - "show_warnings" (bool): Whether to display warning markers/icons.
-                - "show_errors" (bool): Whether to display error markers/icons.
-                - "Annotators" (list of dict): List of annotators, where each entry has:
-                    * "name" (str): Annotator's name.
-                    * "enabled" (bool): Checkbox state.
-                    * "color" (str): Hex color chosen from the color button.
-        """
         annotators = []
         rows = self.annotator_table.rowCount()
         for r in range(rows):
@@ -319,6 +320,8 @@ class SettingsDialog(QDialog):
         return {
             "zoom_rate": float(self.zoom_spin.value()),
             "previous_frame_count": int(self.frame_count_spin.value()),
+            "movement_sensitivity": float(self.movement_sensitivity_spin.value()),
+            "rotation_sensitivity": float(self.rotation_sensitivity_spin.value()),
             "warning_range": (
                 float(self.warning_min_spin.value()),
                 float(self.warning_max_spin.value()),
@@ -444,15 +447,6 @@ class SettingsDialog(QDialog):
         self._normalize_ranges()
 
     def _pick_color_for_row(self, row: int):
-        """
-        Open a QColorDialog to select a new color for a specific row.
-
-        Args:
-            row (int): The row index of the annotator whose color is being updated.
-
-        If the user picks a valid color, the corresponding button text and
-        background color are updated to reflect the new selection.
-        """
         current_btn = self.annotator_table.cellWidget(row, 2)
         col = QColorDialog.getColor()
         if col.isValid():
@@ -461,9 +455,6 @@ class SettingsDialog(QDialog):
             current_btn.setStyleSheet(f"background-color: {hex_str};")
 
     def _on_browse_ontology_clicked(self) -> None:
-        """
-        Let the user pick a .ttl ontology; update module-level setting immediately.
-        """
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Ontology (.ttl)",
@@ -488,18 +479,24 @@ class SettingsDialog(QDialog):
             self._offset_spin.setValue(get_action_interval_offset())
             self._offset_spin.blockSignals(False)
 
+    def _on_movement_sensitivity_changed(self, value: float) -> None:
+        set_movement_sensitivity(float(value))
+        self.movement_sensitivity_spin.blockSignals(True)
+        self.movement_sensitivity_spin.setValue(get_movement_sensitivity())
+        self.movement_sensitivity_spin.blockSignals(False)
+
+    def _on_rotation_sensitivity_changed(self, value: float) -> None:
+        set_rotation_sensitivity(float(value))
+        self.rotation_sensitivity_spin.blockSignals(True)
+        self.rotation_sensitivity_spin.setValue(get_rotation_sensitivity())
+        self.rotation_sensitivity_spin.blockSignals(False)
+
     def _section_label(self, title: str) -> QLabel:
-        """
-        Create a bold section header label for grouping settings.
-        """
         lbl = QLabel(f"<b>{title}</b>", self)
         lbl.setTextFormat(Qt.TextFormat.RichText)
         return lbl
 
     def _on_namespace_editing_finished(self) -> None:
-        """
-        Validate and persist the ontology namespace when the user edits the field.
-        """
         namespace = (self._namespace_edit.text() or "").strip()
         try:
             set_ontology_namespace(namespace)

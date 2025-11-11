@@ -172,6 +172,7 @@ class MainWindow(QMainWindow):
         dlg = SettingsDialog(
             theme="Dark",
             zoom_rate=1.2,
+            frame_count=self.sidebar_state.historic_obj_frame_count,
             ontology_path=get_ontology_path(),
             action_interval_offset=get_action_interval_offset(),
             parent=self,
@@ -180,6 +181,7 @@ class MainWindow(QMainWindow):
         if dlg.exec() == QDialog.DialogCode.Accepted:
             vals = dlg.values()
             self.sidebar_state.historic_obj_frame_count = vals["previous_frame_count"]
+            self.sidebar.refresh_confidence_issue_list()
             warning_vals = vals.get("warning_range", get_warning_range())
             error_vals = vals.get("error_range", get_error_range())
             warning_range = tuple(float(v) for v in warning_vals)

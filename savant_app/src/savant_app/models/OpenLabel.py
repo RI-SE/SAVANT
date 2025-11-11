@@ -374,11 +374,8 @@ class OpenLabel(BaseModel):
             elif item.name == "confidence":
                 confidence_data = item
 
-        if annotator_data is not None:
-            self._update_annotator(annotator, annotator_data)
-
-        if confidence_data is not None:
-            self._update_annotator_confidence(1.0, confidence_data)
+        if annotator_data is not None and confidence_data is not None:
+            self.update_annotator(annotator, annotator_data, 1.0, confidence_data)
 
         return updated_bbox
 
@@ -450,13 +447,16 @@ class OpenLabel(BaseModel):
 
         return results
 
-    def _update_annotator(self, annotater: str, current_annotator_data: AnnotatorData):
-        """Internal: Update annotator data for a bbox."""
-        if annotater not in current_annotator_data.val:
-            current_annotator_data.val.appendleft(annotater)
-
-    def _update_annotator_confidence(
-        self, confidence: float, current_confidence_data: ConfidenceData
+    def update_annotator(
+        self,
+        annotater: str,
+        current_annotator_data: AnnotatorData,
+        confidence: float,
+        current_confidence_data: ConfidenceData,
     ):
-        """Internal: Update confidence data for a bbox."""
-        current_confidence_data.val.appendleft(confidence)
+        """Internal: Update annotator data for a bbox."""
+        # Check if the annotator making the update is already
+        # the latest annotator.
+        if annotater not in current_annotator_data.val[0]:
+            current_annotator_data.val.appendleft(annotater)
+            current_confidence_data.val.appendleft(confidence)

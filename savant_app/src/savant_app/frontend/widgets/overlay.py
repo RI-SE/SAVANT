@@ -1,17 +1,20 @@
-from PyQt6.QtWidgets import QWidget
-from PyQt6.QtGui import QPainter, QPen, QColor, QPolygonF, QBrush, QPixmap
-from PyQt6.QtCore import Qt, QPointF, pyqtSignal, QRectF
-from typing import List, Tuple
 import math
+from dataclasses import replace
+from typing import List, Tuple
+
+from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
+from PyQt6.QtWidgets import QWidget
+
+from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
+                                                 OVERLAY_ICON_SPACING,
+                                                 get_error_icon,
+                                                 get_warning_icon)
 from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
-from savant_app.frontend.theme.constants import (
-    get_warning_icon,
-    get_error_icon,
-    OVERLAY_CONFIDENCE_ICON_SIZE,
-    OVERLAY_ICON_SPACING,
-)
-from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
+from savant_app.frontend.utils.settings_store import (get_movement_sensitivity,
+                                                      get_rotation_sensitivity)
 from savant_app.frontend.widgets.cascade_button import CascadeButton
+from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 
 
 class Overlay(QWidget):
@@ -854,14 +857,92 @@ class Overlay(QWidget):
             Qt.TransformationMode.SmoothTransformation,
         )
 
-    def keyPressEvent(self, e):
-        if e.key() == Qt.Key.Key_Delete and not (
-            e.modifiers() & Qt.KeyboardModifier.ControlModifier
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Delete and not (
+            event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
             self.deletePressed.emit()
-            e.accept()
+            event.accept()
             return
-        super().keyPressEvent(e)
+        super().keyPressEvent(event)
+
+        self.on_arrow_key_press(event)
+
+    def on_arrow_key_press(self, event):
+        if self._selected_idx is None:
+            return super().keyPressEvent(event)
+
+        movement_step = get_movement_sensitivity()
+        rotation_step = get_rotation_sensitivity()
+
+        selected_bbox = self._get_selected_bbox()
+
+        # Initialize variables that will be updated based
+        # on key presses
+        new_center_x = selected_bbox.center_x
+        new_center_y = selected_bbox.center_y
+        new_theta = selected_bbox.theta
+
+        # Check if shift is pressed to choose if left and right arrow keys
+        # move or rotate the box.
+        def _is_shift_pressed() -> bool:
+            return (
+                event.modifiers()
+                ==
+                Qt.KeyboardModifier.ShiftModifier
+            )
+
+        match event.key():
+            # note: Y-axis movement is inverted.
+            case Qt.Key.Key_Up:
+                new_center_y -= movement_step
+            case Qt.Key.Key_Down:
+                new_center_y += movement_step
+            case Qt.Key.Key_Right:
+                if _is_shift_pressed():
+                    # Inverted
+                    new_theta -= rotation_step
+                else:
+                    new_center_x += movement_step
+            case Qt.Key.Key_Left:
+                if _is_shift_pressed():
+                    # Inverted
+                    new_theta += rotation_step
+                else:
+                    new_center_x -= movement_step
+            case _:
+                # If it is not an arrow key movement,
+                # return control back to the parent class.
+                return super().keyPressEvent(event)
+
+        updated_bbox = replace(
+            selected_bbox, center_x=new_center_x, center_y=new_center_y,
+            theta=new_theta
+        )
+
+        self._boxes[self._selected_idx] = updated_bbox
+        self.update()
+
+        # selected bbox still holds the old (unchanged) annotation.
+        if (  # Check if the center has changed.
+            new_center_x != selected_bbox.center_x
+            or
+            new_center_y != selected_bbox.center_y
+        ):
+            self.boxMoved.emit(
+                updated_bbox.object_id,
+                updated_bbox.center_x,
+                updated_bbox.center_y,
+            )
+
+        # Check if the rotation has changed
+        if not new_theta == selected_bbox.theta:
+            self.boxRotated.emit(
+                updated_bbox.object_id,
+                updated_bbox.width,
+                updated_bbox.height,
+                updated_bbox.theta
+            )
 
     def _on_cascade_size_to_all(self):
         """Handle cascade apply to all frames."""
