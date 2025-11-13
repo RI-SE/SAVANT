@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from typing import Literal
 
-
 ConfidenceSeverity = Literal["warning", "error"]
 ConfidenceFlagMap = dict[str, ConfidenceSeverity]
 
@@ -18,3 +17,17 @@ class BBoxData:
     height: float
     theta: float  # in radians
     is_interpolated: bool = False
+
+
+@dataclass
+class BBoxDimensionData:
+    """
+    Dataclass representing bounding box
+    dimension data.
+    """
+
+    x_center: float
+    y_center: float
+    width: float
+    height: float
+    rotation: float

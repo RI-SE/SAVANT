@@ -37,6 +37,9 @@ class Overlay(QWidget):
         str, float, float, float
     )  # (object_id, width, height, rotation)
 
+    # Emits live BBoxData during drag/size/rotation change operations
+    boxModified = pyqtSignal(BBoxData)
+
     # Object used here to allow for None types to be passed.
     bounding_box_selected = pyqtSignal(object)  # (object_id)
 
@@ -426,6 +429,10 @@ class Overlay(QWidget):
             theta=theta,
         )
         self._boxes[self._selected_idx] = new_bbox
+
+        # Emit the live data for playback controls to display
+        self.boxModified.emit(new_bbox)
+
         self.update()
         ev.accept()
 
@@ -927,6 +934,10 @@ class Overlay(QWidget):
         )
 
         self._boxes[self._selected_idx] = updated_bbox
+
+        # Emit the live data for playback controls to display
+        self.boxModified.emit(updated_bbox)
+
         self.update()
 
         # selected bbox still holds the old (unchanged) annotation.
