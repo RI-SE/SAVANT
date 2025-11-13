@@ -1,5 +1,6 @@
 # savant_app/frontend/utils/render.py
 from __future__ import annotations
+
 from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
 
 
