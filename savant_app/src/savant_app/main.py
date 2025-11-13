@@ -42,7 +42,6 @@ if __name__ == "__main__":
         annotation_controller=annotation_controller,
     )
     window.show()
-    print("SS len:", len(QApplication.instance().styleSheet()))
 
     sys.excepthook = exception_hook
 

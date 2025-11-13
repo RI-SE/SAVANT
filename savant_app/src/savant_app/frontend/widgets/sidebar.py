@@ -47,6 +47,13 @@ from savant_app.frontend.theme.constants import (
 )
 from savant_app.frontend.widgets.interpolation_dialog import InterpolationDialog
 from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
+from savant_app.frontend.utils.undo import (
+    FrameTagSnapshot,
+    AddFrameTagCommand,
+    RemoveFrameTagCommand,
+    InterpolateAnnotationsCommand,
+)
+from savant_app.services.exceptions import VideoLoadError
 from savant_app.frontend.utils.sidebar_confidence_items import SidebarConfidenceIssueItemDelegate
 
 
@@ -599,8 +606,6 @@ class Sidebar(QWidget):
                 self, "No Ontology", "Set an ontology file in settings first."
             )
             return
-        print(get_ontology_path())
-
         dlg = QDialog(self)
         dlg.setWindowTitle("Add Frame Tag")
         form = QFormLayout(dlg)
@@ -658,16 +663,21 @@ class Sidebar(QWidget):
             )
             return
 
+        snapshot = FrameTagSnapshot(tag_name=tag, start_frame=start, end_frame=end)
+        host_window = self.window()
         try:
-            self.annotation_controller.add_frame_tag(tag, start, end)
-            try:
-                current_index = int(self.video_controller.current_index())
-            except Exception:
-                current_index = 0
+            if host_window is not None and hasattr(
+                host_window, "execute_undoable_command"
+            ):
+                host_window.execute_undoable_command(AddFrameTagCommand(snapshot))
+            else:
+                self.annotation_controller.add_frame_tag(tag, start, end)
+
+            current_index = int(self.video_controller.current_index())
             self._refresh_active_frame_tags(current_index)
             QMessageBox.information(self, "Tag added", f"{tag}: {start} → {end}")
-        except Exception as e:
-            QMessageBox.critical(self, "Failed to add tag", str(e))
+        except Exception as exc:
+            QMessageBox.critical(self, "Failed to add tag", str(exc))
 
     def _refresh_active_frame_tags(self, frame_index: int) -> None:
         """
@@ -790,11 +800,28 @@ class Sidebar(QWidget):
         if res != QMessageBox.StandardButton.Yes:
             return
 
-        if not self.annotation_controller.remove_frame_tag(tag, start, end):
-            QMessageBox.information(self, "Delete Frame Tag", "Nothing was deleted.")
-            return
-        current_index = int(self.video_controller.current_index())
-        self._refresh_active_frame_tags(current_index)
+        snapshot = FrameTagSnapshot(
+            tag_name=tag,
+            start_frame=int(start),
+            end_frame=int(end),
+        )
+        host_window = self.window()
+        try:
+            if host_window is not None and hasattr(
+                host_window, "execute_undoable_command"
+            ):
+                host_window.execute_undoable_command(RemoveFrameTagCommand(snapshot))
+            else:
+                removed = self.annotation_controller.remove_frame_tag(tag, start, end)
+                if not removed:
+                    QMessageBox.information(
+                        self, "Delete Frame Tag", "Nothing was deleted."
+                    )
+                    return
+            current_index = int(self.video_controller.current_index())
+            self._refresh_active_frame_tags(current_index)
+        except Exception as exc:
+            QMessageBox.warning(self, "Delete Frame Tag", str(exc))
 
     def show_object_editor(self, object_id: str, *, expand: bool) -> None:
         """
@@ -920,9 +947,42 @@ class Sidebar(QWidget):
 
     def on_interpolate(self, object_id: str, start_frame: int, end_frame: int):
         current_annotator = self.frontend_state.get_current_annotator()
-        self.annotation_controller.interpolate_annotations(
-            object_id, start_frame, end_frame, current_annotator
-        )
+        if end_frame - start_frame <= 1:
+            QMessageBox.information(
+                self,
+                "Interpolate",
+                "Select start and end frames with at least one frame in between.",
+            )
+            return
+
+        host_window = self.window()
+        if host_window is not None and hasattr(
+            host_window, "execute_undoable_command"
+        ):
+            command = InterpolateAnnotationsCommand(
+                object_id=str(object_id),
+                start_frame=int(start_frame),
+                end_frame=int(end_frame),
+                annotator=current_annotator,
+            )
+            host_window.execute_undoable_command(command)
+        else:
+            self.annotation_controller.interpolate_annotations(
+                object_id, start_frame, end_frame, current_annotator
+            )
+        if host_window is not None:
+            try:
+                host_window.refresh_confidence_issues()
+            except VideoLoadError:
+                pass
+        try:
+            current_index = int(self.video_controller.current_index())
+        except Exception:
+            current_index = 0
+        self._refresh_active_frame_tags(current_index)
+        refresh_confidence_list = getattr(self, "refresh_confidence_issue_list", None)
+        if callable(refresh_confidence_list):
+            refresh_confidence_list(current_index)
 
     def _on_details_toggle_clicked(self, checked: bool):
         self._details_toggle.setArrowType(
