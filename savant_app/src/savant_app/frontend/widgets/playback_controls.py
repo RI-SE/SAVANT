@@ -1,5 +1,3 @@
-from typing import Optional
-
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
@@ -45,7 +43,6 @@ class PlaybackControls(QWidget):
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(0, 10, 0, 10)
 
-        # --- New Annotation Info Bar ---
         # This widget will hold the detailed info labels
         self.info_widget = QWidget()
         self.info_widget.setObjectName("AnnotationInfoBar")
@@ -131,8 +128,14 @@ class PlaybackControls(QWidget):
         else:
             # Format the string with 2 decimal places for positions/dimensions
             # and 1 for rotation, using rich text for clarity.
-            center_str = f"Center (x, y): <b>{annotation_details.x_center:.2f}, {annotation_details.y_center:.2f}</b>"
-            size_str = f"Size (w, h): <b>{annotation_details.width:.2f}, {annotation_details.height:.2f}</b>"
+            center_str = f"""
+                Center (x, y): <b>{annotation_details.x_center:.2f},
+                {annotation_details.y_center:.2f}</b>
+            """
+            size_str = f"""
+                Size (w, h): <b>{annotation_details.width:.2f},
+                {annotation_details.height:.2f}</b>
+            """
             rot_str = f"Rotation: <b>{annotation_details.rotation:.1f}°</b>"
 
             self.center_label.setText(center_str)

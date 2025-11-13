@@ -6,13 +6,17 @@ from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import QWidget
 
-from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
-                                                 OVERLAY_ICON_SPACING,
-                                                 get_error_icon,
-                                                 get_warning_icon)
+from savant_app.frontend.theme.constants import (
+    OVERLAY_CONFIDENCE_ICON_SIZE,
+    OVERLAY_ICON_SPACING,
+    get_error_icon,
+    get_warning_icon,
+)
 from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
-from savant_app.frontend.utils.settings_store import (get_movement_sensitivity,
-                                                      get_rotation_sensitivity)
+from savant_app.frontend.utils.settings_store import (
+    get_movement_sensitivity,
+    get_rotation_sensitivity,
+)
 from savant_app.frontend.widgets.cascade_button import CascadeButton
 from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 
@@ -710,7 +714,7 @@ class Overlay(QWidget):
             box_width_disp = box_width * scale
             box_height_disp = box_height * scale
 
-            angle_rad = (-theta_val if self._theta_is_clockwise else theta_val)
+            angle_rad = -theta_val if self._theta_is_clockwise else theta_val
 
             cos_angle, sin_angle = math.cos(angle_rad), math.sin(angle_rad)
             half_w = box_width_disp / 2.0
@@ -852,7 +856,7 @@ class Overlay(QWidget):
                 )
             if self._show_axes:
                 painter.setPen(self._pen_axis)
-                axis_length = max(box_width_disp, box_height_disp)/2
+                axis_length = max(box_width_disp, box_height_disp) / 2
                 axis_x = center_x_disp + axis_length * cos_angle
                 axis_y = center_y_disp + axis_length * sin_angle
                 painter.drawLine(
@@ -901,11 +905,7 @@ class Overlay(QWidget):
         # Check if shift is pressed to choose if left and right arrow keys
         # move or rotate the box.
         def _is_shift_pressed() -> bool:
-            return (
-                event.modifiers()
-                ==
-                Qt.KeyboardModifier.ShiftModifier
-            )
+            return event.modifiers() == Qt.KeyboardModifier.ShiftModifier
 
         match event.key():
             # note: Y-axis movement is inverted.
@@ -929,8 +929,7 @@ class Overlay(QWidget):
                 return super().keyPressEvent(event)
 
         updated_bbox = replace(
-            selected_bbox, center_x=new_center_x, center_y=new_center_y,
-            theta=new_theta
+            selected_bbox, center_x=new_center_x, center_y=new_center_y, theta=new_theta
         )
 
         self._boxes[self._selected_idx] = updated_bbox
@@ -943,8 +942,7 @@ class Overlay(QWidget):
         # selected bbox still holds the old (unchanged) annotation.
         if (  # Check if the center has changed.
             new_center_x != selected_bbox.center_x
-            or
-            new_center_y != selected_bbox.center_y
+            or new_center_y != selected_bbox.center_y
         ):
             self.boxMoved.emit(
                 updated_bbox.object_id,
@@ -958,7 +956,7 @@ class Overlay(QWidget):
                 updated_bbox.object_id,
                 updated_bbox.width,
                 updated_bbox.height,
-                updated_bbox.theta
+                updated_bbox.theta,
             )
 
     def _on_cascade_size_to_all(self):

@@ -15,7 +15,6 @@ from PyQt6.QtWidgets import (
 from savant_app.frontend.exceptions import InvalidFrameRangeInput, MissingObjectIDError
 from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
 from savant_app.frontend.states.frontend_state import FrontendState
-from savant_app.frontend.types import BBoxDimensionData
 from savant_app.frontend.utils.undo import (
     BBoxGeometrySnapshot,
     CascadeBBoxCommand,
