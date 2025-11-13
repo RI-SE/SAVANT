@@ -1,12 +1,14 @@
 """Undo/redo toolkit for frontend annotation operations."""
 
-from .manager import UndoRedoContext, UndoRedoManager, UndoableCommand
+from .manager import UndoRedoManager
+from .commands import UndoableCommand
 from .gateways import (
     UndoGatewayError,
     ControllerAnnotationGateway,
     ControllerFrameTagGateway,
     AnnotationGateway,
     FrameTagGateway,
+    GatewayHolder,
 )
 from .snapshots import (
     BBoxGeometrySnapshot,
@@ -30,7 +32,7 @@ from .commands import (
 )
 
 __all__ = [
-    "UndoRedoContext",
+    "GatewayHolder",
     "UndoRedoManager",
     "UndoableCommand",
     "UndoGatewayError",

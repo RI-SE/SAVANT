@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence
-from .manager import UndoRedoContext, UndoableCommand
+from typing import Dict, List, Optional, Sequence, Protocol, runtime_checkable
 from .snapshots import (
     BBoxGeometrySnapshot,
     CreatedObjectSnapshot,
@@ -11,7 +10,20 @@ from .snapshots import (
     ObjectMetadataSnapshot,
     FrameTagSnapshot,
 )
-from .gateways import UndoGatewayError
+from .gateways import GatewayHolder, UndoGatewayError
+
+
+@runtime_checkable
+class UndoableCommand(Protocol):
+    """Protocol that every undoable command must follow."""
+
+    description: str
+
+    def do(self, context: GatewayHolder) -> None:
+        ...
+
+    def undo(self, context: GatewayHolder) -> None:
+        ...
 
 
 @dataclass
@@ -22,8 +34,9 @@ class CreateNewObjectBBoxCommand:
     description: str = "Create new object bounding box"
     _snapshot: Optional[CreatedObjectSnapshot] = field(default=None, init=False, repr=False)
 
-    def do(self, context: UndoRedoContext) -> None:
+    def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
+        # On first execution, create the object and capture snapshots for undo.
         if self._snapshot is None:
             self._snapshot = gateway.create_new_object_bbox(
                 frame_number=self.frame_number,
@@ -32,10 +45,11 @@ class CreateNewObjectBBoxCommand:
             )
             return
 
+        # On subsequent executions (redo), restore previously captured state.
         gateway.ensure_object_metadata(self._snapshot.metadata_snapshot)
         gateway.restore_bbox(self._snapshot.frame_snapshot)
 
-    def undo(self, context: UndoRedoContext) -> None:
+    def undo(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         if self._snapshot is None:
             return
@@ -54,7 +68,7 @@ class CreateExistingObjectBBoxCommand:
     description: str = "Create bounding box for existing object"
     _snapshot: Optional[FrameObjectSnapshot] = field(default=None, init=False, repr=False)
 
-    def do(self, context: UndoRedoContext) -> None:
+    def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         if self._snapshot is None:
             self._snapshot = gateway.create_existing_object_bbox(
@@ -65,7 +79,7 @@ class CreateExistingObjectBBoxCommand:
             return
         gateway.restore_bbox(self._snapshot)
 
-    def undo(self, context: UndoRedoContext) -> None:
+    def undo(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         if self._snapshot is None:
             return
@@ -83,7 +97,7 @@ class DeleteBBoxCommand:
     _snapshot: Optional[FrameObjectSnapshot] = field(default=None, init=False, repr=False)
     _exists: bool = field(default=False, init=False, repr=False)
 
-    def do(self, context: UndoRedoContext) -> None:
+    def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         snapshot = gateway.delete_bbox(
             frame_number=self.frame_number,
@@ -92,7 +106,7 @@ class DeleteBBoxCommand:
         self._snapshot = snapshot
         self._exists = snapshot is not None
 
-    def undo(self, context: UndoRedoContext) -> None:
+    def undo(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         if not self._exists or self._snapshot is None:
             return
@@ -108,7 +122,7 @@ class UpdateBBoxGeometryCommand:
     annotator: str
     description: str = "Update bounding box geometry"
 
-    def do(self, context: UndoRedoContext) -> None:
+    def do(self, context: GatewayHolder) -> None:
         context.annotation_gateway.apply_geometry(
             frame_number=self.frame_number,
             object_id=self.object_id,
@@ -116,7 +130,7 @@ class UpdateBBoxGeometryCommand:
             annotator=self.annotator,
         )
 
-    def undo(self, context: UndoRedoContext) -> None:
+    def undo(self, context: GatewayHolder) -> None:
         context.annotation_gateway.apply_geometry(
             frame_number=self.frame_number,
             object_id=self.object_id,
@@ -130,11 +144,11 @@ class CompositeCommand:
     description: str
     commands: Sequence[UndoableCommand]
 
-    def do(self, context: UndoRedoContext) -> None:
+    def do(self, context: GatewayHolder) -> None:
         for command in self.commands:
             command.do(context)
 
-    def undo(self, context: UndoRedoContext) -> None:
+    def undo(self, context: GatewayHolder) -> None:
         for command in reversed(self.commands):
             command.undo(context)
 
@@ -144,13 +158,13 @@ class AddFrameTagCommand:
     snapshot: FrameTagSnapshot
     description: str = "Add frame tag"
 
-    def do(self, context: UndoRedoContext) -> None:
+    def do(self, context: GatewayHolder) -> None:
         gateway = context.frame_tag_gateway
         if gateway is None:
             raise RuntimeError("No frame tag gateway configured.")
         gateway.add_frame_tag(self.snapshot)
 
-    def undo(self, context: UndoRedoContext) -> None:
+    def undo(self, context: GatewayHolder) -> None:
         gateway = context.frame_tag_gateway
         if gateway is None:
             raise RuntimeError("No frame tag gateway configured.")
@@ -171,7 +185,7 @@ class CascadeBBoxCommand:
     _after: Dict[int, BBoxGeometrySnapshot] = field(default_factory=dict, init=False, repr=False)
     _modified_frames: List[int] = field(default_factory=list, init=False, repr=False)
 
-    def do(self, context: UndoRedoContext) -> None:
+    def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         if not self._before:
             frames = gateway.frames_for_object(self.object_id)
@@ -209,7 +223,7 @@ class CascadeBBoxCommand:
                 annotator=self.annotator,
             )
 
-    def undo(self, context: UndoRedoContext) -> None:
+    def undo(self, context: GatewayHolder) -> None:
         if not self._before:
             return
         gateway = context.annotation_gateway
@@ -237,7 +251,7 @@ class LinkObjectIdsCommand:
         default=None, init=False, repr=False)
     _affected_frames: List[int] = field(default_factory=list, init=False, repr=False)
 
-    def do(self, context: UndoRedoContext) -> None:
+    def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         if not self._frame_snapshots:
             frames = gateway.frames_for_object(self.secondary_object_id)
@@ -252,7 +266,7 @@ class LinkObjectIdsCommand:
         )
         self._affected_frames = list(affected or [])
 
-    def undo(self, context: UndoRedoContext) -> None:
+    def undo(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         if not self._frame_snapshots and self._metadata_snapshot is None:
             return
@@ -289,7 +303,7 @@ class InterpolateAnnotationsCommand:
     def _intermediate_frames(self) -> List[int]:
         return [frame for frame in range(self.start_frame + 1, self.end_frame)]
 
-    def do(self, context: UndoRedoContext) -> None:
+    def do(self, context: GatewayHolder) -> None:
         frames = self._intermediate_frames()
         if not frames:
             return
@@ -318,7 +332,7 @@ class InterpolateAnnotationsCommand:
             gateway.set_interpolated_flag(frame, self.object_id, self._after_flags[frame])
         self._affected_frames = frames
 
-    def undo(self, context: UndoRedoContext) -> None:
+    def undo(self, context: GatewayHolder) -> None:
         frames = self._intermediate_frames()
         if not frames:
             return
@@ -343,13 +357,13 @@ class RemoveFrameTagCommand:
     snapshot: FrameTagSnapshot
     description: str = "Remove frame tag"
 
-    def do(self, context: UndoRedoContext) -> None:
+    def do(self, context: GatewayHolder) -> None:
         gateway = context.frame_tag_gateway
         if gateway is None:
             raise RuntimeError("No frame tag gateway configured.")
         gateway.remove_frame_tag(self.snapshot)
 
-    def undo(self, context: UndoRedoContext) -> None:
+    def undo(self, context: GatewayHolder) -> None:
         gateway = context.frame_tag_gateway
         if gateway is None:
             raise RuntimeError("No frame tag gateway configured.")
@@ -365,7 +379,7 @@ class ResolveConfidenceCommand:
     _before_snapshot: Optional[FrameObjectSnapshot] = field(default=None, init=False, repr=False)
     _after_snapshot: Optional[FrameObjectSnapshot] = field(default=None, init=False, repr=False)
 
-    def do(self, context: UndoRedoContext) -> None:
+    def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         if self._after_snapshot is None:
             self._before_snapshot = gateway.capture_frame_object(
@@ -383,7 +397,7 @@ class ResolveConfidenceCommand:
         else:
             gateway.restore_bbox(self._after_snapshot.clone())
 
-    def undo(self, context: UndoRedoContext) -> None:
+    def undo(self, context: GatewayHolder) -> None:
         if self._before_snapshot is None:
             return
         gateway = context.annotation_gateway

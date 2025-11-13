@@ -42,7 +42,7 @@ from savant_app.frontend.utils import (
 )
 from savant_app.frontend.utils.undo import (
     UndoRedoManager,
-    UndoRedoContext,
+    GatewayHolder,
     ControllerAnnotationGateway,
     ControllerFrameTagGateway,
 )
@@ -67,7 +67,7 @@ class MainWindow(QMainWindow):
         self.project_state_controller = project_state_controller
 
         self.undo_manager = UndoRedoManager()
-        self.undo_context = UndoRedoContext(
+        self.undo_context = GatewayHolder(
             annotation_gateway=ControllerAnnotationGateway(
                 annotation_controller=self.annotation_controller,
                 project_state_controller=self.project_state_controller,

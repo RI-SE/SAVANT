@@ -159,12 +159,12 @@ def _apply_geometry_update(
     main_window,
     object_id: str,
     annotator: str,
-    builder,
+    snapshot_builder,
 ) -> None:
     frame_number = int(main_window.video_controller.current_index())
     gateway = main_window.undo_context.annotation_gateway
     before_snapshot = gateway.capture_geometry(frame_number, object_id)
-    after_snapshot = builder(before_snapshot)
+    after_snapshot = snapshot_builder(before_snapshot)
     command = UpdateBBoxGeometryCommand(
         frame_number=frame_number,
         object_id=object_id,
@@ -268,7 +268,7 @@ def _moved(main_window, object_id: str, x: float, y: float, annotator: str):
     if not object_id:
         return
 
-    def _builder(before: BBoxGeometrySnapshot) -> BBoxGeometrySnapshot:
+    def snapshot_builder(before: BBoxGeometrySnapshot) -> BBoxGeometrySnapshot:
         return BBoxGeometrySnapshot(
             center_x=x,
             center_y=y,
@@ -277,7 +277,7 @@ def _moved(main_window, object_id: str, x: float, y: float, annotator: str):
             rotation=before.rotation,
         )
 
-    _apply_geometry_update(main_window, object_id, annotator, _builder)
+    _apply_geometry_update(main_window, object_id, annotator, snapshot_builder)
 
 
 def _resized(
@@ -293,7 +293,7 @@ def _resized(
     if not object_id:
         return
 
-    def _builder(before: BBoxGeometrySnapshot) -> BBoxGeometrySnapshot:
+    def snapshot_builder(before: BBoxGeometrySnapshot) -> BBoxGeometrySnapshot:
         return BBoxGeometrySnapshot(
             center_x=x,
             center_y=y,
@@ -302,7 +302,7 @@ def _resized(
             rotation=rotation if rotation is not None else before.rotation,
         )
 
-    _apply_geometry_update(main_window, object_id, annotator, _builder)
+    _apply_geometry_update(main_window, object_id, annotator, snapshot_builder)
 
 
 def _rotated(
@@ -316,7 +316,7 @@ def _rotated(
     if not object_id:
         return
 
-    def _builder(before: BBoxGeometrySnapshot) -> BBoxGeometrySnapshot:
+    def snapshot_builder(before: BBoxGeometrySnapshot) -> BBoxGeometrySnapshot:
         return BBoxGeometrySnapshot(
             center_x=before.center_x,
             center_y=before.center_y,
@@ -325,7 +325,7 @@ def _rotated(
             rotation=rotation if rotation is not None else before.rotation,
         )
 
-    _apply_geometry_update(main_window, object_id, annotator, _builder)
+    _apply_geometry_update(main_window, object_id, annotator, snapshot_builder)
 
 
 def _frames_to_ranges(frames: list[int]) -> str:

@@ -2,29 +2,9 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Optional, Protocol, runtime_checkable
-from .gateways import AnnotationGateway, FrameTagGateway
-
-
-@runtime_checkable
-class UndoableCommand(Protocol):
-    """Protocol that every undoable command must follow."""
-
-    description: str
-
-    def do(self, context: "UndoRedoContext") -> None:
-        ...
-
-    def undo(self, context: "UndoRedoContext") -> None:
-        ...
-
-
-@dataclass
-class UndoRedoContext:
-    """Holds the gateways needed to execute commands."""
-
-    annotation_gateway: AnnotationGateway
-    frame_tag_gateway: Optional[FrameTagGateway] = None
+from typing import Optional
+from .gateways import GatewayHolder
+from .commands import UndoableCommand
 
 
 @dataclass
@@ -44,12 +24,12 @@ class UndoRedoManager:
     def can_redo(self) -> bool:
         return bool(self._redo_stack)
 
-    def execute(self, command: UndoableCommand, context: UndoRedoContext) -> None:
+    def execute(self, command: UndoableCommand, context: GatewayHolder) -> None:
         command.do(context)
         self._undo_stack.append(command)
         self._redo_stack.clear()
 
-    def undo(self, context: UndoRedoContext) -> Optional[UndoableCommand]:
+    def undo(self, context: GatewayHolder) -> Optional[UndoableCommand]:
         if not self._undo_stack:
             return None
         command = self._undo_stack.pop()
@@ -57,7 +37,7 @@ class UndoRedoManager:
         self._redo_stack.append(command)
         return command
 
-    def redo(self, context: UndoRedoContext) -> Optional[UndoableCommand]:
+    def redo(self, context: GatewayHolder) -> Optional[UndoableCommand]:
         if not self._redo_stack:
             return None
         command = self._redo_stack.pop()

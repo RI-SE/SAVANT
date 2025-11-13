@@ -9,7 +9,7 @@ from savant_app.frontend.utils.undo import (
     CascadeBBoxCommand,
     DeleteBBoxCommand,
     FrameObjectSnapshot,
-    UndoRedoContext,
+    GatewayHolder,
     UndoRedoManager,
 )
 
@@ -21,10 +21,10 @@ class DummyCommand:
         self.do_calls = 0
         self.undo_calls = 0
 
-    def do(self, context: UndoRedoContext) -> None:  # pragma: no cover - context unused
+    def do(self, context: GatewayHolder) -> None:  # pragma: no cover - context unused
         self.do_calls += 1
 
-    def undo(self, context: UndoRedoContext) -> None:  # pragma: no cover - context unused
+    def undo(self, context: GatewayHolder) -> None:  # pragma: no cover - context unused
         self.undo_calls += 1
 
 
@@ -113,7 +113,7 @@ class FakeCascadeGateway:
 @pytest.fixture()
 def undo_context():
     # Commands under test only use annotation gateway
-    return UndoRedoContext(annotation_gateway=SimpleNamespace())
+    return GatewayHolder(annotation_gateway=SimpleNamespace())
 
 
 def test_undo_redo_manager_tracks_command_lifecycle(undo_context):
@@ -138,7 +138,7 @@ def test_undo_redo_manager_tracks_command_lifecycle(undo_context):
 
 def test_delete_bbox_command_restores_snapshot_on_undo():
     gateway = FakeDeleteGateway()
-    context = UndoRedoContext(annotation_gateway=gateway)
+    context = GatewayHolder(annotation_gateway=gateway)
     command = DeleteBBoxCommand(frame_number=5, object_id="obj-9")
 
     command.do(context)
@@ -156,7 +156,7 @@ def test_delete_bbox_command_restores_snapshot_on_undo():
 
 def test_cascade_bbox_command_restores_original_geometry_after_undo():
     gateway = FakeCascadeGateway()
-    context = UndoRedoContext(annotation_gateway=gateway)
+    context = GatewayHolder(annotation_gateway=gateway)
     command = CascadeBBoxCommand(
         object_id="obj-1",
         frame_start=1,

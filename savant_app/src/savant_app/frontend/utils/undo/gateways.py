@@ -118,6 +118,14 @@ class FrameTagGateway(Protocol):
         ...
 
 
+@dataclass
+class GatewayHolder:
+    """Gateway bundle exposed to undo/redo commands."""
+
+    annotation_gateway: AnnotationGateway
+    frame_tag_gateway: Optional[FrameTagGateway] = None
+
+
 class UndoGatewayError(RuntimeError):
     """Raised when the undo gateway encounters an inconsistent state."""
 
