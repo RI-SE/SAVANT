@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QHBoxLayout,
     QFileDialog,
-    QComboBox,  # Added for recent objects dropdown
+    QComboBox,
     QFormLayout,
     QSpinBox,
     QMessageBox,
@@ -45,6 +45,7 @@ from savant_app.frontend.theme.constants import (
     get_warning_icon,
     get_error_icon,
 )
+from savant_app.frontend.theme.sidebar_styles import apply_issue_sort_button_style
 from savant_app.frontend.widgets.interpolation_dialog import InterpolationDialog
 from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
 from savant_app.frontend.utils.undo import (
@@ -97,6 +98,8 @@ class Sidebar(QWidget):
         self._current_confidence_issues: dict[int, list] = {}
         self._warning_icon = self._create_confidence_icon(get_warning_icon())
         self._error_icon = self._create_confidence_icon(get_error_icon())
+        self._confidence_sort_mode: str = "frame"
+        self._confidence_sort_ascending: bool = True
 
         # --- Horizontal layout for New / Load / Save ---
         top_buttons_layout = QHBoxLayout()
@@ -177,7 +180,30 @@ class Sidebar(QWidget):
         )
         main_layout.addWidget(self.active_objects)
 
-        main_layout.addWidget(QLabel("Warnings & Errors"))
+        warnings_header = QVBoxLayout()
+        title_row = QHBoxLayout()
+        title_row.addWidget(QLabel("Issues:"))
+        title_row.addStretch(1)
+        sort_controls = QHBoxLayout()
+        sort_controls.setSpacing(12)
+        self._frame_sort_btn = QPushButton()
+        self._frame_sort_btn.setFlat(True)
+        self._frame_sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._frame_sort_btn.clicked.connect(
+            lambda: self._change_confidence_sort_mode("frame")
+        )
+        sort_controls.addWidget(self._frame_sort_btn)
+        self._id_sort_btn = QPushButton()
+        self._id_sort_btn.setFlat(True)
+        self._id_sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._id_sort_btn.clicked.connect(
+            lambda: self._change_confidence_sort_mode("object_id")
+        )
+        sort_controls.addWidget(self._id_sort_btn)
+        title_row.addLayout(sort_controls)
+        warnings_header.addLayout(title_row)
+        main_layout.addLayout(warnings_header)
+        self._update_confidence_sort_buttons()
         self.confidence_issue_list = QListWidget()
         self.confidence_issue_list.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection
@@ -207,7 +233,7 @@ class Sidebar(QWidget):
         main_layout.addWidget(self.confidence_issue_list)
 
         # --- Active Frame Tags ---
-        main_layout.addWidget(QLabel("Frame Tags"))
+        main_layout.addWidget(QLabel("Frame Tags:"))
         self.frame_tag_list = QListWidget()
         self.frame_tag_list.setMinimumHeight(100)
         self.frame_tag_list.model().rowsInserted.connect(self.adjust_list_sizes)
@@ -362,13 +388,51 @@ class Sidebar(QWidget):
                 entries.append((frame_index, str(object_id), severity))
 
         entries.sort(
-            key=lambda value: (
-                value[0],
-                0 if value[2] == "error" else 1,
-                value[1],
-            )
+            key=self._confidence_issue_sort_key,
+            reverse=not self._confidence_sort_ascending,
         )
         return entries
+
+    def _confidence_issue_sort_key(self, value: tuple[int, str, str]):
+        if self._confidence_sort_mode == "object_id":
+            return self._object_id_sort_value(value[1])
+        return value[0]
+
+    def _object_id_sort_value(self, object_id: str) -> tuple[int, int | str]:
+        obj = str(object_id)
+        if obj.isdigit():
+            return (0, int(obj))
+        return (1, obj)
+
+    def _change_confidence_sort_mode(self, mode: str) -> None:
+        if self._confidence_sort_mode == mode:
+            self._confidence_sort_ascending = not self._confidence_sort_ascending
+        else:
+            self._confidence_sort_mode = mode
+            self._confidence_sort_ascending = True
+        self._update_confidence_sort_buttons()
+        self.refresh_confidence_issue_list()
+
+    def _update_confidence_sort_buttons(self) -> None:
+        frame_arrow = ""
+        id_arrow = ""
+        if self._confidence_sort_mode == "frame":
+            frame_arrow = "↑" if self._confidence_sort_ascending else "↓"
+        else:
+            id_arrow = "↑" if self._confidence_sort_ascending else "↓"
+        self._frame_sort_btn.setText(f"Frame {frame_arrow}".strip())
+        self._id_sort_btn.setText(f"ID {id_arrow}".strip())
+        palette = self.palette()
+        apply_issue_sort_button_style(
+            self._frame_sort_btn,
+            active=self._confidence_sort_mode == "frame",
+            palette=palette,
+        )
+        apply_issue_sort_button_style(
+            self._id_sort_btn,
+            active=self._confidence_sort_mode == "object_id",
+            palette=palette,
+        )
 
     def _confidence_icon_for(self, severity: str) -> QIcon:
         return self._error_icon if severity == "error" else self._warning_icon
@@ -776,6 +840,11 @@ class Sidebar(QWidget):
                 event.accept()
                 return True
         return super().eventFilter(obj, event)
+
+    def changeEvent(self, event: QEvent) -> None:
+        if event.type() == QEvent.Type.PaletteChange:
+            self._update_confidence_sort_buttons()
+        super().changeEvent(event)
 
     def _delete_selected_frame_tag(self):
         item = self.frame_tag_list.currentItem()
