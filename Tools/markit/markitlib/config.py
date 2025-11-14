@@ -24,7 +24,7 @@ __version__ = '2.0.1'
 class Constants:
     """Constants used throughout the application."""
     MP4V_FOURCC = "mp4v"
-    SCHEMA_VERSION = "0.1"
+    SCHEMA_VERSION = "1.0"
     ANNOTATOR_NAME = f"SAVANT Markit {__version__}"
     ONTOLOGY_URL = "https://savant.ri.se/savant_ontology_1.2.0.ttl"
     # Fallback class map used when ontology file cannot be loaded

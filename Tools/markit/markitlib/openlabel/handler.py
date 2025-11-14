@@ -113,7 +113,8 @@ class OpenLabelHandler:
             "annotator": Constants.ANNOTATOR_NAME,
             "comment": f"Multi-engine object detection and tracking analysis of {os.path.basename(video_path)}",
             "tags": ["object_detection", "tracking", "yolo", "optical_flow", "savant"],
-            "schema_version": Constants.SCHEMA_VERSION
+            "schema_version": Constants.SCHEMA_VERSION,
+            "tagged_file": os.path.basename(video_path)
         }
 
         if "openlabel" in self.openlabel_data and "metadata" in self.openlabel_data["openlabel"]:
