@@ -102,7 +102,7 @@ We only use one type, which is rotated bounding box which is a rectangle with an
     } 
 ```
 
-![RBBOX](rbbox.svg)
+![RBBOX](doc/OpenLabel_rbbox.svg)
 
 ## SAVANT Ontology
 
