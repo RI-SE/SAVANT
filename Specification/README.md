@@ -179,13 +179,3 @@ _We will use and record absolute coordinates for Aruca markers. This object coul
 | Decelerate | 307 | Motion |||
 | LaneChangeRight | 308 | Motion |||
 | LaneChangeLeft | 309 | Motion |||
-
-### Map tags
-_NOTE: DONT KNOW IF WE WANT AND NEED THIS FOR MAP CREATION OR IF WE DO THIS SEPARATELY FROM THE ANNOTATION_
-| Tag | UID | Parent | Auto | Description |
-|:---:|:---:|:---:|:---:|:---:|
-| Lane | 40 | Map | ||
-| BikeLane | 41 | Map | ||
-| Pavement | 42 | Map | ||
-
-_We may need to be able to mark lanes to be able to create OpenDrive and to place objects relative to the lane. Still TBD how to handle this, e.g. direction of lane, how to mark lanes in crossing or roundabout etc. Lanes could be marked with 2Dpolyline (intead of rbbox like dynamic objects)._
