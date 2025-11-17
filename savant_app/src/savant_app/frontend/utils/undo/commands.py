@@ -19,11 +19,9 @@ class UndoableCommand(Protocol):
 
     description: str
 
-    def do(self, context: GatewayHolder) -> None:
-        ...
+    def do(self, context: GatewayHolder) -> None: ...
 
-    def undo(self, context: GatewayHolder) -> None:
-        ...
+    def undo(self, context: GatewayHolder) -> None: ...
 
 
 @dataclass
@@ -32,7 +30,9 @@ class CreateNewObjectBBoxCommand:
     bbox_info: dict
     annotator: str
     description: str = "Create new object bounding box"
-    _snapshot: Optional[CreatedObjectSnapshot] = field(default=None, init=False, repr=False)
+    _snapshot: Optional[CreatedObjectSnapshot] = field(
+        default=None, init=False, repr=False
+    )
 
     def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
@@ -66,7 +66,9 @@ class CreateExistingObjectBBoxCommand:
     bbox_info: dict
     annotator: str
     description: str = "Create bounding box for existing object"
-    _snapshot: Optional[FrameObjectSnapshot] = field(default=None, init=False, repr=False)
+    _snapshot: Optional[FrameObjectSnapshot] = field(
+        default=None, init=False, repr=False
+    )
 
     def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
@@ -94,7 +96,9 @@ class DeleteBBoxCommand:
     frame_number: int
     object_id: str
     description: str = "Delete bounding box"
-    _snapshot: Optional[FrameObjectSnapshot] = field(default=None, init=False, repr=False)
+    _snapshot: Optional[FrameObjectSnapshot] = field(
+        default=None, init=False, repr=False
+    )
     _exists: bool = field(default=False, init=False, repr=False)
 
     def do(self, context: GatewayHolder) -> None:
@@ -181,8 +185,12 @@ class CascadeBBoxCommand:
     rotation: Optional[float]
     annotator: str
     description: str = "Cascade bounding box update"
-    _before: Dict[int, BBoxGeometrySnapshot] = field(default_factory=dict, init=False, repr=False)
-    _after: Dict[int, BBoxGeometrySnapshot] = field(default_factory=dict, init=False, repr=False)
+    _before: Dict[int, BBoxGeometrySnapshot] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _after: Dict[int, BBoxGeometrySnapshot] = field(
+        default_factory=dict, init=False, repr=False
+    )
     _modified_frames: List[int] = field(default_factory=list, init=False, repr=False)
 
     def do(self, context: GatewayHolder) -> None:
@@ -246,9 +254,11 @@ class LinkObjectIdsCommand:
     secondary_object_id: str
     description: str = "Link object IDs"
     _frame_snapshots: List[FrameObjectSnapshot] = field(
-        default_factory=list, init=False, repr=False)
+        default_factory=list, init=False, repr=False
+    )
     _metadata_snapshot: Optional[ObjectMetadataSnapshot] = field(
-        default=None, init=False, repr=False)
+        default=None, init=False, repr=False
+    )
     _affected_frames: List[int] = field(default_factory=list, init=False, repr=False)
 
     def do(self, context: GatewayHolder) -> None:
@@ -259,7 +269,9 @@ class LinkObjectIdsCommand:
                 snapshot = gateway.capture_frame_object(frame, self.secondary_object_id)
                 if snapshot is not None:
                     self._frame_snapshots.append(snapshot.clone())
-            self._metadata_snapshot = gateway.capture_object_metadata(self.secondary_object_id)
+            self._metadata_snapshot = gateway.capture_object_metadata(
+                self.secondary_object_id
+            )
         affected = gateway.link_object_ids(
             self.primary_object_id,
             self.secondary_object_id,
@@ -293,10 +305,12 @@ class InterpolateAnnotationsCommand:
     annotator: str
     description: str = "Interpolate bounding boxes"
     _before_snapshots: Dict[int, Optional[FrameObjectSnapshot]] = field(
-        default_factory=dict, init=False, repr=False)
+        default_factory=dict, init=False, repr=False
+    )
     _before_flags: Dict[int, bool] = field(default_factory=dict, init=False, repr=False)
     _after_snapshots: Dict[int, FrameObjectSnapshot] = field(
-        default_factory=dict, init=False, repr=False)
+        default_factory=dict, init=False, repr=False
+    )
     _after_flags: Dict[int, bool] = field(default_factory=dict, init=False, repr=False)
     _affected_frames: List[int] = field(default_factory=list, init=False, repr=False)
 
@@ -312,7 +326,9 @@ class InterpolateAnnotationsCommand:
             for frame in frames:
                 snapshot = gateway.capture_frame_object(frame, self.object_id)
                 self._before_snapshots[frame] = snapshot.clone() if snapshot else None
-                self._before_flags[frame] = gateway.is_interpolated(frame, self.object_id)
+                self._before_flags[frame] = gateway.is_interpolated(
+                    frame, self.object_id
+                )
         gateway.interpolate_annotations(
             self.object_id,
             self.start_frame,
@@ -329,7 +345,9 @@ class InterpolateAnnotationsCommand:
                 )
             self._after_snapshots[frame] = snapshot.clone()
             self._after_flags[frame] = gateway.is_interpolated(frame, self.object_id)
-            gateway.set_interpolated_flag(frame, self.object_id, self._after_flags[frame])
+            gateway.set_interpolated_flag(
+                frame, self.object_id, self._after_flags[frame]
+            )
         self._affected_frames = frames
 
     def undo(self, context: GatewayHolder) -> None:
@@ -376,8 +394,12 @@ class ResolveConfidenceCommand:
     object_id: str
     annotator: str
     description: str = "Resolve confidence issue"
-    _before_snapshot: Optional[FrameObjectSnapshot] = field(default=None, init=False, repr=False)
-    _after_snapshot: Optional[FrameObjectSnapshot] = field(default=None, init=False, repr=False)
+    _before_snapshot: Optional[FrameObjectSnapshot] = field(
+        default=None, init=False, repr=False
+    )
+    _after_snapshot: Optional[FrameObjectSnapshot] = field(
+        default=None, init=False, repr=False
+    )
 
     def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway

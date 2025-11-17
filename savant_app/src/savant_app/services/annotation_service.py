@@ -150,12 +150,14 @@ class AnnotationService:
         frame_key: Union[int, str],
         object_key: Union[int, str],
         bbox_index: int = 0,
-    ) -> RotatedBBox:
+    ) -> Optional[RotatedBBox]:
         """
         Read a bbox from the current annotation config (model).
         """
         openlabel_model: OpenLabel = self.project_state.annotation_config
         try:
+            if object_key is None:
+                return None
             return openlabel_model.get_bbox(
                 frame_key=frame_key,
                 object_key=object_key,

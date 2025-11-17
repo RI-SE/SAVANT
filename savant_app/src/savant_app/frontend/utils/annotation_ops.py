@@ -11,10 +11,10 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QVBoxLayout,
 )
+
 from savant_app.frontend.exceptions import InvalidFrameRangeInput, MissingObjectIDError
 from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
 from savant_app.frontend.states.frontend_state import FrontendState
-from .render import refresh_frame
 from savant_app.frontend.utils.undo import (
     BBoxGeometrySnapshot,
     CascadeBBoxCommand,
@@ -27,6 +27,8 @@ from savant_app.frontend.utils.undo import (
     UpdateBBoxGeometryCommand,
 )
 from savant_app.services.exceptions import VideoLoadError
+
+from .render import refresh_frame
 
 
 def wire(main_window, frontend_state: FrontendState):

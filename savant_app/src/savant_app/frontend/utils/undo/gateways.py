@@ -18,18 +18,17 @@ from .snapshots import (
 class AnnotationGateway(Protocol):
     """Minimal API the commands expect for bbox/object changes."""
 
-    def capture_geometry(self, frame_number: int, object_id: str) -> BBoxGeometrySnapshot:
-        ...
+    def capture_geometry(
+        self, frame_number: int, object_id: str
+    ) -> BBoxGeometrySnapshot: ...
 
     def capture_frame_object(
         self, frame_number: int, object_id: str
-    ) -> Optional[FrameObjectSnapshot]:
-        ...
+    ) -> Optional[FrameObjectSnapshot]: ...
 
     def capture_object_metadata(
         self, object_id: str
-    ) -> Optional[ObjectMetadataSnapshot]:
-        ...
+    ) -> Optional[ObjectMetadataSnapshot]: ...
 
     def apply_geometry(
         self,
@@ -37,33 +36,29 @@ class AnnotationGateway(Protocol):
         object_id: str,
         geometry: BBoxGeometrySnapshot,
         annotator: str,
-    ) -> None:
-        ...
+    ) -> None: ...
 
-    def delete_bbox(self, frame_number: int, object_id: str) -> Optional[FrameObjectSnapshot]:
-        ...
+    def delete_bbox(
+        self, frame_number: int, object_id: str
+    ) -> Optional[FrameObjectSnapshot]: ...
 
-    def restore_bbox(self, snapshot: FrameObjectSnapshot) -> None:
-        ...
+    def restore_bbox(self, snapshot: FrameObjectSnapshot) -> None: ...
 
-    def ensure_object_metadata(self, metadata_snapshot: ObjectMetadataSnapshot) -> None:
-        ...
+    def ensure_object_metadata(
+        self, metadata_snapshot: ObjectMetadataSnapshot
+    ) -> None: ...
 
-    def remove_object_metadata_if_unused(self, object_id: str) -> None:
-        ...
+    def remove_object_metadata_if_unused(self, object_id: str) -> None: ...
 
     def create_new_object_bbox(
         self, frame_number: int, bbox_info: dict, annotator: str
-    ) -> CreatedObjectSnapshot:
-        ...
+    ) -> CreatedObjectSnapshot: ...
 
     def create_existing_object_bbox(
         self, frame_number: int, bbox_info: dict, annotator: str
-    ) -> FrameObjectSnapshot:
-        ...
+    ) -> FrameObjectSnapshot: ...
 
-    def frames_for_object(self, object_id: str) -> List[int]:
-        ...
+    def frames_for_object(self, object_id: str) -> List[int]: ...
 
     def interpolate_annotations(
         self,
@@ -71,16 +66,13 @@ class AnnotationGateway(Protocol):
         start_frame: int,
         end_frame: int,
         annotator: str,
-    ) -> None:
-        ...
+    ) -> None: ...
 
-    def is_interpolated(self, frame_number: int, object_id: str) -> bool:
-        ...
+    def is_interpolated(self, frame_number: int, object_id: str) -> bool: ...
 
     def set_interpolated_flag(
         self, frame_number: int, object_id: str, interpolated: bool
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def cascade_bbox_edit(
         self,
@@ -91,31 +83,26 @@ class AnnotationGateway(Protocol):
         height: Optional[float],
         rotation: Optional[float],
         annotator: str,
-    ) -> List[int]:
-        ...
+    ) -> List[int]: ...
 
     def link_object_ids(
         self,
         primary_object_id: str,
         secondary_object_id: str,
-    ) -> List[int]:
-        ...
+    ) -> List[int]: ...
 
     def mark_confidence_resolved(
         self, frame_number: int, object_id: str, annotator: str
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 @runtime_checkable
 class FrameTagGateway(Protocol):
     """API for adding/removing frame tags."""
 
-    def add_frame_tag(self, snapshot: FrameTagSnapshot) -> None:
-        ...
+    def add_frame_tag(self, snapshot: FrameTagSnapshot) -> None: ...
 
-    def remove_frame_tag(self, snapshot: FrameTagSnapshot) -> None:
-        ...
+    def remove_frame_tag(self, snapshot: FrameTagSnapshot) -> None: ...
 
 
 @dataclass
@@ -156,7 +143,9 @@ class ControllerAnnotationGateway:
             project_state.interpolation_metadata = metadata
         return metadata
 
-    def capture_geometry(self, frame_number: int, object_id: str) -> BBoxGeometrySnapshot:
+    def capture_geometry(
+        self, frame_number: int, object_id: str
+    ) -> BBoxGeometrySnapshot:
         bbox = self.annotation_controller.get_bbox(
             frame_key=frame_number,
             object_key=object_id,
@@ -212,9 +201,12 @@ class ControllerAnnotationGateway:
             annotator=annotator,
         )
 
-    def delete_bbox(self, frame_number: int, object_id: str) -> Optional[FrameObjectSnapshot]:
+    def delete_bbox(
+        self, frame_number: int, object_id: str
+    ) -> Optional[FrameObjectSnapshot]:
         removed = self.annotation_controller.delete_bbox(
-            frame_key=frame_number, object_key=object_id)
+            frame_key=frame_number, object_key=object_id
+        )
         if removed is None:
             return None
         return FrameObjectSnapshot(

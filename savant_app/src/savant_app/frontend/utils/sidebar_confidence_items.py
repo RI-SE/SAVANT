@@ -33,14 +33,24 @@ class SidebarConfidenceIssueItemDelegate(QStyledItemDelegate):
         )
 
         full_rect = option_copy.rect
-        text_rect = QRect(full_rect.left(), full_rect.top(),
-                          full_rect.width() - icon_side - spacing, full_rect.height())
+        text_rect = QRect(
+            full_rect.left(),
+            full_rect.top(),
+            full_rect.width() - icon_side - spacing,
+            full_rect.height(),
+        )
         option_copy.rect = text_rect
         option_copy.icon = QIcon()
 
-        style = option_copy.widget.style() if option_copy.widget else QApplication.style()
-        style.drawControl(QStyle.ControlElement.CE_ItemViewItem,
-                          option_copy, painter, option_copy.widget)
+        style = (
+            option_copy.widget.style() if option_copy.widget else QApplication.style()
+        )
+        style.drawControl(
+            QStyle.ControlElement.CE_ItemViewItem,
+            option_copy,
+            painter,
+            option_copy.widget,
+        )
 
         if not has_icon:
             return

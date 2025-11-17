@@ -54,7 +54,9 @@ from savant_app.frontend.utils.undo import (
     InterpolateAnnotationsCommand,
 )
 from savant_app.services.exceptions import VideoLoadError
-from savant_app.frontend.utils.sidebar_confidence_items import SidebarConfidenceIssueItemDelegate
+from savant_app.frontend.utils.sidebar_confidence_items import (
+    SidebarConfidenceIssueItemDelegate,
+)
 
 
 class Sidebar(QWidget):
@@ -193,16 +195,16 @@ class Sidebar(QWidget):
         self.confidence_issue_list.setItemDelegate(
             SidebarConfidenceIssueItemDelegate(self.confidence_issue_list)
         )
-        self.confidence_issue_list.setStyleSheet("QListWidget::item { padding-left: 0px; }")
+        self.confidence_issue_list.setStyleSheet(
+            "QListWidget::item { padding-left: 0px; }"
+        )
         self.confidence_issue_list.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu
         )
         self.confidence_issue_list.customContextMenuRequested.connect(
             self._show_confidence_issue_context_menu
         )
-        self.confidence_issue_list.model().rowsInserted.connect(
-            self.adjust_list_sizes
-        )
+        self.confidence_issue_list.model().rowsInserted.connect(self.adjust_list_sizes)
         self.confidence_issue_list.model().rowsRemoved.connect(self.adjust_list_sizes)
         main_layout.addWidget(self.confidence_issue_list)
 
@@ -224,9 +226,7 @@ class Sidebar(QWidget):
         self.frontend_state.confidenceIssuesChanged.connect(
             self._on_confidence_issues_changed
         )
-        self._current_confidence_issues = dict(
-            self.frontend_state.confidence_issues()
-        )
+        self._current_confidence_issues = dict(self.frontend_state.confidence_issues())
         self.refresh_confidence_issue_list()
 
         self.setLayout(main_layout)
@@ -956,9 +956,7 @@ class Sidebar(QWidget):
             return
 
         host_window = self.window()
-        if host_window is not None and hasattr(
-            host_window, "execute_undoable_command"
-        ):
+        if host_window is not None and hasattr(host_window, "execute_undoable_command"):
             command = InterpolateAnnotationsCommand(
                 object_id=str(object_id),
                 start_frame=int(start_frame),
