@@ -405,8 +405,8 @@ class Overlay(QWidget):
             current_angle = math.atan2(
                 cursor_video_y - original_cy, cursor_video_x - original_cx
             )
-            
-            incremental_delta = current_angle - self._last_angle
+
+            incremental_delta = current_angle - self._last_mouseframe_angle
 
             if incremental_delta > math.pi:
                 incremental_delta -= 2 * math.pi

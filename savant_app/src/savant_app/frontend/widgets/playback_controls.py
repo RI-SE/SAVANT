@@ -136,7 +136,10 @@ class PlaybackControls(QWidget):
                 Size (w, h): <b>{annotation_details.width:.2f},
                 {annotation_details.height:.2f}</b>
             """
-            rot_str = f"Rotation: <b>{annotation_details.rotation:.1f}°</b>"
+            rot_str = f"""
+                Rotation: <b>{annotation_details.rotation:.1f} Radians
+                </b>
+            """
 
             self.center_label.setText(center_str)
             self.size_label.setText(size_str)
