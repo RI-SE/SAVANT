@@ -6,17 +6,13 @@ from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import QWidget
 
-from savant_app.frontend.theme.constants import (
-    OVERLAY_CONFIDENCE_ICON_SIZE,
-    OVERLAY_ICON_SPACING,
-    get_error_icon,
-    get_warning_icon,
-)
+from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
+                                                 OVERLAY_ICON_SPACING,
+                                                 get_error_icon,
+                                                 get_warning_icon)
 from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
-from savant_app.frontend.utils.settings_store import (
-    get_movement_sensitivity,
-    get_rotation_sensitivity,
-)
+from savant_app.frontend.utils.settings_store import (get_movement_sensitivity,
+                                                      get_rotation_sensitivity)
 from savant_app.frontend.widgets.cascade_button import CascadeButton
 from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 
@@ -66,7 +62,7 @@ class Overlay(QWidget):
         self._boxes: List[BBoxData] = []
 
         # This flag flips the sign if needed (Rotation of boxes).
-        self._theta_is_clockwise: bool = False
+        self._theta_is_anticlockwise: bool = False
 
         # Debug helpers (Shows the center and axes of the boxes)
         self._show_centers: bool = True
@@ -155,9 +151,9 @@ class Overlay(QWidget):
                     self._boxes.append(box)
         self.update()
 
-    def set_theta_clockwise(self, clockwise: bool):
+    def set_theta_direction(self, is_anticlockwise: bool):
         """If your dataset's theta increases clockwise, keep False (default)."""
-        self._theta_is_clockwise = clockwise
+        self._theta_is_anticlockwise = is_anticlockwise
         self.update()
 
     def show_centers(self, enabled: bool):
@@ -289,6 +285,8 @@ class Overlay(QWidget):
             py = (self._press_pos_disp.y() - off_y) / scale
             self._press_angle = math.atan2(py - cy0, px - cx0)
             self._orig_theta = self._orig_box.theta
+            self._last_mouseframe_angle = self._press_angle
+            self._total_delta = 0.0
 
         self.update()
         ev.accept()
@@ -366,7 +364,7 @@ class Overlay(QWidget):
             new_cy = original_cy + delta_y_video
 
         elif self._drag_mode in ("E", "W", "N", "S"):
-            angle_rad = -theta if self._theta_is_clockwise else theta
+            angle_rad = -theta if self._theta_is_anticlockwise else theta
             ct = math.cos(angle_rad)
             st = math.sin(angle_rad)
 
@@ -407,15 +405,24 @@ class Overlay(QWidget):
             current_angle = math.atan2(
                 cursor_video_y - original_cy, cursor_video_x - original_cx
             )
-            delta_theta = current_angle - self._press_angle
-            if delta_theta > math.pi:
-                delta_theta -= 2 * math.pi
-            if delta_theta <= -math.pi:
-                delta_theta += 2 * math.pi
-            if self._theta_is_clockwise:
-                theta = self._orig_theta - delta_theta
+            
+            incremental_delta = current_angle - self._last_angle
+
+            if incremental_delta > math.pi:
+                incremental_delta -= 2 * math.pi
+            if incremental_delta <= -math.pi:
+                incremental_delta += 2 * math.pi
+
+            self._total_delta += incremental_delta
+
+            self._last_mouseframe_angle = current_angle
+
+            if self._theta_is_anticlockwise:
+                theta = self._orig_theta - self._total_delta
             else:
-                theta = self._orig_theta + delta_theta
+                theta = self._orig_theta + self._total_delta
+
+            theta = theta % (2 * math.pi)
 
         # Create new BBox for live preview
         current_box = self._boxes[self._selected_idx]
@@ -486,7 +493,7 @@ class Overlay(QWidget):
 
     def _axis_from_mode(self, theta: float, mode: str) -> tuple[float, float]:
         """Return unit axis (ax_x, ax_y) in DISPLAY coords for the edge being resized."""
-        angle_rad = -theta if self._theta_is_clockwise else theta
+        angle_rad = -theta if self._theta_is_anticlockwise else theta
         if mode in ("E", "W"):
             return math.cos(angle_rad), math.sin(angle_rad)
         else:
@@ -541,7 +548,7 @@ class Overlay(QWidget):
             box_w_disp = w_vid * scale
             box_h_disp = h_vid * scale
 
-            angle_rad = -theta if self._theta_is_clockwise else theta
+            angle_rad = -theta if self._theta_is_anticlockwise else theta
             cos_a, sin_a = math.cos(angle_rad), math.sin(angle_rad)
 
             half_w = box_w_disp * 0.5
@@ -714,7 +721,7 @@ class Overlay(QWidget):
             box_width_disp = box_width * scale
             box_height_disp = box_height * scale
 
-            angle_rad = -theta_val if self._theta_is_clockwise else theta_val
+            angle_rad = -theta_val if self._theta_is_anticlockwise else theta_val
 
             cos_angle, sin_angle = math.cos(angle_rad), math.sin(angle_rad)
             half_w = box_width_disp / 2.0
@@ -927,6 +934,9 @@ class Overlay(QWidget):
                 # If it is not an arrow key movement,
                 # return control back to the parent class.
                 return super().keyPressEvent(event)
+
+        if new_theta != selected_bbox.theta:
+            new_theta = new_theta % (2 * math.pi)
 
         updated_bbox = replace(
             selected_bbox, center_x=new_center_x, center_y=new_center_y, theta=new_theta
