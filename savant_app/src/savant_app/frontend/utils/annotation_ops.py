@@ -185,12 +185,17 @@ def highlight_selected_object(main_window, object_id: str):
 
 def highlight_active_obj_list(main_window, object_id: str):
     """Highlight the selected object in the active object list."""
+    sidebar = getattr(main_window, "sidebar", None)
+    if sidebar is None:
+        return
+
     if object_id:
-        main_window.sidebar.select_active_object_by_id(object_id)
-        main_window.sidebar.show_object_editor(object_id, expand=True)
+        sidebar.select_active_object_by_id(object_id)
+        sidebar.show_object_editor(object_id, expand=True)
     else:
-        main_window.sidebar.active_objects.clearSelection()
-        main_window.sidebar.hide_object_editor()
+        sidebar._selected_annotation_object_id = None
+        sidebar.active_objects.clearSelection()
+        sidebar.hide_object_editor()
 
 
 def on_new_object_bbox(main_window, object_type: str):
