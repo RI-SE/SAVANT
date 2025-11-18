@@ -24,7 +24,7 @@ __version__ = '2.0.1'
 class Constants:
     """Constants used throughout the application."""
     MP4V_FOURCC = "mp4v"
-    SCHEMA_VERSION = "0.1"
+    SCHEMA_VERSION = "1.0"
     ANNOTATOR_NAME = f"SAVANT Markit {__version__}"
     ONTOLOGY_URL = "https://savant.ri.se/savant_ontology_1.2.0.ttl"
     # Fallback class map used when ontology file cannot be loaded
@@ -39,14 +39,24 @@ class Constants:
 
 @dataclass
 class DetectionResult:
-    """Standardized detection result from any detection engine."""
+    """Standardized detection result with semantic representation.
+
+    Convention:
+    - width: Long axis (semantic, never swaps)
+    - height: Short axis (semantic, never swaps)
+    - angle: Continuous rotation in (-∞, +∞), rebased at ±2π
+    - positive x-axis is 0 radians, rotation increases counterclockwise
+      (or clockwise in image coordinates where y-axis points down)
+    """
     object_id: Optional[int]
     class_id: int
     confidence: float
     oriented_bbox: np.ndarray  # 4 corner points for OBB
     center: Tuple[float, float]
-    angle: float
-    source_engine: str  # 'yolo' or 'optical_flow'
+    angle: float  # Continuous semantic angle
+    source_engine: str  # 'yolo', 'optical_flow', or 'aruco'
+    width: Optional[float] = None  # Semantic long axis
+    height: Optional[float] = None  # Semantic short axis
 
 
 @dataclass
@@ -81,8 +91,19 @@ class MarkitConfig:
         self.output_video_path = args.output_video
         self.ontology_path = args.ontology
 
+        # ArUco detection configuration
+        self.aruco_csv_path = args.aruco_csv if hasattr(args, 'aruco_csv') else None
+        self.use_aruco = self.aruco_csv_path is not None
+
         # Load class map from ontology if provided, otherwise use default
-        self.class_map = self._load_class_map()
+        # Pass verbose flag for debug logging
+        verbose = args.verbose if hasattr(args, 'verbose') else False
+        self.class_map = self._load_class_map(verbose)
+
+        # Get ArUco class ID from ontology (if ArUco detection enabled)
+        self.aruco_class_id = None
+        if self.use_aruco:
+            self.aruco_class_id = self._get_aruco_class_id()
 
         # Detection method configuration
         self.use_yolo = args.detection_method in ['yolo', 'both']
@@ -104,9 +125,14 @@ class MarkitConfig:
         self.duplicate_avg_iou = args.duplicate_avg_iou
         self.duplicate_min_iou = args.duplicate_min_iou
         self.rotation_threshold = args.rotation_threshold
+        self.min_movement_pixels = args.min_movement_pixels
+        self.temporal_smoothing = args.temporal_smoothing
         self.edge_distance = args.edge_distance
         self.static_threshold = args.static_threshold
         self.static_mark = args.static_mark
+
+        # Logging configuration
+        self.verbose = args.verbose if hasattr(args, 'verbose') else False
 
         self.validate_config()
 
@@ -116,20 +142,25 @@ class MarkitConfig:
         required_files = [self.video_path, self.schema_path]
         if self.use_yolo:
             required_files.append(self.weights_path)
+        if self.use_aruco:
+            required_files.append(self.aruco_csv_path)
 
         for file_path in required_files:
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"Required file not found: {file_path}")
 
-        if not any([self.use_yolo, self.use_optical_flow]):
+        if not any([self.use_yolo, self.use_optical_flow, self.use_aruco]):
             raise ValueError("At least one detection method must be enabled")
 
         # Validate IoU threshold
         if not (0.0 <= self.iou_threshold <= 1.0):
             raise ValueError(f"IoU threshold must be between 0.0 and 1.0, got: {self.iou_threshold}")
 
-    def _load_class_map(self) -> Dict[int, str]:
+    def _load_class_map(self, verbose: bool = False) -> Dict[int, str]:
         """Load class map from ontology file or use default.
+
+        Args:
+            verbose: Enable verbose logging of class mappings
 
         Returns:
             Dictionary mapping class_id → label
@@ -161,9 +192,38 @@ class MarkitConfig:
                 return Constants.DEFAULT_CLASS_MAP.copy()
 
             logger.info(f"Class map source: {self.ontology_path} ({len(class_map)} classes)")
+
+            # If verbose mode, log first 25 class mappings for debugging
+            if verbose:
+                logger.info("Class map (first 25 YOLO class IDs):")
+                for class_id in sorted(class_map.keys())[:25]:
+                    logger.info(f"  YOLO class {class_id:3d} → '{class_map[class_id]}'")
+
             return class_map
 
         except Exception as e:
             logger.warning(f"Failed to load ontology: {e}")
             logger.info("Class map source: DEFAULT_CLASS_MAP (fallback)")
             return Constants.DEFAULT_CLASS_MAP.copy()
+
+    def _get_aruco_class_id(self) -> int:
+        """Get class ID for MarkerAruco from ontology.
+
+        Returns:
+            Class ID for ArUco markers
+
+        Raises:
+            ValueError: If MarkerAruco class not found in ontology
+        """
+        logger = logging.getLogger(__name__)
+
+        # Search for MarkerAruco in class_map
+        for class_id, class_name in self.class_map.items():
+            if class_name == "Aruco" or class_name == "MarkerAruco":
+                logger.info(f"Found ArUco class in ontology: ID={class_id}, Name={class_name}")
+                return class_id
+
+        # MarkerAruco not found - log error and raise exception
+        logger.error("MarkerAruco class not found in ontology")
+        logger.error("Please ensure the ontology contains a 'MarkerAruco' class with label 'Aruco'")
+        raise ValueError("MarkerAruco class not found in ontology - ArUco detection cannot proceed")

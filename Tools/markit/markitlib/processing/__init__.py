@@ -9,6 +9,8 @@ from .engines import (
     BaseDetectionEngine,
     YOLOEngine,
     OpticalFlowEngine,
+    ArUcoEngine,
+    ArUcoGPSData,
     SimpleTracker,
 )
 from .conflict_resolution import DetectionConflictResolver
@@ -18,6 +20,8 @@ __all__ = [
     'BaseDetectionEngine',
     'YOLOEngine',
     'OpticalFlowEngine',
+    'ArUcoEngine',
+    'ArUcoGPSData',
     'SimpleTracker',
     'DetectionConflictResolver',
     'VideoProcessor',

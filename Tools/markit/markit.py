@@ -14,10 +14,11 @@ Required Arguments:
     --output_json        Path to output OpenLabel JSON file
 
 Optional Arguments:
-    --weights            Path to YOLO weights file (.pt) - required if using YOLO detection
+    --weights            Path to YOLO weights file (.pt) - required if using YOLO detection (default: markit_yolo.pt)
     --schema             Path to OpenLabel JSON schema file (default: savant_openlabel_subset.schema.json)
     --ontology           Path to SAVANT ontology file for class mapping (default: savant_ontology_1.2.0.ttl)
     --output_video       Path to output annotated video file (optional)
+    --aruco-csv          Path to CSV file with ArUco marker GPS positions (enables ArUco detection)
 
 Detection Configuration:
     --detection-method   Detection method: yolo, optical_flow, or both (default: yolo)
@@ -33,7 +34,9 @@ Postprocessing (Housekeeping):
     --housekeeping       Enable postprocessing passes (gap detection, filling, duplicate removal, etc.)
     --duplicate-avg-iou  Average IOU threshold for duplicate detection (default: 0.7)
     --duplicate-min-iou  Minimum IOU threshold for duplicate detection (default: 0.3)
-    --rotation-threshold Rotation angle threshold in radians for adjustment (default: 0.01)
+    --rotation-threshold Rotation angle threshold in radians for adjustment (default: 0.1)
+    --min-movement-pixels Minimum movement in pixels for rotation calculation (default: 5.0)
+    --temporal-smoothing Temporal smoothing factor for rotation, 0-1 (default: 0.3)
     --edge-distance      Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)
     --static-threshold   Movement threshold in pixels for static object removal (default: 5, negative disables)
     --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
@@ -51,19 +54,26 @@ import argparse
 import logging
 import sys
 
+import cv2
+import numpy as np
+from ultralytics import __version__ as ultralytics_version
+
 # Import from markitlib package
 from markitlib import MarkitConfig, __version__
 from markitlib.processing import VideoProcessor, FrameAnnotator
 from markitlib.openlabel import OpenLabelHandler
+from markitlib.outputvideo import render_output_video
 from markitlib.postprocessing import (
     PostprocessingPipeline,
     GapDetectionPass,
     GapFillingPass,
     DuplicateRemovalPass,
+    FirstDetectionRefinementPass,
     RotationAdjustmentPass,
     SuddenPass,
     FrameIntervalPass,
     StaticObjectRemovalPass,
+    AngleNormalizationPass,
 )
 
 # Configure logging
@@ -82,7 +92,10 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # YOLO only (uses default schema and ontology)
+  # YOLO only (uses default weights markit_yolo.pt, schema, and ontology)
+  python markit.py --input video.mp4 --output_json output.json
+
+  # YOLO with custom weights file
   python markit.py --weights model.pt --input video.mp4 --output_json output.json
 
   # With custom schema and ontology files
@@ -103,7 +116,8 @@ Examples:
     )
 
     # Required arguments
-    parser.add_argument('--weights', help='Path to YOLO weights file (.pt)')
+    parser.add_argument('--weights', default='markit_yolo.pt',
+                       help='Path to YOLO weights file (.pt) - required if using YOLO detection (default: markit_yolo.pt)')
     parser.add_argument('--input', required=True, help='Path to input video file')
     parser.add_argument('--output_json', required=True, help='Path to output OpenLabel JSON file')
     parser.add_argument('--schema', default='savant_openlabel_subset.schema.json',
@@ -111,6 +125,7 @@ Examples:
     parser.add_argument('--output_video', help='Path to output annotated video file (optional)')
     parser.add_argument('--ontology', default='savant_ontology_1.2.0.ttl',
                        help='Path to SAVANT ontology file for class mapping (default: savant_ontology_1.2.0.ttl)')
+    parser.add_argument('--aruco-csv', dest='aruco_csv', help='Path to CSV file with ArUco marker GPS positions (enables ArUco detection)')
 
     # Detection method selection
     parser.add_argument('--detection-method',
@@ -139,14 +154,22 @@ Examples:
                        help='Average IOU threshold for duplicate detection (default: 0.7)')
     parser.add_argument('--duplicate-min-iou', type=float, default=0.3,
                        help='Minimum IOU threshold for duplicate detection (default: 0.3)')
-    parser.add_argument('--rotation-threshold', type=float, default=0.01,
-                       help='Rotation angle threshold in radians for adjustment (default: 0.01)')
+    parser.add_argument('--rotation-threshold', type=float, default=0.1,
+                       help='Rotation angle threshold in radians for adjustment (default: 0.1)')
+    parser.add_argument('--min-movement-pixels', type=float, default=5.0,
+                       help='Minimum movement in pixels for rotation calculation (default: 5.0)')
+    parser.add_argument('--temporal-smoothing', type=float, default=0.3,
+                       help='Temporal smoothing factor for rotation (0-1, higher = more smoothing, default: 0.3)')
     parser.add_argument('--edge-distance', type=int, default=200,
                        help='Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)')
     parser.add_argument('--static-threshold', type=int, default=5,
                        help='Movement threshold in pixels for static object removal (default: 5, negative value disables this pass)')
     parser.add_argument('--static-mark', action='store_true',
                        help='Mark static objects instead of removing them (adds "staticdynamic" annotation)')
+
+    # Logging and debug
+    parser.add_argument('--verbose', action='store_true',
+                       help='Enable verbose output with detailed angle and detection logging')
 
     return parser.parse_args()
 
@@ -176,11 +199,6 @@ def process_video(video_processor: VideoProcessor, openlabel_handler: OpenLabelH
 
             # Add to OpenLabel structure
             openlabel_handler.add_frame_objects(frame_idx, detection_results, config.class_map)
-
-            # Annotate and write frame if output video requested
-            if config.output_video_path:
-                annotated_frame = FrameAnnotator.annotate_frame(frame, detection_results)
-                video_processor.write_frame(annotated_frame)
 
             frame_idx += 1
             total_frames += 1
@@ -237,14 +255,20 @@ def main():
             engines.append("YOLO")
         if config.use_optical_flow:
             engines.append("OpticalFlow")
+        if config.use_aruco:
+            engines.append("ArUco")
 
         logger.info(f"Markit v{__version__} starting with engines: {', '.join(engines)}")
+
+        # Log library versions
+        logger.info(f"Library versions: OpenCV {cv2.__version__}, NumPy {np.__version__}, Ultralytics {ultralytics_version}")
+
         if config.enable_conflict_resolution and len(engines) > 1:
             logger.info(f"Conflict resolution enabled with IoU threshold: {config.iou_threshold:.2f}")
 
         # Initialize components
         video_processor = VideoProcessor(config)
-        openlabel_handler = OpenLabelHandler(config.schema_path)
+        openlabel_handler = OpenLabelHandler(config.schema_path, verbose=config.verbose)
 
         # Initialize video processing
         video_processor.initialize()
@@ -278,17 +302,35 @@ def main():
                         mark_only=config.static_mark
                     )
                 )
+            # MANDATORY: Refine initial detection angles using lookahead
             postprocessing_pipeline.add_pass(
-                RotationAdjustmentPass(rotation_threshold=config.rotation_threshold)
+                FirstDetectionRefinementPass(
+                    lookahead_frames=5,
+                    min_movement_pixels=5.0
+                )
+            )
+            # OPTIONAL: Further refine rotation using movement direction
+            postprocessing_pipeline.add_pass(
+                RotationAdjustmentPass(
+                    rotation_threshold=config.rotation_threshold,
+                    min_movement_pixels=config.min_movement_pixels,
+                    temporal_smoothing=config.temporal_smoothing
+                )
             )
             postprocessing_pipeline.add_pass(SuddenPass(edge_distance=config.edge_distance))
             postprocessing_pipeline.add_pass(FrameIntervalPass())
+            # MANDATORY FINAL PASS: Normalize all angles to [0, 2π) for OpenLabel output
+            postprocessing_pipeline.add_pass(AngleNormalizationPass())
 
             openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
                 openlabel_handler.openlabel_data
             )
         else:
             logger.info("Housekeeping disabled, skipping postprocessing")
+
+        # Render output video from postprocessed data (if requested)
+        if config.output_video_path:
+            render_output_video(config, openlabel_handler.openlabel_data, openlabel_handler.debug_data)
 
         # Cleanup and save results
         cleanup(video_processor, openlabel_handler, config)

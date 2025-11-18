@@ -5,13 +5,13 @@ Contains video processor with multi-engine support and frame annotation.
 """
 
 import logging
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 
 from ..config import Constants, ConflictResolutionConfig, DetectionResult, MarkitConfig
-from .engines import YOLOEngine, OpticalFlowEngine
+from .engines import YOLOEngine, OpticalFlowEngine, ArUcoEngine
 from .conflict_resolution import DetectionConflictResolver
 
 logger = logging.getLogger(__name__)
@@ -30,16 +30,17 @@ class VideoProcessor:
         self.engines = []
         self.conflict_resolver = None
         self.cap = None
-        self.out = None
         self.frame_width = 0
         self.frame_height = 0
         self.fps = 0.0
 
         # Initialize detection engines based on configuration
         if config.use_yolo:
-            self.engines.append(YOLOEngine(config.weights_path))
+            self.engines.append(YOLOEngine(config.weights_path, config.class_map, config.verbose))
         if config.use_optical_flow:
             self.engines.append(OpticalFlowEngine(config.optical_flow_params))
+        if config.use_aruco:
+            self.engines.append(ArUcoEngine(config.aruco_csv_path, config.aruco_class_id))
 
         # Initialize conflict resolver if multiple engines and conflict resolution enabled
         if len(self.engines) > 1 and config.enable_conflict_resolution:
@@ -51,7 +52,7 @@ class VideoProcessor:
             self.conflict_resolver = DetectionConflictResolver(conflict_config)
 
     def initialize(self) -> None:
-        """Initialize video capture and writer."""
+        """Initialize video capture."""
         try:
             logger.info(f"Opening video file: {self.config.video_path}")
             self.cap = cv2.VideoCapture(self.config.video_path)
@@ -60,9 +61,6 @@ class VideoProcessor:
                 raise RuntimeError(f"Failed to open video file: {self.config.video_path}")
 
             self._get_video_properties()
-
-            if self.config.output_video_path:
-                self._setup_video_writer()
 
         except Exception as e:
             logger.error(f"Failed to initialize video processor: {e}")
@@ -75,21 +73,6 @@ class VideoProcessor:
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
 
         logger.info(f"Video properties - Width: {self.frame_width}, Height: {self.frame_height}, FPS: {self.fps}")
-
-    def _setup_video_writer(self) -> None:
-        """Setup video writer for output."""
-        try:
-            fourcc = cv2.VideoWriter_fourcc(*Constants.MP4V_FOURCC)
-            self.out = cv2.VideoWriter(
-                self.config.output_video_path,
-                fourcc,
-                self.fps,
-                (self.frame_width, self.frame_height)
-            )
-            logger.info(f"Video writer initialized for output: {self.config.output_video_path}")
-        except Exception as e:
-            logger.error(f"Failed to setup video writer: {e}")
-            raise
 
     def read_frame(self) -> Tuple[bool, Optional[np.ndarray]]:
         """Read next frame from video.
@@ -127,15 +110,6 @@ class VideoProcessor:
 
         return all_results
 
-    def write_frame(self, frame: np.ndarray) -> None:
-        """Write frame to output video.
-
-        Args:
-            frame: Frame to write
-        """
-        if self.out is not None:
-            self.out.write(frame)
-
     def get_detection_statistics(self) -> dict:
         """Get detection and conflict resolution statistics.
 
@@ -166,10 +140,6 @@ class VideoProcessor:
             self.cap.release()
             logger.info("Video capture released")
 
-        if self.out is not None:
-            self.out.release()
-            logger.info("Video writer released")
-
         cv2.destroyAllWindows()
 
 
@@ -177,22 +147,31 @@ class FrameAnnotator:
     """Handles frame annotation with bounding boxes and labels."""
 
     @staticmethod
-    def annotate_frame(frame: np.ndarray, detection_results: List[DetectionResult]) -> np.ndarray:
+    def annotate_frame(frame: np.ndarray, detection_results: List[DetectionResult],
+                      class_map: Dict[int, str] = None) -> np.ndarray:
         """Annotate frame with oriented bounding boxes and labels.
 
         Args:
             frame: Input frame
             detection_results: Detection results from engines
+            class_map: Optional class ID to name mapping (uses DEFAULT_CLASS_MAP if None)
 
         Returns:
             Annotated frame
         """
         annotated_frame = frame.copy()
 
+        # Use provided class_map or fall back to default
+        if class_map is None:
+            class_map = Constants.DEFAULT_CLASS_MAP
+
         # Color map for different engines
         color_map = {
             'yolo': (0, 255, 0),  # Green
             'optical_flow': (255, 0, 0),  # Blue
+            'aruco': (0, 165, 255),  # Orange
+            'postprocessed_gap': (255, 0, 255),  # Magenta (gap filling - higher priority)
+            'postprocessed_rot': (255, 255, 0),  # Cyan (rotation adjustment)
         }
 
         for detection in detection_results:
@@ -208,12 +187,20 @@ class FrameAnnotator:
                 center = (int(detection.center[0]), int(detection.center[1]))
                 cv2.circle(annotated_frame, center, 3, color, -1)
 
+                # Draw rotation direction indicator (arrow from center in angle direction)
+                if detection.angle is not None:
+                    arrow_length = 30  # pixels
+                    angle_rad = detection.angle
+                    end_x = int(detection.center[0] + arrow_length * np.cos(angle_rad))
+                    end_y = int(detection.center[1] + arrow_length * np.sin(angle_rad))
+                    cv2.arrowedLine(annotated_frame, center, (end_x, end_y), color, 2, tipLength=0.3)
+
                 # Prepare label text
                 label_parts = []
                 if detection.object_id is not None:
                     label_parts.append(f"ID:{detection.object_id}")
 
-                class_name = Constants.DEFAULT_CLASS_MAP.get(detection.class_id, f"cls_{detection.class_id}")
+                class_name = class_map.get(detection.class_id, f"cls_{detection.class_id}")
                 label_parts.append(f"{class_name}")
                 label_parts.append(f"{detection.confidence:.2f}")
                 label_parts.append(f"[{detection.source_engine}]")
