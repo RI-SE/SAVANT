@@ -109,6 +109,24 @@ class ActionMetadata(BaseModel):
     frame_intervals: Optional[List[FrameInterval]] = None
 
 
+class RDFItem(BaseModel):
+    """Represents an item in rdf_subjects or rdf_objects"""
+
+    type: Literal["object", "action", "event", "context"]
+    uid: str
+
+
+class RelationMetadata(BaseModel):
+    """Relation metadata"""
+
+    name: str
+    type: str
+    ontology_uid: str
+    frame_intervals: Optional[List[FrameInterval]] = None
+    rdf_subjects: List[RDFItem]
+    rdf_objects: List[RDFItem]
+
+
 class OntologyDetails(BaseModel):
     """
     Ontology details which are not yet in use, but are ready for when needed.
@@ -130,6 +148,8 @@ class OpenLabel(BaseModel):
     actions: Optional[Dict[str, ActionMetadata]] = (
         None  # Made optional as they are not being used yet according to the spec.
     )
+    relations: Optional[Dict[str, RelationMetadata]] = None
+
     frames: Dict[str, FrameObjects]
 
     def model_dump(self, *args, **kwargs) -> dict:
