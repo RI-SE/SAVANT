@@ -663,6 +663,7 @@ class Overlay(QWidget):
             self.clear_selection()
             return
 
+        self.setFocus()
         self._selected_idx = self._get_box_idx_from_obj_id(object_id)
 
         self._drag_mode = None
@@ -670,6 +671,8 @@ class Overlay(QWidget):
         self._hover_mode = None
         self._press_pos_disp = None
         self._orig_box = None
+
+        self.show_cascade_option()
         self.update()
 
     def select_box(self, idx: int | None):
