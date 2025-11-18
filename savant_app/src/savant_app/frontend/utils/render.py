@@ -29,12 +29,14 @@ def show_frame(main_window, pixmap, frame_idx: int | None):
     if pixmap is not None:
         main_window.video_widget.show_frame(pixmap)
     else:
+        _clear_selection_for_frame_change(main_window, None)
         main_window.overlay.set_rotated_boxes([])
         return
 
     if frame_idx is not None and hasattr(main_window.seek_bar, "set_position"):
         main_window.seek_bar.set_position(int(frame_idx))
 
+    _clear_selection_for_frame_change(main_window, frame_idx)
     _update_overlay_from_model(main_window)
 
 
@@ -109,3 +111,24 @@ def _update_overlay_from_model(main_window):
     except Exception:
         main_window.overlay.set_rotated_boxes([])
         raise
+
+
+def _clear_selection_for_frame_change(main_window, frame_idx: int | None) -> None:
+    """Clear overlay/side selection when the rendered frame changes."""
+    overlay = getattr(main_window, "overlay", None)
+    if overlay is None:
+        return
+
+    new_index = None if frame_idx is None else int(frame_idx)
+    last_index = getattr(main_window, "_last_rendered_frame_idx", None)
+    last_index = None if last_index is None else int(last_index)
+
+    if new_index is None:
+        if last_index is not None:
+            overlay.clear_selection()
+        main_window._last_rendered_frame_idx = None
+        return
+
+    if last_index is None or last_index != new_index:
+        overlay.clear_selection()
+    main_window._last_rendered_frame_idx = new_index
