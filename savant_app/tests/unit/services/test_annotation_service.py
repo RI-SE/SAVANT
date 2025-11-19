@@ -1,9 +1,13 @@
-import pytest
+from collections import deque
+from types import SimpleNamespace
 from unittest.mock import MagicMock, call
-from savant_app.services.annotation_service import AnnotationService
-from savant_app.services.project_state import ProjectState
+
+import pytest
+
 from savant_app.models.OpenLabel import OpenLabel
-from savant_app.services.exceptions import ObjectNotFoundError
+from savant_app.services.annotation_service import AnnotationService
+from savant_app.services.exceptions import ObjectLinkConflictError, ObjectNotFoundError
+from savant_app.services.project_state import ProjectState
 
 
 @pytest.fixture
@@ -56,7 +60,7 @@ class TestAnnotationService:
 
         # Extract values from bbox_info and pass as separate arguments
         annotation_service.create_new_object_bbox(
-            frame_number, bbox_info["type"], bbox_info["coordinates"]
+            frame_number, bbox_info["type"], bbox_info["coordinates"], "test_annotator"
         )
 
         # Verify config methods were called
@@ -97,8 +101,8 @@ class TestAnnotationService:
 
         result = annotation_service.get_active_objects(frame_number)
         expected = [
-            {"type": "car", "name": "car_1"},
-            {"type": "person", "name": "person_1"},
+            {"type": "car", "name": "car_1", "id": "1"},
+            {"type": "person", "name": "person_1", "id": "2"},
         ]
         assert result == expected
 
@@ -109,8 +113,8 @@ class TestAnnotationService:
         frame_number = 999
         mock_project_state.annotation_config.frames = {}
 
-        with pytest.raises(KeyError):
-            annotation_service.get_active_objects(frame_number)
+        result = annotation_service.get_active_objects(frame_number)
+        assert result == []
 
     def test_create_existing_object_bbox_valid(
         self, annotation_service, mock_project_state
@@ -127,15 +131,14 @@ class TestAnnotationService:
         annotation_service._get_objectid_by_name = MagicMock(return_value=object_id)
 
         annotation_service.create_existing_object_bbox(
-            frame_number, coordinates, object_name
+            frame_number, coordinates, object_name, "test_annotator"
         )
 
         # Verify config method was called
         mock_project_state.annotation_config.append_object_bbox.assert_called_once_with(
             frame_id=frame_number,
             bbox_coordinates=coordinates,
-            confidence_data={"val": [0.9]},
-            annotater_data={"val": ["example_name"]},
+            annotator="test_annotator",
             obj_id=object_id,
         )
 
@@ -152,7 +155,7 @@ class TestAnnotationService:
 
         with pytest.raises(ObjectNotFoundError):
             annotation_service.create_existing_object_bbox(
-                frame_number, coordinates, object_id
+                frame_number, coordinates, object_id, "test_annotator"
             )
 
     def test_does_object_exist_true(self, annotation_service, mock_project_state):
@@ -178,6 +181,173 @@ class TestAnnotationService:
         mock_project_state.annotation_config.objects = {"1": mock_obj1, "2": mock_obj2}
 
         assert annotation_service._does_object_exist(object_id) is False
+
+
+def _make_frame_object(confidence_values):
+    return SimpleNamespace(
+        object_data=SimpleNamespace(
+            vec=[SimpleNamespace(name="confidence", val=deque(confidence_values))]
+        )
+    )
+
+
+class DummyOpenLabel:
+    def __init__(self, objects, frames):
+        self.objects = objects
+        self.frames = frames
+
+    def update_annotator(
+        self,
+        annotater,
+        current_annotator_data,
+        confidence,
+        current_confidence_data,
+    ):
+        if annotater not in current_annotator_data.val[0]:
+            current_annotator_data.val.appendleft(annotater)
+            current_confidence_data.val.appendLeft(confidence)
+
+
+@pytest.fixture
+def build_link_service():
+    def _builder(
+        *,
+        primary_object_id="1",
+        secondary_object_id="2",
+        confidence_values=None,
+        objects=None,
+        frames=None,
+    ):
+        confidence_values = (
+            list(confidence_values) if confidence_values is not None else [0.42]
+        )
+        objects_map = objects or {
+            primary_object_id: SimpleNamespace(name="primary", type="vehicle"),
+            secondary_object_id: SimpleNamespace(name="secondary", type="vehicle"),
+        }
+        default_frame_object = _make_frame_object(confidence_values)
+        frames_map = frames or {
+            "0": SimpleNamespace(objects={secondary_object_id: default_frame_object})
+        }
+        open_label = DummyOpenLabel(objects_map, frames_map)
+        project_state = SimpleNamespace(annotation_config=open_label)
+        service = AnnotationService(project_state=project_state)
+        return {
+            "service": service,
+            "open_label": open_label,
+            "primary_id": primary_object_id,
+            "secondary_id": secondary_object_id,
+            "frame_object": default_frame_object,
+        }
+
+    return _builder
+
+
+class TestLinkObjectIds:
+    def test_list_object_ids_sorts_numeric_before_alpha(self, build_link_service):
+        ctx = build_link_service()
+        service = ctx["service"]
+        open_label = ctx["open_label"]
+        open_label.objects.update(
+            {
+                "10": SimpleNamespace(name="ten", type="vehicle"),
+                "alpha": SimpleNamespace(name="alpha", type="vehicle"),
+            }
+        )
+
+        ordered = service.list_object_ids()
+
+        assert ordered == ["1", "2", "10", "alpha"]
+
+    def test_frames_for_object_returns_sorted_indices(self, build_link_service):
+        ctx = build_link_service()
+        service = ctx["service"]
+        open_label = ctx["open_label"]
+        secondary_id = ctx["secondary_id"]
+
+        open_label.frames["5"] = SimpleNamespace(
+            objects={secondary_id: _make_frame_object([0.33])}
+        )
+        open_label.frames["12"] = SimpleNamespace(
+            objects={secondary_id: _make_frame_object([0.21])}
+        )
+
+        frames = service.frames_for_object(secondary_id)
+
+        assert frames == [0, 5, 12]
+
+    def test_frames_for_object_missing_object_raises(self, build_link_service):
+        ctx = build_link_service()
+        service = ctx["service"]
+
+        with pytest.raises(ObjectNotFoundError):
+            service.frames_for_object("missing")
+
+    def test_link_object_ids_replaces_secondary_object(self, build_link_service):
+        ctx = build_link_service()
+        service = ctx["service"]
+        open_label = ctx["open_label"]
+        primary_id = ctx["primary_id"]
+        secondary_id = ctx["secondary_id"]
+        frame_object = ctx["frame_object"]
+
+        affected = service.link_object_ids(primary_id, secondary_id)
+
+        assert affected == [0]
+        frame_objects = open_label.frames["0"].objects
+        assert secondary_id not in frame_objects
+        assert primary_id in frame_objects
+        assert frame_objects[primary_id] is frame_object
+        assert primary_id in open_label.objects
+        assert secondary_id not in open_label.objects
+
+    def test_link_object_ids_preserves_existing_metadata(self, build_link_service):
+        ctx = build_link_service(confidence_values=[0.37])
+        service = ctx["service"]
+        open_label = ctx["open_label"]
+        primary_id = ctx["primary_id"]
+        secondary_id = ctx["secondary_id"]
+        frame_object = ctx["frame_object"]
+        original_vec = list(frame_object.object_data.vec)
+
+        service.link_object_ids(primary_id, secondary_id)
+
+        frame_objects = open_label.frames["0"].objects
+        assert frame_objects[primary_id] is frame_object
+        assert list(frame_objects[primary_id].object_data.vec) == original_vec
+        confidence_entry = frame_objects[primary_id].object_data.vec[0]
+        assert getattr(confidence_entry, "name", None) == "confidence"
+        assert confidence_entry.val[0] == pytest.approx(0.37)
+
+    def test_link_object_ids_detects_self_link(self, build_link_service):
+        ctx = build_link_service()
+        service = ctx["service"]
+        primary_id = ctx["primary_id"]
+
+        with pytest.raises(ObjectLinkConflictError):
+            service.link_object_ids(
+                primary_id,
+                primary_id,
+            )
+
+    def test_link_object_ids_conflict_when_primary_present(self, build_link_service):
+        ctx = build_link_service()
+        service = ctx["service"]
+        open_label = ctx["open_label"]
+        primary_id = ctx["primary_id"]
+        secondary_id = ctx["secondary_id"]
+        open_label.frames["5"] = SimpleNamespace(
+            objects={
+                primary_id: _make_frame_object([0.91]),
+                secondary_id: _make_frame_object([0.25]),
+            }
+        )
+
+        with pytest.raises(ObjectLinkConflictError):
+            service.link_object_ids(
+                primary_id,
+                secondary_id,
+            )
 
 
 class TestCascadeBboxEdit:
@@ -208,6 +378,7 @@ class TestCascadeBboxEdit:
             frame_start=20,
             frame_end=90,
             object_key="obj1",
+            annotator="test_annotator",
             width=5,
             height=-3,
             rotation=15,
@@ -227,6 +398,7 @@ class TestCascadeBboxEdit:
                 rotation=15,
                 min_width=1e-6,
                 min_height=1e-6,
+                annotator="test_annotator",
             )
             for frame in [20, 30, 40, 50, 60, 70, 80, 90]
         ]
@@ -244,6 +416,7 @@ class TestCascadeBboxEdit:
             frame_start=40,
             frame_end=90,
             object_key="obj1",
+            annotator="test_annotator",
             width=60,
             height=40,
             rotation=10,
@@ -263,6 +436,7 @@ class TestCascadeBboxEdit:
                 rotation=10,
                 min_width=1e-6,
                 min_height=1e-6,
+                annotator="test_annotator",
             )
             for frame in [40, 50, 60, 70, 80, 90]
         ]
@@ -280,6 +454,7 @@ class TestCascadeBboxEdit:
             frame_start=0,
             frame_end=90,
             object_key="obj1",
+            annotator="test_annotator",
         )
 
         # Verify only frames 10-90 were edited (not frame 0)
@@ -298,6 +473,7 @@ class TestCascadeBboxEdit:
             frame_start=50,
             frame_end=90,
             object_key="obj1",
+            annotator="test_annotator",
             width=-100,  # Would make width too small
             min_width=10,
             min_height=10,
@@ -317,6 +493,7 @@ class TestCascadeBboxEdit:
                 rotation=None,
                 min_width=10,
                 min_height=10,
+                annotator="test_annotator",
             )
             for frame in [50, 60, 70, 80, 90]
         ]

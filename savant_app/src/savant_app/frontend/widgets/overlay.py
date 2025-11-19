@@ -1,11 +1,20 @@
-from PyQt6.QtWidgets import QWidget
-from PyQt6.QtGui import QPainter, QPen, QColor, QPolygonF, QBrush
-from PyQt6.QtCore import Qt, QPointF, pyqtSignal, QRectF
-from typing import List, Tuple
 import math
-from savant_app.frontend.types import BBoxData
-from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
+from dataclasses import replace
+from typing import List, Tuple
+
+from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
+from PyQt6.QtWidgets import QWidget
+
+from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
+                                                 OVERLAY_ICON_SPACING,
+                                                 get_error_icon,
+                                                 get_warning_icon)
+from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
+from savant_app.frontend.utils.settings_store import (get_movement_sensitivity,
+                                                      get_rotation_sensitivity)
 from savant_app.frontend.widgets.cascade_button import CascadeButton
+from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 
 
 class Overlay(QWidget):
@@ -27,6 +36,9 @@ class Overlay(QWidget):
     boxRotated = pyqtSignal(
         str, float, float, float
     )  # (object_id, width, height, rotation)
+
+    # Emits live BBoxData during drag/size/rotation change operations
+    boxModified = pyqtSignal(BBoxData)
 
     # Object used here to allow for None types to be passed.
     bounding_box_selected = pyqtSignal(object)  # (object_id)
@@ -50,7 +62,7 @@ class Overlay(QWidget):
         self._boxes: List[BBoxData] = []
 
         # This flag flips the sign if needed (Rotation of boxes).
-        self._theta_is_clockwise: bool = True
+        self._theta_is_anticlockwise: bool = False
 
         # Debug helpers (Shows the center and axes of the boxes)
         self._show_centers: bool = True
@@ -72,6 +84,8 @@ class Overlay(QWidget):
         self._orig_box: BBoxData | None = None
         self._hit_tol_px: float = 14.0
         self._handle_draw_px: float = 14.0
+        self._mouse_drag_active: bool = False
+        self._drag_start_threshold_px: float = 4.0
 
         # Hover feedback
         self.setMouseTracking(True)
@@ -89,6 +103,15 @@ class Overlay(QWidget):
         self._orig_theta = 0.0
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
+        # Confidence issue flags
+        self._bbox_flags: ConfidenceFlagMap = {}
+        self._warning_icon = get_warning_icon()
+        self._error_icon = get_error_icon()
+        self._confidence_icon_size = OVERLAY_CONFIDENCE_ICON_SIZE
+        self._warning_icon_scaled = self._scale_icon(self._warning_icon)
+        self._error_icon_scaled = self._scale_icon(self._error_icon)
+        self._show_warning_flags: bool = True
+        self._show_error_flags: bool = True
         # Cascade dropdown
         self.cascade_dropdown = CascadeDropdown(self)
         self.cascade_dropdown.applySizeToAll.connect(self._on_cascade_size_to_all)
@@ -128,9 +151,9 @@ class Overlay(QWidget):
                     self._boxes.append(box)
         self.update()
 
-    def set_theta_clockwise(self, clockwise: bool):
-        """If your dataset's theta increases clockwise, keep True (default)."""
-        self._theta_is_clockwise = clockwise
+    def set_theta_direction(self, is_anticlockwise: bool):
+        """If your dataset's theta increases clockwise, keep False (default)."""
+        self._theta_is_anticlockwise = is_anticlockwise
         self.update()
 
     def show_centers(self, enabled: bool):
@@ -146,6 +169,37 @@ class Overlay(QWidget):
         self._interactive = bool(enabled)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, not enabled)
 
+    def set_confidence_flags(self, flags: ConfidenceFlagMap | None):
+        """Map object_id -> 'warning' or 'error' for overlay icons."""
+        self._bbox_flags = dict(flags) if flags else {}
+        self.update()
+
+    def set_confidence_icon_size(self, size: int):
+        """Resize warning/error icons to the requested square dimension."""
+        size = max(8, min(int(size), 256))
+        if size == self._confidence_icon_size:
+            return
+        self._confidence_icon_size = size
+        self._warning_icon_scaled = self._scale_icon(self._warning_icon)
+        self._error_icon_scaled = self._scale_icon(self._error_icon)
+        self.update()
+
+    def set_warning_flag_visibility(self, show: bool):
+        if self._show_warning_flags != bool(show):
+            self._show_warning_flags = bool(show)
+            self.update()
+
+    def set_error_flag_visibility(self, show: bool):
+        if self._show_error_flags != bool(show):
+            self._show_error_flags = bool(show)
+            self.update()
+
+    def confidence_flags(self) -> ConfidenceFlagMap:
+        return dict(self._bbox_flags)
+
+    def confidence_icon_size(self) -> int:
+        return self._confidence_icon_size
+
     def selected_object_id(self) -> str | None:
         """Return selected overlay object ID or None if nothing selected."""
         if self._selected_idx is not None and 0 <= self._selected_idx < len(
@@ -158,6 +212,7 @@ class Overlay(QWidget):
         """Clear any current selection and hover/drag state."""
         self._selected_idx = None
         self._drag_mode = None
+        self._mouse_drag_active = False
         self._hover_idx = None
         self._hover_mode = None
         self._press_pos_disp = None
@@ -211,6 +266,7 @@ class Overlay(QWidget):
         # Hit → select & start drag
         self._selected_idx = idx
         self._drag_mode = mode
+        self._mouse_drag_active = False
         self._press_pos_disp = ev.position()
         self._orig_box = self._boxes[idx]
 
@@ -229,6 +285,8 @@ class Overlay(QWidget):
             py = (self._press_pos_disp.y() - off_y) / scale
             self._press_angle = math.atan2(py - cy0, px - cx0)
             self._orig_theta = self._orig_box.theta
+            self._last_mouseframe_angle = self._press_angle
+            self._total_delta = 0.0
 
         self.update()
         ev.accept()
@@ -238,18 +296,18 @@ class Overlay(QWidget):
             return super().mouseMoveEvent(ev)
 
         if self._drag_mode is None:
-            idx, mode = self.hit_test(ev.position())
-            if idx != self._hover_idx or mode != self._hover_mode:
-                self._hover_idx, self._hover_mode = idx, mode
+            hit_index, hit_mode = self.hit_test(ev.position())
+            if hit_index != self._hover_idx or hit_mode != self._hover_mode:
+                self._hover_idx, self._hover_mode = hit_index, hit_mode
                 self.update()
 
-            if mode in ("E", "W", "N", "S"):
-                theta = self._boxes[idx].theta
-                ax_x, ax_y = self._axis_from_mode(theta, mode)
-                self.setCursor(self._cursor_for_axis(ax_x, ax_y))
-            elif mode == "move":
+            if hit_mode in ("E", "W", "N", "S"):
+                theta = self._boxes[hit_index].theta
+                axis_x, axis_y = self._axis_from_mode(theta, hit_mode)
+                self.setCursor(self._cursor_for_axis(axis_x, axis_y))
+            elif hit_mode == "move":
                 self.setCursor(Qt.CursorShape.SizeAllCursor)
-            elif mode == "R":
+            elif hit_mode == "R":
                 self.setCursor(Qt.CursorShape.OpenHandCursor)
             else:
                 self.unsetCursor()
@@ -261,30 +319,52 @@ class Overlay(QWidget):
         if self._selected_idx is None or self._orig_box is None:
             return super().mouseMoveEvent(ev)
 
-        cur_disp = ev.position()
-        dx_disp = cur_disp.x() - self._press_pos_disp.x()
-        dy_disp = cur_disp.y() - self._press_pos_disp.y()
+        cursor_pos_disp = ev.position()
+        delta_x_pixels = cursor_pos_disp.x() - self._press_pos_disp.x()
+        delta_y_pixels = cursor_pos_disp.y() - self._press_pos_disp.y()
+
+        if not self._mouse_drag_active:
+            if (
+                math.hypot(delta_x_pixels, delta_y_pixels)
+                < self._drag_start_threshold_px
+            ):
+                if self._drag_mode == "move":
+                    self.setCursor(Qt.CursorShape.SizeAllCursor)
+                elif self._drag_mode == "R":
+                    self.setCursor(Qt.CursorShape.OpenHandCursor)
+                else:
+                    theta = self._orig_box.theta
+                    ax_x, ax_y = self._axis_from_mode(theta, self._drag_mode)
+                    self.setCursor(self._cursor_for_axis(ax_x, ax_y))
+                ev.accept()
+                return
+            self._mouse_drag_active = True
 
         scale, off_x, off_y, _ = self._compute_transform()
         if scale <= 0:
             return
-        dx_vid = dx_disp / scale
-        dy_vid = dy_disp / scale
+        delta_x_video = delta_x_pixels / scale
+        delta_y_video = delta_y_pixels / scale
 
         # Get current bbox properties
-        cx0 = self._orig_box.center_x
-        cy0 = self._orig_box.center_y
-        w0 = self._orig_box.width
-        h0 = self._orig_box.height
+        original_cx = self._orig_box.center_x
+        original_cy = self._orig_box.center_y
+        original_width = self._orig_box.width
+        original_height = self._orig_box.height
         theta = self._orig_box.theta
-        cx, cy, w, h = cx0, cy0, w0, h0
+        new_cx, new_cy, new_width, new_height = (
+            original_cx,
+            original_cy,
+            original_width,
+            original_height,
+        )
 
         if self._drag_mode == "move":
-            cx = cx0 + dx_vid
-            cy = cy0 + dy_vid
+            new_cx = original_cx + delta_x_video
+            new_cy = original_cy + delta_y_video
 
         elif self._drag_mode in ("E", "W", "N", "S"):
-            angle_rad = -theta if self._theta_is_clockwise else theta
+            angle_rad = -theta if self._theta_is_anticlockwise else theta
             ct = math.cos(angle_rad)
             st = math.sin(angle_rad)
 
@@ -292,46 +372,57 @@ class Overlay(QWidget):
             ey_x, ey_y = -st, ct
 
             # Project mouse delta (video coords) onto each local axis
-            d_along_x = dx_vid * ex_x + dy_vid * ex_y
-            d_along_y = dx_vid * ey_x + dy_vid * ey_y
+            delta_along_x = delta_x_video * ex_x + delta_y_video * ex_y
+            delta_along_y = delta_x_video * ey_x + delta_y_video * ey_y
 
             if self._drag_mode == "E":
-                d = d_along_x
-                w = max(1e-6, w0 + d)
-                cx = cx0 + 0.5 * d * ex_x
-                cy = cy0 + 0.5 * d * ex_y
+                delta_extent = delta_along_x
+                new_width = max(1e-6, original_width + delta_extent)
+                new_cx = original_cx + 0.5 * delta_extent * ex_x
+                new_cy = original_cy + 0.5 * delta_extent * ex_y
 
             elif self._drag_mode == "W":
-                d = d_along_x
-                w = max(1e-6, w0 - d)
-                cx = cx0 + 0.5 * d * ex_x
-                cy = cy0 + 0.5 * d * ex_y
+                delta_extent = delta_along_x
+                new_width = max(1e-6, original_width - delta_extent)
+                new_cx = original_cx + 0.5 * delta_extent * ex_x
+                new_cy = original_cy + 0.5 * delta_extent * ex_y
 
             elif self._drag_mode == "S":
-                d = d_along_y
-                h = max(1e-6, h0 + d)
-                cx = cx0 + 0.5 * d * ey_x
-                cy = cy0 + 0.5 * d * ey_y
+                delta_extent = delta_along_y
+                new_height = max(1e-6, original_height + delta_extent)
+                new_cx = original_cx + 0.5 * delta_extent * ey_x
+                new_cy = original_cy + 0.5 * delta_extent * ey_y
 
             elif self._drag_mode == "N":
-                d = d_along_y
-                h = max(1e-6, h0 - d)
-                cx = cx0 + 0.5 * d * ey_x
-                cy = cy0 + 0.5 * d * ey_y
+                delta_extent = delta_along_y
+                new_height = max(1e-6, original_height - delta_extent)
+                new_cx = original_cx + 0.5 * delta_extent * ey_x
+                new_cy = original_cy + 0.5 * delta_extent * ey_y
 
         elif self._drag_mode == "R":
-            mx = (ev.position().x() - off_x) / scale
-            my = (ev.position().y() - off_y) / scale
-            cur_angle = math.atan2(my - cy0, mx - cx0)
-            d_theta = cur_angle - self._press_angle
-            if d_theta > math.pi:
-                d_theta -= 2 * math.pi
-            if d_theta <= -math.pi:
-                d_theta += 2 * math.pi
-            if self._theta_is_clockwise:
-                theta = self._orig_theta - d_theta
+            cursor_video_x = (ev.position().x() - off_x) / scale
+            cursor_video_y = (ev.position().y() - off_y) / scale
+            current_angle = math.atan2(
+                cursor_video_y - original_cy, cursor_video_x - original_cx
+            )
+
+            incremental_delta = current_angle - self._last_mouseframe_angle
+
+            if incremental_delta > math.pi:
+                incremental_delta -= 2 * math.pi
+            if incremental_delta <= -math.pi:
+                incremental_delta += 2 * math.pi
+
+            self._total_delta += incremental_delta
+
+            self._last_mouseframe_angle = current_angle
+
+            if self._theta_is_anticlockwise:
+                theta = self._orig_theta - self._total_delta
             else:
-                theta = self._orig_theta + d_theta
+                theta = self._orig_theta + self._total_delta
+
+            theta = theta % (2 * math.pi)
 
         # Create new BBox for live preview
         current_box = self._boxes[self._selected_idx]
@@ -342,13 +433,17 @@ class Overlay(QWidget):
         new_bbox = BBoxData(
             object_id=object_id,
             object_type=current_box.object_type,
-            center_x=cx,
-            center_y=cy,
-            width=w,
-            height=h,
+            center_x=new_cx,
+            center_y=new_cy,
+            width=new_width,
+            height=new_height,
             theta=theta,
         )
         self._boxes[self._selected_idx] = new_bbox
+
+        # Emit the live data for playback controls to display
+        self.boxModified.emit(new_bbox)
+
         self.update()
         ev.accept()
 
@@ -361,7 +456,7 @@ class Overlay(QWidget):
             return
 
         selected_bbox = self._get_selected_bbox()
-        if selected_bbox is not None:
+        if self._mouse_drag_active and selected_bbox is not None:
             if self._drag_mode == "move":
                 self.boxMoved.emit(
                     selected_bbox.object_id,
@@ -388,6 +483,7 @@ class Overlay(QWidget):
         # clear drag/hover state
         self._hover_idx, self._hover_mode = None, None
         self._drag_mode = None
+        self._mouse_drag_active = False
         self._press_pos_disp = None
         self._orig_box = None
         ev.accept()
@@ -397,7 +493,7 @@ class Overlay(QWidget):
 
     def _axis_from_mode(self, theta: float, mode: str) -> tuple[float, float]:
         """Return unit axis (ax_x, ax_y) in DISPLAY coords for the edge being resized."""
-        angle_rad = -theta if self._theta_is_clockwise else theta
+        angle_rad = -theta if self._theta_is_anticlockwise else theta
         if mode in ("E", "W"):
             return math.cos(angle_rad), math.sin(angle_rad)
         else:
@@ -452,7 +548,7 @@ class Overlay(QWidget):
             box_w_disp = w_vid * scale
             box_h_disp = h_vid * scale
 
-            angle_rad = -theta if self._theta_is_clockwise else theta
+            angle_rad = -theta if self._theta_is_anticlockwise else theta
             cos_a, sin_a = math.cos(angle_rad), math.sin(angle_rad)
 
             half_w = box_w_disp * 0.5
@@ -567,6 +663,7 @@ class Overlay(QWidget):
             self.clear_selection()
             return
 
+        self.setFocus()
         self._selected_idx = self._get_box_idx_from_obj_id(object_id)
 
         self._drag_mode = None
@@ -574,6 +671,8 @@ class Overlay(QWidget):
         self._hover_mode = None
         self._press_pos_disp = None
         self._orig_box = None
+
+        self.show_cascade_option()
         self.update()
 
     def select_box(self, idx: int | None):
@@ -591,6 +690,12 @@ class Overlay(QWidget):
         self.update()
 
     def paintEvent(self, _):
+        """
+        Draw boxes on the current frame.
+
+        This overrides PyQT's paintEvent. It is triggered
+        on .show() and .update() of the widget.
+        """
         if not self._boxes or self._frame_size == (0, 0):
             return
 
@@ -619,7 +724,8 @@ class Overlay(QWidget):
             box_width_disp = box_width * scale
             box_height_disp = box_height * scale
 
-            angle_rad = -theta_val if self._theta_is_clockwise else theta_val
+            angle_rad = -theta_val if self._theta_is_anticlockwise else theta_val
+
             cos_angle, sin_angle = math.cos(angle_rad), math.sin(angle_rad)
             half_w = box_width_disp / 2.0
             half_h = box_height_disp / 2.0
@@ -658,29 +764,51 @@ class Overlay(QWidget):
             text_y = mid_top.y() + ny * text_margin
             text_str = f"{object_id} ({object_type})"
 
+            flag = self._bbox_flags.get(object_id)
+            icon_pixmap: QPixmap | None = None
+            if flag == "error" and self._show_error_flags:
+                icon_pixmap = (
+                    self._error_icon_scaled
+                    if self._error_icon_scaled and not self._error_icon_scaled.isNull()
+                    else None
+                )
+            elif flag == "warning" and self._show_warning_flags:
+                icon_pixmap = (
+                    self._warning_icon_scaled
+                    if self._warning_icon_scaled
+                    and not self._warning_icon_scaled.isNull()
+                    else None
+                )
+            icon_width = icon_pixmap.width() if icon_pixmap else 0
+            icon_height = icon_pixmap.height() if icon_pixmap else 0
+            icon_spacing = OVERLAY_ICON_SPACING if icon_pixmap else 0
+
             painter.save()
             painter.translate(text_x, text_y)
             painter.rotate(edge_angle)
 
-            # Measure text
             metrics = painter.fontMetrics()
             text_width = metrics.horizontalAdvance(text_str)
             text_height = metrics.height()
             padding = 2
+            background_top = -metrics.ascent() - padding
+            background_height = text_height + 2 * padding
 
-            # Draw semi-transparent black background
+            if icon_pixmap:
+                icon_x = 0
+                icon_y = background_top + (background_height - icon_height) / 2
+                painter.drawPixmap(int(icon_x), int(icon_y), icon_pixmap)
+            text_offset_x = icon_width + icon_spacing
             painter.setBrush(QColor(0, 0, 0, 160))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRect(
-                -padding,
-                -metrics.ascent() - padding,
+                text_offset_x - padding,
+                background_top,
                 text_width + 2 * padding,
-                text_height + 2 * padding,
+                background_height,
             )
-
-            # Draw text
-            painter.setPen(QColor(255, 255, 0))  # bright yellow
-            painter.drawText(0, 0, text_str)
+            painter.setPen(QColor(255, 255, 0))
+            painter.drawText(text_offset_x, 0, text_str)
             painter.restore()
 
             # --- Draw side handles if selected ---
@@ -738,22 +866,111 @@ class Overlay(QWidget):
                 )
             if self._show_axes:
                 painter.setPen(self._pen_axis)
-                axis_x = center_x_disp + half_w * cos_angle
-                axis_y = center_y_disp + half_h * sin_angle
+                axis_length = max(box_width_disp, box_height_disp) / 2
+                axis_x = center_x_disp + axis_length * cos_angle
+                axis_y = center_y_disp + axis_length * sin_angle
                 painter.drawLine(
                     QPointF(center_x_disp, center_y_disp), QPointF(axis_x, axis_y)
                 )
 
         painter.end()
 
-    def keyPressEvent(self, e):
-        if e.key() == Qt.Key.Key_Delete and not (
-            e.modifiers() & Qt.KeyboardModifier.ControlModifier
+    def _scale_icon(self, pixmap: QPixmap | None) -> QPixmap | None:
+        if pixmap is None or pixmap.isNull():
+            return None
+        size = self._confidence_icon_size
+        return pixmap.scaled(
+            size,
+            size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Delete and not (
+            event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
             self.deletePressed.emit()
-            e.accept()
+            event.accept()
             return
-        super().keyPressEvent(e)
+        super().keyPressEvent(event)
+
+        self.on_arrow_key_press(event)
+
+    def on_arrow_key_press(self, event):
+        if self._selected_idx is None:
+            return super().keyPressEvent(event)
+
+        movement_step = get_movement_sensitivity()
+        rotation_step = get_rotation_sensitivity()
+
+        selected_bbox = self._get_selected_bbox()
+
+        # Initialize variables that will be updated based
+        # on key presses
+        new_center_x = selected_bbox.center_x
+        new_center_y = selected_bbox.center_y
+        new_theta = selected_bbox.theta
+
+        # Check if shift is pressed to choose if left and right arrow keys
+        # move or rotate the box.
+        def _is_shift_pressed() -> bool:
+            return event.modifiers() == Qt.KeyboardModifier.ShiftModifier
+
+        match event.key():
+            # note: Y-axis movement is inverted.
+            case Qt.Key.Key_Up:
+                new_center_y -= movement_step
+            case Qt.Key.Key_Down:
+                new_center_y += movement_step
+            case Qt.Key.Key_Right:
+                if _is_shift_pressed():
+                    new_theta += rotation_step
+                else:
+                    new_center_x += movement_step
+            case Qt.Key.Key_Left:
+                if _is_shift_pressed():
+                    new_theta -= rotation_step
+                else:
+                    new_center_x -= movement_step
+            case _:
+                # If it is not an arrow key movement,
+                # return control back to the parent class.
+                return super().keyPressEvent(event)
+
+        if new_theta != selected_bbox.theta:
+            new_theta = new_theta % (2 * math.pi)
+
+        updated_bbox = replace(
+            selected_bbox, center_x=new_center_x, center_y=new_center_y, theta=new_theta
+        )
+
+        self._boxes[self._selected_idx] = updated_bbox
+
+        # Emit the live data for playback controls to display
+        self.boxModified.emit(updated_bbox)
+
+        self.update()
+
+        # selected bbox still holds the old (unchanged) annotation.
+        if (  # Check if the center has changed.
+            new_center_x != selected_bbox.center_x
+            or new_center_y != selected_bbox.center_y
+        ):
+            self.boxMoved.emit(
+                updated_bbox.object_id,
+                updated_bbox.center_x,
+                updated_bbox.center_y,
+            )
+
+        # Check if the rotation has changed
+        if not new_theta == selected_bbox.theta:
+            self.boxRotated.emit(
+                updated_bbox.object_id,
+                updated_bbox.width,
+                updated_bbox.height,
+                updated_bbox.theta,
+            )
 
     def _on_cascade_size_to_all(self):
         """Handle cascade apply to all frames."""

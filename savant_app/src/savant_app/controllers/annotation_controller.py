@@ -1,8 +1,8 @@
+from typing import Optional, Union
+
+from savant_app.models.OpenLabel import FrameLevelObject, RotatedBBox
 from savant_app.services.annotation_service import AnnotationService
-from savant_app.models.OpenLabel import RotatedBBox
-from typing import Optional
-from savant_app.models.OpenLabel import FrameLevelObject
-from typing import Union
+
 from .error_handler_middleware import error_handler
 
 
@@ -16,11 +16,14 @@ class AnnotationController:
         return self.annotation_service.get_actor_types()
 
     @error_handler
-    def create_new_object_bbox(self, frame_number: int, bbox_info: dict) -> None:
+    def create_new_object_bbox(
+        self, frame_number: int, bbox_info: dict, annotator: str
+    ) -> None:
         self.annotation_service.create_new_object_bbox(
             frame_number=frame_number,
             obj_type=bbox_info["object_type"],
             coordinates=bbox_info["coordinates"],
+            annotator=annotator,
         )
 
     @error_handler
@@ -56,6 +59,7 @@ class AnnotationController:
         delta_theta: float = 0.0,
         min_width: float = 1e-6,
         min_height: float = 1e-6,
+        annotator: str
     ) -> RotatedBBox:
         """
         UI-level update for bbox geometry; delegates to the service.
@@ -79,6 +83,7 @@ class AnnotationController:
             delta_theta=delta_theta,
             min_width=min_width,
             min_height=min_height,
+            annotator=annotator,
         )
 
     @error_handler
@@ -87,6 +92,7 @@ class AnnotationController:
         frame_start: int,
         object_key: Union[int, str],
         frame_end: Optional[int],
+        annotator: str,
         width: Optional[float] = None,
         height: Optional[float] = None,
         rotation: Optional[float] = None,
@@ -97,6 +103,7 @@ class AnnotationController:
         return self.annotation_service.cascade_bbox_edit(
             frame_start=int(frame_start),  # Start from next frame
             frame_end=frame_end,
+            annotator=annotator,
             object_key=object_key,
             width=width,
             height=height,
@@ -104,15 +111,18 @@ class AnnotationController:
         )
 
     @error_handler
-    def create_bbox_existing_object(self, frame_number: int, bbox_info: dict) -> None:
+    def create_bbox_existing_object(
+        self, frame_number: int, bbox_info: dict, annotator: str
+    ) -> None:
         self.annotation_service.create_existing_object_bbox(
             frame_number=frame_number,
             coordinates=bbox_info["coordinates"],
             object_name=bbox_info["object_id"],
+            annotator=annotator,
         )
 
     @error_handler
-    def get_active_objects(self, frame_number: int) -> list[str]:
+    def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number."""
         return self.annotation_service.get_active_objects(frame_number)
 
@@ -137,6 +147,33 @@ class AnnotationController:
         self, frame_key: int, object_key: str, frame_obj: FrameLevelObject
     ) -> None:
         self.annotation_service.restore_bbox(frame_key, object_key, frame_obj)
+
+    @error_handler
+    def list_object_ids(self) -> list[str]:
+        return self.annotation_service.list_object_ids()
+
+    @error_handler
+    def frames_for_object(self, object_id: str) -> list[int]:
+        return self.annotation_service.frames_for_object(object_id)
+
+    @error_handler
+    def link_object_ids(
+        self,
+        primary_object_id: str,
+        secondary_object_id: str,
+    ) -> list[int]:
+        return self.annotation_service.link_object_ids(
+            primary_object_id,
+            secondary_object_id,
+        )
+
+    @error_handler
+    def mark_confidence_resolved(
+        self, frame_number: int, object_id: str, annotator: str
+    ) -> None:
+        self.annotation_service.mark_confidence_resolved(
+            frame_number=frame_number, object_id=object_id, annotator=annotator
+        )
 
     @error_handler
     def allowed_frame_tags(self) -> list[str]:
@@ -198,3 +235,17 @@ class AnnotationController:
     @error_handler
     def update_object_type(self, object_id: str, new_type: str) -> None:
         self.annotation_service.update_object_type(object_id, new_type)
+
+    @error_handler
+    def interpolate_annotations(
+        self,
+        object_id: str,
+        start_frame: int,
+        end_frame: int,
+        # control_points: Dict[str, List],
+        annotator: str,
+    ) -> None:
+        """Create interpolated annotations between two keyframes"""
+        self.annotation_service.interpolate_annotations(
+            object_id, start_frame, end_frame, annotator
+        )

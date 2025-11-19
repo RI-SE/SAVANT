@@ -8,7 +8,7 @@ from .exceptions import (
     OverlayIndexError,
 )
 from pydantic import ValidationError
-from typing import List, Tuple
+from typing import Dict, List, Tuple, Literal
 from dataclasses import dataclass
 from .types import VideoMetadata
 
@@ -27,6 +27,14 @@ class FrameBBoxData:
     object_id: str
     object_type: str
     bbox: BBoxDimensionData
+    confidence: float | None = None
+
+
+@dataclass
+class FrameConfidenceIssue:
+    object_id: str
+    confidence: float
+    severity: Literal["warning", "error"]
 
 
 class ProjectState:
@@ -34,6 +42,9 @@ class ProjectState:
         self.annotation_config: OpenLabel = None
         self.open_label_path: str = None
         self.video_metadata: VideoMetadata = VideoMetadata()
+        self.interpolation_metadata = (
+            set()
+        )  # Stores frame numbers with interpolated metadata
 
     def load_openlabel_config(self, path: str) -> None:
         """Load and validate OpenLabel configuration from JSON file.
@@ -103,29 +114,111 @@ class ProjectState:
         ]
 
     def boxes_with_ids_for_frame(self, frame_idx: int) -> List[FrameBBoxData]:
-        if not self.annotation_config or not self.annotation_config.frames:
+        results: List[FrameBBoxData] = []
+
+        frame = self.annotation_config.frames.get(str(frame_idx))
+        if not frame:
             return []
 
-        # Preserve fallback logic for frame index
-        fkey = str(frame_idx)
-        if fkey not in self.annotation_config.frames:
-            alt = str(frame_idx + 1)
-            if alt not in self.annotation_config.frames:
-                return []
-            fkey = alt
-            frame_idx = int(fkey)  # Use the valid frame index
+        for object_id, frame_obj in frame.objects.items():
+            metadata = self.annotation_config.objects.get(object_id)
+            object_type = metadata.type if metadata else "unknown"
 
-        results = []
-        openlabel_data = self.annotation_config.get_boxes_with_ids_for_frame(frame_idx)
+            confidence_value: float | None = None
+            vec_entries = getattr(frame_obj.object_data, "vec", []) or []
+            for vec_entry in vec_entries:
+                if getattr(vec_entry, "name", None) != "confidence":
+                    continue
+                confidence_values = getattr(vec_entry, "val", None) or []
+                if confidence_values:
+                    confidence_value = float(confidence_values[0])
+                break
 
-        for item in openlabel_data:
-            object_id, object_type, cx, cy, width, height, theta = item
-            bbox_data = BBoxDimensionData(
-                cx=cx, cy=cy, width=width, height=height, theta=theta
-            )
-            results.append(FrameBBoxData(object_id, object_type, bbox_data))
+            for geometry_data in frame_obj.object_data.rbbox:
+                if geometry_data.name != "shape":
+                    continue
+                rbbox_dimensions = geometry_data.val
+                bbox_dimension_data = BBoxDimensionData(
+                    cx=rbbox_dimensions.x_center,
+                    cy=rbbox_dimensions.y_center,
+                    width=rbbox_dimensions.width,
+                    height=rbbox_dimensions.height,
+                    theta=rbbox_dimensions.rotation,
+                )
+                results.append(
+                    FrameBBoxData(
+                        object_id=object_id,
+                        object_type=object_type,
+                        bbox=bbox_dimension_data,
+                        confidence=confidence_value,
+                    )
+                )
 
         return results
+
+    def confidence_issues(
+        self,
+        *,
+        warning_range: tuple[float, float],
+        error_range: tuple[float, float],
+        show_warnings: bool = True,
+        show_errors: bool = True,
+    ) -> Dict[int, List[FrameConfidenceIssue]]:
+        """
+        Collect confidence-based warnings/errors for each frame.
+
+        Returns:
+            Dict mapping frame index to a list of FrameConfidenceIssue objects.
+            Frames without warnings or errors are omitted.
+        """
+        issues_by_frame: Dict[int, List[FrameConfidenceIssue]] = {}
+        if not self.annotation_config or not self.annotation_config.frames:
+            return issues_by_frame
+
+        warning_min, warning_max = (float(warning_range[0]), float(warning_range[1]))
+        error_min, error_max = (float(error_range[0]), float(error_range[1]))
+
+        for frame_key, frame in self.annotation_config.frames.items():
+            try:
+                frame_index = int(frame_key)
+            except (TypeError, ValueError):
+                continue
+
+            frame_issues: List[FrameConfidenceIssue] = []
+            for object_id, frame_obj in frame.objects.items():
+                confidence_value: float | None = None
+                vec_entries = getattr(frame_obj.object_data, "vec", []) or []
+                for vec_entry in vec_entries:
+                    if getattr(vec_entry, "name", None) != "confidence":
+                        continue
+                    confidence_values = getattr(vec_entry, "val", None) or []
+                    if confidence_values:
+                        confidence_value = float(confidence_values[0])
+                    break
+
+                if confidence_value is None:
+                    continue
+
+                severity: Literal["warning", "error"] | None = None
+                if show_errors and error_min <= confidence_value <= error_max:
+                    severity = "error"
+                elif show_warnings and warning_min <= confidence_value <= warning_max:
+                    severity = "warning"
+                else:
+                    continue
+
+                frame_issues.append(
+                    FrameConfidenceIssue(
+                        object_id=object_id,
+                        confidence=confidence_value,
+                        severity=severity,
+                    )
+                )
+
+            if frame_issues:
+                issues_by_frame[frame_index] = frame_issues
+
+        return issues_by_frame
 
     def object_id_for_frame_index(self, frame_idx: int, overlay_index: int) -> str:
         """

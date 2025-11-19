@@ -8,13 +8,24 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QHBoxLayout,
     QFileDialog,
-    QComboBox,  # Added for recent objects dropdown
+    QComboBox,
     QFormLayout,
     QSpinBox,
     QMessageBox,
     QListWidgetItem,
+    QMenu,
+    QAbstractItemView,
 )
-from PyQt6.QtCore import QSize, pyqtSignal, pyqtSlot, Qt, QEvent, QSignalBlocker
+from PyQt6.QtCore import (
+    QSize,
+    pyqtSignal,
+    pyqtSlot,
+    Qt,
+    QEvent,
+    QSignalBlocker,
+    QPoint,
+    QItemSelectionModel,
+)
 from savant_app.frontend.utils.assets import icon
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.video_controller import VideoController
@@ -22,10 +33,31 @@ from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.widgets.settings import get_action_interval_offset
 from savant_app.frontend.utils.settings_store import get_ontology_path
 from savant_app.frontend.exceptions import InvalidObjectIDFormat
+from savant_app.frontend.states.frontend_state import FrontendState
 from savant_app.controllers.project_state_controller import ProjectStateController
-from PyQt6.QtGui import QShortcut, QKeySequence
+from PyQt6.QtGui import QShortcut, QKeySequence, QFont, QIcon
+from savant_app.frontend.theme.constants import (
+    SIDEBAR_ERROR_HIGHLIGHT,
+    SIDEBAR_WARNING_HIGHLIGHT,
+    SIDEBAR_HIGHLIGHT_TEXT_COLOUR,
+    SIDEBAR_CONFIDENCE_ICON_SIZE,
+    SIDEBAR_CONFIDENCE_LIST_HEIGHT,
+    get_warning_icon,
+    get_error_icon,
+)
+from savant_app.frontend.theme.sidebar_styles import apply_issue_sort_button_style
+from savant_app.frontend.widgets.interpolation_dialog import InterpolationDialog
 from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
-from PyQt6.QtGui import QFont
+from savant_app.frontend.utils.undo import (
+    FrameTagSnapshot,
+    AddFrameTagCommand,
+    RemoveFrameTagCommand,
+    InterpolateAnnotationsCommand,
+)
+from savant_app.services.exceptions import VideoLoadError
+from savant_app.frontend.utils.sidebar_confidence_items import (
+    SidebarConfidenceIssueItemDelegate,
+)
 
 
 class Sidebar(QWidget):
@@ -47,6 +79,7 @@ class Sidebar(QWidget):
         annotation_controller: AnnotationController,
         video_controller: VideoController,
         project_state_controller: ProjectStateController,
+        frontend_state: FrontendState,
         state: SidebarState,
     ):
         super().__init__()
@@ -57,12 +90,18 @@ class Sidebar(QWidget):
         self.annotation_controller: AnnotationController = annotation_controller
         self.video_controller: VideoController = video_controller
         self.project_state_controller: ProjectStateController = project_state_controller
+        self.frontend_state: FrontendState = frontend_state
 
         # State for sidebar
         self.state: SidebarState = state
 
         # Track the currently selected object ID
         self._selected_annotation_object_id: str | None = None
+        self._current_confidence_issues: dict[int, list] = {}
+        self._warning_icon = self._create_confidence_icon(get_warning_icon())
+        self._error_icon = self._create_confidence_icon(get_error_icon())
+        self._confidence_sort_mode: str = "frame"
+        self._confidence_sort_ascending: bool = True
 
         # --- Horizontal layout for New / Load / Save ---
         top_buttons_layout = QHBoxLayout()
@@ -108,6 +147,11 @@ class Sidebar(QWidget):
         new_tag_btn.clicked.connect(self._open_frame_tag_dialog)
         main_layout.addWidget(new_tag_btn)
 
+        # --- Interpolation Button ---
+        self.interpolate_btn = QPushButton("Interpolate")
+        self.interpolate_btn.setEnabled(True)  # Enable now that we have implementation
+        self.interpolate_btn.clicked.connect(self._open_interpolation_dialog)
+        main_layout.addWidget(self.interpolate_btn)
         # --- Object Details ---
         parts = create_collapsible_object_details(
             parent=self,
@@ -138,8 +182,60 @@ class Sidebar(QWidget):
         )
         main_layout.addWidget(self.active_objects)
 
+        warnings_header = QVBoxLayout()
+        title_row = QHBoxLayout()
+        title_row.addWidget(QLabel("Issues:"))
+        title_row.addStretch(1)
+        sort_controls = QHBoxLayout()
+        sort_controls.setSpacing(12)
+        self._frame_sort_btn = QPushButton()
+        self._frame_sort_btn.setFlat(True)
+        self._frame_sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._frame_sort_btn.clicked.connect(
+            lambda: self._change_confidence_sort_mode("frame")
+        )
+        sort_controls.addWidget(self._frame_sort_btn)
+        self._id_sort_btn = QPushButton()
+        self._id_sort_btn.setFlat(True)
+        self._id_sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._id_sort_btn.clicked.connect(
+            lambda: self._change_confidence_sort_mode("object_id")
+        )
+        sort_controls.addWidget(self._id_sort_btn)
+        title_row.addLayout(sort_controls)
+        warnings_header.addLayout(title_row)
+        main_layout.addLayout(warnings_header)
+        self._update_confidence_sort_buttons()
+        self.confidence_issue_list = QListWidget()
+        self.confidence_issue_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.ExtendedSelection
+        )
+        self.confidence_issue_list.setFixedHeight(SIDEBAR_CONFIDENCE_LIST_HEIGHT)
+        self.confidence_issue_list.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.confidence_issue_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.confidence_issue_list.setUniformItemSizes(True)
+        self.confidence_issue_list.setItemDelegate(
+            SidebarConfidenceIssueItemDelegate(self.confidence_issue_list)
+        )
+        self.confidence_issue_list.setStyleSheet(
+            "QListWidget::item { padding-left: 0px; }"
+        )
+        self.confidence_issue_list.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.confidence_issue_list.customContextMenuRequested.connect(
+            self._show_confidence_issue_context_menu
+        )
+        self.confidence_issue_list.model().rowsInserted.connect(self.adjust_list_sizes)
+        self.confidence_issue_list.model().rowsRemoved.connect(self.adjust_list_sizes)
+        main_layout.addWidget(self.confidence_issue_list)
+
         # --- Active Frame Tags ---
-        main_layout.addWidget(QLabel("Frame Tags"))
+        main_layout.addWidget(QLabel("Frame Tags:"))
         self.frame_tag_list = QListWidget()
         self.frame_tag_list.setMinimumHeight(100)
         self.frame_tag_list.model().rowsInserted.connect(self.adjust_list_sizes)
@@ -152,6 +248,12 @@ class Sidebar(QWidget):
         )
         self._frame_tag_del.setContext(Qt.ShortcutContext.WidgetShortcut)
         self._frame_tag_del.activated.connect(self._delete_selected_frame_tag)
+
+        self.frontend_state.confidenceIssuesChanged.connect(
+            self._on_confidence_issues_changed
+        )
+        self._current_confidence_issues = dict(self.frontend_state.confidence_issues())
+        self.refresh_confidence_issue_list()
 
         self.setLayout(main_layout)
         try:
@@ -171,9 +273,16 @@ class Sidebar(QWidget):
                 f"Cannot extract object ID from text: {text}"
             ) from e
 
+    def _item_object_id(self, item: QListWidgetItem) -> str:
+        stored_id = item.data(Qt.ItemDataRole.UserRole)
+        if stored_id is not None:
+            return str(stored_id)
+        return self._extract_object_id_from_text(item.text())
+
     def _on_active_object_selected(self, item):
         # Trigger highlight in the UI
-        object_id = self._extract_object_id_from_text(item.text())
+        object_id = self._item_object_id(item)
+        self._selected_annotation_object_id = object_id
         self.highlight_selected_object.emit(object_id)
         self.show_object_editor(object_id, expand=False)
 
@@ -190,19 +299,210 @@ class Sidebar(QWidget):
                     self.active_objects.scrollToItem(item)
                     break
 
-    def refresh_active_objects(self, active_objects: list[str]):
+    def refresh_active_objects(
+        self,
+        active_objects: list[dict],
+        confidence_flags: dict[str, str] | None = None,
+    ):
         """Refresh the list of active objects and update recent IDs."""
         with QSignalBlocker(self.active_objects):
             self.active_objects.clear()
+            flags = confidence_flags or {}
             for item in active_objects:
-                obj_id = item["name"]
-                numeric_id = obj_id.split("-")[-1] if "-" in obj_id else obj_id
-                self.active_objects.addItem(
-                    f'{item["type"].lower()} (ID: {numeric_id})'
-                )
-            self.select_active_object_by_id(self._selected_annotation_object_id)
+                obj_name = item.get("name") or ""
+                obj_key = item.get("id") or obj_name
+                # Display only numeric part of ID
+                numeric_id = obj_name.split("-")[-1] if "-" in obj_name else obj_name
+                display_text = f'{item.get("type", "Object")} (ID: {numeric_id})'
+                list_item = QListWidgetItem(display_text)
+                list_item.setData(Qt.ItemDataRole.UserRole, obj_key)
+
+                severity = flags.get(obj_key)
+                if severity == "error":
+                    list_item.setBackground(SIDEBAR_ERROR_HIGHLIGHT)
+                    list_item.setForeground(SIDEBAR_HIGHLIGHT_TEXT_COLOUR)
+                elif severity == "warning":
+                    list_item.setBackground(SIDEBAR_WARNING_HIGHLIGHT)
+                    list_item.setForeground(SIDEBAR_HIGHLIGHT_TEXT_COLOUR)
+
+                self.active_objects.addItem(list_item)
+
+            self.select_active_object_by_id(
+                self._selected_annotation_object_id
+            )  # Reselect previously selected object if still present
 
         self.update()
+
+    def refresh_confidence_issue_list(self, frame_override: int | None = None) -> None:
+        """Rebuild the list of confidence issues within the configured frame window."""
+        if not hasattr(self, "confidence_issue_list"):
+            return
+        selected_keys = {
+            tuple(item.data(Qt.ItemDataRole.UserRole) or ())
+            for item in self.confidence_issue_list.selectedItems()
+        }
+        visible_issues = self._collect_visible_confidence_issues(frame_override)
+        with QSignalBlocker(self.confidence_issue_list):
+            self.confidence_issue_list.clear()
+            for frame_index, object_id, severity in visible_issues:
+                display_text = f"Frame {frame_index} – ID: {object_id}"
+                entry_key = (frame_index, object_id, severity)
+                list_item = QListWidgetItem(display_text)
+                list_item.setData(Qt.ItemDataRole.UserRole, entry_key)
+                list_item.setIcon(self._confidence_icon_for(severity))
+                if entry_key in selected_keys:
+                    list_item.setSelected(True)
+                self.confidence_issue_list.addItem(list_item)
+        self.adjust_list_sizes()
+
+    def _collect_visible_confidence_issues(
+        self, frame_override: int | None = None
+    ) -> list[tuple[int, str, str]]:
+        """Return sorted (frame, object_id, severity) tuples within the visible range."""
+        frame_history = max(0, int(self.state.historic_obj_frame_count))
+        if frame_override is not None:
+            current_frame = int(frame_override)
+        else:
+            current_index_value = self.video_controller.current_index()
+            current_frame = (
+                int(current_index_value) if current_index_value is not None else 0
+            )
+        min_frame = max(0, current_frame - frame_history)
+        max_frame = current_frame + frame_history
+
+        entries: list[tuple[int, str, str]] = []
+        for frame_key, issues in self._current_confidence_issues.items():
+            if isinstance(frame_key, int):
+                frame_index = frame_key
+            elif isinstance(frame_key, str) and frame_key.isdigit():
+                frame_index = int(frame_key)
+            else:
+                continue
+            if frame_index < min_frame or frame_index > max_frame:
+                continue
+            for issue in issues or []:
+                severity = getattr(issue, "severity", None)
+                object_id = getattr(issue, "object_id", None)
+                if not object_id or severity not in ("warning", "error"):
+                    continue
+                entries.append((frame_index, str(object_id), severity))
+
+        entries.sort(
+            key=self._confidence_issue_sort_key,
+            reverse=not self._confidence_sort_ascending,
+        )
+        return entries
+
+    def _confidence_issue_sort_key(self, value: tuple[int, str, str]):
+        if self._confidence_sort_mode == "object_id":
+            return self._object_id_sort_value(value[1])
+        return value[0]
+
+    def _object_id_sort_value(self, object_id: str) -> tuple[int, int | str]:
+        obj = str(object_id)
+        if obj.isdigit():
+            return (0, int(obj))
+        return (1, obj)
+
+    def _change_confidence_sort_mode(self, mode: str) -> None:
+        if self._confidence_sort_mode == mode:
+            self._confidence_sort_ascending = not self._confidence_sort_ascending
+        else:
+            self._confidence_sort_mode = mode
+            self._confidence_sort_ascending = True
+        self._update_confidence_sort_buttons()
+        self.refresh_confidence_issue_list()
+
+    def _update_confidence_sort_buttons(self) -> None:
+        frame_arrow = ""
+        id_arrow = ""
+        if self._confidence_sort_mode == "frame":
+            frame_arrow = "↑" if self._confidence_sort_ascending else "↓"
+        else:
+            id_arrow = "↑" if self._confidence_sort_ascending else "↓"
+        self._frame_sort_btn.setText(f"Frame {frame_arrow}".strip())
+        self._id_sort_btn.setText(f"ID {id_arrow}".strip())
+        palette = self.palette()
+        apply_issue_sort_button_style(
+            self._frame_sort_btn,
+            active=self._confidence_sort_mode == "frame",
+            palette=palette,
+        )
+        apply_issue_sort_button_style(
+            self._id_sort_btn,
+            active=self._confidence_sort_mode == "object_id",
+            palette=palette,
+        )
+
+    def _confidence_icon_for(self, severity: str) -> QIcon:
+        return self._error_icon if severity == "error" else self._warning_icon
+
+    def _create_confidence_icon(self, pixmap) -> QIcon:
+        if pixmap is None or pixmap.isNull():
+            return QIcon()
+        scaled = pixmap.scaled(
+            SIDEBAR_CONFIDENCE_ICON_SIZE,
+            SIDEBAR_CONFIDENCE_ICON_SIZE,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        return QIcon(scaled)
+
+    def _show_confidence_issue_context_menu(self, position: QPoint) -> None:
+        if not hasattr(self, "confidence_issue_list"):
+            return
+        item = self.confidence_issue_list.itemAt(position)
+        if item is not None and not item.isSelected():
+            selection = self.confidence_issue_list.selectionModel()
+            if selection is not None:
+                selection.select(
+                    self.confidence_issue_list.indexFromItem(item),
+                    QItemSelectionModel.SelectionFlag.ClearAndSelect,
+                )
+        if not self.confidence_issue_list.selectedItems():
+            return
+        menu = QMenu(self)
+        mark_resolved_action = menu.addAction("Mark as resolved")
+        chosen_action = menu.exec(
+            self.confidence_issue_list.viewport().mapToGlobal(position)
+        )
+        if chosen_action == mark_resolved_action:
+            self._mark_selected_confidence_issues_resolved()
+
+    def _mark_selected_confidence_issues_resolved(self) -> None:
+        items = self.confidence_issue_list.selectedItems()
+        if not items:
+            return
+        annotator = self.frontend_state.get_current_annotator() or ""
+        unique_keys = {
+            tuple(item.data(Qt.ItemDataRole.UserRole) or ()) for item in items
+        }
+        for frame_index, object_id, _severity in unique_keys:
+            frame_value = frame_index
+            if isinstance(frame_value, str):
+                if frame_value.isdigit():
+                    frame_value = int(frame_value)
+                else:
+                    continue
+            elif not isinstance(frame_value, int):
+                continue
+            if not object_id:
+                continue
+            self.annotation_controller.mark_confidence_resolved(
+                frame_value, str(object_id), annotator
+            )
+        self._request_confidence_issue_refresh()
+
+    def _request_confidence_issue_refresh(self) -> None:
+        host_window = self.window()
+        refresh = getattr(host_window, "refresh_confidence_issues", None)
+        if callable(refresh):
+            refresh()
+
+    @pyqtSlot(dict)
+    def _on_confidence_issues_changed(self, issues: dict | None) -> None:
+        self._current_confidence_issues = dict(issues or {})
+        self.refresh_confidence_issue_list()
 
     def _choose_project_dir(self):
         """Let the user pick a folder containing the video + OpenLabel JSON."""
@@ -340,15 +640,22 @@ class Sidebar(QWidget):
 
     def adjust_list_sizes(self):
         """Keep lists at min height when empty, let them expand when populated."""
-        for widget in [self.active_objects, self.frame_tag_list]:
+        widgets = (
+            self.active_objects,
+            self.frame_tag_list,
+        )
+        for widget in widgets:
+            if widget is None:
+                continue
             rows = widget.count()
             if rows == 0:
                 widget.setMinimumHeight(widget.minimumHeight())
                 widget.setMaximumHeight(16777215)
-            else:
-                content_height = widget.sizeHintForRow(0) * rows + 6
-                widget.setMinimumHeight(max(widget.minimumHeight(), content_height))
-                widget.setMaximumHeight(16777215)
+                continue
+            row_height = widget.sizeHintForRow(0)
+            content_height = row_height * rows + 6
+            widget.setMinimumHeight(max(widget.minimumHeight(), content_height))
+            widget.setMaximumHeight(16777215)
 
     def refresh_annotations_list(self):
         """Refresh the list of active annotations."""
@@ -363,8 +670,6 @@ class Sidebar(QWidget):
                 self, "No Ontology", "Set an ontology file in settings first."
             )
             return
-        print(get_ontology_path())
-
         dlg = QDialog(self)
         dlg.setWindowTitle("Add Frame Tag")
         form = QFormLayout(dlg)
@@ -422,16 +727,21 @@ class Sidebar(QWidget):
             )
             return
 
+        snapshot = FrameTagSnapshot(tag_name=tag, start_frame=start, end_frame=end)
+        host_window = self.window()
         try:
-            self.annotation_controller.add_frame_tag(tag, start, end)
-            try:
-                current_index = int(self.video_controller.current_index())
-            except Exception:
-                current_index = 0
+            if host_window is not None and hasattr(
+                host_window, "execute_undoable_command"
+            ):
+                host_window.execute_undoable_command(AddFrameTagCommand(snapshot))
+            else:
+                self.annotation_controller.add_frame_tag(tag, start, end)
+
+            current_index = int(self.video_controller.current_index())
             self._refresh_active_frame_tags(current_index)
             QMessageBox.information(self, "Tag added", f"{tag}: {start} → {end}")
-        except Exception as e:
-            QMessageBox.critical(self, "Failed to add tag", str(e))
+        except Exception as exc:
+            QMessageBox.critical(self, "Failed to add tag", str(exc))
 
     def _refresh_active_frame_tags(self, frame_index: int) -> None:
         """
@@ -449,6 +759,7 @@ class Sidebar(QWidget):
             item = QListWidgetItem(f"{tag} [{start}-{end}]")
             item.setData(Qt.ItemDataRole.UserRole, (tag, int(start), int(end)))
             self.frame_tag_list.addItem(item)
+        self.refresh_confidence_issue_list(frame_index)
 
     @pyqtSlot(int)
     def on_frame_changed(self, frame_index: int) -> None:
@@ -530,6 +841,11 @@ class Sidebar(QWidget):
                 return True
         return super().eventFilter(obj, event)
 
+    def changeEvent(self, event: QEvent) -> None:
+        if event.type() == QEvent.Type.PaletteChange:
+            self._update_confidence_sort_buttons()
+        super().changeEvent(event)
+
     def _delete_selected_frame_tag(self):
         item = self.frame_tag_list.currentItem()
         if not item:
@@ -553,11 +869,28 @@ class Sidebar(QWidget):
         if res != QMessageBox.StandardButton.Yes:
             return
 
-        if not self.annotation_controller.remove_frame_tag(tag, start, end):
-            QMessageBox.information(self, "Delete Frame Tag", "Nothing was deleted.")
-            return
-        current_index = int(self.video_controller.current_index())
-        self._refresh_active_frame_tags(current_index)
+        snapshot = FrameTagSnapshot(
+            tag_name=tag,
+            start_frame=int(start),
+            end_frame=int(end),
+        )
+        host_window = self.window()
+        try:
+            if host_window is not None and hasattr(
+                host_window, "execute_undoable_command"
+            ):
+                host_window.execute_undoable_command(RemoveFrameTagCommand(snapshot))
+            else:
+                removed = self.annotation_controller.remove_frame_tag(tag, start, end)
+                if not removed:
+                    QMessageBox.information(
+                        self, "Delete Frame Tag", "Nothing was deleted."
+                    )
+                    return
+            current_index = int(self.video_controller.current_index())
+            self._refresh_active_frame_tags(current_index)
+        except Exception as exc:
+            QMessageBox.warning(self, "Delete Frame Tag", str(exc))
 
     def show_object_editor(self, object_id: str, *, expand: bool) -> None:
         """
@@ -658,6 +991,65 @@ class Sidebar(QWidget):
         if self.active_objects.selectedItems():
             return
         self.hide_object_editor()
+
+    def _open_interpolation_dialog(self):
+        # Get current frame and total frames
+        current_frame = int(self.video_controller.current_index())
+        total_frames = int(self.project_state_controller.get_frame_count())
+
+        # Get active objects in current frame
+        active_objs = self.annotation_controller.get_active_objects(current_frame)
+        if not active_objs:
+            QMessageBox.warning(
+                self, "No Objects", "No active objects in current frame"
+            )
+            return
+
+        # Extract object IDs
+        obj_ids = [obj["id"] for obj in active_objs if "id" in obj]
+
+        # Create and show dialog
+        dialog = InterpolationDialog(
+            self, obj_ids, current_frame, total_frames, self.on_interpolate
+        )
+        dialog.exec()
+
+    def on_interpolate(self, object_id: str, start_frame: int, end_frame: int):
+        current_annotator = self.frontend_state.get_current_annotator()
+        if end_frame - start_frame <= 1:
+            QMessageBox.information(
+                self,
+                "Interpolate",
+                "Select start and end frames with at least one frame in between.",
+            )
+            return
+
+        host_window = self.window()
+        if host_window is not None and hasattr(host_window, "execute_undoable_command"):
+            command = InterpolateAnnotationsCommand(
+                object_id=str(object_id),
+                start_frame=int(start_frame),
+                end_frame=int(end_frame),
+                annotator=current_annotator,
+            )
+            host_window.execute_undoable_command(command)
+        else:
+            self.annotation_controller.interpolate_annotations(
+                object_id, start_frame, end_frame, current_annotator
+            )
+        if host_window is not None:
+            try:
+                host_window.refresh_confidence_issues()
+            except VideoLoadError:
+                pass
+        try:
+            current_index = int(self.video_controller.current_index())
+        except Exception:
+            current_index = 0
+        self._refresh_active_frame_tags(current_index)
+        refresh_confidence_list = getattr(self, "refresh_confidence_issue_list", None)
+        if callable(refresh_confidence_list):
+            refresh_confidence_list(current_index)
 
     def _on_details_toggle_clicked(self, checked: bool):
         self._details_toggle.setArrowType(

@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.services.annotation_service import AnnotationService
 from savant_app.services.exceptions import ObjectNotFoundError
@@ -26,13 +28,16 @@ class TestAnnotationController:
             "coordinates": {"x": 10, "y": 20, "width": 30, "height": 40},
         }
 
-        annotation_controller.create_new_object_bbox(frame_number, bbox_info)
+        annotation_controller.create_new_object_bbox(
+            frame_number, bbox_info, annotator="test_user"
+        )
 
         # Verify service method is called with correct parameters
         mock_annotation_service.create_new_object_bbox.assert_called_once_with(
             frame_number=frame_number,
             obj_type=bbox_info["object_type"],
             coordinates=bbox_info["coordinates"],
+            annotator="test_user",
         )
 
     def test_get_active_objects_calls_service_method(
@@ -65,13 +70,16 @@ class TestAnnotationController:
             "object_id": "car_123",
         }
 
-        annotation_controller.create_bbox_existing_object(frame_number, bbox_info)
+        annotation_controller.create_bbox_existing_object(
+            frame_number, bbox_info, annotator="test_user"
+        )
 
         # Verify service method is called with correct parameters
         mock_annotation_service.create_existing_object_bbox.assert_called_once_with(
             frame_number=frame_number,
             coordinates=bbox_info["coordinates"],
             object_name=bbox_info["object_id"],
+            annotator="test_user",
         )
 
     def test_create_bbox_existing_object_propagates_errors(
@@ -89,4 +97,6 @@ class TestAnnotationController:
         )
 
         with pytest.raises(ObjectNotFoundError):
-            annotation_controller.create_bbox_existing_object(frame_number, bbox_info)
+            annotation_controller.create_bbox_existing_object(
+                frame_number, bbox_info, annotator="test_user"
+            )

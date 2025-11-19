@@ -56,3 +56,9 @@ class OntologyNotFound(FrontendException):
     """Raised when an ontology file can not be found."""
 
     pass
+
+
+class InvalidWarningErrorRange(FrontendException):
+    """Raised when a warning or error range is invalid."""
+
+    pass
