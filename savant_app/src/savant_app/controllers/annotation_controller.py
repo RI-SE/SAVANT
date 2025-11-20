@@ -266,3 +266,13 @@ class AnnotationController:
             subject_object_id,
             object_object_id,
         )
+
+    @error_handler
+    def delete_relationship(self, relation_id: str) -> bool:
+        return self.annotation_service.delete_relationship(relation_id)
+
+    def get_object_relationship(
+        self,
+        object_id: str
+    ):
+        return self.annotation_service.get_object_relationships(object_id)

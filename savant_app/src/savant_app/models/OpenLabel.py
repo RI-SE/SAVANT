@@ -507,7 +507,7 @@ class OpenLabel(BaseModel):
         # Convert the received frame intervals into the OL spec
         # type.
         ol_frame_intervals = [
-            FrameInterval(start=interval[0], end=interval[1])
+            FrameInterval(frame_start=interval[0], frame_end=interval[1])
             for interval in frame_intervals
         ]
 
@@ -526,4 +526,34 @@ class OpenLabel(BaseModel):
         if not self.relations:
             self.relations = {}
 
-        self.relations[self._generate_relation_id()](new_relationship)
+        new_id = _generate_relation_id(self)
+        self.relations[new_id] = new_relationship
+
+    def get_object_relationships(self, object_id: str) -> List[RelationMetadata]:
+        """
+        Get all relationships for a given object_id.
+        """
+        if not self.relations:
+            return []
+
+        matching_relations = []
+        for relation in self.relations.values():
+            for subject in relation.rdf_subjects:
+                if subject.uid == object_id:
+                    matching_relations.append(relation)
+                    break 
+            for obj in relation.rdf_objects:
+                if obj.uid == object_id:
+                    matching_relations.append(relation)
+                    break
+        return matching_relations
+
+    def delete_relationship(self, relation_id: str) -> bool:
+        """
+        Delete a relationship by its ID.
+        """
+        if self.relations and relation_id in self.relations:
+            del self.relations[relation_id]
+            return True
+        return False
+

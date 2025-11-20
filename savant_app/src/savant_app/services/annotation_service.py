@@ -767,6 +767,16 @@ class AnnotationService:
             frame_intervals,
         )
 
+    def get_object_relationships(self, object_id: str):
+        """Get all relationships for a given object_id."""
+        openlabel = self.project_state.annotation_config
+        return openlabel.get_object_relationships(object_id)
+
+    def delete_relationship(self, relation_id: str) -> bool:
+        """Delete a relationship by its ID."""
+        openlabel = self.project_state.annotation_config
+        return openlabel.delete_relationship(relation_id)
+
     def _calculate_relation_frame_interval(
         self, subject_object_id: str, object_object_id: str
     ):
