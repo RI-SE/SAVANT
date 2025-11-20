@@ -741,3 +741,89 @@ class AnnotationService:
     def is_interpolated(self, frame_num: int, object_id: str) -> bool:
         """Check if annotation is interpolated at given frame"""
         return (frame_num, object_id) in self.project_state.interpolation_metadata
+
+    def add_object_relationship(
+        self,
+        relationship_name: str,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str,
+    ) -> None:
+        """Add a new relationship between objects."""
+        openlabel = self.project_state.annotation_config
+
+        # Calculate frame interval stuff.
+        frame_intervals = self._calculate_relation_frame_interval(
+            subject_object_id, object_object_id
+        )
+
+        openlabel.add_object_relationship(
+            relationship_name,
+            relationship_type,
+            ontology_uid,
+            subject_object_id,
+            object_object_id,
+            frame_intervals,
+        )
+
+    def _calculate_relation_frame_interval(
+        self, subject_object_id: str, object_object_id: str
+    ):
+        """
+        Given two objects of a relationship, calculate
+        the frame intervals in which the relationship holds.
+        """
+
+        def _get_frame_intersection(subject_object_id: str, object_object_id: str):
+            """calculate the intersection of two object annotations"""
+            subject_object_frames = set(self.frames_for_object(subject_object_id))
+            object_object_frames = set(self.frames_for_object(object_object_id))
+            return subject_object_frames.intersection(object_object_frames)
+
+        frame_intersection = _get_frame_intersection(
+            subject_object_id, object_object_id
+        )
+
+        if not frame_intersection:
+            return []
+
+        sorted_frame_intersection = sorted(
+            [int(frame_number) for frame_number in frame_intersection]
+        )
+
+        def _calculate_continuous_frame_intervals(
+            sorted_frames: list[int],
+        ) -> list[tuple]:
+            """
+            From a sorted list of frames, calculate the frame
+            intervals.
+
+            return a list of tuples (a, b), where
+            a = interval start frame, b = interval end frame .
+            """
+            current_start_frame = sorted_frames[0]
+            current_end_frame = sorted_frames[0]
+
+            intervals: list[tuple] = []
+
+            for frame in sorted_frames[1:]:
+                if frame == current_end_frame + 1:
+                    # Frame is continous,
+                    # so step the current_end.
+                    current_end_frame = frame
+                else:
+                    # Gap in frame interval
+                    intervals.append((current_start_frame, current_end_frame))
+
+                    # Set the start and end frame to
+                    # the current frame, so we can loop for
+                    # the next interval
+                    current_start_frame = frame
+                    current_end_frame = frame
+
+            # Append the final interval.
+            intervals.append((current_start_frame, current_end_frame))
+            return intervals
+
+        return _calculate_continuous_frame_intervals(sorted_frame_intersection)

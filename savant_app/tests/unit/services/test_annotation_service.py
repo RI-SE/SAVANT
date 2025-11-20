@@ -498,3 +498,150 @@ class TestCascadeBboxEdit:
             for frame in [50, 60, 70, 80, 90]
         ]
         mock_update.assert_has_calls(expected_calls, any_order=False)
+
+
+class TestAddObjectRelationship:
+    def test_add_object_relationship_with_overlap(
+        self, annotation_service, mock_project_state, mocker
+    ):
+        relationship_name = "test_rel"
+        relationship_type = "test_type"
+        ontology_uid = "uid_1"
+        subject_id = "obj_1"
+        object_id = "obj_2"
+
+        expected_intervals = [{"frame_start": 10, "frame_end": 20}]
+
+        mocker.patch.object(
+            annotation_service,
+            "_calculate_relation_frame_interval",
+            return_value=expected_intervals,
+        )
+
+        annotation_service.add_object_relationship(
+            relationship_name, relationship_type, ontology_uid, subject_id, object_id
+        )
+
+        annotation_service._calculate_relation_frame_interval.assert_called_once_with(
+            subject_id, object_id
+        )
+
+        mock_project_state.annotation_config.add_object_relationship.assert_called_once_with(
+            relationship_name,
+            relationship_type,
+            ontology_uid,
+            subject_id,
+            object_id,
+            expected_intervals,
+        )
+
+    def test_add_object_relationship_no_overlap(
+        self, annotation_service, mock_project_state, mocker
+    ):
+        relationship_name = "test_rel_no_overlap"
+        relationship_type = "test_type"
+        ontology_uid = "uid_2"
+        subject_id = "obj_3"
+        object_id = "obj_4"
+
+        expected_intervals = []
+
+        mocker.patch.object(
+            annotation_service,
+            "_calculate_relation_frame_interval",
+            return_value=expected_intervals,
+        )
+
+        annotation_service.add_object_relationship(
+            relationship_name, relationship_type, ontology_uid, subject_id, object_id
+        )
+
+        annotation_service._calculate_relation_frame_interval.assert_called_once_with(
+            subject_id, object_id
+        )
+
+        mock_project_state.annotation_config.add_object_relationship.assert_called_once_with(
+            relationship_name,
+            relationship_type,
+            ontology_uid,
+            subject_id,
+            object_id,
+            expected_intervals,
+        )
+
+
+class TestCalculateRelationFrameInterval:
+    def test_calculate_intersection_continuous(self, annotation_service, mocker):
+        """Test intersection with a single continuous block of frames."""
+        subj_id = "1"
+        obj_id = "2"
+        # Intersection will be [10, 11, 12]
+        mocker.patch.object(
+            annotation_service,
+            "frames_for_object",
+            side_effect=[
+                [10, 11, 12, 15],  # subject
+                [9, 10, 11, 12],  # object
+            ],
+        )
+
+        intervals = annotation_service._calculate_relation_frame_interval(
+            subj_id, obj_id
+        )
+
+        assert intervals == [(10, 12)]
+
+    def test_calculate_intersection_gaps(self, annotation_service, mocker):
+        """Test intersection with multiple blocks separated by gaps."""
+        subj_id = "1"
+        obj_id = "2"
+        # Intersection will be [10, 11] and [20, 21]
+        mocker.patch.object(
+            annotation_service,
+            "frames_for_object",
+            side_effect=[
+                [10, 11, 20, 21],
+                [10, 11, 20, 21],
+            ],
+        )
+
+        intervals = annotation_service._calculate_relation_frame_interval(
+            subj_id, obj_id
+        )
+
+        assert intervals == [(10, 11), (20, 21)]
+
+    def test_calculate_intersection_single_frames(self, annotation_service, mocker):
+        """Test intersection resulting in single-frame intervals."""
+        subj_id = "1"
+        obj_id = "2"
+        # Intersection: [5] and [10]
+        mocker.patch.object(
+            annotation_service,
+            "frames_for_object",
+            side_effect=[
+                [5, 10],
+                [5, 10],
+            ],
+        )
+
+        intervals = annotation_service._calculate_relation_frame_interval(
+            subj_id, obj_id
+        )
+
+        assert intervals == [(5, 5), (10, 10)]
+
+    def test_calculate_no_intersection(self, annotation_service, mocker):
+        """Test no intersection between object frames."""
+        mocker.patch.object(
+            annotation_service,
+            "frames_for_object",
+            side_effect=[
+                [1, 2],
+                [3, 4],
+            ],
+        )
+
+        intervals = annotation_service._calculate_relation_frame_interval("1", "2")
+
+        assert intervals == []

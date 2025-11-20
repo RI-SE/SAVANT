@@ -480,3 +480,50 @@ class OpenLabel(BaseModel):
         if annotater not in current_annotator_data.val[0]:
             current_annotator_data.val.appendleft(annotater)
             current_confidence_data.val.appendleft(confidence)
+
+    def add_object_relationship(
+        self,
+        relationship_name: str,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str,
+        frame_intervals: list[tuple],
+    ):
+
+        def _generate_relation_id(self):
+            """
+            Get the latest key of the relationships, and increment it by 1
+            to generate a unqiue relation ID.
+            """
+            # If there are no relations, the first ID should be 0.
+            if not self.relations.keys():
+                return 0
+            # Sorted ensures that the last key is always the largest.
+            # This prevents bugs if we delete keys in the middle of
+            # the dict.
+            return sorted(self.relations.keys())[-1] + 1
+
+        # Convert the received frame intervals into the OL spec
+        # type.
+        ol_frame_intervals = [
+            FrameInterval(start=interval[0], end=interval[1])
+            for interval in frame_intervals
+        ]
+
+        new_relationship = RelationMetadata(
+            name=relationship_name,
+            type=relationship_type,
+            ontology_uid=ontology_uid,
+            rdf_subjects=RDFItem(type="object", uid=subject_object_id),
+            rdf_objects=RDFItem(type="object", uid=object_object_id),
+            frame_intervals=ol_frame_intervals,
+        )
+
+        # If we dont have any relations, initialize an empty list.
+        # This is preferred over setting a default empty dict as we want to
+        # exclude the field in the output if it is None.
+        if not self.relations:
+            self.relations = {}
+
+        self.relations[self._generate_relation_id()](new_relationship)

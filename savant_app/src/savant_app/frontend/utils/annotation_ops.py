@@ -26,6 +26,7 @@ from savant_app.frontend.utils.undo import (
     ResolveConfidenceCommand,
     UpdateBBoxGeometryCommand,
 )
+from savant_app.frontend.widgets.link_objects_widget import RelationLinkerWidget
 from savant_app.services.exceptions import VideoLoadError
 
 from .render import refresh_frame
@@ -483,6 +484,7 @@ def _on_overlay_context_menu(main_window, click_position):
     context_menu = QMenu(overlay_widget)
     action_delete_single = context_menu.addAction("Delete this bbox")
     action_delete_cascade = context_menu.addAction("Cascade delete all with this ID")
+    action_link_objects = context_menu.addAction("Link connected objects")
     confidence_flags = overlay_widget.confidence_flags()
     mark_resolved_action = None
     if obj_id and confidence_flags.get(obj_id):
@@ -505,8 +507,10 @@ def _on_overlay_context_menu(main_window, click_position):
     selected_action = context_menu.exec(overlay_widget.mapToGlobal(click_position))
     if selected_action is None:
         return
-
-    if selected_action == action_delete_single:
+    if selected_action == action_link_objects:
+        main_window.linker_widget = RelationLinkerWidget()
+        main_window.linker_widget.show()
+    elif selected_action == action_delete_single:
         delete_selected_bbox(main_window)
     elif selected_action == action_delete_cascade:
         try:

@@ -249,3 +249,20 @@ class AnnotationController:
         self.annotation_service.interpolate_annotations(
             object_id, start_frame, end_frame, annotator
         )
+
+    @error_handler
+    def add_object_relationship(
+        self,
+        relationship_name: str,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str,
+    ):
+        self.annotation_service.add_object_relationship(
+            relationship_name,
+            relationship_type,
+            ontology_uid,
+            subject_object_id,
+            object_object_id,
+        )
