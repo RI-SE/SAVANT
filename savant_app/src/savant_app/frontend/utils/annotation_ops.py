@@ -77,6 +77,11 @@ def wire(main_window, frontend_state: FrontendState):
             lambda: refresh_frame(main_window)
         )
 
+    if hasattr(main_window.sidebar, "create_relationship"):
+        main_window.sidebar.create_relationship.connect(
+            lambda: _open_relationship_dialog(main_window)
+        )
+
     main_window.overlay.boxMoved.connect(
         lambda i, x, y: _moved(
             main_window, i, x, y, frontend_state.get_current_annotator()
@@ -485,7 +490,6 @@ def _on_overlay_context_menu(main_window, click_position):
     context_menu = QMenu(overlay_widget)
     action_delete_single = context_menu.addAction("Delete this bbox")
     action_delete_cascade = context_menu.addAction("Cascade delete all with this ID")
-    action_link_objects = context_menu.addAction("Link connected objects")
     confidence_flags = overlay_widget.confidence_flags()
     mark_resolved_action = None
     if obj_id and confidence_flags.get(obj_id):
@@ -508,19 +512,8 @@ def _on_overlay_context_menu(main_window, click_position):
     selected_action = context_menu.exec(overlay_widget.mapToGlobal(click_position))
     if selected_action is None:
         return
-    if selected_action == action_link_objects:
-        # Get current frame objects for the linker widget
-        current_frame = int(main_window.video_controller.current_index())
-        current_objects = main_window.annotation_controller.get_active_objects(current_frame)
 
-        main_window.linker_widget = RelationLinkerWidget(current_objects)
-        main_window.linker_widget.relationship_created.connect(
-            lambda subject_id, object_id, relationship_type: on_create_relationship(
-                main_window, subject_id, object_id, relationship_type
-            )
-        )
-        main_window.linker_widget.exec()
-    elif selected_action == action_delete_single:
+    if selected_action == action_delete_single:
         delete_selected_bbox(main_window)
     elif selected_action == action_delete_cascade:
         try:
@@ -762,7 +755,21 @@ def _link_object_ids_interactive(
         overlay.bounding_box_selected.emit(primary_object_id)
 
 
-def on_create_relationship(main_window, subject_id: str, object_id: str, relationship_type: str):
+def _open_relationship_dialog(main_window):
+    """Open the relationship creation dialog."""
+    # Get current frame objects for the linker widget
+    current_frame = int(main_window.video_controller.current_index())
+    current_objects = main_window.annotation_controller.get_active_objects(current_frame)
+    
+    linker_widget = RelationLinkerWidget(current_objects)
+    linker_widget.relationship_created.connect(
+            lambda subject_id, object_id, relationship_type: _on_create_relationship(
+                main_window, subject_id, object_id, relationship_type
+            )
+        )
+    linker_widget.exec()
+
+def _on_create_relationship(main_window, subject_id: str, object_id: str, relationship_type: str):
     """Handle the creation of a new object relationship."""
     # Temporarily hard coded until we implement ontology uid management
     ontology_uid = "https://github.com/fwrise/SAVANT/blob/main/Specification/savant_ontology_1.3.0.ttl"

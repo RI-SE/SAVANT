@@ -72,6 +72,7 @@ class Sidebar(QWidget):
     highlight_selected_object = pyqtSignal(str)
     object_selected = pyqtSignal(str)  # New signal for selection changes
     object_details_changed = pyqtSignal()
+    create_relationship = pyqtSignal()  # Signal for creating relationships
 
     def __init__(
         self,
@@ -152,6 +153,11 @@ class Sidebar(QWidget):
         self.interpolate_btn.setEnabled(True)  # Enable now that we have implementation
         self.interpolate_btn.clicked.connect(self._open_interpolation_dialog)
         main_layout.addWidget(self.interpolate_btn)
+
+        # --- Create Relationship Button ---
+        self.create_relationship_btn = QPushButton("Create Relationship")
+        self.create_relationship_btn.clicked.connect(self._open_relationship_dialog)
+        main_layout.addWidget(self.create_relationship_btn)
         # --- Object Details ---
         parts = create_collapsible_object_details(
             parent=self,
@@ -1050,6 +1056,20 @@ class Sidebar(QWidget):
         refresh_confidence_list = getattr(self, "refresh_confidence_issue_list", None)
         if callable(refresh_confidence_list):
             refresh_confidence_list(current_index)
+
+    def _open_relationship_dialog(self):
+        """Open the relationship creation dialog."""
+        # Get current frame objects for the linker widget
+        current_frame = int(self.video_controller.current_index())
+        current_objects = self.annotation_controller.get_active_objects(current_frame)
+        
+        if not current_objects:
+            QMessageBox.warning(
+                self, "No Objects", "No active objects in current frame"
+            )
+            return
+
+        self.create_relationship.emit()
 
     def _on_details_toggle_clicked(self, checked: bool):
         self._details_toggle.setArrowType(
