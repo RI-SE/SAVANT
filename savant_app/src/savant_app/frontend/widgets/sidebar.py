@@ -48,6 +48,7 @@ from savant_app.frontend.theme.constants import (
 from savant_app.frontend.theme.sidebar_styles import apply_issue_sort_button_style
 from savant_app.frontend.widgets.interpolation_dialog import InterpolationDialog
 from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
+from PyQt6.QtWidgets import QListWidget, QVBoxLayout, QLabel
 from savant_app.frontend.utils.undo import (
     FrameTagSnapshot,
     AddFrameTagCommand,
@@ -174,6 +175,25 @@ class Sidebar(QWidget):
         self._details_name_edit = parts["name_edit"]
         self._details_type_combo = parts["type_combo"]
         self._editing_object_id: str | None = None
+        
+        # --- Relationships Section ---
+        relationships_label = QLabel("Relationships:")
+        self.relationships_list = QListWidget()
+        self.relationships_list.setMinimumHeight(60)
+        self.relationships_list.setMaximumHeight(120)
+        self.relationships_list.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.relationships_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        
+        # Add relationships section below the form layout
+        relationships_layout = QVBoxLayout()
+        relationships_layout.addWidget(relationships_label)
+        relationships_layout.addWidget(self.relationships_list)
+        self._details_content.layout().addRow(relationships_layout)
+        
         main_layout.addWidget(self.details_container)
 
         # --- Active Objects ---
@@ -927,8 +947,87 @@ class Sidebar(QWidget):
         finally:
             self._details_type_combo.blockSignals(False)
 
+        # Load and display relationships for this object
+        self._refresh_relationships(object_id)
+
         if expand and not self._details_toggle.isChecked():
             self._details_toggle.setChecked(True)
+
+    def _refresh_relationships(self, object_id: str):
+        """Load and display relationships for this object."""
+        if not hasattr(self, "relationships_list") or self.relationships_list is None:
+            return
+            
+        try:
+            # Get relationships for the current object
+            relationships = self.annotation_controller.get_object_relationship(object_id)
+            
+            with QSignalBlocker(self.relationships_list):
+                self.relationships_list.clear()
+                
+                if not relationships:
+                    # Show placeholder text when no relationships exist
+                    item = QListWidgetItem("No relationships")
+                    item.setFlags(Qt.ItemFlag.NoItemFlags)  # Make it non-selectable
+                    self.relationships_list.addItem(item)
+                    return
+                
+                # Add each relationship to the list
+                for relation in relationships:
+                    # Extract relationship information
+                    relation_type = getattr(relation, "type", "Unknown")
+                    relation_name = getattr(relation, "name", "")
+                    
+                    # Get subject and object IDs
+                    subjects = getattr(relation, "rdf_subjects", [])
+                    objects = getattr(relation, "rdf_objects", [])
+                    
+                    # Find the related object (the one that's not the current object)
+                    related_object_id = None
+                    related_object_name = "Unknown"
+                    related_object_type = "Unknown"
+                    
+                    # Check if current object is subject or object in the relationship
+                    is_subject = any(subject.uid == object_id for subject in subjects)
+                    is_object = any(obj.uid == object_id for obj in objects)
+                    
+                    # Always show "Object B towed-by Object A" format
+                    # Find the subject (Object A) and object (Object B) of the relationship
+                    subject_id = None
+                    object_id = None
+                    
+                    for subject in subjects:
+                        if hasattr(subject, "uid"):
+                            subject_id = subject.uid
+                            break
+                    
+                    for obj in objects:
+                        if hasattr(obj, "uid"):
+                            object_id = obj.uid
+                            break
+                    
+                    # Get metadata for both objects
+                    if subject_id:
+                        subject_metadata = self.annotation_controller.get_object_metadata(subject_id)
+                        subject_name = subject_metadata.get("name", "Unknown")
+
+                    if object_id:
+                        object_metadata = self.annotation_controller.get_object_metadata(object_id)
+                        object_name = object_metadata.get("name", "Unknown") 
+
+                    display_text = f"{subject_name} {relation_type} {object_name})"
+                    
+                    list_item = QListWidgetItem(display_text)
+                    list_item.setData(Qt.ItemDataRole.UserRole, relation_name)
+                    list_item.setToolTip(display_text)  # Add tooltip to show full text
+                    self.relationships_list.addItem(list_item)
+                    
+        except Exception as e:
+            self.relationships_list.clear()
+            item = QListWidgetItem("Error loading relationships")
+            item.setFlags(Qt.ItemFlag.NoItemFlags)
+            self.relationships_list.addItem(item)
+            raise e
 
     def hide_object_editor(self) -> None:
         """Collapse, disable, and clear details when nothing is selected."""

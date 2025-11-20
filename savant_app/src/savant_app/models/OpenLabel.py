@@ -504,7 +504,7 @@ class OpenLabel(BaseModel):
             # Sorted ensures that the last key is always the largest.
             # This prevents bugs if we delete keys in the middle of
             # the dict.
-            return str(sorted(self.relations.keys())[-1] + 1)
+            return str(int(sorted(self.relations.keys())[-1]) + 1)
 
         # Convert the received frame intervals into the OL spec
         # type.
