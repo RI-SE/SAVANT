@@ -253,14 +253,13 @@ class AnnotationController:
     @error_handler
     def add_object_relationship(
         self,
-        relationship_name: str,
         relationship_type: str,
         ontology_uid: str,
         subject_object_id: str,
         object_object_id: str,
-    ):
-        self.annotation_service.add_object_relationship(
-            relationship_name,
+    ) -> str:
+        """Add an object relationship and return its ID."""
+        return self.annotation_service.add_object_relationship(
             relationship_type,
             ontology_uid,
             subject_object_id,

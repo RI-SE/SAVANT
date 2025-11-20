@@ -483,26 +483,28 @@ class OpenLabel(BaseModel):
 
     def add_object_relationship(
         self,
-        relationship_name: str,
         relationship_type: str,
         ontology_uid: str,
         subject_object_id: str,
         object_object_id: str,
         frame_intervals: list[tuple],
-    ):
+    ) -> str:
+        """
+        Add a new object relationship and return its unique ID. 
+        """
 
-        def _generate_relation_id(self):
+        def _generate_relation_id(self) -> str:
             """
             Get the latest key of the relationships, and increment it by 1
             to generate a unqiue relation ID.
             """
             # If there are no relations, the first ID should be 0.
-            if not self.relations.keys():
-                return 0
+            if not self.relations or not self.relations.keys():
+                return str(0)
             # Sorted ensures that the last key is always the largest.
             # This prevents bugs if we delete keys in the middle of
             # the dict.
-            return sorted(self.relations.keys())[-1] + 1
+            return str(sorted(self.relations.keys())[-1] + 1)
 
         # Convert the received frame intervals into the OL spec
         # type.
@@ -510,6 +512,13 @@ class OpenLabel(BaseModel):
             FrameInterval(frame_start=interval[0], frame_end=interval[1])
             for interval in frame_intervals
         ]
+
+        # Create a new unique relation ID.
+        new_id = _generate_relation_id(self)
+
+        # Generate name for the relationship based on the ID
+        relationship_name = f"Relation-{new_id}"
+        
 
         new_relationship = RelationMetadata(
             name=relationship_name,
@@ -526,8 +535,9 @@ class OpenLabel(BaseModel):
         if not self.relations:
             self.relations = {}
 
-        new_id = _generate_relation_id(self)
         self.relations[new_id] = new_relationship
+
+        return str(new_id)
 
     def get_object_relationships(self, object_id: str) -> List[RelationMetadata]:
         """

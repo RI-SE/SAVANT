@@ -744,13 +744,12 @@ class AnnotationService:
 
     def add_object_relationship(
         self,
-        relationship_name: str,
         relationship_type: str,
         ontology_uid: str,
         subject_object_id: str,
         object_object_id: str,
-    ) -> None:
-        """Add a new relationship between objects."""
+    ) -> str:
+        """Add a new relationship between objects and return its ID"""
         openlabel = self.project_state.annotation_config
 
         # Calculate frame interval stuff.
@@ -758,8 +757,7 @@ class AnnotationService:
             subject_object_id, object_object_id
         )
 
-        openlabel.add_object_relationship(
-            relationship_name,
+        return openlabel.add_object_relationship(
             relationship_type,
             ontology_uid,
             subject_object_id,
