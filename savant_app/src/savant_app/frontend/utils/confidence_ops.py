@@ -53,6 +53,7 @@ def apply_confidence_markers(main_window) -> None:
     state = getattr(main_window, "state", None)
     seek_bar = getattr(main_window, "seek_bar", None)
     overlay = getattr(main_window, "overlay", None)
+    playback_controls = getattr(main_window, "playback_controls", None)
     if state is None or seek_bar is None or overlay is None:
         return
 
@@ -61,8 +62,15 @@ def apply_confidence_markers(main_window) -> None:
 
     seek_bar.set_warning_frames(warning_frames)
     seek_bar.set_error_frames(error_frames)
-    seek_bar.set_warning_visibility(get_show_warnings())
-    seek_bar.set_error_visibility(get_show_errors())
+    show_warnings = get_show_warnings()
+    show_errors = get_show_errors()
+    seek_bar.set_warning_visibility(show_warnings)
+    seek_bar.set_error_visibility(show_errors)
 
-    overlay.set_warning_flag_visibility(get_show_warnings())
-    overlay.set_error_flag_visibility(get_show_errors())
+    overlay.set_warning_flag_visibility(show_warnings)
+    overlay.set_error_flag_visibility(show_errors)
+
+    if playback_controls is not None and hasattr(
+        playback_controls, "set_issue_navigation_visible"
+    ):
+        playback_controls.set_issue_navigation_visible(show_warnings or show_errors)
