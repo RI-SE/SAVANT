@@ -21,6 +21,7 @@ from savant_app.frontend.utils.undo import (
     CompositeCommand,
     CreateExistingObjectBBoxCommand,
     CreateNewObjectBBoxCommand,
+    CreateObjectRelationshipCommand,
     DeleteBBoxCommand,
     LinkObjectIdsCommand,
     ResolveConfidenceCommand,
@@ -508,8 +509,17 @@ def _on_overlay_context_menu(main_window, click_position):
     if selected_action is None:
         return
     if selected_action == action_link_objects:
-        main_window.linker_widget = RelationLinkerWidget()
-        main_window.linker_widget.show()
+        # Get current frame objects for the linker widget
+        current_frame = int(main_window.video_controller.current_index())
+        current_objects = main_window.annotation_controller.get_active_objects(current_frame)
+
+        main_window.linker_widget = RelationLinkerWidget(current_objects)
+        main_window.linker_widget.relationship_created.connect(
+            lambda subject_id, object_id, relationship_type: on_create_relationship(
+                main_window, subject_id, object_id, relationship_type
+            )
+        )
+        main_window.linker_widget.exec()
     elif selected_action == action_delete_single:
         delete_selected_bbox(main_window)
     elif selected_action == action_delete_cascade:
@@ -750,3 +760,23 @@ def _link_object_ids_interactive(
     overlay = getattr(main_window, "overlay", None)
     if overlay is not None:
         overlay.bounding_box_selected.emit(primary_object_id)
+
+
+def on_create_relationship(main_window, subject_id: str, object_id: str, relationship_type: str):
+    """Handle the creation of a new object relationship."""
+    # Temporarily hard coded until we implement ontology uid management
+    ontology_uid = "https://github.com/fwrise/SAVANT/blob/main/Specification/savant_ontology_1.3.0.ttl"
+    
+    # Create the command
+    command = CreateObjectRelationshipCommand(
+        relationship_type=relationship_type,
+        ontology_uid=ontology_uid,
+        subject_object_id=subject_id,
+        object_object_id=object_id,
+    )
+    
+    # Execute the command
+    main_window.execute_undoable_command(command)
+    
+    # Refresh the UI
+    _refresh_after_annotation_change(main_window)

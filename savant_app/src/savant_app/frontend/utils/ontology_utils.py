@@ -13,6 +13,7 @@ from ..exceptions import OntologyNotFound
 CATEGORY_ACTION = "Action"
 CATEGORY_DYNAMIC = "DynamicObject"
 CATEGORY_STATIC = "StaticObject"
+CATEGORY_RELATION = "Relation"
 
 ontology_cache_key: Optional[Tuple[str, float]] = None
 labels_by_category_cache: Optional[Dict[str, List[str]]] = None
@@ -50,6 +51,7 @@ def _parse_ontology_labels(ttl_text: str) -> Dict[str, List[str]]:
         CATEGORY_ACTION: labels_under(CATEGORY_ACTION),
         CATEGORY_DYNAMIC: labels_under(CATEGORY_DYNAMIC),
         CATEGORY_STATIC: labels_under(CATEGORY_STATIC),
+        CATEGORY_RELATION: labels_under(CATEGORY_RELATION),
     }
 
 
@@ -111,3 +113,10 @@ def get_bbox_type_labels(ontology_path: Optional[Path] = None) -> Dict[str, List
         CATEGORY_DYNAMIC: labels_by_category.get(CATEGORY_DYNAMIC, []),
         CATEGORY_STATIC: labels_by_category.get(CATEGORY_STATIC, []),
     }
+
+
+def get_relation_labels(ontology_path: Optional[Path] = None) -> List[str]:
+    """
+    Return the list of 'Relation' class labels from the ontology.
+    """
+    return _load_labels_by_category().get(CATEGORY_RELATION, [])

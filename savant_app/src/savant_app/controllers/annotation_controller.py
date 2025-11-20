@@ -265,6 +265,24 @@ class AnnotationController:
             subject_object_id,
             object_object_id,
         )
+    
+    @error_handler
+    def restore_object_relationship(
+        self,
+        relation_id: str,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str,
+    ) -> None:
+        """Restore an object relationship with a specific ID."""
+        self.annotation_service.restore_object_relationship(
+            relation_id,
+            relationship_type,
+            ontology_uid,
+            subject_object_id,
+            object_object_id,
+        )
 
     @error_handler
     def delete_relationship(self, relation_id: str) -> bool:

@@ -524,8 +524,8 @@ class OpenLabel(BaseModel):
             name=relationship_name,
             type=relationship_type,
             ontology_uid=ontology_uid,
-            rdf_subjects=RDFItem(type="object", uid=subject_object_id),
-            rdf_objects=RDFItem(type="object", uid=object_object_id),
+            rdf_subjects=[RDFItem(type="object", uid=subject_object_id)],
+            rdf_objects=[RDFItem(type="object", uid=object_object_id)],
             frame_intervals=ol_frame_intervals,
         )
 
@@ -538,6 +538,43 @@ class OpenLabel(BaseModel):
         self.relations[new_id] = new_relationship
 
         return str(new_id)
+    
+    def restore_object_relationship(
+        self,
+        relation_id: str,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str,
+        frame_intervals: list[tuple],
+    ) -> None:
+        """
+        Restore a previously deleted object relationship with the specified ID.
+        """
+        # Convert the received frame intervals into the OL spec type.
+        ol_frame_intervals = [
+            FrameInterval(frame_start=interval[0], frame_end=interval[1])
+            for interval in frame_intervals
+        ]
+
+        # Generate name for the relationship based on the ID
+        relationship_name = f"Relation-{relation_id}"
+
+        new_relationship = RelationMetadata(
+            name=relationship_name,
+            type=relationship_type,
+            ontology_uid=ontology_uid,
+            rdf_subjects=[RDFItem(type="object", uid=subject_object_id)],
+            rdf_objects=[RDFItem(type="object", uid=object_object_id)],
+            frame_intervals=ol_frame_intervals,
+        )
+
+        # If we don't have any relations, initialize an empty dict
+        if not self.relations:
+            self.relations = {}
+
+        # Restore the relationship with the specified ID
+        self.relations[relation_id] = new_relationship
 
     def get_object_relationships(self, object_id: str) -> List[RelationMetadata]:
         """
@@ -566,4 +603,3 @@ class OpenLabel(BaseModel):
             del self.relations[relation_id]
             return True
         return False
-

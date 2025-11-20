@@ -69,6 +69,14 @@ class CreatedObjectSnapshot:
     def object_id(self) -> str:
         return self.frame_snapshot.object_id
 
+@dataclass(frozen=True)
+class CreatedRelationshipSnapshot:
+    """Snapshot representing a created object relationship."""
+    relationship_id: str
+    relationship_type: str
+    ontology_uid: str
+    subject_object_id: str
+    object_object_id: str
 
 @dataclass(frozen=True)
 class FrameTagSnapshot:

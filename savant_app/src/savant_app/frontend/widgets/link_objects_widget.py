@@ -1,7 +1,6 @@
-import sys
-from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict
 
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -9,43 +8,34 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QVBoxLayout,
-    QWidget,
+    QDialog,
 )
 
-
-# Keeping the data structure for compatibility with your data
-@dataclass
-class MockObject:
-    uid: str
-    name: str
-    obj_type: str
-    frame_start: int
-    frame_end: int
-
-    @property
-    def display_text(self):
-        return f"{self.name} ({self.obj_type}) [ID: {self.uid}]"
+from savant_app.frontend.utils.ontology_utils import get_relation_labels
+from savant_app.frontend.utils.settings_store import get_ontology_path
 
 
-class RelationLinkerWidget(QWidget):
-    def __init__(self, mock_objects: Optional[List[MockObject]] = None, parent=None):
+class RelationLinkerWidget(QDialog):
+    # Signal emitted when user wants to create a relationship
+    relationship_created = pyqtSignal(str, str, str)  # subject_id, object_id, relationship_type
+    
+    def __init__(self, current_objects: Optional[List[Dict]] = None, main_window=None, parent=None):
         super().__init__(parent)
 
-        # --- HARDCODED MOCK OBJECTS ---
-        if not mock_objects:
-            self.mock_objects = [
-                MockObject("101", "Volvo FH16", "truck", 0, 500),
-                MockObject("102", "Trailer Box", "trailer", 0, 500),
-                MockObject("205", "Broken Sedan", "car", 200, 400),
-                MockObject("300", "Car Carrier", "truck", 0, 600),
-                MockObject("301", "Cargo Audi", "car", 0, 600),
-            ]
-        else:
-            self.mock_objects = mock_objects
+        # Use current frame objects or empty list
+        self.current_objects = current_objects if current_objects is not None else []
+        self.main_window = main_window
 
         self.setup_ui()
         self.setWindowTitle("Create Relationship")
         self.resize(400, 250)
+
+    def _format_object_display_text(self, obj: Dict) -> str:
+        """Format object information for display in the combo boxes."""
+        obj_id = obj.get("id", "")
+        obj_name = obj.get("name", "")
+        obj_type = obj.get("type", "")
+        return f"{obj_name} ({obj_type}) [ID: {obj_id}]"
 
     def setup_ui(self):
         # Main Layout
@@ -56,16 +46,39 @@ class RelationLinkerWidget(QWidget):
 
         # 1. Subject Selection
         self.combo_subject = QComboBox()
-        self.combo_subject.addItems([o.display_text for o in self.mock_objects])
+        self.combo_subject.setEditable(True)
+        self.combo_subject.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        placeholder_text = "Type or select object"
+        self.combo_subject.lineEdit().setPlaceholderText(placeholder_text)
+        self.combo_subject.setMinimumWidth(len(placeholder_text) * 10)
+        
+        # Add current objects to the combo box
+        object_display_texts = [self._format_object_display_text(obj) for obj in self.current_objects]
+        if object_display_texts:
+            self.combo_subject.addItems(object_display_texts)
+        self.combo_subject.setCurrentIndex(-1)
 
         # 2. Object Selection
         self.combo_object = QComboBox()
-        self.combo_object.addItems([o.display_text for o in self.mock_objects])
+        self.combo_object.setEditable(True)
+        self.combo_object.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.combo_object.lineEdit().setPlaceholderText(placeholder_text)
+        self.combo_object.setMinimumWidth(len(placeholder_text) * 10)
+        
+        # Add current objects to the combo box
+        if object_display_texts:
+            self.combo_object.addItems(object_display_texts)
+        self.combo_object.setCurrentIndex(-1)
 
         # 3. Type Selection
         self.combo_type = QComboBox()
-        self.combo_type.addItems(["towing", "carrying"])
-
+        # Get relationship types from ontology, fallback to hardcoded values if needed
+        if get_ontology_path():
+            relation_types = get_relation_labels()
+            if relation_types:
+                self.combo_type.addItems(relation_types)
+            else:
+                self.combo_type.addItems([])
         form_layout.addRow("Subject (Active):", self.combo_subject)
         form_layout.addRow("Object (Passive):", self.combo_object)
         form_layout.addRow("Relation Type:", self.combo_type)
@@ -86,46 +99,47 @@ class RelationLinkerWidget(QWidget):
         self.btn_create.clicked.connect(self.on_create)
         self.btn_cancel.clicked.connect(self.close)
 
-    def on_create(self):
-        """Minimal validation on click"""
-        subj_idx = self.combo_subject.currentIndex()
-        obj_idx = self.combo_object.currentIndex()
+    def _extract_object_id(self, display_text: str) -> str:
+        """Extract object ID from display text."""
+        # Display text format: "name (type) [ID: id]"
+        # Extract the ID part between [ID: and ]
+        start = display_text.find("[ID: ")
+        if start == -1:
+            return ""
+        start += 5  # Length of "[ID: "
+        end = display_text.find("]", start)
+        if end == -1:
+            return ""
+        return display_text[start:end]
 
-        if subj_idx == -1 or obj_idx == -1:
+    def on_create(self):
+        """Emit signal with relationship details"""
+        subj_text = self.combo_subject.currentText()
+        obj_text = self.combo_object.currentText()
+        relationship_type = self.combo_type.currentText()
+        
+        # Extract object IDs from the display text
+        subject_id = self._extract_object_id(subj_text)
+        object_id = self._extract_object_id(obj_text)
+
+        if not subject_id or not object_id:
+            QMessageBox.warning(
+                self, "Invalid Selection", "Please select valid objects for both subject and object."
+            )
             return
 
-        if subj_idx == obj_idx:
+        if subject_id == object_id:
             QMessageBox.warning(
                 self, "Invalid Link", "Subject and Object cannot be the same."
             )
             return
 
-        # Success - in real app, emit signal here
-        QMessageBox.information(
-            self, "Link Created", "The relationship has been created."
-        )
+        if not relationship_type:
+            QMessageBox.warning(
+                self, "Invalid Selection", "Please select a relationship type."
+            )
+            return
+
+        # Emit signal with relationship details
+        self.relationship_created.emit(subject_id, object_id, relationship_type)
         self.close()
-
-    ### NEW FEATURE ###
-    @staticmethod
-    def open_linker_menu(parent_window, objects: Optional[List[MockObject]] = None):
-        """
-        Static helper to instantiate, attach, and show the linker widget.
-        Attaching to parent_window ensures it persists (prevents garbage collection).
-        """
-        # Close existing instance if open
-        if (
-            hasattr(parent_window, "relation_linker_window")
-            and parent_window.relation_linker_window
-        ):
-            parent_window.relation_linker_window.close()
-
-        # Create new instance (will use hardcoded defaults if objects is None)
-        widget = RelationLinkerWidget(objects)
-
-        # Attach to parent to persist memory
-        parent_window.relation_linker_window = widget
-
-        # Show
-        widget.show()
-        return widget

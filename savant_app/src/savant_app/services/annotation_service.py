@@ -764,6 +764,31 @@ class AnnotationService:
             object_object_id,
             frame_intervals,
         )
+    
+    def restore_object_relationship(
+        self,
+        relation_id: str,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str
+    ) -> None:
+        """Restore a previously deleted relationship."""
+        openlabel = self.project_state.annotation_config
+
+        # Calculate frame interval stuff.
+        frame_intervals = self._calculate_relation_frame_interval(
+            subject_object_id, object_object_id
+        )
+
+        openlabel.restore_object_relationship(
+            relation_id,
+            relationship_type,
+            ontology_uid,
+            subject_object_id,
+            object_object_id,
+            frame_intervals,
+        )
 
     def get_object_relationships(self, object_id: str):
         """Get all relationships for a given object_id."""
