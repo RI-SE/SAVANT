@@ -490,7 +490,7 @@ class OpenLabel(BaseModel):
         frame_intervals: list[tuple],
     ) -> str:
         """
-        Add a new object relationship and return its unique ID. 
+        Add a new object relationship and return its unique ID.
         """
 
         def _generate_relation_id(self) -> str:
@@ -518,7 +518,6 @@ class OpenLabel(BaseModel):
 
         # Generate name for the relationship based on the ID
         relationship_name = f"Relation-{new_id}"
-        
 
         new_relationship = RelationMetadata(
             name=relationship_name,
@@ -538,7 +537,7 @@ class OpenLabel(BaseModel):
         self.relations[new_id] = new_relationship
 
         return str(new_id)
-    
+
     def restore_object_relationship(
         self,
         relation_id: str,
@@ -588,7 +587,7 @@ class OpenLabel(BaseModel):
             for subject in relation.rdf_subjects:
                 if subject.uid == object_id:
                     matching_relations.append(relation)
-                    break 
+                    break
             for obj in relation.rdf_objects:
                 if obj.uid == object_id:
                     matching_relations.append(relation)
@@ -603,3 +602,19 @@ class OpenLabel(BaseModel):
             del self.relations[relation_id]
             return True
         return False
+
+    def get_relationships_from_frame(self, frame_index):
+        """Given a frame index, get the relationships."""
+        if self.relations is None:
+            return
+
+        frame_relationships = []
+        for relation_metadata in self.relations.values():
+            for frame_interval in relation_metadata.frame_intervals:
+                if (
+                    frame_interval.frame_start
+                    <= frame_index
+                    <= frame_interval.frame_end
+                ):
+                    frame_relationships.append(relation_metadata)
+        return frame_relationships

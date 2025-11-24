@@ -1,7 +1,7 @@
 # savant_app/frontend/utils/render.py
 from __future__ import annotations
 
-from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
+from savant_app.frontend.types import BBoxData, ConfidenceFlagMap, Relationship
 
 
 def wire(main_window):
@@ -86,6 +86,20 @@ def _update_overlay_from_model(main_window):
         )
         main_window.overlay.set_frame_size(video_width, video_height)
         main_window.overlay.set_rotated_boxes(frame_bounding_boxes_frontend_data)
+        # Retreive relationships from backend.
+        frame_relationships = main_window.annotation_controller.get_frame_relationships(
+            current_frame_index
+        )
+        if frame_relationships:
+            main_window.overlay.set_relationships(
+                list(
+                    map(
+                        lambda relationship: Relationship(**relationship),
+                        frame_relationships,
+                    )
+                )
+            )
+
         frame_issues_map = main_window.state.confidence_issues()
         frame_issues = frame_issues_map.get(current_frame_index, [])
         flags: ConfidenceFlagMap = {}

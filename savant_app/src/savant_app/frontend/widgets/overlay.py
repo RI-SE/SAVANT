@@ -10,7 +10,7 @@ from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
                                                  OVERLAY_ICON_SPACING,
                                                  get_error_icon,
                                                  get_warning_icon)
-from savant_app.frontend.types import BBoxData, ConfidenceFlagMap
+from savant_app.frontend.types import BBoxData, ConfidenceFlagMap, Relationship
 from savant_app.frontend.utils.settings_store import (get_movement_sensitivity,
                                                       get_rotation_sensitivity)
 from savant_app.frontend.widgets.cascade_button import CascadeButton
@@ -60,6 +60,7 @@ class Overlay(QWidget):
         self._pan_x: float = 0.0
         self._pan_y: float = 0.0
         self._boxes: List[BBoxData] = []
+        self._relationships: List[Relationship] = []
 
         # This flag flips the sign if needed (Rotation of boxes).
         self._theta_is_anticlockwise: bool = False
@@ -75,6 +76,7 @@ class Overlay(QWidget):
         self._pen_box = QPen(QColor(0, 255, 0), 2)
         self._pen_box_selected = QPen(QColor(255, 255, 0))
         self._pen_box_selected.setWidth(3)
+        self._pen_relationship = QPen(QColor(255, 0, 255), 2)
 
         # Interaction state
         self._interactive: bool = True
@@ -149,6 +151,13 @@ class Overlay(QWidget):
             for box in boxes:
                 if isinstance(box, BBoxData):
                     self._boxes.append(box)
+        self.update()
+
+    def set_relationships(self, relationships: List[Relationship]):
+        """Set relationships"""
+        if relationships:
+            print(relationships)
+            self._relationships = relationships
         self.update()
 
     def set_theta_direction(self, is_anticlockwise: bool):
@@ -657,6 +666,13 @@ class Overlay(QWidget):
                 return idx
         return None
 
+    def _get_box_by_obj_id(self, object_id: str) -> BBoxData | None:
+        """Return the BBoxData for the given object_id, or None if not found."""
+        for box in self._boxes:
+            if box.object_id == object_id:
+                return box
+        return None
+
     def select_box_by_obj_id(self, object_id: str | None):
         """Externally select a bounding box by object_id (or None to clear selection)."""
         if object_id is None:
@@ -691,7 +707,7 @@ class Overlay(QWidget):
 
     def paintEvent(self, _):
         """
-        Draw boxes on the current frame.
+        Draw boxes and relationship lines on the current frame.
 
         This overrides PyQT's paintEvent. It is triggered
         on .show() and .update() of the widget.
@@ -702,6 +718,23 @@ class Overlay(QWidget):
         scale, offset_x, offset_y, _ = self._compute_transform()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        # Draw relationship lines
+        painter.setPen(self._pen_relationship)
+        for relationship in self._relationships:
+            subject_box = self._get_box_by_obj_id(relationship.subject)
+            object_box = self._get_box_by_obj_id(relationship.object)
+
+            if subject_box and object_box:
+                p1 = QPointF(
+                    offset_x + subject_box.center_x * scale,
+                    offset_y + subject_box.center_y * scale,
+                )
+                p2 = QPointF(
+                    offset_x + object_box.center_x * scale,
+                    offset_y + object_box.center_y * scale,
+                )
+                painter.drawLine(p1, p2)
 
         for idx, bbox in enumerate(self._boxes):
             if isinstance(bbox, BBoxData):

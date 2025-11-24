@@ -764,14 +764,14 @@ class AnnotationService:
             object_object_id,
             frame_intervals,
         )
-    
+
     def restore_object_relationship(
         self,
         relation_id: str,
         relationship_type: str,
         ontology_uid: str,
         subject_object_id: str,
-        object_object_id: str
+        object_object_id: str,
     ) -> None:
         """Restore a previously deleted relationship."""
         openlabel = self.project_state.annotation_config
@@ -860,3 +860,20 @@ class AnnotationService:
             return intervals
 
         return _calculate_continuous_frame_intervals(sorted_frame_intersection)
+
+    def get_frame_relationships(self, frame_index):
+        openlabel = self.project_state.annotation_config
+
+        frame_relationships = openlabel.get_relationships_from_frame(frame_index)
+
+        if not frame_relationships:
+            return None
+
+        return [
+            {
+                "subject": relationship.rdf_subjects[0].uid,
+                "relationship_type": relationship.type,
+                "object": relationship.rdf_objects[0].uid,
+            }
+            for relationship in frame_relationships
+        ]

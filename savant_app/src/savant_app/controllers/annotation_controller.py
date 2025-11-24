@@ -265,7 +265,7 @@ class AnnotationController:
             subject_object_id,
             object_object_id,
         )
-    
+
     @error_handler
     def restore_object_relationship(
         self,
@@ -288,8 +288,10 @@ class AnnotationController:
     def delete_relationship(self, relation_id: str) -> bool:
         return self.annotation_service.delete_relationship(relation_id)
 
-    def get_object_relationship(
-        self,
-        object_id: str
-    ):
+    @error_handler
+    def get_object_relationship(self, object_id: str):
         return self.annotation_service.get_object_relationships(object_id)
+
+    @error_handler
+    def get_frame_relationships(self, frame_index):
+        return self.annotation_service.get_frame_relationships(frame_index)
