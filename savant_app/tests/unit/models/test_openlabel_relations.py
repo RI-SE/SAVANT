@@ -1,6 +1,12 @@
 import pytest
-from savant_app.models.OpenLabel import OpenLabel, RelationMetadata, RDFItem, FrameInterval
+from savant_app.models.OpenLabel import (
+    OpenLabel,
+    RelationMetadata,
+    RDFItem,
+    FrameInterval,
+)
 from savant_app.models.OpenLabel import OpenLabelMetadata, ObjectMetadata, FrameObjects
+
 
 @pytest.fixture
 def sample_openlabel_with_relations():
@@ -12,7 +18,7 @@ def sample_openlabel_with_relations():
             ontology_uid="123",
             rdf_subjects=[RDFItem(type="object", uid="1")],
             rdf_objects=[RDFItem(type="object", uid="2")],
-            frame_intervals=[FrameInterval(frame_start=0, frame_end=10)]
+            frame_intervals=[FrameInterval(frame_start=0, frame_end=10)],
         ),
         "1": RelationMetadata(
             name="following",
@@ -20,7 +26,7 @@ def sample_openlabel_with_relations():
             ontology_uid="456",
             rdf_subjects=[RDFItem(type="object", uid="2")],
             rdf_objects=[RDFItem(type="object", uid="3")],
-            frame_intervals=[FrameInterval(frame_start=11, frame_end=20)]
+            frame_intervals=[FrameInterval(frame_start=11, frame_end=20)],
         ),
         "2": RelationMetadata(
             name="passing",
@@ -28,10 +34,10 @@ def sample_openlabel_with_relations():
             ontology_uid="789",
             rdf_subjects=[RDFItem(type="object", uid="1")],
             rdf_objects=[RDFItem(type="object", uid="3")],
-            frame_intervals=[FrameInterval(frame_start=21, frame_end=30)]
-        )
+            frame_intervals=[FrameInterval(frame_start=21, frame_end=30)],
+        ),
     }
-    
+
     openlabel = OpenLabel(
         metadata=OpenLabelMetadata(schema_version="1.0.0"),
         ontologies={},
@@ -43,7 +49,7 @@ def sample_openlabel_with_relations():
         frames={
             "0": FrameObjects(objects={}),
         },
-        relations=relations
+        relations=relations,
     )
     return openlabel
 
@@ -100,4 +106,3 @@ def test_delete_relationship(sample_openlabel_with_relations):
 
     # Try to delete from empty relations
     assert not openlabel.delete_relationship("0")
-

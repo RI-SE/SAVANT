@@ -6,13 +6,17 @@ from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import QWidget
 
-from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
-                                                 OVERLAY_ICON_SPACING,
-                                                 get_error_icon,
-                                                 get_warning_icon)
+from savant_app.frontend.theme.constants import (
+    OVERLAY_CONFIDENCE_ICON_SIZE,
+    OVERLAY_ICON_SPACING,
+    get_error_icon,
+    get_warning_icon,
+)
 from savant_app.frontend.types import BBoxData, ConfidenceFlagMap, Relationship
-from savant_app.frontend.utils.settings_store import (get_movement_sensitivity,
-                                                      get_rotation_sensitivity)
+from savant_app.frontend.utils.settings_store import (
+    get_movement_sensitivity,
+    get_rotation_sensitivity,
+)
 from savant_app.frontend.widgets.cascade_button import CascadeButton
 from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 
@@ -156,7 +160,6 @@ class Overlay(QWidget):
     def set_relationships(self, relationships: List[Relationship]):
         """Set relationships"""
         if relationships:
-            print(relationships)
             self._relationships = relationships
         self.update()
 

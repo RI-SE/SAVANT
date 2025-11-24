@@ -9,9 +9,10 @@ from .snapshots import (
     FrameObjectSnapshot,
     ObjectMetadataSnapshot,
     FrameTagSnapshot,
-    CreatedRelationshipSnapshot
+    CreatedRelationshipSnapshot,
 )
 from .gateways import GatewayHolder, UndoGatewayError
+
 
 @runtime_checkable
 class UndoableCommand(Protocol):

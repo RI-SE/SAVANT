@@ -410,7 +410,7 @@ class ControllerAnnotationGateway:
             subject_object_id,
             object_object_id,
         )
-        
+
         # Return the relationship ID as a string
         return str(relation_id)
 

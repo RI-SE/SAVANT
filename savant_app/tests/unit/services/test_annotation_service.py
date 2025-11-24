@@ -504,7 +504,6 @@ class TestAddObjectRelationship:
     def test_add_object_relationship_with_overlap(
         self, annotation_service, mock_project_state, mocker
     ):
-        relationship_name = "test_rel"
         relationship_type = "test_type"
         ontology_uid = "uid_1"
         subject_id = "obj_1"
@@ -519,7 +518,7 @@ class TestAddObjectRelationship:
         )
 
         annotation_service.add_object_relationship(
-            relationship_name, relationship_type, ontology_uid, subject_id, object_id
+            relationship_type, ontology_uid, subject_id, object_id
         )
 
         annotation_service._calculate_relation_frame_interval.assert_called_once_with(
@@ -527,7 +526,6 @@ class TestAddObjectRelationship:
         )
 
         mock_project_state.annotation_config.add_object_relationship.assert_called_once_with(
-            relationship_name,
             relationship_type,
             ontology_uid,
             subject_id,
@@ -538,7 +536,6 @@ class TestAddObjectRelationship:
     def test_add_object_relationship_no_overlap(
         self, annotation_service, mock_project_state, mocker
     ):
-        relationship_name = "test_rel_no_overlap"
         relationship_type = "test_type"
         ontology_uid = "uid_2"
         subject_id = "obj_3"
@@ -553,7 +550,7 @@ class TestAddObjectRelationship:
         )
 
         annotation_service.add_object_relationship(
-            relationship_name, relationship_type, ontology_uid, subject_id, object_id
+            relationship_type, ontology_uid, subject_id, object_id
         )
 
         annotation_service._calculate_relation_frame_interval.assert_called_once_with(
@@ -561,7 +558,6 @@ class TestAddObjectRelationship:
         )
 
         mock_project_state.annotation_config.add_object_relationship.assert_called_once_with(
-            relationship_name,
             relationship_type,
             ontology_uid,
             subject_id,
