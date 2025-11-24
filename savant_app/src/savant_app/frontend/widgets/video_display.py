@@ -200,8 +200,19 @@ class VideoDisplay(QLabel):
             self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
             self.releaseMouse()
 
-    def set_zoom(self, zoom: float) -> None:
-        self._zoom = max(0.05, min(zoom, 20.0))
+    def set_zoom(
+        self, zoom: float, anchor_position: Optional[QPointF] = None
+    ) -> None:
+        new_zoom = max(0.05, min(zoom, 20.0))
+        if (
+            anchor_position is not None
+            and self._pixmap
+            and not self._pixmap.isNull()
+            and self.width() > 0
+            and self.height() > 0
+        ):
+            self._adjust_pan_for_zoom(new_zoom, anchor_position)
+        self._zoom = new_zoom
         self._clamp_pan()
         self.update()
         self.pan_changed.emit(self._pan.x(), self._pan.y())
@@ -265,6 +276,44 @@ class VideoDisplay(QLabel):
         x = max(-max_x, min(self._pan.x(), max_x))
         y = max(-max_y, min(self._pan.y(), max_y))
         self._pan = QPointF(x, y)
+
+    def _adjust_pan_for_zoom(
+        self, new_zoom: float, anchor_position: QPointF
+    ) -> None:
+        """Shift pan so the anchor position stays fixed while zooming."""
+        base_scale = self._fit_scale()
+        old_scale = base_scale * self._zoom
+        if old_scale <= 0:
+            return
+
+        frame_width, frame_height = self._pixmap.width(), self._pixmap.height()
+        viewport_width, viewport_height = self.width(), self.height()
+
+        previous_draw_width = frame_width * old_scale
+        previous_draw_height = frame_height * old_scale
+        previous_offset_x = (viewport_width - previous_draw_width) / 2 + self._pan.x()
+        previous_offset_y = (
+            viewport_height - previous_draw_height
+        ) / 2 + self._pan.y()
+
+        anchor_image_x = (anchor_position.x() - previous_offset_x) / old_scale
+        anchor_image_y = (anchor_position.y() - previous_offset_y) / old_scale
+        anchor_image_x = max(0.0, min(frame_width, anchor_image_x))
+        anchor_image_y = max(0.0, min(frame_height, anchor_image_y))
+
+        new_scale_factor = base_scale * new_zoom
+        new_draw_width = frame_width * new_scale_factor
+        new_draw_height = frame_height * new_scale_factor
+        centered_offset_x = (viewport_width - new_draw_width) / 2
+        centered_offset_y = (viewport_height - new_draw_height) / 2
+
+        new_pan_x = anchor_position.x() - (
+            centered_offset_x + anchor_image_x * new_scale_factor
+        )
+        new_pan_y = anchor_position.y() - (
+            centered_offset_y + anchor_image_y * new_scale_factor
+        )
+        self._pan = QPointF(new_pan_x, new_pan_y)
 
     def paintEvent(self, _):
         p = QPainter(self)

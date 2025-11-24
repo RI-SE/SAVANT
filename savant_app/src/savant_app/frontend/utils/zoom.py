@@ -4,23 +4,28 @@ from PyQt6.QtCore import Qt
 
 def wire(main_window, initial: float = 1.0):
 
-    def _clamp(z: float) -> float:
-        return max(0.05, min(z, 20.0))
+    def _clamp(zoom_value: float) -> float:
+        return max(0.05, min(zoom_value, 20.0))
 
-    def _apply_zoom(z: float):
-        main_window._zoom = _clamp(z)
+    def _apply_zoom(zoom_value: float, anchor_position=None):
+        main_window._zoom = _clamp(zoom_value)
         if hasattr(main_window.video_widget, "set_zoom"):
-            main_window.video_widget.set_zoom(main_window._zoom)
+            if anchor_position is not None:
+                main_window.video_widget.set_zoom(
+                    main_window._zoom, anchor_position
+                )
+            else:
+                main_window.video_widget.set_zoom(main_window._zoom)
         if hasattr(main_window.overlay, "set_zoom"):
             main_window.overlay.set_zoom(main_window._zoom)
         if hasattr(main_window.overlay, "update"):
             main_window.overlay.update()
 
-    def zoom_in():
-        _apply_zoom(main_window._zoom * 1.1)
+    def zoom_in(anchor_position=None):
+        _apply_zoom(main_window._zoom * 1.1, anchor_position)
 
-    def zoom_out():
-        _apply_zoom(main_window._zoom / 1.1)
+    def zoom_out(anchor_position=None):
+        _apply_zoom(main_window._zoom / 1.1, anchor_position)
 
     def zoom_fit():
         _apply_zoom(1.0)
@@ -34,10 +39,11 @@ def wire(main_window, initial: float = 1.0):
             Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier
         ):
             delta = event.angleDelta().y()
+            cursor_position = event.position()
             if delta > 0:
-                zoom_in()
+                zoom_in(cursor_position)
             elif delta < 0:
-                zoom_out()
+                zoom_out(cursor_position)
             event.accept()
         else:
             event.ignore()
