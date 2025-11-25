@@ -6,7 +6,7 @@ import argparse
 import os
 import pytest
 
-from markitlib.config import (
+from markit.markitlib.config import (
     Constants,
     DetectionResult,
     OpticalFlowParams,

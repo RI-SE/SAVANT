@@ -5,7 +5,7 @@ Unit tests for geometry module - IoU calculations and polygon operations.
 import numpy as np
 import pytest
 
-from markitlib.geometry import BBoxOverlapCalculator
+from markit.markitlib.geometry import BBoxOverlapCalculator
 
 
 class TestBBoxOverlapCalculator:

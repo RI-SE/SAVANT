@@ -38,7 +38,7 @@ dev-dependencies = [
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["savant_common", "markit/markitlib", "trainit", "utils"]
+packages = ["savant_common", "markit", "trainit", "utils"]
 
 [tool.pytest.ini_options]
 testpaths = ["markit/tests"]
@@ -50,5 +50,6 @@ addopts = "-v --cov=markitlib --cov-report=term-missing"
 [project.scripts]
 markit = "markit.markit:main"
 train-yolo-obb = "trainit.train_yolo_obb:main"
+split-train-val = "trainit.split_train_val:main"
 remap-classes-to-ontology = "utils.remap_classes_to_ontology:main"
 print-ontology = "utils.print_ontology:main"

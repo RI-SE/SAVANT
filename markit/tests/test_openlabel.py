@@ -14,8 +14,8 @@ try:
 except ImportError:
     JSONSCHEMA_AVAILABLE = False
 
-from markitlib.openlabel import OpenLabelHandler
-from markitlib import DetectionResult
+from markit.markitlib.openlabel import OpenLabelHandler
+from markit.markitlib import DetectionResult
 
 
 class TestOpenLabelHandler:

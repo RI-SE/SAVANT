@@ -8,10 +8,7 @@ from pathlib import Path
 import pytest
 import numpy as np
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from markitlib import DetectionResult
+from markit.markitlib import DetectionResult
 
 
 @pytest.fixture

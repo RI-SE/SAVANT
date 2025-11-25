@@ -25,19 +25,19 @@ Arguments:
 
 Examples:
     # Default 90/10 split
-    python split_train_val.py
+    python split_train_val.py --dataset-path datasets/UAV_yolo_obb
 
     # 80/20 split
-    python split_train_val.py --train-ratio 0.8
+    python split_train_val.py --dataset-path datasets/UAV_yolo_obb --train-ratio 0.8
 
     # Remove orphaned images before splitting
-    python split_train_val.py --remove-orphans
+    python split_train_val.py --dataset-path datasets/UAV_yolo_obb --remove-orphans
 
     # Dry run to see what would happen
-    python split_train_val.py --dry-run
+    python split_train_val.py --dataset-path datasets/UAV_yolo_obb --dry-run
 
     # Restore val back to train
-    python split_train_val.py --restore
+    python split_train_val.py --dataset-path datasets/UAV_yolo_obb --restore
 
     # Custom dataset path with 85/15 split
     python split_train_val.py --dataset-path /path/to/dataset --train-ratio 0.85
@@ -414,8 +414,8 @@ def parse_arguments():
 
     parser.add_argument('--train-ratio', type=float, default=0.9,
                        help='Ratio of data to keep in train (default: 0.9 for 90/10 split)')
-    parser.add_argument('--dataset-path', type=str, default='datasets/UAV_yolo_obb',
-                       help='Path to dataset root directory (default: datasets/UAV_yolo_obb)')
+    parser.add_argument('--dataset-path', type=str, required=True,
+                       help='Path to dataset root directory')
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed for reproducibility (default: 42)')
     parser.add_argument('--dry-run', action='store_true',

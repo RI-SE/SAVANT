@@ -59,11 +59,11 @@ import numpy as np
 from ultralytics import __version__ as ultralytics_version
 
 # Import from markitlib package
-from markitlib import MarkitConfig, __version__
-from markitlib.processing import VideoProcessor, FrameAnnotator
-from markitlib.openlabel import OpenLabelHandler
-from markitlib.outputvideo import render_output_video
-from markitlib.postprocessing import (
+from markit.markitlib import MarkitConfig, __version__
+from markit.markitlib.processing import VideoProcessor, FrameAnnotator
+from markit.markitlib.openlabel import OpenLabelHandler
+from markit.markitlib.outputvideo import render_output_video
+from markit.markitlib.postprocessing import (
     PostprocessingPipeline,
     GapDetectionPass,
     GapFillingPass,

@@ -14,10 +14,10 @@ try:
 except ImportError:
     JSONSCHEMA_AVAILABLE = False
 
-from markitlib import MarkitConfig
-from markitlib.processing import VideoProcessor
-from markitlib.openlabel import OpenLabelHandler
-from markitlib.postprocessing import (
+from markit.markitlib import MarkitConfig
+from markit.markitlib.processing import VideoProcessor
+from markit.markitlib.openlabel import OpenLabelHandler
+from markit.markitlib.postprocessing import (
     PostprocessingPipeline,
     GapDetectionPass,
     AngleNormalizationPass,

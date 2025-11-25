@@ -109,7 +109,7 @@ train-yolo-obb --data dataset.yaml --epochs 50
 
 - **savant_common/** - Shared utilities (ontology parsing, etc.)
 - **markit/** - Object detection and video annotation tool
-- **trainit/** - YOLO model training tool
+- **trainit/** - YOLO model training and dataset preparation tools
 - **utils/** - Command-line utilities (ontology inspection, dataset remapping)
 - **Specification/** - Ontology and OpenLabel schema files
 - **savant_app/** - Qt6 desktop application (separate installation)

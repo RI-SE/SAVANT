@@ -4,7 +4,7 @@ Unit tests for postprocessing module - pipeline and basic passes.
 
 import pytest
 
-from markitlib.postprocessing import (
+from markit.markitlib.postprocessing import (
     PostprocessingPipeline,
     GapDetectionPass,
     AngleNormalizationPass,
