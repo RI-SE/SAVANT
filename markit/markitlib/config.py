@@ -14,9 +14,7 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 
-# Add parent directory to path to import common package
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from common.ontology import create_class_map
+from savant_common.ontology import create_class_map
 
 __version__ = '2.0.1'
 
@@ -26,7 +24,7 @@ class Constants:
     MP4V_FOURCC = "mp4v"
     SCHEMA_VERSION = "1.0"
     ANNOTATOR_NAME = f"SAVANT Markit {__version__}"
-    ONTOLOGY_URL = "https://savant.ri.se/savant_ontology_1.2.0.ttl"
+    ONTOLOGY_URL = "https://savant.ri.se/savant_ontology_1.3.0.ttl"
     # Fallback class map used when ontology file cannot be loaded
     # In normal operation, class_map is loaded dynamically from the ontology
     DEFAULT_CLASS_MAP = {

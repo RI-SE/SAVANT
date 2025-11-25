@@ -35,13 +35,13 @@ def test_model_path(test_fixtures_dir):
 @pytest.fixture
 def schema_path():
     """Path to OpenLabel JSON schema."""
-    return str(Path(__file__).parent.parent / "savant_openlabel_subset.schema.json")
+    return str(Path(__file__).parent.parent.parent / "Specification" / "savant_openlabel_subset.schema.json")
 
 
 @pytest.fixture
 def ontology_path():
     """Path to SAVANT ontology file."""
-    return str(Path(__file__).parent.parent / "savant_ontology_1.2.0.ttl")
+    return str(Path(__file__).parent.parent.parent / "Specification" / "savant_ontology_1.3.0.ttl")
 
 
 @pytest.fixture

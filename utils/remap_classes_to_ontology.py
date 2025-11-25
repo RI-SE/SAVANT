@@ -18,10 +18,7 @@ import yaml
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-# Add parent directory to path to import common package
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from common.ontology import read_ontology_classes
+from savant_common.ontology import read_ontology_classes
 
 
 class ClassRemapper:
@@ -248,25 +245,25 @@ def parse_arguments():
         epilog="""
 Examples:
   # Preview changes without modifying files
-  python remap_classes_to_ontology.py --dry-run
+  python remap_classes_to_ontology.py --yaml dataset.yaml --ontology ontology.ttl --labels-dir labels/ --dry-run
 
   # Execute remapping (updates both labels and YAML)
-  python remap_classes_to_ontology.py
+  python remap_classes_to_ontology.py --yaml dataset.yaml --ontology ontology.ttl --labels-dir labels/
 
   # Only update label files
-  python remap_classes_to_ontology.py --labels-only
+  python remap_classes_to_ontology.py --yaml dataset.yaml --ontology ontology.ttl --labels-dir labels/ --labels-only
 
-  # Only update UAV.yaml
-  python remap_classes_to_ontology.py --yaml-only
+  # Only update dataset YAML
+  python remap_classes_to_ontology.py --yaml dataset.yaml --ontology ontology.ttl --labels-dir labels/ --yaml-only
         """
     )
 
-    parser.add_argument('--yaml', default='UAV.yaml',
-                       help='Path to UAV.yaml file (default: UAV.yaml)')
-    parser.add_argument('--ontology', default='savant_ontology_1.2.0.ttl',
-                       help='Path to SAVANT ontology file (default: savant_ontology_1.2.0.ttl)')
-    parser.add_argument('--labels-dir', default='datasets/UAV_yolo_obb/labels',
-                       help='Base directory for label files (default: datasets/UAV_yolo_obb/labels)')
+    parser.add_argument('--yaml', required=True,
+                       help='Path to dataset YAML file')
+    parser.add_argument('--ontology', required=True,
+                       help='Path to SAVANT ontology file (.ttl)')
+    parser.add_argument('--labels-dir', required=True,
+                       help='Base directory for label files')
     parser.add_argument('--dry-run', action='store_true',
                        help='Preview changes without modifying files')
     parser.add_argument('--labels-only', action='store_true',

@@ -1149,11 +1149,8 @@ class StaticObjectRemovalPass(PostprocessingPass):
             return openlabel_data
 
         # Import ontology functions (done here to avoid circular imports)
-        import sys
         import os
-        from pathlib import Path
-        sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-        from common.ontology import get_class_by_label
+        from savant_common.ontology import get_class_by_label
 
         # Check if ontology file exists
         if not os.path.exists(self.ontology_path):

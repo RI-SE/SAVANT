@@ -15,8 +15,8 @@ Required Arguments:
 
 Optional Arguments:
     --weights            Path to YOLO weights file (.pt) - required if using YOLO detection (default: markit_yolo.pt)
-    --schema             Path to OpenLabel JSON schema file (default: savant_openlabel_subset.schema.json)
-    --ontology           Path to SAVANT ontology file for class mapping (default: savant_ontology_1.2.0.ttl)
+    --schema             Path to OpenLabel JSON schema file (default: ../Specification/savant_openlabel_subset.schema.json)
+    --ontology           Path to SAVANT ontology file for class mapping (default: ../Specification/savant_ontology_1.3.0.ttl)
     --output_video       Path to output annotated video file (optional)
     --aruco-csv          Path to CSV file with ArUco marker GPS positions (enables ArUco detection)
 
@@ -120,11 +120,11 @@ Examples:
                        help='Path to YOLO weights file (.pt) - required if using YOLO detection (default: markit_yolo.pt)')
     parser.add_argument('--input', required=True, help='Path to input video file')
     parser.add_argument('--output_json', required=True, help='Path to output OpenLabel JSON file')
-    parser.add_argument('--schema', default='savant_openlabel_subset.schema.json',
-                       help='Path to OpenLabel JSON schema file (default: savant_openlabel_subset.schema.json)')
+    parser.add_argument('--schema', default='../Specification/savant_openlabel_subset.schema.json',
+                       help='Path to OpenLabel JSON schema file (default: ../Specification/savant_openlabel_subset.schema.json)')
     parser.add_argument('--output_video', help='Path to output annotated video file (optional)')
-    parser.add_argument('--ontology', default='savant_ontology_1.2.0.ttl',
-                       help='Path to SAVANT ontology file for class mapping (default: savant_ontology_1.2.0.ttl)')
+    parser.add_argument('--ontology', default='../Specification/savant_ontology_1.3.0.ttl',
+                       help='Path to SAVANT ontology file for class mapping (default: ../Specification/savant_ontology_1.3.0.ttl)')
     parser.add_argument('--aruco-csv', dest='aruco_csv', help='Path to CSV file with ArUco marker GPS positions (enables ArUco detection)')
 
     # Detection method selection

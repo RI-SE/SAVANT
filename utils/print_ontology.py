@@ -8,18 +8,15 @@ Usage:
     python print_ontology.py <path_to_ontology.ttl> [--detailed]
 
 Example:
-    python print_ontology.py savant_ontology_1.0.0.ttl
-    python print_ontology.py savant_ontology_1.2.0.ttl --detailed
+    python print_ontology.py ontology.ttl
+    python print_ontology.py ontology.ttl --detailed
 """
 
 import sys
 import argparse
 from pathlib import Path
 
-# Add parent directory to path to import common package
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from common.ontology import read_ontology_classes
+from savant_common.ontology import read_ontology_classes
 
 
 def parse_arguments():
@@ -29,9 +26,9 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python print_ontology.py savant_ontology_1.0.0.ttl
-  python print_ontology.py savant_ontology_1.2.0.ttl --detailed
-  python print_ontology.py savant_ontology_1.2.0.ttl --top-level DynamicObject
+  python print_ontology.py ontology.ttl
+  python print_ontology.py ontology.ttl --detailed
+  python print_ontology.py ontology.ttl --top-level DynamicObject
         """
     )
 
