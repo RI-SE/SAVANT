@@ -114,4 +114,27 @@ train-yolo-obb --data dataset.yaml --epochs 50
 - **Specification/** - Ontology and OpenLabel schema files
 - **savant_app/** - Qt6 desktop application (separate installation)
 
+## License
+
+SAVANT is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+This project uses dependencies with the following licenses:
+- **Ultralytics YOLO** (AGPL-3.0) - Required for object detection
+- **PyQt6** (GPL-3.0) - Used in savant_app
+- **OpenCV** (Apache 2.0)
+- **NumPy** (BSD-3-Clause)
+- **RDFlib** (BSD-3-Clause)
+- **Pydantic** (MIT)
+
+All dependencies are compatible with AGPL-3.0 licensing.
+
+### What does AGPL-3.0 mean?
+
+- You are free to use, modify, and distribute this software
+- If you distribute modified versions, you must share the source code under AGPL-3.0
+- If you use this software to provide a network service (e.g., web API), you must make the source code available to users of that service
+- Commercial use is permitted, but the source code must remain available
+
+For the complete license text, see the [LICENSE](LICENSE) file. For more information about AGPL-3.0, visit https://www.gnu.org/licenses/agpl-3.0.html
+
 See [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) for detailed usage examples.
