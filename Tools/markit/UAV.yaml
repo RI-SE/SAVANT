@@ -5,7 +5,7 @@ nc: 25
 names:
   0: DynamicObject
   1: RoadUser
-  2: Vehicle  
+  2: Vehicle
   3: Car
   4: Van
   5: Truck
