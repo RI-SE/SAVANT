@@ -1,5 +1,8 @@
 # savant_app/frontend/utils/playback.py
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import Qt, QTimer
+
+from savant_app.frontend.types import BBoxData, BBoxDimensionData
+
 from .render import show_frame
 
 
@@ -37,6 +40,29 @@ def wire(main_window):
     if hasattr(playback_controls, "skip_forward_clicked"):
         _safe_connect(
             playback_controls.skip_forward_clicked, lambda n: _skip(main_window, +n)
+        )
+
+    if hasattr(main_window.sidebar, "highlight_selected_object"):
+        main_window.sidebar.highlight_selected_object.connect(
+            lambda object_id: _display_annotation_info(
+                main_window, playback_controls, object_id
+            )
+        )
+
+    if hasattr(main_window.overlay, "bounding_box_selected"):
+        main_window.overlay.bounding_box_selected.connect(
+            lambda object_id: _display_annotation_info(
+                main_window, playback_controls, object_id
+            )
+        )
+
+    # Connect the new live-update signal from the overlay
+    if hasattr(main_window.overlay, "boxModified"):
+        _safe_connect(
+            main_window.overlay.boxModified,
+            lambda bbox_data: _update_live_annotation_info(
+                main_window.playback_controls, bbox_data
+            ),
         )
 
 
@@ -123,3 +149,31 @@ def _skip(main_window, n: int):
     except Exception:
         _stop(main_window)
         raise
+
+
+def _update_live_annotation_info(playback_controls, bbox_data: BBoxData):
+    """
+    Updates the playback controls info label with live data from overlay drag.
+    """
+    if bbox_data is None:
+        playback_controls.clear_annotation_info()
+        return
+
+    # Adapt BBoxData (from overlay) to BBoxDimensionData (for playback_controls)
+    dimension_data = BBoxDimensionData(
+        x_center=bbox_data.center_x,
+        y_center=bbox_data.center_y,
+        width=bbox_data.width,
+        height=bbox_data.height,
+        rotation=bbox_data.theta,
+    )
+    playback_controls.display_annotation_info(dimension_data)
+
+
+def _display_annotation_info(main_window, playback_controls, object_id: str):
+    if object_id is None:
+        playback_controls.clear_annotation_info()
+        return
+    frame_key = int(main_window.video_controller.current_index())
+    bbox_dimensions = main_window.annotation_controller.get_bbox(frame_key, object_id)
+    playback_controls.display_annotation_info(bbox_dimensions)

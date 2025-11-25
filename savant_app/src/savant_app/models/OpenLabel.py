@@ -1,12 +1,8 @@
-from pydantic import (
-    BaseModel,
-    conint,
-    confloat,
-    model_serializer,
-    model_validator,
-)
-from typing import Dict, List, Literal, Union, Optional
+from collections import deque
 from math import isfinite
+from typing import Dict, List, Literal, Optional, Union
+
+from pydantic import BaseModel, confloat, conint, model_serializer, model_validator
 
 
 class RotatedBBox(BaseModel):
@@ -51,14 +47,14 @@ class ConfidenceData(BaseModel):
     """Contains confidence score for detection"""
 
     name: Literal["confidence"] = "confidence"
-    val: List[confloat(ge=0, le=1)]  # List of confidence scores
+    val: deque[confloat(ge=0, le=1)]  # List of confidence scores
 
 
 class AnnotatorData(BaseModel):
     """Contains annotator information"""
 
     name: Literal["annotator"] = "annotator"
-    val: List[str]
+    val: deque[str]
 
 
 class ObjectData(BaseModel):
@@ -156,27 +152,76 @@ class OpenLabel(BaseModel):
     def append_object_bbox(
         self,
         frame_id: int,
-        bbox_coordinates: dict,
-        confidence_data: dict,
-        annotater_data: dict,
+        bbox_coordinates: List[float],
         obj_id: str,
+        annotator: str,
     ):
         """
         Adds a new bounding box for an object with no existing
         annotations.
         """
-        # TODO: Add rotation. Hard coded to 0 for now.
+        # Handle bbox_coordinates: support both list and dict
+        if isinstance(bbox_coordinates, dict):
+            # Extract values from dictionary
+            x_center_val = bbox_coordinates.get("x_center", 0.0)
+            y_center_val = bbox_coordinates.get("y_center", 0.0)
+            width_val = bbox_coordinates.get("width", 0.0)
+            height_val = bbox_coordinates.get("height", 0.0)
+            rotation_val = bbox_coordinates.get("rotation", 0.0)
+        else:
+            try:
+                # Try to treat as list
+                x_center_val = (
+                    bbox_coordinates[0]
+                    if bbox_coordinates and len(bbox_coordinates) > 0
+                    else 0.0
+                )
+                y_center_val = (
+                    bbox_coordinates[1]
+                    if bbox_coordinates and len(bbox_coordinates) > 1
+                    else 0.0
+                )
+                width_val = (
+                    bbox_coordinates[2]
+                    if bbox_coordinates and len(bbox_coordinates) > 2
+                    else 0.0
+                )
+                height_val = (
+                    bbox_coordinates[3]
+                    if bbox_coordinates and len(bbox_coordinates) > 3
+                    else 0.0
+                )
+                rotation_val = (
+                    bbox_coordinates[4]
+                    if bbox_coordinates and len(bbox_coordinates) > 4
+                    else 0.0
+                )
+            except (TypeError, IndexError):
+                # If there's an exception, set to default
+                x_center_val, y_center_val, width_val, height_val, rotation_val = (
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                )
+
         rbbox = RotatedBBox(
-            x_center=bbox_coordinates[0],
-            y_center=bbox_coordinates[1],
-            width=bbox_coordinates[2],
-            height=bbox_coordinates[3],
-            rotation=0,
+            x_center=x_center_val,
+            y_center=y_center_val,
+            width=width_val,
+            height=height_val,
+            rotation=rotation_val,
         )
 
         bbox_geometry_data = GeometryData(val=rbbox)
+        confidence_data = ConfidenceData(
+            val=deque([1.0])
+        )  # Confidence set to 1 for humans
+        annotator_data = AnnotatorData(val=deque([annotator]))
+
         new_obj_data = ObjectData(
-            rbbox=[bbox_geometry_data], vec=[annotater_data, confidence_data]
+            rbbox=[bbox_geometry_data], vec=[annotator_data, confidence_data]
         )
         new_frame_obj = FrameLevelObject(object_data=new_obj_data)
 
@@ -244,6 +289,7 @@ class OpenLabel(BaseModel):
         object_key: Union[int, str],
         *,
         bbox_index: int = 0,
+        annotator: str,
         # absolute values (optional)
         x_center: Optional[float] = None,
         y_center: Optional[float] = None,
@@ -317,6 +363,20 @@ class OpenLabel(BaseModel):
             [new_x_center, new_y_center, new_width, new_height, new_rotation]
         )
         geometry_entry.val = updated_bbox
+
+        vec_data = frame_object.object_data.vec
+        annotator_data = None
+        confidence_data = None
+
+        for item in vec_data:
+            if item.name == "annotator":
+                annotator_data = item
+            elif item.name == "confidence":
+                confidence_data = item
+
+        if annotator_data is not None and confidence_data is not None:
+            self.update_annotator(annotator, annotator_data, 1.0, confidence_data)
+
         return updated_bbox
 
     def delete_bbox(
@@ -386,3 +446,17 @@ class OpenLabel(BaseModel):
                 results.append(bbox_info)
 
         return results
+
+    def update_annotator(
+        self,
+        annotater: str,
+        current_annotator_data: AnnotatorData,
+        confidence: float,
+        current_confidence_data: ConfidenceData,
+    ):
+        """Internal: Update annotator data for a bbox."""
+        # Check if the annotator making the update is already
+        # the latest annotator.
+        if annotater not in current_annotator_data.val[0]:
+            current_annotator_data.val.appendleft(annotater)
+            current_confidence_data.val.appendleft(confidence)

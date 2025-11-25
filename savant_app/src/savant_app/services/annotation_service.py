@@ -1,25 +1,38 @@
-from .project_state import ProjectState
+from collections import deque
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
+from pydantic import ValidationError
+
+from savant_app.frontend.utils.ontology_utils import (
+    get_action_labels,
+    get_bbox_type_labels,
+)
+from savant_app.frontend.utils.settings_store import get_ontology_path
+from savant_app.models.OpenLabel import (
+    ActionMetadata,
+    AnnotatorData,
+    ConfidenceData,
+    FrameInterval,
+    FrameLevelObject,
+    OpenLabel,
+    RotatedBBox,
+)
+
 from .exceptions import (
-    ObjectInFrameError,
-    ObjectNotFoundError,
+    BBoxNotFoundError,
     FrameNotFoundError,
     InvalidFrameRangeError,
     InvalidInputError,
-    BBoxNotFoundError,
     NoFrameLabelFoundError,
-    UnsportedTagTypeError,
+    ObjectInFrameError,
+    ObjectLinkConflictError,
+    ObjectNotFoundError,
     OntologyNotFound,
+    UnsportedTagTypeError,
 )
-from typing import Optional, Union, Tuple
-from savant_app.models.OpenLabel import OpenLabel, RotatedBBox
-from savant_app.models.OpenLabel import FrameLevelObject
-from pydantic import ValidationError
-from savant_app.models.OpenLabel import ActionMetadata, FrameInterval
-from savant_app.frontend.utils.settings_store import get_ontology_path
-from savant_app.frontend.utils.ontology_utils import get_action_labels
-from typing import Dict, List
-from savant_app.frontend.utils.ontology_utils import get_bbox_type_labels
-from pathlib import Path
+from .interpolation_service import InterpolationService
+from .project_state import ProjectState
 
 
 class AnnotationService:
@@ -37,7 +50,7 @@ class AnnotationService:
         self._bbox_cache_vals: Dict[str, List[str]] | None = None
 
     def create_new_object_bbox(
-        self, frame_number: int, obj_type: str, coordinates: tuple
+        self, frame_number: int, obj_type: str, coordinates: tuple, annotator: str
     ) -> None:
         """Handles both, the creation of a new object and adding a bbox for it."""
         try:
@@ -47,7 +60,10 @@ class AnnotationService:
             # Add new object and bbox
             self._add_new_object(obj_type=obj_type, obj_id=obj_id)
             self._add_object_bbox(
-                frame_number=frame_number, bbox_coordinates=coordinates, obj_id=obj_id
+                frame_number=frame_number,
+                bbox_coordinates=coordinates,
+                obj_id=obj_id,
+                annotator=annotator,
             )
         except ValidationError as e:
             errors = "; ".join(
@@ -56,7 +72,7 @@ class AnnotationService:
             raise InvalidInputError(f"Invalid input data: {errors}", e)
 
     def create_existing_object_bbox(
-        self, frame_number: int, coordinates: tuple, object_name: str
+        self, frame_number: int, coordinates: tuple, object_name: str, annotator: str
     ) -> None:
         """Handles adding a bbox for an existing object."""
 
@@ -74,6 +90,7 @@ class AnnotationService:
                 frame_number=frame_number,
                 bbox_coordinates=coordinates,
                 obj_id=object_id,
+                annotator=annotator,
             )
         except ValidationError as e:
             errors = "; ".join(
@@ -89,11 +106,13 @@ class AnnotationService:
         whereas the model handles what the data is and manipulating itself.
         """
         # Get frame object keys
-        frame = self.project_state.annotation_config.frames[str(frame_number)]
+        frame = self.project_state.annotation_config.frames.get(str(frame_number))
+        if frame is None:
+            return []
         active_object_keys = frame.objects.keys()
 
         return [
-            {"type": obj.type, "name": obj.name}
+            {"type": obj.type, "name": obj.name, "id": key}
             for key, obj in self.project_state.annotation_config.objects.items()
             if key in active_object_keys
         ]
@@ -131,12 +150,14 @@ class AnnotationService:
         frame_key: Union[int, str],
         object_key: Union[int, str],
         bbox_index: int = 0,
-    ) -> RotatedBBox:
+    ) -> Optional[RotatedBBox]:
         """
         Read a bbox from the current annotation config (model).
         """
         openlabel_model: OpenLabel = self.project_state.annotation_config
         try:
+            if object_key is None:
+                return None
             return openlabel_model.get_bbox(
                 frame_key=frame_key,
                 object_key=object_key,
@@ -168,6 +189,7 @@ class AnnotationService:
         # clamps
         min_width: float = 1e-6,
         min_height: float = 1e-6,
+        annotator: str,
     ) -> RotatedBBox:
         """
         Update bbox geometry in the model; return the updated RotatedBBox.
@@ -190,6 +212,7 @@ class AnnotationService:
                 delta_theta=delta_theta,
                 min_width=min_width,
                 min_height=min_height,
+                annotator=annotator,
             )
             # place for side-effects, e.g. mark project dirty, log, mirror, etc.
             return updated_bbox
@@ -203,6 +226,7 @@ class AnnotationService:
         frame_start: int,
         object_key: Union[int, str],
         frame_end: Optional[int],
+        annotator: str,
         *,
         # size values
         width: Optional[float] = None,
@@ -248,6 +272,7 @@ class AnnotationService:
                 rotation=rotation,
                 min_width=min_width,
                 min_height=min_height,
+                annotator=annotator,
             )
             edited_frames.append(frame_num)
 
@@ -271,28 +296,159 @@ class AnnotationService:
             frame_key, object_key, frame_obj
         )
 
+    def list_object_ids(self) -> list[str]:
+        """Return all object IDs currently defined in the annotation config."""
+        config = self.project_state.annotation_config
+        if not config or not getattr(config, "objects", None):
+            return []
+
+        def _sort_key(value: str) -> tuple[int, str]:
+            text = str(value)
+            if text.isdigit():
+                return (0, f"{int(text):010d}")
+            return (1, text)
+
+        return sorted(config.objects.keys(), key=_sort_key)
+
+    def frames_for_object(self, object_id: str) -> list[int]:
+        """Return sorted frame indices that contain the specified object ID."""
+        config = self.project_state.annotation_config
+        if config is None:
+            raise FrameNotFoundError("No annotation configuration loaded.")
+        if object_id not in getattr(config, "objects", {}):
+            raise ObjectNotFoundError(f"Object ID '{object_id}' does not exist.")
+
+        frames_with_object: list[int] = []
+        for frame_key, frame in config.frames.items():
+            if object_id in getattr(frame, "objects", {}):
+                try:
+                    frames_with_object.append(int(frame_key))
+                except (TypeError, ValueError):
+                    continue
+        return sorted(frames_with_object)
+
+    def link_object_ids(
+        self,
+        primary_object_id: str,
+        secondary_object_id: str,
+    ) -> list[int]:
+        """
+        Replace all occurrences of secondary_object_id with primary_object_id.
+
+        Args:
+            primary_object_id: The object ID that should remain.
+            secondary_object_id: The object ID to replace.
+
+        Returns:
+            A sorted list of affected frame indices.
+        """
+        if primary_object_id == secondary_object_id:
+            raise ObjectLinkConflictError("Cannot link an object ID to itself.")
+
+        config = self.project_state.annotation_config
+        if config is None:
+            raise FrameNotFoundError("No annotation configuration loaded.")
+
+        objects_map = getattr(config, "objects", {})
+        if primary_object_id not in objects_map:
+            raise ObjectNotFoundError(
+                f"Object ID '{primary_object_id}' does not exist."
+            )
+        if secondary_object_id not in objects_map:
+            raise ObjectNotFoundError(
+                f"Object ID '{secondary_object_id}' does not exist."
+            )
+
+        affected_frames: list[int] = []
+        for frame_key, frame in config.frames.items():
+            frame_objects = getattr(frame, "objects", {})
+            if secondary_object_id in frame_objects:
+                if primary_object_id in frame_objects:
+                    raise ObjectLinkConflictError(
+                        f"Frame {frame_key} already contains both object IDs."
+                    )
+                try:
+                    affected_frames.append(int(frame_key))
+                except (TypeError, ValueError):
+                    continue
+
+        if not affected_frames:
+            return []
+
+        for frame_key in list(config.frames.keys()):
+            frame = config.frames[frame_key]
+            frame_objects = getattr(frame, "objects", {})
+            if secondary_object_id not in frame_objects:
+                continue
+
+            frame_obj = frame_objects.pop(secondary_object_id)
+            frame_objects[primary_object_id] = frame_obj
+
+        # Remove secondary metadata; primary metadata remains authoritative.
+        if secondary_object_id in objects_map:
+            objects_map.pop(secondary_object_id)
+
+        return sorted(affected_frames)
+
+    def mark_confidence_resolved(
+        self, frame_number: int, object_id: str, annotator: str
+    ) -> None:
+        """Mark a warning/error as resolved by setting confidence to 1.0."""
+        openlabel_model: OpenLabel = self.project_state.annotation_config
+        if openlabel_model is None:
+            raise FrameNotFoundError("No annotation configuration loaded.")
+
+        frame_key = str(frame_number)
+        frame = openlabel_model.frames.get(frame_key)
+        if frame is None:
+            raise FrameNotFoundError(f"Frame {frame_number} not found.")
+
+        frame_obj = frame.objects.get(object_id)
+        if frame_obj is None:
+            raise ObjectNotFoundError(
+                f"Object ID {object_id} not found in frame {frame_number}."
+            )
+
+        vec_entries = getattr(frame_obj.object_data, "vec", None)
+        if vec_entries is None:
+            vec_entries = []
+            frame_obj.object_data.vec = vec_entries
+
+        confidence_entry = None
+        for entry in vec_entries:
+            if getattr(entry, "name", None) == "confidence":
+                confidence_entry = entry
+                break
+
+        if confidence_entry is None:
+            confidence_entry = ConfidenceData(val=deque())
+            vec_entries.append(confidence_entry)
+
+        annotator_entry = AnnotatorData(val=deque())
+        vec_entries.insert(0, annotator_entry)
+
+        openlabel_model.update_annotator(
+            annotator, annotator_entry, 1.0, confidence_entry
+        )
+
     def _add_new_object(self, obj_type: str, obj_id: str) -> None:
         self.project_state.annotation_config.add_new_object(
             obj_type=obj_type, obj_id=obj_id
         )
 
     def _add_object_bbox(
-        self, frame_number: int, bbox_coordinates: dict, obj_id: str
+        self, frame_number: int, bbox_coordinates: dict, obj_id: str, annotator: str
     ) -> None:
         """
         Service function to add new annotations to the config.
         """
-        # Temporary hard code of annotater and confidence score.
-        annotater_data = {"val": ["example_name"]}
-        confidence_data = {"val": [0.9]}
 
         # Append new bounding box (under frames)
         self.project_state.annotation_config.append_object_bbox(
             frame_id=frame_number,
             bbox_coordinates=bbox_coordinates,
-            confidence_data=confidence_data,
-            annotater_data=annotater_data,
             obj_id=obj_id,
+            annotator=annotator,
         )
 
     def _does_object_exist(self, object_name: str) -> bool:
@@ -516,3 +672,72 @@ class AnnotationService:
             raise InvalidInputError(f"Unsupported type '{new_type}' (not in ontology).")
 
         openlabel_config.objects[object_id].type = canonical
+
+    def interpolate_annotations(
+        self,
+        object_id: str,
+        start_frame: int,
+        end_frame: int,
+        # control_points: Dict[str, List],
+        annotator: str,
+    ) -> None:
+        """Create interpolated annotations between two frames using Bezier splines"""
+        if start_frame >= end_frame:
+            raise InvalidFrameRangeError("Start frame must be before end frame")
+
+        # Validate frames exist
+        if str(start_frame) not in self.project_state.annotation_config.frames:
+            raise FrameNotFoundError(f"Start frame {start_frame} does not exist")
+        if str(end_frame) not in self.project_state.annotation_config.frames:
+            raise FrameNotFoundError(f"End frame {end_frame} does not exist")
+
+        # Validate object exists in frames
+        if not self._does_object_exist_in_frame(start_frame, object_id):
+            raise ObjectNotFoundError(
+                f"Object {object_id} not found in start frame {start_frame}"
+            )
+        if not self._does_object_exist_in_frame(end_frame, object_id):
+            raise ObjectNotFoundError(
+                f"Object {object_id} not found in end frame {end_frame}"
+            )
+
+        start_bbox = self.get_bbox(start_frame, object_id)
+        end_bbox = self.get_bbox(end_frame, object_id)
+
+        # Calculate number of frames to interpolate
+        num_frames = end_frame - start_frame - 1
+        if num_frames <= 0:
+            raise InvalidFrameRangeError(
+                "No frames to interpolate between start and end frame"
+            )
+
+        # Extract center control points from the control_points dictionary
+        # center_control_points = []
+        # if 'center_x' in control_points and 'center_y' in control_points:
+        #    xs = control_points['center_x']
+        #    ys = control_points['center_y']
+        #    if len(xs) == len(ys):
+        #        center_control_points = list(zip(xs, ys))
+
+        # print(xs, ys, center_control_points)
+
+        # Interpolate bboxes for intermediate frames using the new spline method
+        interpolated_bboxes = InterpolationService.interpolate_annotations(
+            start_bbox,
+            end_bbox,
+            num_frames,
+            #    center_control_points
+        )
+
+        # Save interpolated bboxes
+        for i, bbox in enumerate(interpolated_bboxes):
+            frame_num = start_frame + i + 1
+            self._add_object_bbox(frame_num, bbox, object_id, annotator)
+
+        # Store interpolation metadata for visual distinction
+        for frame_num in range(start_frame + 1, end_frame):
+            self.project_state.interpolation_metadata.add((frame_num, object_id))
+
+    def is_interpolated(self, frame_num: int, object_id: str) -> bool:
+        """Check if annotation is interpolated at given frame"""
+        return (frame_num, object_id) in self.project_state.interpolation_metadata

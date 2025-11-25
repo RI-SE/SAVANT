@@ -9,6 +9,7 @@ class FrontendState(QObject):
     toolChanged = pyqtSignal(str)
     boxesChanged = pyqtSignal(int, object)
     statusChanged = pyqtSignal(str)
+    confidenceIssuesChanged = pyqtSignal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -17,6 +18,10 @@ class FrontendState(QObject):
         self._zoom: float = 1.0
         self._selected_object_id: str | None = None
         self._tool: str = "select"
+        self._confidence_issues: dict[int, list] = {}
+        self._warning_frames: set[int] = set()
+        self._error_frames: set[int] = set()
+        self._current_annotator: str = ""
 
     @property
     def frame_index(self):
@@ -37,6 +42,12 @@ class FrontendState(QObject):
     @property
     def tool(self):
         return self._tool
+
+    def set_current_annotator(self, new_annotator: str) -> str:
+        self.current_annotator = new_annotator
+
+    def get_current_annotator(self) -> str:
+        return self.current_annotator
 
     def set_frame(self, idx: int):
         if idx != self._frame_index and idx >= 0:
@@ -68,3 +79,36 @@ class FrontendState(QObject):
 
     def set_status(self, text: str):
         self.statusChanged.emit(text)
+
+    def set_confidence_issues(self, issues: dict[int, list] | None):
+        issues = issues or {}
+        if issues == self._confidence_issues:
+            return
+        warning_frames: set[int] = set()
+        error_frames: set[int] = set()
+        for frame_index, entries in issues.items():
+            has_warning = False
+            has_error = False
+            for entry in entries:
+                severity = getattr(entry, "severity", None)
+                if severity == "warning":
+                    has_warning = True
+                elif severity == "error":
+                    has_error = True
+            if has_warning:
+                warning_frames.add(frame_index)
+            if has_error:
+                error_frames.add(frame_index)
+        self._confidence_issues = issues
+        self._warning_frames = warning_frames
+        self._error_frames = error_frames
+        self.confidenceIssuesChanged.emit(issues)
+
+    def confidence_issues(self) -> dict[int, list]:
+        return dict(self._confidence_issues)
+
+    def warning_frames(self) -> set[int]:
+        return set(self._warning_frames)
+
+    def error_frames(self) -> set[int]:
+        return set(self._error_frames)
