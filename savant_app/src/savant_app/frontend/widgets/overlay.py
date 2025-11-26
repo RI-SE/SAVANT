@@ -14,10 +14,7 @@ from savant_app.frontend.types import BBoxData, ConfidenceFlagMap, Relationship
 from savant_app.frontend.utils.settings_store import (get_movement_sensitivity,
                                                       get_rotation_sensitivity)
 from savant_app.frontend.widgets.cascade_button import CascadeButton
-from savant_app.frontend.widgets.cascade_dropdown import (
-    CascadeDirection,
-    CascadeDropdown,
-)
+from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 
 
 class Overlay(QWidget):

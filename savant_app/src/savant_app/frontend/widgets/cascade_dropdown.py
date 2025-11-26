@@ -156,7 +156,9 @@ class CascadeDropdown(QWidget):
             original_text = (
                 btn.text().replace(" (Forwards)", "").replace(" (Backwards)", "")
             )
-            btn.setText(f"{original_text} ({self._current_direction.value.capitalize()})")
+            btn.setText(
+                f"{original_text} ({self._current_direction.value.capitalize()})"
+            )
         self.adjustSize()
 
     def _select_direction(self, direction: CascadeDirection):
