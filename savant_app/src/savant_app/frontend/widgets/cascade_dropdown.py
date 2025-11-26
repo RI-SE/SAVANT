@@ -164,5 +164,4 @@ class CascadeDropdown(QWidget):
     def _select_direction(self, direction: CascadeDirection):
         """Handle direction selection."""
         self._current_direction = direction
-        print(f"Current direction in dropdown: {self._current_direction}")
         self._show_action_buttons()
