@@ -20,8 +20,11 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
+    QMenu,
+    QWidgetAction,
 )
 
 from savant_app.frontend.theme.forms import style_checkbox
@@ -54,6 +57,7 @@ class SettingsDialog(QDialog):
         frame_count=100,
         ontology_path: Path,
         action_interval_offset: int,
+        tag_options: dict[str, dict[str, bool]] | None = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -154,7 +158,7 @@ class SettingsDialog(QDialog):
         self.annotator_table.setFixedHeight(total_height)
 
         # Annotations & Ontology group
-        ontology_group = QGroupBox("Annotations & Ontology", self)
+        ontology_group = QGroupBox("Annotations && Ontology", self)
         ontology_form = QFormLayout(ontology_group)
 
         self._ontology_edit = QLineEdit(self)
@@ -180,6 +184,31 @@ class SettingsDialog(QDialog):
         ontology_form.addRow("Action interval offset (frames):", self._offset_spin)
 
         form.addRow(ontology_group)
+
+        # Frame & Object Tags group
+        option_map = tag_options or {}
+        self._frame_tag_states: dict[str, bool] = dict(option_map.get("frame", {}))
+        self._object_tag_states: dict[str, bool] = dict(option_map.get("object", {}))
+
+        tag_group = QGroupBox("Frame && Object Tags", self)
+        tag_layout = QHBoxLayout(tag_group)
+        tag_layout.setSpacing(24)
+        tag_layout.addWidget(
+            self._create_tag_dropdown(
+                title="Frame Tags",
+                states=self._frame_tag_states,
+                empty_message="No frame tags found",
+            ),
+        )
+        tag_layout.addWidget(
+            self._create_tag_dropdown(
+                title="Object Tags",
+                states=self._object_tag_states,
+                empty_message="No object tags found",
+            ),
+        )
+
+        form.addRow(tag_group)
 
         # Confidence group
         confidence_group = QGroupBox("Confidence Issues", self)
@@ -317,6 +346,11 @@ class SettingsDialog(QDialog):
             color_hex = color_btn.text()
             annotators.append({"name": name, "enabled": enabled, "color": color_hex})
 
+        tag_options = {
+            "frame": dict(self._frame_tag_states),
+            "object": dict(self._object_tag_states),
+        }
+
         return {
             "zoom_rate": float(self.zoom_spin.value()),
             "previous_frame_count": int(self.frame_count_spin.value()),
@@ -333,12 +367,66 @@ class SettingsDialog(QDialog):
             "show_warnings": bool(self.warning_toggle_cb.isChecked()),
             "show_errors": bool(self.error_toggle_cb.isChecked()),
             "Annotators": annotators,
+            "tag_options": tag_options,
         }
 
     def _set_spin_value(self, spin: QDoubleSpinBox, value: float) -> None:
         spin.blockSignals(True)
         spin.setValue(float(value))
         spin.blockSignals(False)
+
+    def _create_tag_dropdown(
+        self, *, title: str, states: dict[str, bool], empty_message: str
+    ) -> QWidget:
+        container = QWidget(self)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        heading = QLabel(f"{title}:", self)
+        heading.setStyleSheet("font-weight: bold;")
+        layout.addWidget(heading)
+
+        if not states:
+            placeholder = QLabel(empty_message, self)
+            placeholder.setEnabled(False)
+            layout.addWidget(placeholder)
+            return container
+
+        dropdown = QToolButton(self)
+        dropdown.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menu = QMenu(dropdown)
+        dropdown.setMenu(menu)
+
+        def update_text():
+            selected = [name for name, enabled in states.items() if enabled]
+            dropdown.setText("Select tags to display…   "
+                             if not selected else f"{len(selected)} selected to display")
+
+        update_text()
+
+        for name in sorted(states.keys(), key=lambda n: n.lower()):
+            widget = QWidget()
+            widget_layout = QHBoxLayout(widget)
+            widget_layout.setContentsMargins(5, 2, 5, 2)
+            checkbox = QCheckBox(name, self)
+            style_checkbox(checkbox)
+            checkbox.setChecked(bool(states[name]))
+
+            def handle_toggle(checked, key=name, box=checkbox):
+                states[key] = bool(checked)
+                box.blockSignals(True)
+                box.setChecked(bool(checked))
+                box.blockSignals(False)
+                update_text()
+
+            checkbox.toggled.connect(handle_toggle)
+            widget_layout.addWidget(checkbox)
+            action = QWidgetAction(menu)
+            action.setDefaultWidget(widget)
+            menu.addAction(action)
+
+        layout.addWidget(dropdown)
+        return container
 
     def _ranges_overlap(
         self, warning_range: tuple[float, float], error_range: tuple[float, float]

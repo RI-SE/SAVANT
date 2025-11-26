@@ -1,5 +1,11 @@
 from tests.unit.test_utils import read_json
-from src.savant_app.models.OpenLabel import OpenLabel
+from src.savant_app.models.OpenLabel import (
+    ActionMetadata,
+    FrameInterval,
+    OpenLabel,
+    ObjectMetadataData,
+    ObjectMetadataVecEntry,
+)
 from src.savant_app.services.project_state import ProjectState
 from pathlib import Path
 import shutil
@@ -72,3 +78,60 @@ class TestProjectState:
 
         # Verify that the changes are persisted
         assert new_project_state.annotation_config.ontologies["0"] == "test"
+
+    def test_get_tag_categories(self):
+        project_state = ProjectState()
+        test_config_path = str(
+            Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json"
+        )
+
+        project_state.load_openlabel_config(test_config_path)
+        # Inject object-level metadata tags to ensure detection
+        first_obj = next(iter(project_state.annotation_config.objects.values()))
+        first_obj.object_data = ObjectMetadataData(
+            vec=[ObjectMetadataVecEntry(name="suddendisappear", val=[10])]
+        )
+        project_state.annotation_config.actions = {
+            "0": ActionMetadata(
+                name="lanechange",
+                type="test",
+                frame_intervals=[FrameInterval(frame_start=5, frame_end=8)],
+            )
+        }
+        tags = project_state.get_tag_categories()
+
+        assert tags == {
+            "frame": {"lanechange": [5]},
+            "object": {"suddendisappear": [10]},
+        }
+
+    def test_get_tag_frame_details(self):
+        project_state = ProjectState()
+        test_config_path = str(
+            Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json"
+        )
+
+        project_state.load_openlabel_config(test_config_path)
+        first_obj = next(iter(project_state.annotation_config.objects.values()))
+        first_obj.object_data = ObjectMetadataData(
+            vec=[ObjectMetadataVecEntry(name="suddenappear", val=[15, 16])]
+        )
+        project_state.annotation_config.actions = {
+            "0": ActionMetadata(
+                name="lanechange",
+                type="test",
+                frame_intervals=[FrameInterval(frame_start=7, frame_end=9)],
+            )
+        }
+
+        details = project_state.get_tag_frame_details()
+        assert 15 in details
+        assert any(
+            entry["tag_name"] == "suddenappear" and entry["category"] == "object_tag"
+            for entry in details[15]
+        )
+        assert 7 in details
+        assert any(
+            entry["tag_name"] == "lanechange" and entry["category"] == "frame_tag"
+            for entry in details[7]
+        )
