@@ -2,6 +2,11 @@
 from PyQt6.QtCore import Qt, QTimer
 
 from savant_app.frontend.types import BBoxData, BBoxDimensionData
+from savant_app.frontend.utils.settings_store import (
+    get_enabled_tag_frames,
+    get_show_errors,
+    get_show_warnings,
+)
 
 from .render import show_frame
 
@@ -40,6 +45,18 @@ def wire(main_window):
     if hasattr(playback_controls, "skip_forward_clicked"):
         _safe_connect(
             playback_controls.skip_forward_clicked, lambda n: _skip(main_window, +n)
+        )
+
+    if hasattr(playback_controls, "next_issue_clicked"):
+        _safe_connect(
+            playback_controls.next_issue_clicked,
+            lambda: _jump_to_issue_frame(main_window, direction=+1),
+        )
+
+    if hasattr(playback_controls, "prev_issue_clicked"):
+        _safe_connect(
+            playback_controls.prev_issue_clicked,
+            lambda: _jump_to_issue_frame(main_window, direction=-1),
         )
 
     if hasattr(main_window.sidebar, "highlight_selected_object"):
@@ -149,6 +166,54 @@ def _skip(main_window, n: int):
     except Exception:
         _stop(main_window)
         raise
+
+
+def _jump_to_issue_frame(main_window, direction: int):
+    frames = _collect_visible_issue_frames(main_window)
+    if not frames:
+        return
+    try:
+        current_index = int(main_window.video_controller.current_index())
+    except Exception:
+        current_index = 0
+    target = _select_issue_frame(frames, current_index, direction)
+    if target is None or target == current_index:
+        return
+    try:
+        pixmap, idx = main_window.video_controller.jump_to_frame(target)
+        show_frame(main_window, pixmap, idx)
+    except Exception:
+        _stop(main_window)
+        raise
+
+
+def _collect_visible_issue_frames(main_window) -> list[int]:
+    state = getattr(main_window, "state", None)
+    if state is None:
+        return []
+    frames: set[int] = set()
+    if get_show_errors():
+        frames.update(state.error_frames())
+    tag_frame_map = get_enabled_tag_frames()
+    if get_show_warnings():
+        frames.update(state.warning_frames())
+    frames.update(tag_frame_map.get("frame", []))
+    frames.update(tag_frame_map.get("object", []))
+    return sorted(frames)
+
+
+def _select_issue_frame(frames: list[int], current: int, direction: int) -> int | None:
+    if not frames:
+        return None
+    if direction >= 0:
+        for frame in frames:
+            if frame > current:
+                return frame
+        return frames[0]
+    for frame in reversed(frames):
+        if frame < current:
+            return frame
+    return frames[-1]
 
 
 def _update_live_annotation_info(playback_controls, bbox_data: BBoxData):

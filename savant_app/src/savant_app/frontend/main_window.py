@@ -27,9 +27,11 @@ from savant_app.frontend.utils.settings_store import (
     get_error_range,
     get_show_warnings,
     get_show_errors,
+    get_tag_options,
     set_threshold_ranges,
     set_show_warnings,
     set_show_errors,
+    set_tag_option_states,
 )
 from savant_app.frontend.utils import (
     annotation_ops,
@@ -158,6 +160,7 @@ class MainWindow(QMainWindow):
         )
 
         self.refresh_confidence_issues()
+        self.update_issue_info()
 
         # Display dialog for annotater name input
         annotator_name_dialog = AnnotatorDialog()
@@ -175,6 +178,7 @@ class MainWindow(QMainWindow):
             frame_count=self.sidebar_state.historic_obj_frame_count,
             ontology_path=get_ontology_path(),
             action_interval_offset=get_action_interval_offset(),
+            tag_options=get_tag_options(),
             parent=self,
         )
         dlg.ontology_path_selected.connect(self.sidebar.reload_bbox_type_combo)
@@ -188,6 +192,7 @@ class MainWindow(QMainWindow):
             error_range = tuple(float(v) for v in error_vals)
             show_warnings = vals.get("show_warnings", get_show_warnings())
             show_errors = vals.get("show_errors", get_show_errors())
+            set_tag_option_states(vals.get("tag_options", {}))
             thresholds_valid = True
             if (
                 show_warnings
@@ -214,6 +219,7 @@ class MainWindow(QMainWindow):
                     )
                     set_show_warnings(show_warnings)
                     set_show_errors(show_errors)
+                    confidence_ops.apply_confidence_markers(self)
                 except InvalidWarningErrorRange as ex:
                     QMessageBox.critical(self, "Invalid Ranges", str(ex))
                     thresholds_valid = False
@@ -221,6 +227,7 @@ class MainWindow(QMainWindow):
                 confidence_ops.refresh_confidence_issues(self)
             else:
                 confidence_ops.apply_confidence_markers(self)
+            self.update_issue_info()
 
     def noop(*args, **kwargs):
         print("Not implemented yet")
@@ -230,6 +237,9 @@ class MainWindow(QMainWindow):
 
     def apply_confidence_markers(self):
         confidence_ops.apply_confidence_markers(self)
+
+    def update_issue_info(self):
+        confidence_ops.update_issue_info(self)
 
     def execute_undoable_command(self, command):
         self.undo_manager.execute(command, self.undo_context)

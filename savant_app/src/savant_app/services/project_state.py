@@ -37,6 +37,45 @@ class FrameConfidenceIssue:
     severity: Literal["warning", "error"]
 
 
+@dataclass
+class FrameTagDetail:
+    frame_index: int
+    category: Literal["frame_tag", "object_tag"]
+    tag_name: str
+    object_id: str | None = None
+    object_name: str | None = None
+    description: str | None = None
+
+
+def _normalize_tag_frames(value) -> list[int]:
+    frames: set[int] = set()
+    if value is None:
+        return []
+    if isinstance(value, (int, float)):
+        if int(value) >= 0:
+            frames.add(int(value))
+        return sorted(frames)
+    if isinstance(value, str):
+        try:
+            num = int(value.strip())
+        except ValueError:
+            return []
+        if num >= 0:
+            frames.add(num)
+        return sorted(frames)
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            frames.update(_normalize_tag_frames(item))
+        return sorted(frames)
+    if hasattr(value, "__iter__") and not isinstance(value, (bytes, bytearray)):
+        try:
+            for item in value:
+                frames.update(_normalize_tag_frames(item))
+        except TypeError:
+            pass
+    return sorted(frames)
+
+
 class ProjectState:
     def __init__(self):
         self.annotation_config: OpenLabel = None
@@ -80,11 +119,137 @@ class ProjectState:
         """
         # Save the configuration to a JSON file
         with open(self.open_label_path, "w") as f:
-            f.write(
-                json.dumps(
-                    {"openlabel": self.annotation_config.model_dump(mode="json")}
-                )
+            json.dump(
+                {"openlabel": self.annotation_config.model_dump(mode="json")},
+                f,
+                indent=2,
             )
+
+    def get_tag_categories(self) -> dict[str, dict[str, list[int]]]:
+        """Collect object metadata tags and action tags mapped to their frames."""
+        if not self.annotation_config:
+            return {"frame": {}, "object": {}}
+
+        tags: dict[str, dict[str, set[int]]] = {
+            "frame": {},
+            "object": {},
+        }
+
+        def ensure_category_entry(category: str, name: str) -> set[int]:
+            category_map = tags.setdefault(category, {})
+            return category_map.setdefault(name, set())
+
+        for metadata in self.annotation_config.objects.values():
+            object_data = getattr(metadata, "object_data", None)
+            if not object_data:
+                continue
+            vec_entries = getattr(object_data, "vec", None) or []
+            for entry in vec_entries:
+                name = getattr(entry, "name", None)
+                if not name:
+                    continue
+                frames = _normalize_tag_frames(getattr(entry, "val", None))
+                if frames:
+                    bucket = ensure_category_entry("object", str(name))
+                    bucket.update(frames)
+
+        actions = getattr(self.annotation_config, "actions", None) or {}
+        for action in actions.values():
+            action_name = getattr(action, "name", None)
+            if not action_name:
+                continue
+            intervals = getattr(action, "frame_intervals", None) or []
+            starts: set[int] = set()
+            for interval in intervals:
+                start_val = getattr(interval, "frame_start", None)
+                if isinstance(start_val, (int, float)) and int(start_val) >= 0:
+                    starts.add(int(start_val))
+            if starts:
+                bucket = ensure_category_entry("frame", str(action_name))
+                bucket.update(starts)
+
+        normalized: dict[str, dict[str, list[int]]] = {
+            "frame": {},
+            "object": {},
+        }
+        for category, name_map in tags.items():
+            normalized[category] = {
+                name: sorted(values)
+                for name, values in sorted(name_map.items(), key=lambda item: item[0].lower())
+            }
+
+        return normalized
+
+    def get_tag_frame_details(self) -> dict[int, list[dict]]:
+        """Return descriptive tag details for each frame."""
+        if not self.annotation_config:
+            return {}
+
+        details: dict[int, list[FrameTagDetail]] = {}
+
+        def add_detail(frame_idx: int, detail: FrameTagDetail) -> None:
+            details.setdefault(int(frame_idx), []).append(detail)
+
+        for object_id, metadata in self.annotation_config.objects.items():
+            object_data = getattr(metadata, "object_data", None)
+            if not object_data:
+                continue
+            vec_entries = getattr(object_data, "vec", None) or []
+            for entry in vec_entries:
+                name = getattr(entry, "name", None)
+                if not name:
+                    continue
+                frames = _normalize_tag_frames(getattr(entry, "val", None))
+                if not frames:
+                    continue
+                for frame in frames:
+                    add_detail(
+                        frame,
+                        FrameTagDetail(
+                            frame_index=frame,
+                            category="object_tag",
+                            tag_name=str(name),
+                            object_id=str(object_id),
+                            object_name=getattr(metadata, "name", None),
+                            description=str(name),
+                        ),
+                    )
+
+        actions = getattr(self.annotation_config, "actions", None) or {}
+        for action in actions.values():
+            action_name = getattr(action, "name", None)
+            if not action_name:
+                continue
+            intervals = getattr(action, "frame_intervals", None) or []
+            for interval in intervals:
+                frame_start = getattr(interval, "frame_start", None)
+                if not isinstance(frame_start, (int, float)):
+                    continue
+                frame_start = int(frame_start)
+                if frame_start < 0:
+                    continue
+                frame_end = getattr(interval, "frame_end", None)
+                description = (
+                    f"{action_name} frames {frame_start}-{frame_end}"
+                    if isinstance(frame_end, (int, float)) and frame_end >= frame_start
+                    else f"{action_name} frame {frame_start}"
+                )
+                add_detail(
+                    frame_start,
+                    FrameTagDetail(
+                        frame_index=frame_start,
+                        category="frame_tag",
+                        tag_name=str(action_name),
+                        object_id=None,
+                        object_name="Frame",
+                        description=description,
+                    ),
+                )
+
+        return {
+            frame: [detail.__dict__ for detail in entries]
+            for frame, entries in details.items()
+        }
 
     def get_actor_types(self) -> list[str]:
         """Get the list of all possible actor types.

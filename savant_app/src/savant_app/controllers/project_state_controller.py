@@ -84,3 +84,13 @@ class ProjectStateController:
         """Return video dimensions as (width, height) tuple"""
         metadata = self.project_state.video_metadata
         return (metadata.width, metadata.height)
+
+    @error_handler
+    def get_tag_categories(self) -> dict[str, list[str]]:
+        """Return unique frame/object tag names discovered in the project."""
+        return self.project_state.get_tag_categories()
+
+    @error_handler
+    def get_tag_frame_details(self) -> dict[int, list[dict]]:
+        """Return descriptive tag details per frame."""
+        return self.project_state.get_tag_frame_details()

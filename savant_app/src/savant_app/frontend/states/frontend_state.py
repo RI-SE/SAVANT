@@ -22,6 +22,7 @@ class FrontendState(QObject):
         self._warning_frames: set[int] = set()
         self._error_frames: set[int] = set()
         self._current_annotator: str = ""
+        self._frame_tag_details: dict[int, list[dict]] = {}
 
     @property
     def frame_index(self):
@@ -112,3 +113,20 @@ class FrontendState(QObject):
 
     def error_frames(self) -> set[int]:
         return set(self._error_frames)
+
+    def set_frame_tag_details(self, details: dict[int, list[dict]] | None):
+        normalized: dict[int, list[dict]] = {}
+        for frame, entries in (details or {}).items():
+            try:
+                frame_idx = int(frame)
+            except (ValueError, TypeError):
+                continue
+            normalized[frame_idx] = list(entries or [])
+        self._frame_tag_details = normalized
+
+    def frame_tag_details_for(self, frame_index: int) -> list[dict]:
+        try:
+            key = int(frame_index)
+        except (ValueError, TypeError):
+            return []
+        return list(self._frame_tag_details.get(key, []))
