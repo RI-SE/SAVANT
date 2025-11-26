@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 _ontology_path: Optional[Path] = None
 _action_interval_offset: int = 0
@@ -12,6 +12,8 @@ _warning_range: tuple[float, float] = (0.4, 0.6)
 _error_range: tuple[float, float] = (0.0, 0.4)
 _show_warnings: bool = False
 _show_errors: bool = False
+_tag_options: dict[str, dict[str, bool]] = {"frame": {}, "object": {}}
+_tag_frames: dict[str, dict[str, list[int]]] = {"frame": {}, "object": {}}
 
 # New movement sensitivity setting
 _movement_sensitivity: float = 1.0  # default 1.0x
@@ -143,3 +145,78 @@ def set_rotation_sensitivity(value: float) -> None:
     float_value = float(value)
 
     _rotation_sensitivity = float_value
+
+
+def update_tag_options(tag_data: dict[str, dict[str, Iterable[int]]]) -> None:
+    """Update the available tag options discovered from the project."""
+    global _tag_options, _tag_frames
+    new_options: dict[str, dict[str, bool]] = {"frame": {}, "object": {}}
+    new_frames: dict[str, dict[str, list[int]]] = {"frame": {}, "object": {}}
+
+    for category, entries in (tag_data or {}).items():
+        normalized_entries: dict[str, list[int]] = {}
+        for name, frames in (entries or {}).items():
+            if not isinstance(name, str):
+                name = str(name)
+            clean_name = name.strip()
+            if not clean_name:
+                continue
+
+            if frames is None:
+                normalized_entries[clean_name] = []
+                continue
+
+            try:
+                iterator = list(frames)
+            except TypeError:
+                iterator = [frames]
+
+            cleaned = sorted(
+                {
+                    int(value)
+                    for value in iterator
+                    if isinstance(value, (int, float)) and int(value) >= 0
+                }
+            )
+            normalized_entries[clean_name] = cleaned
+
+        existing_states = _tag_options.get(category, {})
+        new_options[category] = {
+            name: existing_states.get(name, False)
+            for name in sorted(normalized_entries.keys(), key=lambda n: n.lower())
+        }
+        new_frames[category] = normalized_entries
+
+    _tag_options = new_options
+    _tag_frames = new_frames
+
+
+def get_tag_options() -> dict[str, dict[str, bool]]:
+    """Return a copy of the current tag options."""
+    return {category: dict(options) for category, options in _tag_options.items()}
+
+
+def set_tag_option_states(states: dict[str, dict[str, bool]]) -> None:
+    """Persist checkbox selections for known tags."""
+    global _tag_options
+    for category, category_states in (states or {}).items():
+        if category not in _tag_options:
+            continue
+        for name, enabled in category_states.items():
+            if name in _tag_options[category]:
+                _tag_options[category][name] = bool(enabled)
+
+
+def get_enabled_tag_frames() -> dict[str, list[int]]:
+    """Return enabled frames derived from tag selections."""
+    result: dict[str, list[int]] = {"frame": [], "object": []}
+    for category in ("frame", "object"):
+        frames: set[int] = set()
+        options = _tag_options.get(category, {})
+        frame_map = _tag_frames.get(category, {})
+        for name, enabled in options.items():
+            if not enabled:
+                continue
+            frames.update(frame_map.get(name, []))
+        result[category] = sorted(frames)
+    return result

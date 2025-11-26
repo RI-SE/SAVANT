@@ -1,6 +1,14 @@
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QPainter, QPixmap
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 from savant_app.frontend.types import BBoxDimensionData
 from savant_app.frontend.utils.assets import icon
@@ -66,50 +74,91 @@ class PlaybackControls(QWidget):
         apply_issue_navigation_button_style(self.btn_prev_issue)
         apply_issue_navigation_button_style(self.btn_next_issue)
 
-        # Main layout is now Vertical
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(0, 10, 0, 10)
 
-        # This widget will hold the detailed info labels
+        self.issue_info_widget = QWidget()
+        issue_layout = QVBoxLayout(self.issue_info_widget)
+        issue_layout.setContentsMargins(0, 0, 0, 0)
+        issue_layout.setSpacing(4)
+        self.issue_heading = QLabel("Frame Issues")
+        self.issue_heading.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.issue_heading.setStyleSheet("font-weight: bold;")
+        self.issue_heading.setSizePolicy(
+            self.issue_heading.sizePolicy().horizontalPolicy(),
+            self.issue_heading.sizePolicy().verticalPolicy(),
+        )
+        self.issue_details_label = QLabel()
+        self.issue_details_label.setWordWrap(True)
+        self.issue_details_label.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+        )
+        self.issue_details_label.setObjectName("IssueInfoLabel")
+        self.issue_scroll = QScrollArea()
+        self.issue_scroll.setWidgetResizable(True)
+        self.issue_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.issue_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.issue_scroll.setWidget(self.issue_details_label)
+        issue_layout.addWidget(self.issue_heading)
+        issue_layout.addWidget(self.issue_scroll)
+
+        # Annotation info widget (existing)
         self.info_widget = QWidget()
         self.info_widget.setObjectName("AnnotationInfoBar")
-        info_layout = QHBoxLayout(self.info_widget)
+        info_layout = QVBoxLayout(self.info_widget)
         info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(20)  # Add some spacing between items
+        info_layout.setSpacing(4)
 
-        # Create clear, distinct labels for each piece of data
         self.center_label = QLabel()
-        self.center_label.setObjectName("InfoLabel")
-        self.center_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
+        self.center_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.center_label.setTextFormat(Qt.TextFormat.RichText)
         self.size_label = QLabel()
-        self.size_label.setObjectName("InfoLabel")
-        self.size_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
+        self.size_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.size_label.setTextFormat(Qt.TextFormat.RichText)
         self.rotation_label = QLabel()
-        self.rotation_label.setObjectName("InfoLabel")
-        self.rotation_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.rotation_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.rotation_label.setTextFormat(Qt.TextFormat.RichText)
 
-        # Add to the info layout with stretches to center them
-        info_layout.addStretch(1)
         info_layout.addWidget(self.center_label)
         info_layout.addWidget(self.size_label)
         info_layout.addWidget(self.rotation_label)
-        info_layout.addStretch(1)
 
-        # --- This label is for the default "No selection" text ---
         self.default_info_label = QLabel("No annotation selected.")
-        self.default_info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.default_info_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         self.default_info_label.setObjectName("DefaultInfoLabel")
-        # Make the default text a bit more subtle
         self.default_info_label.setStyleSheet("color: #888888; font-style: italic;")
 
+        annotation_container = QWidget()
+        annotation_layout = QVBoxLayout(annotation_container)
+        annotation_layout.setContentsMargins(0, 0, 0, 0)
+        annotation_layout.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
+        )
+        self.annotation_heading = QLabel("Annotation Info")
+        self.annotation_heading.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.annotation_heading.setStyleSheet("font-weight: bold;")
+        annotation_layout.addWidget(self.annotation_heading)
+        annotation_layout.addWidget(self.info_widget)
+        annotation_layout.addWidget(self.default_info_label)
+
         # Control buttons are in a nested Horizontal layout
-        controls_layout = QHBoxLayout()
+        controls_container = QWidget()
+        controls_layout = QHBoxLayout(controls_container)
         controls_layout.setSpacing(10)
         controls_layout.setContentsMargins(0, 0, 0, 0)
-
         controls_layout.addStretch(1)
         controls_layout.addWidget(self.btn_prev_issue)
         controls_layout.addWidget(self.btn_prev_frame)
@@ -120,14 +169,22 @@ class PlaybackControls(QWidget):
         controls_layout.addWidget(self.btn_next_issue)
         controls_layout.addStretch(1)
 
-        # Add the widgets to the main vertical layout in the new order
-        main_layout.addWidget(self.info_widget)
-        main_layout.addWidget(self.default_info_label)
-        main_layout.addLayout(controls_layout)
+        # Add the widgets to the main horizontal layout
+        content_row = QHBoxLayout()
+        content_row.setSpacing(20)
+        content_row.addWidget(self.issue_info_widget, stretch=1)
+        content_row.addStretch(1)
+        content_row.addWidget(controls_container, stretch=0)
+        content_row.addStretch(1)
+        content_row.addWidget(annotation_container, stretch=1)
+        content_row.addStretch(0)
+
+        main_layout.addLayout(content_row)
 
         # Set initial visibility state
         self._issue_nav_visible = None
         self.clear_annotation_info()
+        self.clear_issue_details()
         self.set_issue_navigation_visible(False)
 
     def set_icon_paths(
@@ -170,20 +227,15 @@ class PlaybackControls(QWidget):
         if annotation_details is None:
             self.clear_annotation_info()
         else:
-            # Format the string with 2 decimal places for positions/dimensions
-            # and 1 for rotation, using rich text for clarity.
-            center_str = f"""
-                Center (x, y): <b>{annotation_details.x_center:.2f},
-                {annotation_details.y_center:.2f}</b>
-            """
-            size_str = f"""
-                Size (w, h): <b>{annotation_details.width:.2f},
-                {annotation_details.height:.2f}</b>
-            """
-            rot_str = f"""
-                Rotation: <b>{annotation_details.rotation:.1f} Radians
-                </b>
-            """
+            center_str = (
+                f"<b>Center (x, y):</b> "
+                f"{annotation_details.x_center:.2f}, {annotation_details.y_center:.2f}"
+            )
+            size_str = (
+                f"<b>Size (w, h):</b> "
+                f"{annotation_details.width:.2f}, {annotation_details.height:.2f}"
+            )
+            rot_str = f"<b>Rotation:</b> {annotation_details.rotation:.1f} radians"
 
             self.center_label.setText(center_str)
             self.size_label.setText(size_str)
@@ -203,6 +255,30 @@ class PlaybackControls(QWidget):
         self.center_label.setText("")
         self.size_label.setText("")
         self.rotation_label.setText("")
+
+    def display_issue_details(self, entries: list[dict]):
+        """Render issue/tag details for the current frame."""
+        if not entries:
+            self.clear_issue_details()
+            return
+        self.issue_details_label.setStyleSheet("")
+        parts = []
+        for entry in entries:
+            parts.append(
+                "<b>Type:</b> {type}<br>"
+                "<b>Object:</b> {object}<br>"
+                "<b>Info:</b> {info}".format(
+                    type=entry.get("type", "Unknown"),
+                    object=entry.get("object", "Unknown"),
+                    info=entry.get("info", ""),
+                )
+            )
+        self.issue_details_label.setText("<br><br>".join(parts))
+
+    def clear_issue_details(self):
+        """Show placeholder when no tags/warnings are active."""
+        self.issue_details_label.setStyleSheet("color: #888888; font-style: italic;")
+        self.issue_details_label.setText("No tags, warnings, or errors on this frame.")
 
     def set_issue_navigation_visible(self, visible: bool) -> None:
         visible = bool(visible)

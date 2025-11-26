@@ -36,6 +36,8 @@ def show_frame(main_window, pixmap, frame_idx: int | None):
         main_window.seek_bar.set_position(int(frame_idx))
 
     _update_overlay_from_model(main_window)
+    if hasattr(main_window, "update_issue_info"):
+        main_window.update_issue_info()
 
 
 def refresh_frame(main_window):

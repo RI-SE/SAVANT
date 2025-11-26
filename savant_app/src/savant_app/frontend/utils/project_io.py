@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QMessageBox
 from .render import show_frame
 from .playback import _stop as stop
 from ..exceptions import InvalidDirectoryError, MissingVideoError, MissingConfigError
+from ..utils.settings_store import update_tag_options
 
 
 def wire(main_window):
@@ -35,6 +36,11 @@ def on_open_video(main_window, path: str):
 
 def open_openlabel_config(main_window, path: str):
     main_window.project_state_controller.load_openlabel_config(path)
+    tag_map = main_window.project_state_controller.get_tag_categories() or {}
+    update_tag_options(tag_map)
+    tag_details = main_window.project_state_controller.get_tag_frame_details() or {}
+    if hasattr(main_window, "state"):
+        main_window.state.set_frame_tag_details(tag_details)
     if hasattr(main_window, "refresh_confidence_issues"):
         main_window.refresh_confidence_issues()
 
@@ -42,6 +48,11 @@ def open_openlabel_config(main_window, path: str):
 def quick_save(main_window):
     main_window.project_state_controller.validate_before_save()
     main_window.project_state_controller.save_openlabel_config()
+    tag_map = main_window.project_state_controller.get_tag_categories() or {}
+    update_tag_options(tag_map)
+    tag_details = main_window.project_state_controller.get_tag_frame_details() or {}
+    if hasattr(main_window, "state"):
+        main_window.state.set_frame_tag_details(tag_details)
     QMessageBox.information(
         main_window, "Save Successful", "Project saved successfully."
     )

@@ -40,3 +40,15 @@ class TestProjectStateController:
         mock_service.save_openlabel_config.side_effect = ValueError("Invalid config")
         with pytest.raises(InternalException):
             controller.save_openlabel_config()
+
+    def test_get_tag_categories(self, controller, mock_service):
+        expected = {"frame": {"lanechange": [1]}, "object": {"tag": [2]}}
+        mock_service.get_tag_categories.return_value = expected
+        assert controller.get_tag_categories() == expected
+        mock_service.get_tag_categories.assert_called_once()
+
+    def test_get_tag_frame_details(self, controller, mock_service):
+        expected = {1: [{"category": "frame_tag"}]}
+        mock_service.get_tag_frame_details.return_value = expected
+        assert controller.get_tag_frame_details() == expected
+        mock_service.get_tag_frame_details.assert_called_once()

@@ -2,7 +2,14 @@ from collections import deque
 from math import isfinite
 from typing import Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, confloat, conint, model_serializer, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    confloat,
+    conint,
+    model_serializer,
+    model_validator,
+)
 
 
 class RotatedBBox(BaseModel):
@@ -83,6 +90,24 @@ class FrameInterval(BaseModel):
     frame_end: conint(ge=0)
 
 
+ScalarMetadataValue = Union[str, int, float, bool]
+MetadataVecValue = Union[ScalarMetadataValue, List[ScalarMetadataValue]]
+
+
+class ObjectMetadataVecEntry(BaseModel):
+    """Generic vector entry used for object-level metadata."""
+
+    name: str
+    val: MetadataVecValue
+
+
+class ObjectMetadataData(BaseModel):
+    """Container for optional object-level vec data."""
+
+    vec: Optional[List[ObjectMetadataVecEntry]] = None
+    model_config = ConfigDict(extra="allow")
+
+
 class ObjectMetadata(BaseModel):
     """Metadata for tracked objects across all frames"""
 
@@ -90,6 +115,7 @@ class ObjectMetadata(BaseModel):
     type: str
     ontology_uid: Optional[str] = None
     frame_intervals: Optional[List[FrameInterval]] = None
+    object_data: Optional[ObjectMetadataData] = None
 
 
 class OpenLabelMetadata(BaseModel):

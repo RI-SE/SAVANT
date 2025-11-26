@@ -3,6 +3,7 @@ from PyQt6.QtCore import Qt, QTimer
 
 from savant_app.frontend.types import BBoxData, BBoxDimensionData
 from savant_app.frontend.utils.settings_store import (
+    get_enabled_tag_frames,
     get_show_errors,
     get_show_warnings,
 )
@@ -193,8 +194,11 @@ def _collect_visible_issue_frames(main_window) -> list[int]:
     frames: set[int] = set()
     if get_show_errors():
         frames.update(state.error_frames())
+    tag_frame_map = get_enabled_tag_frames()
     if get_show_warnings():
         frames.update(state.warning_frames())
+    frames.update(tag_frame_map.get("frame", []))
+    frames.update(tag_frame_map.get("object", []))
     return sorted(frames)
 
 

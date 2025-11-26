@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from savant_app.frontend.utils import render
 from savant_app.frontend.utils.settings_store import (
+    get_enabled_tag_frames,
     get_error_range,
     get_show_errors,
     get_show_warnings,
+    get_tag_options,
     get_warning_range,
 )
 
@@ -59,12 +61,19 @@ def apply_confidence_markers(main_window) -> None:
 
     warning_frames = sorted(state.warning_frames())
     error_frames = sorted(state.error_frames())
+    tag_frame_map = get_enabled_tag_frames()
+    extra_warning_frames = sorted(
+        set(tag_frame_map.get("frame", [])) | set(tag_frame_map.get("object", []))
+    )
+    tag_markers_active = bool(extra_warning_frames)
+    if tag_markers_active:
+        warning_frames = sorted(set(warning_frames) | set(extra_warning_frames))
 
     seek_bar.set_warning_frames(warning_frames)
     seek_bar.set_error_frames(error_frames)
     show_warnings = get_show_warnings()
     show_errors = get_show_errors()
-    seek_bar.set_warning_visibility(show_warnings)
+    seek_bar.set_warning_visibility(show_warnings or tag_markers_active)
     seek_bar.set_error_visibility(show_errors)
 
     overlay.set_warning_flag_visibility(show_warnings)
@@ -73,4 +82,61 @@ def apply_confidence_markers(main_window) -> None:
     if playback_controls is not None and hasattr(
         playback_controls, "set_issue_navigation_visible"
     ):
-        playback_controls.set_issue_navigation_visible(show_warnings or show_errors)
+        playback_controls.set_issue_navigation_visible(
+            show_warnings or show_errors or tag_markers_active
+        )
+    update_issue_info(main_window)
+
+
+def update_issue_info(main_window) -> None:
+    """Update the playback controls with current frame issue information."""
+    state = getattr(main_window, "state", None)
+    playback_controls = getattr(main_window, "playback_controls", None)
+    video_controller = getattr(main_window, "video_controller", None)
+    if state is None or playback_controls is None or video_controller is None:
+        return
+    try:
+        frame_idx = int(video_controller.current_index())
+    except Exception:
+        frame_idx = 0
+
+    entries: list[dict] = []
+    issues_map = state.confidence_issues()
+    for issue in issues_map.get(frame_idx, []):
+        severity = getattr(issue, "severity", "")
+        type_label = "Error" if severity == "error" else "Warning"
+        confidence = getattr(issue, "confidence", None)
+        if isinstance(confidence, (int, float)):
+            info_text = f"Confidence {confidence:.3f}"
+        else:
+            info_text = "Confidence unavailable"
+        entries.append(
+            {
+                "type": type_label,
+                "object": str(getattr(issue, "object_id", "Unknown")),
+                "info": info_text,
+            }
+        )
+
+    tag_options = get_tag_options()
+    tag_details = state.frame_tag_details_for(frame_idx)
+    for detail in tag_details:
+        category = detail.get("category")
+        tag_name = detail.get("tag_name")
+        if category == "frame_tag":
+            continue
+        option_key = "object"
+        if not tag_options.get(option_key, {}).get(tag_name, False):
+            continue
+        type_label = "Object Tag"
+        object_label = detail.get("object_id") or detail.get("object_name") or "Unknown"
+        info_text = detail.get("description") or tag_name
+        entries.append(
+            {
+                "type": type_label,
+                "object": object_label,
+                "info": info_text,
+            }
+        )
+
+    playback_controls.display_issue_details(entries)
