@@ -198,7 +198,6 @@ def get_tag_options() -> dict[str, dict[str, bool]]:
 
 def set_tag_option_states(states: dict[str, dict[str, bool]]) -> None:
     """Persist checkbox selections for known tags."""
-    global _tag_options
     for category, category_states in (states or {}).items():
         if category not in _tag_options:
             continue
