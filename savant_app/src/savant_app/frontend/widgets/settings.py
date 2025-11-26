@@ -399,8 +399,11 @@ class SettingsDialog(QDialog):
 
         def update_text():
             selected = [name for name, enabled in states.items() if enabled]
-            dropdown.setText("Select tags to display…   "
-                             if not selected else f"{len(selected)} selected to display")
+            dropdown.setText(
+                "Select tags to display…   "
+                if not selected
+                else f"{len(selected)} selected to display"
+            )
 
         update_text()
 

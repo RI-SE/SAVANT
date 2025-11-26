@@ -1,3 +1,4 @@
+import copy
 from pathlib import Path
 
 import pytest
@@ -40,7 +41,7 @@ class TestOpenLabel:
                     },
                     "2": {
                         "name": "Zurich_24",
-                        "type": "ArUco",
+                        "type": "Aris not storedUco",
                         "ontology_uid": "0",
                         "object_data": {
                             "vec": [
@@ -58,6 +59,16 @@ class TestOpenLabel:
                         "type": "Overtake",
                         "ontology_uid": "0",
                         "frame_intervals": [{"frame_start": 5, "frame_end": 8}],
+                    }
+                },
+                "relations": {
+                    "0": {
+                        "name": "Relation-0",
+                        "type": "towing",
+                        "ontology_uid": "0",
+                        "frame_intervals": [{"frame_start": 0, "frame_end": 10}],
+                        "rdf_subjects": [{"type": "object", "uid": "0"}],
+                        "rdf_objects": [{"type": "object", "uid": "1"}],
                     }
                 },
                 "frames": {
@@ -156,6 +167,7 @@ class TestOpenLabel:
         assert "metadata" in dumped
         assert "objects" in dumped
         assert "frames" in dumped
+        assert "relations" in dumped
 
         # Verify key metadata fields match
         assert dumped["metadata"] == self.expected_output["openlabel"]["metadata"]
@@ -163,6 +175,11 @@ class TestOpenLabel:
         # Verify objects count matches
         assert len(dumped["objects"]) == len(
             self.expected_output["openlabel"]["objects"]
+        )
+
+        # Verify relations count matches
+        assert len(dumped["relations"]) == len(
+            self.expected_output["openlabel"]["relations"]
         )
 
         # Verify frames count matches
@@ -175,15 +192,54 @@ class TestOpenLabel:
         # Check specific known frame in expected output
         assert "0" in dumped["frames"]
 
+    def test_relations_parsing(self):
+        """Test that relations and RDF items are parsed correctly"""
+        ol = OpenLabel(**self.expected_output["openlabel"])
+
+        assert "0" in ol.relations
+        relation = ol.relations["0"]
+
+        assert relation.name == "Relation-0"
+        assert relation.type == "towing"
+
+        # Verify RDF Subject
+        assert len(relation.rdf_subjects) == 1
+        assert relation.rdf_subjects[0].type == "object"
+        assert relation.rdf_subjects[0].uid == "0"
+
+        # Verify RDF Object
+        assert len(relation.rdf_objects) == 1
+        assert relation.rdf_objects[0].type == "object"
+        assert relation.rdf_objects[0].uid == "1"
+
+    def test_relations_validation_error(self):
+        """Test validation fails if RDF type is invalid"""
+        data = self.expected_output["openlabel"].copy()
+
+        # Create a deep copy of relations to modify safely
+        data["relations"] = copy.deepcopy(data["relations"])
+
+        # Inject invalid RDF type (allowed: object, action, event, context)
+        data["relations"]["0"]["rdf_subjects"][0]["type"] = "invalid_thing"
+
+        with pytest.raises(ValidationError) as exc:
+            OpenLabel(**data)
+
+        # Ensure the error is about the Literal enum
+        assert "Input should be 'object', 'action', 'event' or 'context'" in str(
+            exc.value
+        )
+
     def test_object_metadata_vec_preserved(self):
         """Ensure object-level vec metadata survives load/save cycles."""
         ol = OpenLabel(**self.expected_output["openlabel"])
 
         dumped_objects = ol.model_dump()["objects"]
         assert "object_data" in dumped_objects["2"]
-        assert dumped_objects["2"]["object_data"] == self.expected_output["openlabel"][
-            "objects"
-        ]["2"]["object_data"]
+        assert (
+            dumped_objects["2"]["object_data"]
+            == self.expected_output["openlabel"]["objects"]["2"]["object_data"]
+        )
 
     def test_append_new_object_bbox(self):
         """Test appending a new bounding box to a frame"""
@@ -296,6 +352,7 @@ class TestOpenLabel:
         assert "annotator" not in dumped["metadata"]
         assert "actions" not in dumped  # Not present and should be excluded
         assert "frame_intervals" not in dumped["objects"]  # Not present in objects
+        assert "relations" not in dumped
 
     def test_missing_metadata(self):
         """Test validation fails when required metadata is missing"""

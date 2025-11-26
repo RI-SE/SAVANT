@@ -135,6 +135,24 @@ class ActionMetadata(BaseModel):
     frame_intervals: Optional[List[FrameInterval]] = None
 
 
+class RDFItem(BaseModel):
+    """Represents an item in rdf_subjects or rdf_objects"""
+
+    type: Literal["object", "action", "event", "context"]
+    uid: str
+
+
+class RelationMetadata(BaseModel):
+    """Relation metadata"""
+
+    name: str
+    type: str
+    ontology_uid: str
+    frame_intervals: Optional[List[FrameInterval]] = None
+    rdf_subjects: List[RDFItem]
+    rdf_objects: List[RDFItem]
+
+
 class OntologyDetails(BaseModel):
     """
     Ontology details which are not yet in use, but are ready for when needed.
@@ -156,6 +174,8 @@ class OpenLabel(BaseModel):
     actions: Optional[Dict[str, ActionMetadata]] = (
         None  # Made optional as they are not being used yet according to the spec.
     )
+    relations: Optional[Dict[str, RelationMetadata]] = None
+
     frames: Dict[str, FrameObjects]
 
     def model_dump(self, *args, **kwargs) -> dict:
@@ -486,3 +506,142 @@ class OpenLabel(BaseModel):
         if annotater not in current_annotator_data.val[0]:
             current_annotator_data.val.appendleft(annotater)
             current_confidence_data.val.appendleft(confidence)
+
+    def add_object_relationship(
+        self,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str,
+        frame_intervals: list[tuple],
+    ) -> str:
+        """
+        Add a new object relationship and return its unique ID.
+        """
+
+        def _generate_relation_id(self) -> str:
+            """
+            Get the latest key of the relationships, and increment it by 1
+            to generate a unqiue relation ID.
+            """
+            # If there are no relations, the first ID should be 0.
+            if not self.relations or not self.relations.keys():
+                return str(0)
+            # Sorted ensures that the last key is always the largest.
+            # This prevents bugs if we delete keys in the middle of
+            # the dict.
+            keys_as_ints = [int(key) for key in self.relation.keys()]
+            return str(max(keys_as_ints) + 1)
+
+        # Convert the received frame intervals into the OL spec
+        # type.
+        ol_frame_intervals = [
+            FrameInterval(frame_start=interval[0], frame_end=interval[1])
+            for interval in frame_intervals
+        ]
+
+        # Create a new unique relation ID.
+        new_id = _generate_relation_id(self)
+
+        # Generate name for the relationship based on the ID
+        relationship_name = f"Relation-{new_id}"
+
+        new_relationship = RelationMetadata(
+            name=relationship_name,
+            type=relationship_type,
+            ontology_uid=ontology_uid,
+            rdf_subjects=[RDFItem(type="object", uid=subject_object_id)],
+            rdf_objects=[RDFItem(type="object", uid=object_object_id)],
+            frame_intervals=ol_frame_intervals,
+        )
+
+        # If we dont have any relations, initialize an empty list.
+        # This is preferred over setting a default empty dict as we want to
+        # exclude the field in the output if it is None.
+        if not self.relations:
+            self.relations = {}
+
+        self.relations[new_id] = new_relationship
+
+        return str(new_id)
+
+    def restore_object_relationship(
+        self,
+        relation_id: str,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str,
+        frame_intervals: list[tuple],
+    ) -> None:
+        """
+        Restore a previously deleted object relationship with the specified ID.
+        """
+        # Convert the received frame intervals into the OL spec type.
+        ol_frame_intervals = [
+            FrameInterval(frame_start=interval[0], frame_end=interval[1])
+            for interval in frame_intervals
+        ]
+
+        # Generate name for the relationship based on the ID
+        relationship_name = f"Relation-{relation_id}"
+
+        new_relationship = RelationMetadata(
+            name=relationship_name,
+            type=relationship_type,
+            ontology_uid=ontology_uid,
+            rdf_subjects=[RDFItem(type="object", uid=subject_object_id)],
+            rdf_objects=[RDFItem(type="object", uid=object_object_id)],
+            frame_intervals=ol_frame_intervals,
+        )
+
+        # If we don't have any relations, initialize an empty dict
+        if not self.relations:
+            self.relations = {}
+
+        # Restore the relationship with the specified ID
+        self.relations[relation_id] = new_relationship
+
+    def get_object_relationships(self, object_id: str) -> List[RelationMetadata]:
+        """
+        Get all relationships for a given object_id.
+        """
+        if not self.relations:
+            return []
+
+        matching_relations = []
+        for relation in self.relations.values():
+            for subject in relation.rdf_subjects:
+                if subject.uid == object_id:
+                    matching_relations.append(relation)
+                    break
+            for obj in relation.rdf_objects:
+                if obj.uid == object_id:
+                    matching_relations.append(relation)
+                    break
+        return matching_relations
+
+    def delete_relationship(self, relation_id: str) -> bool:
+        """
+        Delete a relationship by its ID.
+        """
+        if self.relations and relation_id in self.relations:
+            del self.relations[relation_id]
+            return True
+        return False
+
+    def get_relationships_from_frame(self, frame_index):
+        """Given a frame index, get the relationships."""
+        if self.relations is None:
+            return
+
+        frame_relationships = []
+        for relation_metadata in self.relations.values():
+            for frame_interval in relation_metadata.frame_intervals:
+                if (
+                    frame_interval.frame_start
+                    <= frame_index
+                    <= frame_interval.frame_end
+                ):
+                    frame_relationships.append(relation_metadata)
+        return frame_relationships

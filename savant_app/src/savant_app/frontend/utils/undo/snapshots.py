@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from copy import deepcopy
+from dataclasses import dataclass
+
 from savant_app.models.OpenLabel import FrameLevelObject, ObjectMetadata, RotatedBBox
 
 
@@ -68,6 +69,23 @@ class CreatedObjectSnapshot:
     @property
     def object_id(self) -> str:
         return self.frame_snapshot.object_id
+
+
+@dataclass(frozen=True)
+class CreatedRelationshipSnapshot:
+    """
+    Snapshot representing a created object relationship.
+
+    NOTE: frame intervals are calculated in the backend. This
+    snapshot provides the necessary info for this!
+
+    """
+
+    relationship_id: str
+    relationship_type: str
+    ontology_uid: str
+    subject_object_id: str
+    object_object_id: str
 
 
 @dataclass(frozen=True)

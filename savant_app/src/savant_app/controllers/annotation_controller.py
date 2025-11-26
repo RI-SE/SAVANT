@@ -249,3 +249,49 @@ class AnnotationController:
         self.annotation_service.interpolate_annotations(
             object_id, start_frame, end_frame, annotator
         )
+
+    @error_handler
+    def add_object_relationship(
+        self,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str,
+    ) -> str:
+        """Add an object relationship and return its ID."""
+        return self.annotation_service.add_object_relationship(
+            relationship_type,
+            ontology_uid,
+            subject_object_id,
+            object_object_id,
+        )
+
+    @error_handler
+    def restore_object_relationship(
+        self,
+        relation_id: str,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str,
+    ) -> None:
+        """Restore an object relationship with a specific ID."""
+        self.annotation_service.restore_object_relationship(
+            relation_id,
+            relationship_type,
+            ontology_uid,
+            subject_object_id,
+            object_object_id,
+        )
+
+    @error_handler
+    def delete_relationship(self, relation_id: str) -> bool:
+        return self.annotation_service.delete_relationship(relation_id)
+
+    @error_handler
+    def get_object_relationship(self, object_id: str):
+        return self.annotation_service.get_object_relationships(object_id)
+
+    @error_handler
+    def get_frame_relationships(self, frame_index):
+        return self.annotation_service.get_frame_relationships(frame_index)

@@ -200,9 +200,7 @@ class VideoDisplay(QLabel):
             self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
             self.releaseMouse()
 
-    def set_zoom(
-        self, zoom: float, anchor_position: Optional[QPointF] = None
-    ) -> None:
+    def set_zoom(self, zoom: float, anchor_position: Optional[QPointF] = None) -> None:
         new_zoom = max(0.05, min(zoom, 20.0))
         if (
             anchor_position is not None
@@ -277,9 +275,7 @@ class VideoDisplay(QLabel):
         y = max(-max_y, min(self._pan.y(), max_y))
         self._pan = QPointF(x, y)
 
-    def _adjust_pan_for_zoom(
-        self, new_zoom: float, anchor_position: QPointF
-    ) -> None:
+    def _adjust_pan_for_zoom(self, new_zoom: float, anchor_position: QPointF) -> None:
         """Shift pan so the anchor position stays fixed while zooming."""
         base_scale = self._fit_scale()
         old_scale = base_scale * self._zoom
@@ -292,9 +288,7 @@ class VideoDisplay(QLabel):
         previous_draw_width = frame_width * old_scale
         previous_draw_height = frame_height * old_scale
         previous_offset_x = (viewport_width - previous_draw_width) / 2 + self._pan.x()
-        previous_offset_y = (
-            viewport_height - previous_draw_height
-        ) / 2 + self._pan.y()
+        previous_offset_y = (viewport_height - previous_draw_height) / 2 + self._pan.y()
 
         anchor_image_x = (anchor_position.x() - previous_offset_x) / old_scale
         anchor_image_y = (anchor_position.y() - previous_offset_y) / old_scale

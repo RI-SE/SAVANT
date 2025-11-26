@@ -741,3 +741,139 @@ class AnnotationService:
     def is_interpolated(self, frame_num: int, object_id: str) -> bool:
         """Check if annotation is interpolated at given frame"""
         return (frame_num, object_id) in self.project_state.interpolation_metadata
+
+    def add_object_relationship(
+        self,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str,
+    ) -> str:
+        """Add a new relationship between objects and return its ID"""
+        openlabel = self.project_state.annotation_config
+
+        # Calculate frame interval stuff.
+        frame_intervals = self._calculate_relation_frame_interval(
+            subject_object_id, object_object_id
+        )
+
+        return openlabel.add_object_relationship(
+            relationship_type,
+            ontology_uid,
+            subject_object_id,
+            object_object_id,
+            frame_intervals,
+        )
+
+    def restore_object_relationship(
+        self,
+        relation_id: str,
+        relationship_type: str,
+        ontology_uid: str,
+        subject_object_id: str,
+        object_object_id: str,
+    ) -> None:
+        """Restore a previously deleted relationship."""
+        openlabel = self.project_state.annotation_config
+
+        # Calculate frame interval stuff.
+        frame_intervals = self._calculate_relation_frame_interval(
+            subject_object_id, object_object_id
+        )
+
+        openlabel.restore_object_relationship(
+            relation_id,
+            relationship_type,
+            ontology_uid,
+            subject_object_id,
+            object_object_id,
+            frame_intervals,
+        )
+
+    def get_object_relationships(self, object_id: str):
+        """Get all relationships for a given object_id."""
+        openlabel = self.project_state.annotation_config
+        return openlabel.get_object_relationships(object_id)
+
+    def delete_relationship(self, relation_id: str) -> bool:
+        """Delete a relationship by its ID."""
+        openlabel = self.project_state.annotation_config
+        return openlabel.delete_relationship(relation_id)
+
+    def _calculate_relation_frame_interval(
+        self, subject_object_id: str, object_object_id: str
+    ):
+        """
+        Given two objects of a relationship, calculate
+        the frame intervals in which the relationship holds.
+        """
+
+        def _get_frame_intersection(subject_object_id: str, object_object_id: str):
+            """calculate the intersection of two object annotations"""
+            subject_object_frames = set(self.frames_for_object(subject_object_id))
+            object_object_frames = set(self.frames_for_object(object_object_id))
+            return subject_object_frames.intersection(object_object_frames)
+
+        frame_intersection = _get_frame_intersection(
+            subject_object_id, object_object_id
+        )
+
+        if not frame_intersection:
+            return []
+
+        sorted_frame_intersection = sorted(
+            [int(frame_number) for frame_number in frame_intersection]
+        )
+
+        def _calculate_continuous_frame_intervals(
+            sorted_frames: list[int],
+        ) -> list[tuple]:
+            """
+            From a sorted list of frames, calculate the frame
+            intervals.
+
+            return a list of tuples (a, b), where
+            a = interval start frame, b = interval end frame .
+            """
+            current_start_frame = sorted_frames[0]
+            current_end_frame = sorted_frames[0]
+
+            intervals: list[tuple] = []
+
+            for frame in sorted_frames[1:]:
+                if frame == current_end_frame + 1:
+                    # Frame is continous,
+                    # so step the current_end.
+                    current_end_frame = frame
+                else:
+                    # Gap in frame interval
+                    intervals.append((current_start_frame, current_end_frame))
+
+                    # Set the start and end frame to
+                    # the current frame, so we can loop for
+                    # the next interval
+                    current_start_frame = frame
+                    current_end_frame = frame
+
+            # Append the final interval.
+            intervals.append((current_start_frame, current_end_frame))
+            return intervals
+
+        return _calculate_continuous_frame_intervals(sorted_frame_intersection)
+
+    def get_frame_relationships(self, frame_index):
+        openlabel = self.project_state.annotation_config
+
+        frame_relationships = openlabel.get_relationships_from_frame(frame_index)
+
+        if not frame_relationships:
+            return None
+
+        return [
+            {
+                "subject": relationship.rdf_subjects[0].uid,
+                "relationship_type": relationship.type,
+                "object": relationship.rdf_objects[0].uid,
+            }
+            for relationship in frame_relationships
+        ]

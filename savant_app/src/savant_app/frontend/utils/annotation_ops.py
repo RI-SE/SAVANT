@@ -21,11 +21,13 @@ from savant_app.frontend.utils.undo import (
     CompositeCommand,
     CreateExistingObjectBBoxCommand,
     CreateNewObjectBBoxCommand,
+    CreateObjectRelationshipCommand,
     DeleteBBoxCommand,
     LinkObjectIdsCommand,
     ResolveConfidenceCommand,
     UpdateBBoxGeometryCommand,
 )
+from savant_app.frontend.widgets.create_relationship_widget import RelationLinkerWidget
 from savant_app.services.exceptions import VideoLoadError
 
 from .render import refresh_frame
@@ -73,6 +75,11 @@ def wire(main_window, frontend_state: FrontendState):
     if hasattr(main_window.sidebar, "object_details_changed"):
         main_window.sidebar.object_details_changed.connect(
             lambda: refresh_frame(main_window)
+        )
+
+    if hasattr(main_window.sidebar, "create_relationship"):
+        main_window.sidebar.create_relationship.connect(
+            lambda: _open_relationship_dialog(main_window)
         )
 
     main_window.overlay.boxMoved.connect(
@@ -746,3 +753,42 @@ def _link_object_ids_interactive(
     overlay = getattr(main_window, "overlay", None)
     if overlay is not None:
         overlay.bounding_box_selected.emit(primary_object_id)
+
+
+def _open_relationship_dialog(main_window):
+    """Open the relationship creation dialog."""
+    # Get current frame objects for the linker widget
+    current_frame = int(main_window.video_controller.current_index())
+    current_objects = main_window.annotation_controller.get_active_objects(
+        current_frame
+    )
+
+    linker_widget = RelationLinkerWidget(current_objects)
+    linker_widget.relationship_created.connect(
+        lambda subject_id, object_id, relationship_type: _on_create_relationship(
+            main_window, subject_id, object_id, relationship_type
+        )
+    )
+    linker_widget.exec()
+
+
+def _on_create_relationship(
+    main_window, subject_id: str, object_id: str, relationship_type: str
+):
+    """Handle the creation of a new object relationship."""
+    # Temporarily hard coded until we implement ontology uid management
+    ontology_uid = "1.3.0"
+
+    # Create the command
+    command = CreateObjectRelationshipCommand(
+        relationship_type=relationship_type,
+        ontology_uid=ontology_uid,
+        subject_object_id=subject_id,
+        object_object_id=object_id,
+    )
+
+    # Execute the command
+    main_window.execute_undoable_command(command)
+
+    # Refresh the UI
+    _refresh_after_annotation_change(main_window)

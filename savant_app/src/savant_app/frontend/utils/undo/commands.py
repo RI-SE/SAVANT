@@ -9,6 +9,7 @@ from .snapshots import (
     FrameObjectSnapshot,
     ObjectMetadataSnapshot,
     FrameTagSnapshot,
+    CreatedRelationshipSnapshot,
 )
 from .gateways import GatewayHolder, UndoGatewayError
 
@@ -424,3 +425,50 @@ class ResolveConfidenceCommand:
             return
         gateway = context.annotation_gateway
         gateway.restore_bbox(self._before_snapshot.clone())
+
+
+@dataclass
+class CreateObjectRelationshipCommand:
+    relationship_type: str
+    ontology_uid: str
+    subject_object_id: str
+    object_object_id: str
+    description: str = "Create object relationship"
+    _snapshot: Optional[CreatedRelationshipSnapshot] = field(
+        default=None, init=False, repr=False
+    )
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+
+        # Create a new object relationship.
+        if self._snapshot is None:
+            relationship_id = gateway.create_object_relationship(
+                self.relationship_type,
+                self.ontology_uid,
+                self.subject_object_id,
+                self.object_object_id,
+            )
+            # Create snapshot with the relationship details
+            self._snapshot = CreatedRelationshipSnapshot(
+                relationship_id=relationship_id,
+                relationship_type=self.relationship_type,
+                ontology_uid=self.ontology_uid,
+                subject_object_id=self.subject_object_id,
+                object_object_id=self.object_object_id,
+            )
+            return
+
+        # On redo, restore the relationship
+        gateway.restore_object_relationship(
+            self._snapshot.relationship_id,
+            self._snapshot.relationship_type,
+            self._snapshot.ontology_uid,
+            self._snapshot.subject_object_id,
+            self._snapshot.object_object_id,
+        )
+
+    def undo(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+        if self._snapshot is not None:
+            gateway.delete_object_relationship(self._snapshot.relationship_id)

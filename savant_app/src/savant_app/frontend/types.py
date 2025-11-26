@@ -31,3 +31,15 @@ class BBoxDimensionData:
     width: float
     height: float
     rotation: float
+
+
+@dataclass
+class Relationship:
+    """
+    Dataclass representing relationship
+    metadata
+    """
+
+    subject: str
+    relationship_type: str
+    object: str
