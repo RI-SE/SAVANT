@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from copy import deepcopy
+from dataclasses import dataclass
+
 from savant_app.models.OpenLabel import FrameLevelObject, ObjectMetadata, RotatedBBox
 
 
@@ -72,7 +73,13 @@ class CreatedObjectSnapshot:
 
 @dataclass(frozen=True)
 class CreatedRelationshipSnapshot:
-    """Snapshot representing a created object relationship."""
+    """
+    Snapshot representing a created object relationship.
+
+    NOTE: frame intervals are calculated in the backend. This
+    snapshot provides the necessary info for this!
+
+    """
 
     relationship_id: str
     relationship_type: str
