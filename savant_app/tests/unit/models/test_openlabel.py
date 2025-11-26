@@ -229,15 +229,17 @@ class TestOpenLabel:
         assert "Input should be 'object', 'action', 'event' or 'context'" in str(
             exc.value
         )
+
     def test_object_metadata_vec_preserved(self):
         """Ensure object-level vec metadata survives load/save cycles."""
         ol = OpenLabel(**self.expected_output["openlabel"])
 
         dumped_objects = ol.model_dump()["objects"]
         assert "object_data" in dumped_objects["2"]
-        assert dumped_objects["2"]["object_data"] == self.expected_output["openlabel"][
-            "objects"
-        ]["2"]["object_data"]
+        assert (
+            dumped_objects["2"]["object_data"]
+            == self.expected_output["openlabel"]["objects"]["2"]["object_data"]
+        )
 
     def test_append_new_object_bbox(self):
         """Test appending a new bounding box to a frame"""

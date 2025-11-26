@@ -175,7 +175,9 @@ class ProjectState:
         for category, name_map in tags.items():
             normalized[category] = {
                 name: sorted(values)
-                for name, values in sorted(name_map.items(), key=lambda item: item[0].lower())
+                for name, values in sorted(
+                    name_map.items(), key=lambda item: item[0].lower()
+                )
             }
 
         return normalized

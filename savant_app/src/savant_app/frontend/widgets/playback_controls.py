@@ -36,9 +36,7 @@ class PlaybackControls(QWidget):
 
         icon_size = QSize(PLAYBACK_BUTTON_ICON_SIZE, PLAYBACK_BUTTON_ICON_SIZE)
 
-        def make_btn(
-            filename: str, tooltip: str, *, tint=None
-        ) -> QPushButton:
+        def make_btn(filename: str, tooltip: str, *, tint=None) -> QPushButton:
             btn = QPushButton()
             btn.setIcon(self._build_icon(filename, tint=tint))
             btn.setIconSize(icon_size)
@@ -292,9 +290,7 @@ class PlaybackControls(QWidget):
         base_icon = icon(filename)
         if tint is None:
             return base_icon
-        pixmap = base_icon.pixmap(
-            PLAYBACK_BUTTON_ICON_SIZE, PLAYBACK_BUTTON_ICON_SIZE
-        )
+        pixmap = base_icon.pixmap(PLAYBACK_BUTTON_ICON_SIZE, PLAYBACK_BUTTON_ICON_SIZE)
         if pixmap.isNull():
             return base_icon
         tinted = QPixmap(pixmap.size())

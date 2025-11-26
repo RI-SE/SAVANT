@@ -11,9 +11,7 @@ def wire(main_window, initial: float = 1.0):
         main_window._zoom = _clamp(zoom_value)
         if hasattr(main_window.video_widget, "set_zoom"):
             if anchor_position is not None:
-                main_window.video_widget.set_zoom(
-                    main_window._zoom, anchor_position
-                )
+                main_window.video_widget.set_zoom(main_window._zoom, anchor_position)
             else:
                 main_window.video_widget.set_zoom(main_window._zoom)
         if hasattr(main_window.overlay, "set_zoom"):
