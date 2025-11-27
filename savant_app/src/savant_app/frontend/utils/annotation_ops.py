@@ -262,7 +262,26 @@ def delete_selected_bbox(main_window):
         return
 
     frame_key = int(main_window.video_controller.current_index())
-    command = DeleteBBoxCommand(frame_number=frame_key, object_id=str(object_id))
+
+    # Find relationships to delete
+    object_relationships = _get_selected_object_relationships(main_window, object_id)
+    delete_commands = [
+        DeleteRelationshipCommand(rel.id) for rel in object_relationships
+    ]
+
+    # Add bbox deletion
+    delete_commands.append(
+        DeleteBBoxCommand(frame_number=frame_key, object_id=str(object_id))
+    )
+
+    if len(delete_commands) > 1:
+        command = CompositeCommand(
+            description=f"Delete bbox and {len(object_relationships)} relationships",
+            commands=delete_commands,
+        )
+    else:
+        command = delete_commands[0]
+
     main_window.execute_undoable_command(command)
     main_window.overlay.clear_selection()
     _refresh_after_annotation_change(main_window)
