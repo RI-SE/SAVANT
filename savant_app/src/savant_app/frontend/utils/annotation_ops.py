@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 from savant_app.frontend.exceptions import InvalidFrameRangeInput, MissingObjectIDError
 from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
 from savant_app.frontend.states.frontend_state import FrontendState
+from savant_app.frontend.types import Relationship
 from savant_app.frontend.utils.undo import (
     BBoxGeometrySnapshot,
     CascadeBBoxCommand,
@@ -555,8 +556,31 @@ def _on_overlay_context_menu(main_window, click_position):
     elif selected_action == link_ids_action:
         _link_object_ids_interactive(main_window, obj_id, available_ids)
     elif selected_action == action_delete_relationship:
-        relation_deleter_widget = RelationDeleterWidget()
+        object_relationships = _get_selected_object_relationships(main_window, obj_id)
+        relation_deleter_widget = RelationDeleterWidget(object_relationships)
+        relation_deleter_widget.relationships_deleted.connect(_on_delete_relationship)
         relation_deleter_widget.exec()
+
+
+def _get_selected_object_relationships(
+    main_window, object_id: str
+) -> list[Relationship]:
+    object_relationships = main_window.annotation_controller.get_object_relationship(
+        object_id
+    )
+    return [
+        Relationship(
+            id=relationship["id"],
+            subject=relationship["subject"],
+            relationship_type=relationship["type"],
+            object=relationship["object"],
+        )
+        for relationship in object_relationships
+    ]
+
+
+def _on_delete_relationship(relation_ids: list[str]):
+    """Delete relationships"""
 
 
 def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
@@ -737,7 +761,7 @@ def _link_object_ids_interactive(
         return
 
     frames_with_target = main_window.annotation_controller.frames_for_object(
-        target_object_id
+        target_objRe
     )
     frame_summary = _frames_to_ranges(frames_with_target)
     frame_count = len(frames_with_target)

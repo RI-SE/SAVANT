@@ -790,10 +790,21 @@ class AnnotationService:
             frame_intervals,
         )
 
-    def get_object_relationships(self, object_id: str):
+    def get_object_relationships(self, object_id: str) -> list:
         """Get all relationships for a given object_id."""
         openlabel = self.project_state.annotation_config
-        return openlabel.get_object_relationships(object_id)
+
+        object_relationships = [
+            {
+                "id": relationship["relation_id"],
+                "subject": relationship["relation_metadata"].rdf_subjects[0].uid,
+                "type": relationship["relation_metadata"].type,
+                "object": relationship["relation_metadata"].rdf_objects[0].uid,
+            }
+            for relationship in openlabel.get_object_relationships(object_id)
+        ]
+
+        return object_relationships
 
     def delete_relationship(self, relation_id: str) -> bool:
         """Delete a relationship by its ID."""
@@ -871,9 +882,10 @@ class AnnotationService:
 
         return [
             {
-                "subject": relationship.rdf_subjects[0].uid,
-                "relationship_type": relationship.type,
-                "object": relationship.rdf_objects[0].uid,
+                "subject": relationship["metadata"].rdf_subjects[0].uid,
+                "relationship_type": relationship["metadata"].type,
+                "object": relationship["metadata"].rdf_objects[0].uid,
+                "id": relationship["relation_id"],
             }
             for relationship in frame_relationships
         ]

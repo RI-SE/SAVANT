@@ -1,7 +1,7 @@
 """Module to hold data types used in the frontend."""
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional
 
 ConfidenceSeverity = Literal["warning", "error"]
 ConfidenceFlagMap = dict[str, ConfidenceSeverity]
@@ -43,3 +43,4 @@ class Relationship:
     subject: str
     relationship_type: str
     object: str
+    id: str

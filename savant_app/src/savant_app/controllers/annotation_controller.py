@@ -289,7 +289,7 @@ class AnnotationController:
         return self.annotation_service.delete_relationship(relation_id)
 
     @error_handler
-    def get_object_relationship(self, object_id: str):
+    def get_object_relationship(self, object_id: str) -> list:
         return self.annotation_service.get_object_relationships(object_id)
 
     @error_handler

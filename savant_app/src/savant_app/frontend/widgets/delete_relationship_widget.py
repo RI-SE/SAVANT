@@ -13,6 +13,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from savant_app.frontend.types import Relationship
+
 
 class RelationDeleterWidget(QDialog):
     # Emits a list of the relationships with relation ids to delete.
@@ -20,7 +22,7 @@ class RelationDeleterWidget(QDialog):
 
     def __init__(
         self,
-        current_relationships: Optional[List[Dict]] = None,
+        current_relationships: Optional[list[Relationship]] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -33,17 +35,15 @@ class RelationDeleterWidget(QDialog):
         self.setWindowTitle("Delete Relationships")
         self.resize(500, 400)  # Slightly larger to accommodate list view
 
-    def _format_relationship_display_text(self, relation: Dict) -> str:
+    def _format_relationship_display_text(self, relation: Relationship) -> str:
         """
         Format relationship information for display in the list.
         Tries to use names if available, falls back to IDs.
         """
         # Extract  names if available, otherwise use IDs
-        subject = relation.get(
-            "subject_name", relation.get("subject_id", "Unknown Subject")
-        )
-        obj = relation.get("object_name", relation.get("object_id", "Unknown Object"))
-        relation_type = relation.get("relation_type", "related_to")
+        subject = relation.subject
+        relation_type = relation.relationship_type
+        obj = relation.object
 
         return f"{subject} --[{relation_type}]--> {obj}"
 
@@ -62,11 +62,11 @@ class RelationDeleterWidget(QDialog):
         self.list_widget.setAlternatingRowColors(True)
 
         # Populate the list
-        for rel in self.current_relationships:
-            display_text = self._format_relationship_display_text(rel)
+        for relationship in self.current_relationships:
+            display_text = self._format_relationship_display_text(relationship)
             item = QListWidgetItem(display_text)
 
-            item.setData(Qt.ItemDataRole.UserRole, rel)
+            item.setData(Qt.ItemDataRole.UserRole, relationship)
 
             # Make it checkable for multiple selection
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)

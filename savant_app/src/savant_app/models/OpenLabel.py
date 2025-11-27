@@ -530,7 +530,7 @@ class OpenLabel(BaseModel):
             # Sorted ensures that the last key is always the largest.
             # This prevents bugs if we delete keys in the middle of
             # the dict.
-            keys_as_ints = [int(key) for key in self.relation.keys()]
+            keys_as_ints = [int(key) for key in self.relations.keys()]
             return str(max(keys_as_ints) + 1)
 
         # Convert the received frame intervals into the OL spec
@@ -602,7 +602,9 @@ class OpenLabel(BaseModel):
         # Restore the relationship with the specified ID
         self.relations[relation_id] = new_relationship
 
-    def get_object_relationships(self, object_id: str) -> List[RelationMetadata]:
+    def get_object_relationships(
+        self, object_id: str
+    ) -> List[dict[str, RelationMetadata]]:
         """
         Get all relationships for a given object_id.
         """
@@ -610,14 +612,18 @@ class OpenLabel(BaseModel):
             return []
 
         matching_relations = []
-        for relation in self.relations.values():
+        for id, relation in self.relations.items():
             for subject in relation.rdf_subjects:
                 if subject.uid == object_id:
-                    matching_relations.append(relation)
+                    matching_relations.append(
+                        {"relation_id": id, "relation_metadata": relation}
+                    )
                     break
             for obj in relation.rdf_objects:
                 if obj.uid == object_id:
-                    matching_relations.append(relation)
+                    matching_relations.append(
+                        {"relation_id": id, "relation_metadata": relation}
+                    )
                     break
         return matching_relations
 
@@ -636,12 +642,14 @@ class OpenLabel(BaseModel):
             return
 
         frame_relationships = []
-        for relation_metadata in self.relations.values():
+        for relation_id, relation_metadata in self.relations.items():
             for frame_interval in relation_metadata.frame_intervals:
                 if (
                     frame_interval.frame_start
                     <= frame_index
                     <= frame_interval.frame_end
                 ):
-                    frame_relationships.append(relation_metadata)
+                    frame_relationships.append(
+                        {"relation_id": id, "metadata": relation_metadata}
+                    )
         return frame_relationships
