@@ -952,27 +952,12 @@ class Sidebar(QWidget):
                 # Add each relationship to the list
                 for relation in relationships:
                     # Extract relationship information
-                    relation_type = getattr(relation, "type", "Unknown")
-                    relation_name = getattr(relation, "name", "")
-
-                    # Get subject and object IDs
-                    subjects = getattr(relation, "rdf_subjects", [])
-                    objects = getattr(relation, "rdf_objects", [])
+                    relation_type = relation.get("type", "Unknown")
 
                     # Always show "Object B towed-by Object A" format
                     # Find the subject (Object A) and object (Object B) of the relationship
-                    subject_id = None
-                    object_id = None
-
-                    for subject in subjects:
-                        if hasattr(subject, "uid"):
-                            subject_id = subject.uid
-                            break
-
-                    for obj in objects:
-                        if hasattr(obj, "uid"):
-                            object_id = obj.uid
-                            break
+                    subject_id = relation.get("subject", "Unknown")
+                    object_id = relation.get("object", "Unknown")
 
                     # Get metadata for both objects
                     if subject_id:
@@ -994,7 +979,6 @@ class Sidebar(QWidget):
                     display_text = f"{subject_name} {relation_type} {object_name})"
 
                     list_item = QListWidgetItem(display_text)
-                    list_item.setData(Qt.ItemDataRole.UserRole, relation_name)
                     list_item.setToolTip(display_text)  # Add tooltip to show full text
                     self.relationships_list.addItem(list_item)
 

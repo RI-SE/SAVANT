@@ -765,7 +765,7 @@ class AnnotationService:
             frame_intervals,
         )
 
-    def restore_object_relationship(
+    def restore_relationship(
         self,
         relation_id: str,
         relationship_type: str,
@@ -781,7 +781,7 @@ class AnnotationService:
             subject_object_id, object_object_id
         )
 
-        openlabel.restore_object_relationship(
+        openlabel.restore_relationship(
             relation_id,
             relationship_type,
             ontology_uid,
@@ -806,10 +806,17 @@ class AnnotationService:
 
         return object_relationships
 
-    def delete_relationship(self, relation_id: str) -> bool:
+    def delete_relationship(self, relation_id: str) -> dict:
         """Delete a relationship by its ID."""
         openlabel = self.project_state.annotation_config
-        return openlabel.delete_relationship(relation_id)
+        deleted_relation = openlabel.delete_relationship(relation_id)
+
+        return {
+            "id": deleted_relation["id"],
+            "subject": deleted_relation["metadata"].rdf_subjects[0].uid,
+            "type": deleted_relation["metadata"].type,
+            "object": deleted_relation["metadata"].rdf_objects[0].uid,
+        }
 
     def _calculate_relation_frame_interval(
         self, subject_object_id: str, object_object_id: str
@@ -878,7 +885,7 @@ class AnnotationService:
         frame_relationships = openlabel.get_relationships_from_frame(frame_index)
 
         if not frame_relationships:
-            return None
+            return []
 
         return [
             {

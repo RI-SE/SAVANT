@@ -24,6 +24,7 @@ from savant_app.frontend.utils.undo import (
     CreateNewObjectBBoxCommand,
     CreateObjectRelationshipCommand,
     DeleteBBoxCommand,
+    DeleteRelationshipCommand,
     LinkObjectIdsCommand,
     ResolveConfidenceCommand,
     UpdateBBoxGeometryCommand,
@@ -558,7 +559,11 @@ def _on_overlay_context_menu(main_window, click_position):
     elif selected_action == action_delete_relationship:
         object_relationships = _get_selected_object_relationships(main_window, obj_id)
         relation_deleter_widget = RelationDeleterWidget(object_relationships)
-        relation_deleter_widget.relationships_deleted.connect(_on_delete_relationship)
+        relation_deleter_widget.relationships_deleted.connect(
+            lambda relation_ids: _on_delete_relationship(
+                main_window, relation_ids=relation_ids
+            )
+        )
         relation_deleter_widget.exec()
 
 
@@ -579,8 +584,11 @@ def _get_selected_object_relationships(
     ]
 
 
-def _on_delete_relationship(relation_ids: list[str]):
+def _on_delete_relationship(main_window, relation_ids: list[str]):
     """Delete relationships"""
+    for relation_id in relation_ids:
+        main_window.execute_undoable_command(DeleteRelationshipCommand(relation_id))
+    _refresh_after_annotation_change(main_window)
 
 
 def _cascade_delete_same_id(main_window, overlay_bbox_index: int):

@@ -115,7 +115,7 @@ class RelationDeleterWidget(QDialog):
             if item.checkState() == Qt.CheckState.Checked:
                 # Retrieve the original dict stored in UserRole
                 relationship_data = item.data(Qt.ItemDataRole.UserRole)
-                items_to_delete.append(relationship_data)
+                items_to_delete.append(relationship_data.id)
 
         if not items_to_delete:
             QMessageBox.information(

@@ -92,15 +92,14 @@ def _update_overlay_from_model(main_window):
         frame_relationships = main_window.annotation_controller.get_frame_relationships(
             current_frame_index
         )
-        if frame_relationships:
-            main_window.overlay.set_relationships(
-                list(
-                    map(
-                        lambda relationship: Relationship(**relationship),
-                        frame_relationships,
-                    )
+        main_window.overlay.set_relationships(
+            list(
+                map(
+                    lambda relationship: Relationship(**relationship),
+                    frame_relationships,
                 )
             )
+        )
 
         frame_issues_map = main_window.state.confidence_issues()
         frame_issues = frame_issues_map.get(current_frame_index, [])

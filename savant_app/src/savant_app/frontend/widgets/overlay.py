@@ -157,6 +157,8 @@ class Overlay(QWidget):
         """Set relationships"""
         if relationships:
             self._relationships = relationships
+        else:
+            self._relationships = []
         self.update()
 
     def set_theta_direction(self, is_anticlockwise: bool):

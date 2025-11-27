@@ -565,7 +565,7 @@ class OpenLabel(BaseModel):
 
         return str(new_id)
 
-    def restore_object_relationship(
+    def restore_relationship(
         self,
         relation_id: str,
         relationship_type: str,
@@ -627,14 +627,20 @@ class OpenLabel(BaseModel):
                     break
         return matching_relations
 
-    def delete_relationship(self, relation_id: str) -> bool:
+    def delete_relationship(self, relation_id: str) -> dict:
         """
         Delete a relationship by its ID.
         """
         if self.relations and relation_id in self.relations:
+
+            deleted_relation = {
+                "id": relation_id,
+                "metadata": self.relations[relation_id],
+            }
+
             del self.relations[relation_id]
-            return True
-        return False
+
+            return deleted_relation
 
     def get_relationships_from_frame(self, frame_index):
         """Given a frame index, get the relationships."""
