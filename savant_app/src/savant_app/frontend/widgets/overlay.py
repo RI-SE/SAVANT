@@ -6,17 +6,13 @@ from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import QWidget
 
-from savant_app.frontend.theme.constants import (
-    OVERLAY_CONFIDENCE_ICON_SIZE,
-    OVERLAY_ICON_SPACING,
-    get_error_icon,
-    get_warning_icon,
-)
+from savant_app.frontend.theme.constants import (OVERLAY_CONFIDENCE_ICON_SIZE,
+                                                 OVERLAY_ICON_SPACING,
+                                                 get_error_icon,
+                                                 get_warning_icon)
 from savant_app.frontend.types import BBoxData, ConfidenceFlagMap, Relationship
-from savant_app.frontend.utils.settings_store import (
-    get_movement_sensitivity,
-    get_rotation_sensitivity,
-)
+from savant_app.frontend.utils.settings_store import (get_movement_sensitivity,
+                                                      get_rotation_sensitivity)
 from savant_app.frontend.widgets.cascade_button import CascadeButton
 from savant_app.frontend.widgets.cascade_dropdown import CascadeDropdown
 
@@ -49,11 +45,11 @@ class Overlay(QWidget):
 
     deletePressed = pyqtSignal()
     cascadeApplyAll = pyqtSignal(
-        str, object, object, object
-    )  # (object_id, width, height, theta). Object lets us pass optional floats
+        str, object, object, object, object
+    )  # (object_id, width, height, theta, direction). Object lets us pass optional floats
     cascadeApplyFrameRange = pyqtSignal(
-        str, object, object, object
-    )  # (object_id, width, height, theta). Object lets us pass optional floats
+        str, object, object, object, object
+    )  # (object_id, width, height, theta, direction). Object lets us pass optional floats
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1008,7 +1004,7 @@ class Overlay(QWidget):
                 updated_bbox.theta,
             )
 
-    def _on_cascade_size_to_all(self):
+    def _on_cascade_size_to_all(self, direction: str):
         """Handle cascade apply to all frames."""
         selected_bbox = self._get_selected_bbox()
 
@@ -1018,9 +1014,10 @@ class Overlay(QWidget):
             selected_bbox.width,
             selected_bbox.height,
             None,  # Pass none for the rotation
+            direction,
         )
 
-    def _on_cascade_rotation_to_all(self):
+    def _on_cascade_rotation_to_all(self, direction: str):
         """Handle cascade apply to all frames."""
         selected_bbox = self._get_selected_bbox()
 
@@ -1030,9 +1027,10 @@ class Overlay(QWidget):
             None,  # Pass none for the width
             None,  # Pass none for the height
             selected_bbox.theta,
+            direction,
         )
 
-    def _on_cascade_size_to_frame_range(self):
+    def _on_cascade_size_to_frame_range(self, direction: str):
         """Handle cascade apply to next X frames."""
         selected_bbox = self._get_selected_bbox()
 
@@ -1042,9 +1040,10 @@ class Overlay(QWidget):
             selected_bbox.width,
             selected_bbox.height,
             None,
+            direction,
         )
 
-    def _on_cascade_rotation_to_frame_range(self):
+    def _on_cascade_rotation_to_frame_range(self, direction: str):
         """Handle cascade apply to next X frames."""
         selected_bbox = self._get_selected_bbox()
 
@@ -1054,6 +1053,7 @@ class Overlay(QWidget):
             None,
             None,
             selected_bbox.theta,
+            direction,
         )
 
     def _on_cascade_cancel(self):

@@ -27,6 +27,7 @@ from savant_app.frontend.utils.undo import (
     ResolveConfidenceCommand,
     UpdateBBoxGeometryCommand,
 )
+from savant_app.frontend.widgets.cascade_dropdown import CascadeDirection
 from savant_app.frontend.widgets.create_relationship_widget import RelationLinkerWidget
 from savant_app.services.exceptions import VideoLoadError
 
@@ -114,24 +115,26 @@ def wire(main_window, frontend_state: FrontendState):
     # Connect cascade signals
     if hasattr(main_window.overlay, "cascadeApplyAll"):
         main_window.overlay.cascadeApplyAll.connect(
-            lambda object_id, width, height, rotation: _apply_cascade_all_frames(
+            lambda object_id, width, height, rotation, direction: _apply_cascade_all_frames(
                 main_window,
                 object_id,
                 width,
                 height,
                 frontend_state.get_current_annotator(),
                 rotation,
+                direction,
             )
         )
     if hasattr(main_window.overlay, "cascadeApplyFrameRange"):
         main_window.overlay.cascadeApplyFrameRange.connect(
-            lambda object_id, width, height, rotation: _apply_cascade_next_frames(
+            lambda object_id, width, height, rotation, direction: _apply_cascade_next_frames(
                 main_window,
                 object_id,
                 width,
                 height,
                 frontend_state.get_current_annotator(),
                 rotation,
+                direction,
             )
         )
 
@@ -366,14 +369,23 @@ def _apply_cascade_all_frames(
     new_height: float,
     annotator: str,
     new_rotation: float = 0.0,
+    direction: CascadeDirection = CascadeDirection.FORWARDS,
 ):
     """Apply the resize/rotation to all frames containing the object."""
     last_frame = main_window.project_state_controller.get_frame_count() - 1
     current_frame = int(main_window.video_controller.current_index())
+
+    if direction == CascadeDirection.FORWARDS:
+        start_frame = current_frame
+        end_frame = last_frame
+    else:  # backwards
+        start_frame = 0
+        end_frame = current_frame
+
     command = CascadeBBoxCommand(
         object_id=str(object_id),
-        frame_start=current_frame,
-        frame_end=last_frame,
+        frame_start=start_frame,
+        frame_end=end_frame,
         width=new_width,
         height=new_height,
         rotation=new_rotation,
@@ -407,18 +419,24 @@ def _apply_cascade_next_frames(
     height: float,
     annotator: str,
     rotation: float,
+    direction: CascadeDirection = CascadeDirection.FORWARDS,
 ):
     """Ask user for number of frames and apply the resize/rotation to those frames."""
     current_frame = int(main_window.video_controller.current_index())
-    max_frames = (
-        main_window.project_state_controller.get_frame_count() - current_frame - 1
-    )
+    if direction == CascadeDirection.FORWARDS:
+        max_frames = (
+            main_window.project_state_controller.get_frame_count() - current_frame - 1
+        )
+        prompt = "Apply to how many subsequent frames?"
+    else:  # backwards
+        max_frames = current_frame
+        prompt = "Apply to how many previous frames?"
 
     # Ask user for number of frames
     num_frames, ok = QInputDialog.getInt(
         main_window,
         "Cascade Operation",
-        "Apply to how many subsequent frames?",
+        prompt,
         5,  # default value
         1,  # min value
         max_frames,  # max value
@@ -432,10 +450,16 @@ def _apply_cascade_next_frames(
             f"Please enter a valid number of frames (1-{max_frames})."
         )
 
-    end_frame = current_frame + num_frames
+    if direction == CascadeDirection.FORWARDS:
+        start_frame = current_frame + 1
+        end_frame = current_frame + num_frames
+    else:  # backwards
+        start_frame = current_frame - num_frames
+        end_frame = current_frame - 1
+
     command = CascadeBBoxCommand(
         object_id=str(object_id),
-        frame_start=current_frame + 1,
+        frame_start=start_frame,
         frame_end=end_frame,
         width=width,
         height=height,
