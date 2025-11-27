@@ -31,7 +31,6 @@ from .snapshots import (
     FrameObjectSnapshot,
     FrameTagSnapshot,
     ObjectMetadataSnapshot,
-    RelationshipSnapshot,
 )
 
 __all__ = [

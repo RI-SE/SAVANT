@@ -1,37 +1,62 @@
-from PyQt6.QtCore import (QEvent, QItemSelectionModel, QPoint, QSignalBlocker,
-                          QSize, Qt, pyqtSignal, pyqtSlot)
+from PyQt6.QtCore import (
+    QEvent,
+    QItemSelectionModel,
+    QPoint,
+    QSignalBlocker,
+    QSize,
+    Qt,
+    pyqtSignal,
+    pyqtSlot,
+)
 from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut
-from PyQt6.QtWidgets import (QAbstractItemView, QComboBox, QDialog,
-                             QDialogButtonBox, QFileDialog, QFormLayout,
-                             QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-                             QMenu, QMessageBox, QPushButton, QSpinBox,
-                             QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from savant_app.controllers.annotation_controller import AnnotationController
-from savant_app.controllers.project_state_controller import \
-    ProjectStateController
+from savant_app.controllers.project_state_controller import ProjectStateController
 from savant_app.controllers.video_controller import VideoController
 from savant_app.frontend.exceptions import InvalidObjectIDFormat
 from savant_app.frontend.states.frontend_state import FrontendState
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.theme.constants import (
-    SIDEBAR_CONFIDENCE_ICON_SIZE, SIDEBAR_CONFIDENCE_LIST_HEIGHT,
-    SIDEBAR_ERROR_HIGHLIGHT, SIDEBAR_HIGHLIGHT_TEXT_COLOUR,
-    SIDEBAR_WARNING_HIGHLIGHT, get_error_icon, get_warning_icon)
-from savant_app.frontend.theme.sidebar_styles import \
-    apply_issue_sort_button_style
+    SIDEBAR_CONFIDENCE_ICON_SIZE,
+    SIDEBAR_CONFIDENCE_LIST_HEIGHT,
+    SIDEBAR_ERROR_HIGHLIGHT,
+    SIDEBAR_HIGHLIGHT_TEXT_COLOUR,
+    SIDEBAR_WARNING_HIGHLIGHT,
+    get_error_icon,
+    get_warning_icon,
+)
+from savant_app.frontend.theme.sidebar_styles import apply_issue_sort_button_style
 from savant_app.frontend.utils.assets import icon
-from savant_app.frontend.utils.edit_panel import \
-    create_collapsible_object_details
+from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
 from savant_app.frontend.utils.settings_store import get_ontology_path
-from savant_app.frontend.utils.sidebar_confidence_items import \
-    SidebarConfidenceIssueItemDelegate
-from savant_app.frontend.utils.undo import (AddFrameTagCommand,
-                                            FrameTagSnapshot,
-                                            InterpolateAnnotationsCommand,
-                                            RemoveFrameTagCommand)
-from savant_app.frontend.widgets.interpolation_dialog import \
-    InterpolationDialog
+from savant_app.frontend.utils.sidebar_confidence_items import (
+    SidebarConfidenceIssueItemDelegate,
+)
+from savant_app.frontend.utils.undo import (
+    AddFrameTagCommand,
+    FrameTagSnapshot,
+    InterpolateAnnotationsCommand,
+    RemoveFrameTagCommand,
+)
+from savant_app.frontend.widgets.interpolation_dialog import InterpolationDialog
 from savant_app.frontend.widgets.settings import get_action_interval_offset
 from savant_app.services.exceptions import VideoLoadError
 

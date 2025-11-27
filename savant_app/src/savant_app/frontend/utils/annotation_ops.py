@@ -776,7 +776,7 @@ def _link_object_ids_interactive(
         return
 
     frames_with_target = main_window.annotation_controller.frames_for_object(
-        target_objRe
+        target_object_id
     )
     frame_summary = _frames_to_ranges(frames_with_target)
     frame_count = len(frames_with_target)
