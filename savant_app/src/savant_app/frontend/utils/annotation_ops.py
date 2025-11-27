@@ -29,6 +29,7 @@ from savant_app.frontend.utils.undo import (
 )
 from savant_app.frontend.widgets.cascade_dropdown import CascadeDirection
 from savant_app.frontend.widgets.create_relationship_widget import RelationLinkerWidget
+from savant_app.frontend.widgets.delete_relationship_widget import RelationDeleterWidget
 from savant_app.services.exceptions import VideoLoadError
 
 from .render import refresh_frame
@@ -514,6 +515,7 @@ def _on_overlay_context_menu(main_window, click_position):
     context_menu = QMenu(overlay_widget)
     action_delete_single = context_menu.addAction("Delete this bbox")
     action_delete_cascade = context_menu.addAction("Cascade delete all with this ID")
+    action_delete_relationship = context_menu.addAction("Delete relationships")
     confidence_flags = overlay_widget.confidence_flags()
     mark_resolved_action = None
     if obj_id and confidence_flags.get(obj_id):
@@ -552,6 +554,9 @@ def _on_overlay_context_menu(main_window, click_position):
         _mark_confidence_issue_resolved(main_window, obj_id, annotator)
     elif selected_action == link_ids_action:
         _link_object_ids_interactive(main_window, obj_id, available_ids)
+    elif selected_action == action_delete_relationship:
+        relation_deleter_widget = RelationDeleterWidget()
+        relation_deleter_widget.exec()
 
 
 def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
