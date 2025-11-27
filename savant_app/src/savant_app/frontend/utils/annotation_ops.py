@@ -586,8 +586,15 @@ def _get_selected_object_relationships(
 
 def _on_delete_relationship(main_window, relation_ids: list[str]):
     """Delete relationships"""
-    for relation_id in relation_ids:
-        main_window.execute_undoable_command(DeleteRelationshipCommand(relation_id))
+
+    delete_commands = [
+        DeleteRelationshipCommand(relation_id) for relation_id in relation_ids
+    ]
+    batch_command = CompositeCommand(
+        description=f"Delete {len(delete_commands)} relationships",
+        commands=delete_commands,
+    )
+    main_window.execute_undoable_command(batch_command)
     _refresh_after_annotation_change(main_window)
 
 
