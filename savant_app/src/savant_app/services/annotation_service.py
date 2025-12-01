@@ -71,32 +71,23 @@ class AnnotationService:
             )
             raise InvalidInputError(f"Invalid input data: {errors}", e)
 
-    def create_existing_object_bbox(
-        self, frame_number: int, coordinates: tuple, object_name: str, annotator: str
+    def add_bbox_to_existing_object(
+        self, frame_number: int, coordinates: tuple, object_id: str, annotator: str
     ) -> None:
         """Handles adding a bbox for an existing object."""
 
-        # verify the object exists
-        try:
-            object_id = self._get_objectid_by_name(object_name)
-
-            # Verify if current frame already has the object
-            if self._does_object_exist_in_frame(frame_number, object_id):
-                raise ObjectInFrameError(
-                    f"Object ID {object_name} already has a bbox in frame {frame_number}."
-                )
-
-            self._add_object_bbox(
-                frame_number=frame_number,
-                bbox_coordinates=coordinates,
-                obj_id=object_id,
-                annotator=annotator,
+        # Verify if current frame already has the object
+        if self._does_object_exist_in_frame(frame_number, object_id):
+            raise ObjectInFrameError(
+                f"Object ID {object_id} already has a bbox in frame {frame_number}."
             )
-        except ValidationError as e:
-            errors = "; ".join(
-                f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()
-            )
-            raise InvalidInputError(f"Invalid input data: {errors}", e)
+
+        self._add_object_bbox(
+            frame_number=frame_number,
+            bbox_coordinates=coordinates,
+            obj_id=object_id,
+            annotator=annotator,
+        )
 
     def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number.
@@ -140,7 +131,7 @@ class AnnotationService:
 
         # Correct list comprehension:
         return [
-            global_objects[obj_id].name
+            obj_id
             for obj_id in object_ids
             if obj_id in global_objects
         ]
@@ -451,14 +442,6 @@ class AnnotationService:
             annotator=annotator,
         )
 
-    def _does_object_exist(self, object_name: str) -> bool:
-        """Check if an object exists in the annotation config."""
-        existing_ids = [
-            value.name
-            for _, value in self.project_state.annotation_config.objects.items()
-        ]
-        return object_name in existing_ids
-
     def _does_object_exist_in_frame(self, frame_number: int, object_id: str) -> bool:
         """Check if an object exists in a specific frame."""
         try:
@@ -467,13 +450,6 @@ class AnnotationService:
             raise FrameNotFoundError(f"Frame number {frame_number} does not exist.")
 
         return object_id in [key for key in frame.objects.keys()]
-
-    def _get_objectid_by_name(self, object_name: str):
-        """Get the object ID given the object name."""
-        for key, value in self.project_state.annotation_config.objects.items():
-            if value.name == object_name:
-                return key
-        raise ObjectNotFoundError(f"Object: {object_name}, does not exist.")
 
     def _generate_new_object_id(self) -> str:
         return str(
