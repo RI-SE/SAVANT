@@ -3,6 +3,7 @@ from typing import Optional
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -11,8 +12,10 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QVBoxLayout,
+    QWidget,
 )
 
+from savant_app.frontend.theme.forms import style_checkbox
 from savant_app.frontend.types import Relationship
 
 
@@ -64,15 +67,23 @@ class RelationDeleterWidget(QDialog):
         # Populate the list
         for relationship in self.current_relationships:
             display_text = self._format_relationship_display_text(relationship)
-            item = QListWidgetItem(display_text)
+            item = QListWidgetItem(self.list_widget)
 
-            item.setData(Qt.ItemDataRole.UserRole, relationship)
+            widget = QWidget()
+            checkbox = QCheckBox()
+            style_checkbox(checkbox)
+            text_label = QLabel(display_text)
 
-            # Make it checkable for multiple selection
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Unchecked)
+            item_layout = QHBoxLayout(widget)
+            item_layout.addWidget(checkbox)
+            item_layout.addWidget(text_label)
+            item_layout.addStretch()
+            item_layout.setContentsMargins(5, 5, 5, 5)
 
-            self.list_widget.addItem(item)
+            widget.setProperty("relationship", relationship)
+
+            item.setSizeHint(widget.sizeHint())
+            self.list_widget.setItemWidget(item, widget)
 
         layout.addWidget(self.list_widget)
 
@@ -97,13 +108,11 @@ class RelationDeleterWidget(QDialog):
 
     def _on_item_clicked(self, item):
         """Handle relationship list item selection state when clicks are made."""
-        current_state = item.checkState()
-        new_state = (
-            Qt.CheckState.Checked
-            if current_state == Qt.CheckState.Unchecked
-            else Qt.CheckState.Unchecked
-        )
-        item.setCheckState(new_state)
+        widget = self.list_widget.itemWidget(item)
+        if widget:
+            checkbox = widget.findChild(QCheckBox)
+            if checkbox:
+                checkbox.setChecked(not checkbox.isChecked())
 
     def on_delete(self):
         """Collect selected items and emit signal"""
@@ -112,10 +121,12 @@ class RelationDeleterWidget(QDialog):
         # Iterate through list to find checked items
         for index in range(self.list_widget.count()):
             item = self.list_widget.item(index)
-            if item.checkState() == Qt.CheckState.Checked:
-                # Retrieve the original dict stored in UserRole
-                relationship_data = item.data(Qt.ItemDataRole.UserRole)
-                items_to_delete.append(relationship_data.id)
+            widget = self.list_widget.itemWidget(item)
+            if widget:
+                checkbox = widget.findChild(QCheckBox)
+                if checkbox and checkbox.isChecked():
+                    relationship_data = widget.property("relationship")
+                    items_to_delete.append(relationship_data.id)
 
         if not items_to_delete:
             QMessageBox.information(
