@@ -140,8 +140,6 @@ class TestAnnotationService:
         )
 
 
-
-
 def _make_frame_object(confidence_values):
     return SimpleNamespace(
         object_data=SimpleNamespace(

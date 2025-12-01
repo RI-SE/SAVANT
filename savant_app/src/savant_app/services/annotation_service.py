@@ -130,11 +130,7 @@ class AnnotationService:
             object_ids.update(frame_data.objects.keys())  # Use update() for set
 
         # Correct list comprehension:
-        return [
-            obj_id
-            for obj_id in object_ids
-            if obj_id in global_objects
-        ]
+        return [obj_id for obj_id in object_ids if obj_id in global_objects]
 
     def get_bbox(
         self,

@@ -96,8 +96,6 @@ class InterpolationDialog(QDialog):
         start_frame = self.start_frame_spin.value()
         end_frame = self.end_frame_spin.value()
 
-
-
         # Verify object exists in start frame
         active_objs = self.parent().annotation_controller.get_active_objects(
             start_frame

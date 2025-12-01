@@ -329,7 +329,7 @@ class Sidebar(QWidget):
                 obj_id = item.get("id")
                 obj_name = item.get("name") or ""
                 obj_type = item.get("type", "Object")
-                display_text = f'{obj_type} (ID: {obj_id}) - {obj_name}'
+                display_text = f"{obj_type} (ID: {obj_id}) - {obj_name}"
                 list_item = QListWidgetItem(display_text)
                 list_item.setData(Qt.ItemDataRole.UserRole, obj_id)
 
@@ -1075,7 +1075,7 @@ class Sidebar(QWidget):
                 obj_id = item.get("id")
                 obj_name = item.get("name") or ""
                 obj_type = item.get("type", "Object")
-                display_text = f'{obj_type} (ID: {obj_id}) - {obj_name}'
+                display_text = f"{obj_type} (ID: {obj_id}) - {obj_name}"
                 list_item = QListWidgetItem(display_text)
                 list_item.setData(Qt.ItemDataRole.UserRole, obj_id)
                 self.active_objects.addItem(list_item)
