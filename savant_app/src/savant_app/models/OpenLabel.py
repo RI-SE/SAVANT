@@ -525,8 +525,9 @@ class OpenLabel(BaseModel):
             to generate a unqiue relation ID.
             """
             # If there are no relations, the first ID should be 0.
-            if not self.relations or not self.relations.keys():
+            if not self.relations:
                 return str(0)
+
             # Sorted ensures that the last key is always the largest.
             # This prevents bugs if we delete keys in the middle of
             # the dict.

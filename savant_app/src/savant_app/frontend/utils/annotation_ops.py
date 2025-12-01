@@ -165,6 +165,8 @@ def _refresh_after_annotation_change(main_window):
         return
     current_index = int(main_window.video_controller.current_index())
     sidebar._refresh_active_frame_tags(current_index)
+    if sidebar._selected_annotation_object_id:
+        sidebar._refresh_relationships(sidebar._selected_annotation_object_id)
     refresh_confidence_list = getattr(sidebar, "refresh_confidence_issue_list", None)
     if callable(refresh_confidence_list):
         refresh_confidence_list(current_index)
