@@ -5,12 +5,17 @@ from PyQt6.QtGui import QAction
 class AppMenu:
     """Owns the menubar and actions; main window passes callbacks in."""
 
-    def __init__(self, window, *, on_new, on_load, on_save, on_settings):
+    def __init__(self, window, *, on_new, on_load, on_save, on_settings, on_about):
         mb = window.menuBar()
 
         file_menu = mb.addMenu("File")
         edit_menu = mb.addMenu("Edit")
         help_menu = mb.addMenu("Help")
+        
+        # Add the "About" action directly to the menubar
+        about_action = QAction("About", window)
+        about_action.triggered.connect(on_about)
+        mb.addAction(about_action)
 
         self.new_action = QAction("New project", window)
         self.new_action.triggered.connect(on_new)
