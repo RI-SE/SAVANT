@@ -448,9 +448,22 @@ class AnnotationService:
         return object_id in [key for key in frame.objects.keys()]
 
     def _generate_new_object_id(self) -> str:
-        return str(
-            int(list(self.project_state.annotation_config.objects.keys())[-1]) + 1
-        )
+        """
+        Get the latest key of the objects, and increment it by 1
+        to generate a unqiue object ID.
+        """
+        objects = self.project_state.annotation_config.objects
+        # If there are no objects, the first ID should be 0.
+        if not objects or not objects.keys():
+            return str(0)
+
+        # Get all keys, convert them to integers, find the max, and add 1.
+        # This is safer than relying on the last key.
+        keys_as_ints = [int(key) for key in objects.keys() if key.isdigit()]
+        if not keys_as_ints:
+            return str(0)
+
+        return str(max(keys_as_ints) + 1)
 
     def get_frame_tags(self) -> List[str]:
         """
