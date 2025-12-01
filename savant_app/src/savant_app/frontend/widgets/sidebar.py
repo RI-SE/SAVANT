@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -23,6 +24,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -86,7 +88,20 @@ class Sidebar(QWidget):
     ):
         super().__init__()
         self.setFixedWidth(200)
-        main_layout = QVBoxLayout()
+
+        # Setup Scroll Area Hierarchy
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        self.content_widget = QWidget()
+        main_layout = QVBoxLayout(self.content_widget)
 
         # Temporary controller until refactor.
         self.annotation_controller: AnnotationController = annotation_controller
@@ -122,7 +137,7 @@ class Sidebar(QWidget):
         # load_config_btn = make_icon_btn(
         #     "open_file.svg", "Load project"
         # )  # same icon as loading video. Will be removed in a
-        #           future ticket when config dir is made.
+        #             future ticket when config dir is made.
 
         load_btn.clicked.connect(self._choose_project_dir)
         save_btn.clicked.connect(self._trigger_quick_save)
@@ -281,7 +296,11 @@ class Sidebar(QWidget):
         self._current_confidence_issues = dict(self.frontend_state.confidence_issues())
         self.refresh_confidence_issue_list()
 
-        self.setLayout(main_layout)
+        # Finalize Scroll Area
+        main_layout.addStretch()  # Pushes content to top
+        self.scroll_area.setWidget(self.content_widget)
+        outer_layout.addWidget(self.scroll_area)
+
         try:
             current_index = int(self.video_controller.current_index())
         except Exception:
