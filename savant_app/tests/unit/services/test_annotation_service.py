@@ -116,22 +116,19 @@ class TestAnnotationService:
         result = annotation_service.get_active_objects(frame_number)
         assert result == []
 
-    def test_create_existing_object_bbox_valid(
+    def test_add_bbox_to_existing_object_valid(
         self, annotation_service, mock_project_state
     ):
-        """Test create_existing_object_bbox with valid existing object"""
+        """Test add_bbox_to_existing_object with valid existing object"""
         frame_number = 42
         coordinates = (10, 20, 30, 40)
         object_id = "1"
-        object_name = "car_1"
 
         # Mock object existence check
-        annotation_service._does_object_exist = MagicMock(return_value=True)
         annotation_service._does_object_exist_in_frame = MagicMock(return_value=False)
-        annotation_service._get_objectid_by_name = MagicMock(return_value=object_id)
 
-        annotation_service.create_existing_object_bbox(
-            frame_number, coordinates, object_name, "test_annotator"
+        annotation_service.add_bbox_to_existing_object(
+            frame_number, coordinates, object_id, "test_annotator"
         )
 
         # Verify config method was called
@@ -142,45 +139,7 @@ class TestAnnotationService:
             obj_id=object_id,
         )
 
-    def test_create_existing_object_bbox_invalid_object(
-        self, annotation_service, mock_project_state
-    ):
-        """Test create_existing_object_bbox with non-existent object"""
-        frame_number = 42
-        coordinates = (10, 20, 30, 40)
-        object_id = "invalid_id"
 
-        # Mock object existence check
-        annotation_service._does_object_exist = MagicMock(return_value=False)
-
-        with pytest.raises(ObjectNotFoundError):
-            annotation_service.create_existing_object_bbox(
-                frame_number, coordinates, object_id, "test_annotator"
-            )
-
-    def test_does_object_exist_true(self, annotation_service, mock_project_state):
-        """Test _does_object_exist returns True for existing object"""
-        object_id = "car_123"
-        # Setup mock objects with names
-        mock_obj1 = MagicMock()
-        mock_obj1.name = "Object-1"
-        mock_obj2 = MagicMock()
-        mock_obj2.name = "car_123"
-        mock_project_state.annotation_config.objects = {"1": mock_obj1, "2": mock_obj2}
-
-        assert annotation_service._does_object_exist(object_id) is True
-
-    def test_does_object_exist_false(self, annotation_service, mock_project_state):
-        """Test _does_object_exist returns False for non-existent object"""
-        object_id = "invalid_id"
-        # Setup mock objects with names
-        mock_obj1 = MagicMock()
-        mock_obj1.name = "Object-1"
-        mock_obj2 = MagicMock()
-        mock_obj2.name = "car_123"
-        mock_project_state.annotation_config.objects = {"1": mock_obj1, "2": mock_obj2}
-
-        assert annotation_service._does_object_exist(object_id) is False
 
 
 def _make_frame_object(confidence_values):
