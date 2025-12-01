@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QIcon, QPixmap
+from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -7,7 +7,6 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QStyle,
     QVBoxLayout,
-    QWidget,
 )
 
 from savant_app.frontend.utils.assets import asset_path
@@ -51,7 +50,7 @@ class AboutDialog(QDialog):
         title_label = QLabel("SAVANT")
         font_title = QFont()
         font_title.setBold(True)
-        font_title.setPointSize(20)  # Large font
+        font_title.setPointSize(20)
         title_label.setFont(font_title)
 
         subtitle_label = QLabel("Video Annotation Tool")
@@ -67,9 +66,7 @@ class AboutDialog(QDialog):
             "A tool for creating and managing vehicle annotations."
         )
         description_label.setWordWrap(True)
-        description_label.setStyleSheet(
-            "margin-top: 10px;"
-        )  # Add gap before description
+        description_label.setStyleSheet("margin-top: 10px;")
 
         text_layout.addWidget(title_label)
         text_layout.addWidget(subtitle_label)
