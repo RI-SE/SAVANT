@@ -9,8 +9,6 @@ class AppMenu:
         mb = window.menuBar()
 
         file_menu = mb.addMenu("File")
-        edit_menu = mb.addMenu("Edit")
-        help_menu = mb.addMenu("Help")
 
         # Add the "About" action directly to the menubar
         about_action = QAction("About", window)
@@ -36,5 +34,3 @@ class AppMenu:
 
         # expose menus if you want to add more later
         self.file_menu = file_menu
-        self.edit_menu = edit_menu
-        self.help_menu = help_menu
