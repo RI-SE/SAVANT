@@ -1,38 +1,18 @@
 # main_window.py
-from PyQt6.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QDialog,
-    QMessageBox,
-)
-from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtCore import Qt
-from savant_app.frontend.widgets.video_display import VideoDisplay
-from savant_app.frontend.widgets.playback_controls import PlaybackControls
-from savant_app.frontend.widgets.sidebar import Sidebar
-from savant_app.frontend.widgets.seek_bar import SeekBar
-from savant_app.frontend.widgets.overlay import Overlay
-from savant_app.frontend.widgets.menu import AppMenu
-from savant_app.frontend.widgets.settings import SettingsDialog
+from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QMainWindow,
+    QMessageBox,
+    QVBoxLayout,
+    QWidget,
+)
+
+from savant_app.frontend.exceptions import InvalidWarningErrorRange
 from savant_app.frontend.states.frontend_state import FrontendState
 from savant_app.frontend.states.sidebar_state import SidebarState
-from savant_app.frontend.widgets.annotator_dialog import AnnotatorDialog
-from savant_app.frontend.exceptions import InvalidWarningErrorRange
-from savant_app.frontend.utils.settings_store import (
-    get_ontology_path,
-    get_action_interval_offset,
-    get_warning_range,
-    get_error_range,
-    get_show_warnings,
-    get_show_errors,
-    get_tag_options,
-    set_threshold_ranges,
-    set_show_warnings,
-    set_show_errors,
-    set_tag_option_states,
-)
 from savant_app.frontend.utils import (
     annotation_ops,
     confidence_ops,
@@ -42,12 +22,34 @@ from savant_app.frontend.utils import (
     render,
     zoom,
 )
+from savant_app.frontend.utils.settings_store import (
+    get_action_interval_offset,
+    get_error_range,
+    get_ontology_path,
+    get_show_errors,
+    get_show_warnings,
+    get_tag_options,
+    get_warning_range,
+    set_show_errors,
+    set_show_warnings,
+    set_tag_option_states,
+    set_threshold_ranges,
+)
 from savant_app.frontend.utils.undo import (
-    UndoRedoManager,
-    GatewayHolder,
     ControllerAnnotationGateway,
     ControllerFrameTagGateway,
+    GatewayHolder,
+    UndoRedoManager,
 )
+from savant_app.frontend.widgets.about_dialog import AboutDialog
+from savant_app.frontend.widgets.annotator_dialog import AnnotatorDialog
+from savant_app.frontend.widgets.menu import AppMenu
+from savant_app.frontend.widgets.overlay import Overlay
+from savant_app.frontend.widgets.playback_controls import PlaybackControls
+from savant_app.frontend.widgets.seek_bar import SeekBar
+from savant_app.frontend.widgets.settings import SettingsDialog
+from savant_app.frontend.widgets.sidebar import Sidebar
+from savant_app.frontend.widgets.video_display import VideoDisplay
 
 
 class MainWindow(QMainWindow):
@@ -90,6 +92,7 @@ class MainWindow(QMainWindow):
             on_load=self.noop,
             on_save=self.noop,
             on_settings=self.open_settings,
+            on_about=self.open_about,
         )
 
         # Video + overlay
@@ -170,6 +173,21 @@ class MainWindow(QMainWindow):
 
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")
+
+    def open_about(self):
+        # Determine current theme based on the window's palette
+        palette = self.palette()
+        background_color = palette.color(self.backgroundRole())
+        # if the average of RGB is less than half of max (255), it's dark
+        if (
+            background_color.red() + background_color.green() + background_color.blue()
+        ) / 3 < 128:
+            current_theme = "Dark"
+        else:
+            current_theme = "Light"
+
+        about_dialog = AboutDialog(theme=current_theme, parent=self)
+        about_dialog.exec()
 
     def open_settings(self):
         dlg = SettingsDialog(
