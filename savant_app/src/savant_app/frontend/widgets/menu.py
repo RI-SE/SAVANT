@@ -17,12 +17,17 @@ class AppMenu:
         on_new_frame_tag,
         on_interpolate,
         on_create_relationship,
+        on_about,
     ):
+
         mb = window.menuBar()
 
         file_menu = mb.addMenu("File")
-        edit_menu = mb.addMenu("Edit")
-        help_menu = mb.addMenu("Help")
+
+        # Add the "About" action directly to the menubar
+        about_action = QAction("About", window)
+        about_action.triggered.connect(on_about)
+        mb.addAction(about_action)
 
         self.new_action = QAction("New project", window)
         self.new_action.triggered.connect(on_new)
@@ -57,5 +62,3 @@ class AppMenu:
 
         # expose menus if you want to add more later
         self.file_menu = file_menu
-        self.edit_menu = edit_menu
-        self.help_menu = help_menu

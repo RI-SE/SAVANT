@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -25,6 +26,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -96,7 +98,20 @@ class Sidebar(QWidget):
     ):
         super().__init__()
         self.setFixedWidth(200)
-        main_layout = QVBoxLayout()
+
+        # Setup Scroll Area Hierarchy
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        self.content_widget = QWidget()
+        main_layout = QVBoxLayout(self.content_widget)
         self._video_actors = list(video_actors or [])
 
         # Temporary controller until refactor.
@@ -134,7 +149,7 @@ class Sidebar(QWidget):
         # load_config_btn = make_icon_btn(
         #     "open_file.svg", "Load project"
         # )  # same icon as loading video. Will be removed in a
-        #           future ticket when config dir is made.
+        #             future ticket when config dir is made.
 
         new_btn.clicked.connect(self.start_new_project_flow)
         load_btn.clicked.connect(self.open_project_folder_dialog)
@@ -292,29 +307,24 @@ class Sidebar(QWidget):
         self._current_confidence_issues = dict(self.frontend_state.confidence_issues())
         self.refresh_confidence_issue_list()
 
-        self.setLayout(main_layout)
+        # Finalize Scroll Area
+        main_layout.addStretch()  # Pushes content to top
+        self.scroll_area.setWidget(self.content_widget)
+        outer_layout.addWidget(self.scroll_area)
+
         try:
             current_index = int(self.video_controller.current_index())
         except Exception:
             current_index = 0
         self._refresh_active_frame_tags(current_index)
 
-    def _extract_object_id_from_text(self, text: str) -> str:
-        """Extract object ID from list item text in format 'Type (ID: 123)'"""
-        # Find the ID part and remove trailing parenthesis
-        try:
-            id_part = text.split("ID: ")[1]
-            return id_part.rstrip(")").strip()
-        except IndexError as e:
-            raise InvalidObjectIDFormat(
-                f"Cannot extract object ID from text: {text}"
-            ) from e
-
     def _item_object_id(self, item: QListWidgetItem) -> str:
         stored_id = item.data(Qt.ItemDataRole.UserRole)
         if stored_id is not None:
             return str(stored_id)
-        return self._extract_object_id_from_text(item.text())
+        raise InvalidObjectIDFormat(
+            f"Cannot extract object ID from item: {item.text()}"
+        )
 
     def _on_active_object_selected(self, item):
         # Trigger highlight in the UI
@@ -330,7 +340,7 @@ class Sidebar(QWidget):
             self.active_objects.clearSelection()
             for i in range(self.active_objects.count()):
                 item = self.active_objects.item(i)
-                if object_id == self._extract_object_id_from_text(item.text()):
+                if object_id == self._item_object_id(item):
                     item.setSelected(True)
                     self.active_objects.setCurrentItem(item)
                     self.active_objects.scrollToItem(item)
@@ -346,15 +356,14 @@ class Sidebar(QWidget):
             self.active_objects.clear()
             flags = confidence_flags or {}
             for item in active_objects:
+                obj_id = item.get("id")
                 obj_name = item.get("name") or ""
-                obj_key = item.get("id") or obj_name
-                # Display only numeric part of ID
-                numeric_id = obj_name.split("-")[-1] if "-" in obj_name else obj_name
-                display_text = f'{item.get("type", "Object")} (ID: {numeric_id})'
+                obj_type = item.get("type", "Object")
+                display_text = f"{obj_type} (ID: {obj_id}) - {obj_name}"
                 list_item = QListWidgetItem(display_text)
-                list_item.setData(Qt.ItemDataRole.UserRole, obj_key)
+                list_item.setData(Qt.ItemDataRole.UserRole, obj_id)
 
-                severity = flags.get(obj_key)
+                severity = flags.get(obj_id)
                 if severity == "error":
                     list_item.setBackground(SIDEBAR_ERROR_HIGHLIGHT)
                     list_item.setForeground(SIDEBAR_HIGHLIGHT_TEXT_COLOUR)
@@ -1062,27 +1071,12 @@ class Sidebar(QWidget):
                 # Add each relationship to the list
                 for relation in relationships:
                     # Extract relationship information
-                    relation_type = getattr(relation, "type", "Unknown")
-                    relation_name = getattr(relation, "name", "")
-
-                    # Get subject and object IDs
-                    subjects = getattr(relation, "rdf_subjects", [])
-                    objects = getattr(relation, "rdf_objects", [])
+                    relation_type = relation.get("type", "Unknown")
 
                     # Always show "Object B towed-by Object A" format
                     # Find the subject (Object A) and object (Object B) of the relationship
-                    subject_id = None
-                    object_id = None
-
-                    for subject in subjects:
-                        if hasattr(subject, "uid"):
-                            subject_id = subject.uid
-                            break
-
-                    for obj in objects:
-                        if hasattr(obj, "uid"):
-                            object_id = obj.uid
-                            break
+                    subject_id = relation.get("subject", "Unknown")
+                    object_id = relation.get("object", "Unknown")
 
                     # Get metadata for both objects
                     if subject_id:
@@ -1090,17 +1084,20 @@ class Sidebar(QWidget):
                             self.annotation_controller.get_object_metadata(subject_id)
                         )
                         subject_name = subject_metadata.get("name", "Unknown")
+                    else:
+                        subject_name = ""
 
                     if object_id:
                         object_metadata = (
                             self.annotation_controller.get_object_metadata(object_id)
                         )
                         object_name = object_metadata.get("name", "Unknown")
+                    else:
+                        object_name = ""
 
                     display_text = f"{subject_name} {relation_type} {object_name})"
 
                     list_item = QListWidgetItem(display_text)
-                    list_item.setData(Qt.ItemDataRole.UserRole, relation_name)
                     list_item.setToolTip(display_text)  # Add tooltip to show full text
                     self.relationships_list.addItem(list_item)
 
@@ -1167,10 +1164,13 @@ class Sidebar(QWidget):
             self.active_objects.clear()
             active = self.annotation_controller.get_active_objects(current_index)
             for item in active:
-                obj_name = item["name"]
-                obj_type = (item["type"] or "").lower()
-                numeric_id = obj_name.split("-")[-1] if "-" in obj_name else obj_name
-                self.active_objects.addItem(f"{obj_type} (ID: {numeric_id})")
+                obj_id = item.get("id")
+                obj_name = item.get("name") or ""
+                obj_type = item.get("type", "Object")
+                display_text = f"{obj_type} (ID: {obj_id}) - {obj_name}"
+                list_item = QListWidgetItem(display_text)
+                list_item.setData(Qt.ItemDataRole.UserRole, obj_id)
+                self.active_objects.addItem(list_item)
 
             self.select_active_object_by_id(self._editing_object_id)
 

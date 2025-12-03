@@ -61,20 +61,20 @@ def test_get_object_relationships(sample_openlabel_with_relations):
     # Test for object "1"
     relations_1 = openlabel.get_object_relationships("1")
     assert len(relations_1) == 2
-    assert relations_1[0].name == "touching"
-    assert relations_1[1].name == "passing"
+    relation_names_1 = sorted([rel["relation_metadata"].name for rel in relations_1])
+    assert relation_names_1 == ["passing", "touching"]
 
     # Test for object "2"
     relations_2 = openlabel.get_object_relationships("2")
     assert len(relations_2) == 2
-    assert relations_2[0].name == "touching"
-    assert relations_2[1].name == "following"
+    relation_names_2 = sorted([rel["relation_metadata"].name for rel in relations_2])
+    assert relation_names_2 == ["following", "touching"]
 
     # Test for object "3"
     relations_3 = openlabel.get_object_relationships("3")
     assert len(relations_3) == 2
-    assert relations_3[0].name == "following"
-    assert relations_3[1].name == "passing"
+    relation_names_3 = sorted([rel["relation_metadata"].name for rel in relations_3])
+    assert relation_names_3 == ["following", "passing"]
 
     # Test for an object with no relations
     relations_4 = openlabel.get_object_relationships("4")

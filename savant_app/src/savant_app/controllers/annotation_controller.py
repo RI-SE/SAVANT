@@ -111,13 +111,13 @@ class AnnotationController:
         )
 
     @error_handler
-    def create_bbox_existing_object(
+    def add_bbox_to_existing_object(
         self, frame_number: int, bbox_info: dict, annotator: str
     ) -> None:
-        self.annotation_service.create_existing_object_bbox(
+        self.annotation_service.add_bbox_to_existing_object(
             frame_number=frame_number,
             coordinates=bbox_info["coordinates"],
-            object_name=bbox_info["object_id"],
+            object_id=bbox_info["object_id"],
             annotator=annotator,
         )
 
@@ -267,7 +267,7 @@ class AnnotationController:
         )
 
     @error_handler
-    def restore_object_relationship(
+    def restore_relationship(
         self,
         relation_id: str,
         relationship_type: str,
@@ -276,7 +276,7 @@ class AnnotationController:
         object_object_id: str,
     ) -> None:
         """Restore an object relationship with a specific ID."""
-        self.annotation_service.restore_object_relationship(
+        self.annotation_service.restore_relationship(
             relation_id,
             relationship_type,
             ontology_uid,
@@ -285,11 +285,11 @@ class AnnotationController:
         )
 
     @error_handler
-    def delete_relationship(self, relation_id: str) -> bool:
+    def delete_relationship(self, relation_id: str) -> dict:
         return self.annotation_service.delete_relationship(relation_id)
 
     @error_handler
-    def get_object_relationship(self, object_id: str):
+    def get_object_relationship(self, object_id: str) -> list:
         return self.annotation_service.get_object_relationships(object_id)
 
     @error_handler

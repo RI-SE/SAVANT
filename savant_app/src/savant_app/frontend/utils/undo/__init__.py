@@ -1,22 +1,5 @@
 """Undo/redo toolkit for frontend annotation operations."""
 
-from .manager import UndoRedoManager
-from .commands import UndoableCommand
-from .gateways import (
-    UndoGatewayError,
-    ControllerAnnotationGateway,
-    ControllerFrameTagGateway,
-    AnnotationGateway,
-    FrameTagGateway,
-    GatewayHolder,
-)
-from .snapshots import (
-    BBoxGeometrySnapshot,
-    FrameObjectSnapshot,
-    ObjectMetadataSnapshot,
-    CreatedObjectSnapshot,
-    FrameTagSnapshot,
-)
 from .commands import (
     AddFrameTagCommand,
     CascadeBBoxCommand,
@@ -25,11 +8,29 @@ from .commands import (
     CreateNewObjectBBoxCommand,
     CreateObjectRelationshipCommand,
     DeleteBBoxCommand,
+    DeleteRelationshipCommand,
     InterpolateAnnotationsCommand,
     LinkObjectIdsCommand,
     RemoveFrameTagCommand,
     ResolveConfidenceCommand,
+    UndoableCommand,
     UpdateBBoxGeometryCommand,
+)
+from .gateways import (
+    AnnotationGateway,
+    ControllerAnnotationGateway,
+    ControllerFrameTagGateway,
+    FrameTagGateway,
+    GatewayHolder,
+    UndoGatewayError,
+)
+from .manager import UndoRedoManager
+from .snapshots import (
+    BBoxGeometrySnapshot,
+    CreatedObjectSnapshot,
+    FrameObjectSnapshot,
+    FrameTagSnapshot,
+    ObjectMetadataSnapshot,
 )
 
 __all__ = [
@@ -58,4 +59,5 @@ __all__ = [
     "RemoveFrameTagCommand",
     "ResolveConfidenceCommand",
     "UpdateBBoxGeometryCommand",
+    "DeleteRelationshipCommand",
 ]

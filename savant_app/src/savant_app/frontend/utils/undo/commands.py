@@ -1,17 +1,20 @@
 """Concrete undoable commands."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Protocol, runtime_checkable
+from typing import Dict, List, Optional, Protocol, Sequence, runtime_checkable
+
+from .gateways import GatewayHolder, UndoGatewayError
 from .snapshots import (
     BBoxGeometrySnapshot,
     CreatedObjectSnapshot,
-    FrameObjectSnapshot,
-    ObjectMetadataSnapshot,
-    FrameTagSnapshot,
     CreatedRelationshipSnapshot,
+    FrameObjectSnapshot,
+    FrameTagSnapshot,
+    ObjectMetadataSnapshot,
+    RelationshipSnapshot,
 )
-from .gateways import GatewayHolder, UndoGatewayError
 
 
 @runtime_checkable
@@ -74,7 +77,7 @@ class CreateExistingObjectBBoxCommand:
     def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         if self._snapshot is None:
-            self._snapshot = gateway.create_existing_object_bbox(
+            self._snapshot = gateway.add_bbox_to_existing_object(
                 frame_number=self.frame_number,
                 bbox_info=self.bbox_info,
                 annotator=self.annotator,
@@ -460,7 +463,7 @@ class CreateObjectRelationshipCommand:
             return
 
         # On redo, restore the relationship
-        gateway.restore_object_relationship(
+        gateway.restore_relationship(
             self._snapshot.relationship_id,
             self._snapshot.relationship_type,
             self._snapshot.ontology_uid,
@@ -472,3 +475,30 @@ class CreateObjectRelationshipCommand:
         gateway = context.annotation_gateway
         if self._snapshot is not None:
             gateway.delete_object_relationship(self._snapshot.relationship_id)
+
+
+@dataclass
+class DeleteRelationshipCommand:
+    relationship_id: str
+    _snapshot: Optional[RelationshipSnapshot] = field(
+        default=None, init=False, repr=False
+    )
+    _exists: bool = field(default=False, init=False, repr=False)
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+        deleted_relationship = gateway.delete_relationship(self.relationship_id)
+        snapshot = RelationshipSnapshot(**deleted_relationship)
+        self._snapshot = snapshot
+        self._exists = snapshot is not None
+
+    def undo(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+        if not self._exists or self._snapshot is None:
+            return
+        gateway.restore_relationship(
+            relation_id=self._snapshot.id,
+            relationship_type=self._snapshot.type,
+            subject_object_id=self._snapshot.subject,
+            object_object_id=self._snapshot.object,
+        )

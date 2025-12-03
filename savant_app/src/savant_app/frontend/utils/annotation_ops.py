@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 from savant_app.frontend.exceptions import InvalidFrameRangeInput, MissingObjectIDError
 from savant_app.frontend.states.annotation_state import AnnotationMode, AnnotationState
 from savant_app.frontend.states.frontend_state import FrontendState
+from savant_app.frontend.types import Relationship
 from savant_app.frontend.utils.undo import (
     BBoxGeometrySnapshot,
     CascadeBBoxCommand,
@@ -23,11 +24,14 @@ from savant_app.frontend.utils.undo import (
     CreateNewObjectBBoxCommand,
     CreateObjectRelationshipCommand,
     DeleteBBoxCommand,
+    DeleteRelationshipCommand,
     LinkObjectIdsCommand,
     ResolveConfidenceCommand,
     UpdateBBoxGeometryCommand,
 )
+from savant_app.frontend.widgets.cascade_dropdown import CascadeDirection
 from savant_app.frontend.widgets.create_relationship_widget import RelationLinkerWidget
+from savant_app.frontend.widgets.delete_relationship_widget import RelationDeleterWidget
 from savant_app.services.exceptions import VideoLoadError
 
 from .render import refresh_frame
@@ -114,24 +118,26 @@ def wire(main_window, frontend_state: FrontendState):
     # Connect cascade signals
     if hasattr(main_window.overlay, "cascadeApplyAll"):
         main_window.overlay.cascadeApplyAll.connect(
-            lambda object_id, width, height, rotation: _apply_cascade_all_frames(
+            lambda object_id, width, height, rotation, direction: _apply_cascade_all_frames(
                 main_window,
                 object_id,
                 width,
                 height,
                 frontend_state.get_current_annotator(),
                 rotation,
+                direction,
             )
         )
     if hasattr(main_window.overlay, "cascadeApplyFrameRange"):
         main_window.overlay.cascadeApplyFrameRange.connect(
-            lambda object_id, width, height, rotation: _apply_cascade_next_frames(
+            lambda object_id, width, height, rotation, direction: _apply_cascade_next_frames(
                 main_window,
                 object_id,
                 width,
                 height,
                 frontend_state.get_current_annotator(),
                 rotation,
+                direction,
             )
         )
 
@@ -159,6 +165,8 @@ def _refresh_after_annotation_change(main_window):
         return
     current_index = int(main_window.video_controller.current_index())
     sidebar._refresh_active_frame_tags(current_index)
+    if sidebar._selected_annotation_object_id:
+        sidebar._refresh_relationships(sidebar._selected_annotation_object_id)
     refresh_confidence_list = getattr(sidebar, "refresh_confidence_issue_list", None)
     if callable(refresh_confidence_list):
         refresh_confidence_list(current_index)
@@ -256,7 +264,26 @@ def delete_selected_bbox(main_window):
         return
 
     frame_key = int(main_window.video_controller.current_index())
-    command = DeleteBBoxCommand(frame_number=frame_key, object_id=str(object_id))
+
+    # Find relationships to delete
+    object_relationships = _get_selected_object_relationships(main_window, object_id)
+    delete_commands = [
+        DeleteRelationshipCommand(rel.id) for rel in object_relationships
+    ]
+
+    # Add bbox deletion
+    delete_commands.append(
+        DeleteBBoxCommand(frame_number=frame_key, object_id=str(object_id))
+    )
+
+    if len(delete_commands) > 1:
+        command = CompositeCommand(
+            description=f"Delete bbox and {len(object_relationships)} relationships",
+            commands=delete_commands,
+        )
+    else:
+        command = delete_commands[0]
+
     main_window.execute_undoable_command(command)
     main_window.overlay.clear_selection()
     _refresh_after_annotation_change(main_window)
@@ -366,14 +393,23 @@ def _apply_cascade_all_frames(
     new_height: float,
     annotator: str,
     new_rotation: float = 0.0,
+    direction: CascadeDirection = CascadeDirection.FORWARDS,
 ):
     """Apply the resize/rotation to all frames containing the object."""
     last_frame = main_window.project_state_controller.get_frame_count() - 1
     current_frame = int(main_window.video_controller.current_index())
+
+    if direction == CascadeDirection.FORWARDS:
+        start_frame = current_frame
+        end_frame = last_frame
+    else:  # backwards
+        start_frame = 0
+        end_frame = current_frame
+
     command = CascadeBBoxCommand(
         object_id=str(object_id),
-        frame_start=current_frame,
-        frame_end=last_frame,
+        frame_start=start_frame,
+        frame_end=end_frame,
         width=new_width,
         height=new_height,
         rotation=new_rotation,
@@ -407,18 +443,24 @@ def _apply_cascade_next_frames(
     height: float,
     annotator: str,
     rotation: float,
+    direction: CascadeDirection = CascadeDirection.FORWARDS,
 ):
     """Ask user for number of frames and apply the resize/rotation to those frames."""
     current_frame = int(main_window.video_controller.current_index())
-    max_frames = (
-        main_window.project_state_controller.get_frame_count() - current_frame - 1
-    )
+    if direction == CascadeDirection.FORWARDS:
+        max_frames = (
+            main_window.project_state_controller.get_frame_count() - current_frame - 1
+        )
+        prompt = "Apply to how many subsequent frames?"
+    else:  # backwards
+        max_frames = current_frame
+        prompt = "Apply to how many previous frames?"
 
     # Ask user for number of frames
     num_frames, ok = QInputDialog.getInt(
         main_window,
         "Cascade Operation",
-        "Apply to how many subsequent frames?",
+        prompt,
         5,  # default value
         1,  # min value
         max_frames,  # max value
@@ -432,10 +474,16 @@ def _apply_cascade_next_frames(
             f"Please enter a valid number of frames (1-{max_frames})."
         )
 
-    end_frame = current_frame + num_frames
+    if direction == CascadeDirection.FORWARDS:
+        start_frame = current_frame + 1
+        end_frame = current_frame + num_frames
+    else:  # backwards
+        start_frame = current_frame - num_frames
+        end_frame = current_frame - 1
+
     command = CascadeBBoxCommand(
         object_id=str(object_id),
-        frame_start=current_frame + 1,
+        frame_start=start_frame,
         frame_end=end_frame,
         width=width,
         height=height,
@@ -490,6 +538,7 @@ def _on_overlay_context_menu(main_window, click_position):
     context_menu = QMenu(overlay_widget)
     action_delete_single = context_menu.addAction("Delete this bbox")
     action_delete_cascade = context_menu.addAction("Cascade delete all with this ID")
+    action_delete_relationship = context_menu.addAction("Delete relationships")
     confidence_flags = overlay_widget.confidence_flags()
     mark_resolved_action = None
     if obj_id and confidence_flags.get(obj_id):
@@ -528,6 +577,46 @@ def _on_overlay_context_menu(main_window, click_position):
         _mark_confidence_issue_resolved(main_window, obj_id, annotator)
     elif selected_action == link_ids_action:
         _link_object_ids_interactive(main_window, obj_id, available_ids)
+    elif selected_action == action_delete_relationship:
+        object_relationships = _get_selected_object_relationships(main_window, obj_id)
+        relation_deleter_widget = RelationDeleterWidget(object_relationships)
+        relation_deleter_widget.relationships_deleted.connect(
+            lambda relation_ids: _on_delete_relationship(
+                main_window, relation_ids=relation_ids
+            )
+        )
+        relation_deleter_widget.exec()
+
+
+def _get_selected_object_relationships(
+    main_window, object_id: str
+) -> list[Relationship]:
+    object_relationships = main_window.annotation_controller.get_object_relationship(
+        object_id
+    )
+    return [
+        Relationship(
+            id=relationship["id"],
+            subject=relationship["subject"],
+            relationship_type=relationship["type"],
+            object=relationship["object"],
+        )
+        for relationship in object_relationships
+    ]
+
+
+def _on_delete_relationship(main_window, relation_ids: list[str]):
+    """Delete relationships"""
+
+    delete_commands = [
+        DeleteRelationshipCommand(relation_id) for relation_id in relation_ids
+    ]
+    batch_command = CompositeCommand(
+        description=f"Delete {len(delete_commands)} relationships",
+        commands=delete_commands,
+    )
+    main_window.execute_undoable_command(batch_command)
+    _refresh_after_annotation_change(main_window)
 
 
 def _cascade_delete_same_id(main_window, overlay_bbox_index: int):

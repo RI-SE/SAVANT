@@ -71,32 +71,23 @@ class AnnotationService:
             )
             raise InvalidInputError(f"Invalid input data: {errors}", e)
 
-    def create_existing_object_bbox(
-        self, frame_number: int, coordinates: tuple, object_name: str, annotator: str
+    def add_bbox_to_existing_object(
+        self, frame_number: int, coordinates: tuple, object_id: str, annotator: str
     ) -> None:
         """Handles adding a bbox for an existing object."""
 
-        # verify the object exists
-        try:
-            object_id = self._get_objectid_by_name(object_name)
-
-            # Verify if current frame already has the object
-            if self._does_object_exist_in_frame(frame_number, object_id):
-                raise ObjectInFrameError(
-                    f"Object ID {object_name} already has a bbox in frame {frame_number}."
-                )
-
-            self._add_object_bbox(
-                frame_number=frame_number,
-                bbox_coordinates=coordinates,
-                obj_id=object_id,
-                annotator=annotator,
+        # Verify if current frame already has the object
+        if self._does_object_exist_in_frame(frame_number, object_id):
+            raise ObjectInFrameError(
+                f"Object ID {object_id} already has a bbox in frame {frame_number}."
             )
-        except ValidationError as e:
-            errors = "; ".join(
-                f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()
-            )
-            raise InvalidInputError(f"Invalid input data: {errors}", e)
+
+        self._add_object_bbox(
+            frame_number=frame_number,
+            bbox_coordinates=coordinates,
+            obj_id=object_id,
+            annotator=annotator,
+        )
 
     def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number.
@@ -139,11 +130,7 @@ class AnnotationService:
             object_ids.update(frame_data.objects.keys())  # Use update() for set
 
         # Correct list comprehension:
-        return [
-            global_objects[obj_id].name
-            for obj_id in object_ids
-            if obj_id in global_objects
-        ]
+        return [obj_id for obj_id in object_ids if obj_id in global_objects]
 
     def get_bbox(
         self,
@@ -451,14 +438,6 @@ class AnnotationService:
             annotator=annotator,
         )
 
-    def _does_object_exist(self, object_name: str) -> bool:
-        """Check if an object exists in the annotation config."""
-        existing_ids = [
-            value.name
-            for _, value in self.project_state.annotation_config.objects.items()
-        ]
-        return object_name in existing_ids
-
     def _does_object_exist_in_frame(self, frame_number: int, object_id: str) -> bool:
         """Check if an object exists in a specific frame."""
         try:
@@ -468,26 +447,23 @@ class AnnotationService:
 
         return object_id in [key for key in frame.objects.keys()]
 
-    def _get_objectid_by_name(self, object_name: str):
-        """Get the object ID given the object name."""
-        for key, value in self.project_state.annotation_config.objects.items():
-            if value.name == object_name:
-                return key
-        raise ObjectNotFoundError(f"Object: {object_name}, does not exist.")
-
     def _generate_new_object_id(self) -> str:
-        existing_ids = list(self.project_state.annotation_config.objects.keys())
-        if not existing_ids:
-            return "1"
-        numeric_ids = []
-        for identifier in existing_ids:
-            try:
-                numeric_ids.append(int(str(identifier)))
-            except ValueError:
-                continue
-        if not numeric_ids:
-            return "1"
-        return str(max(numeric_ids) + 1)
+        """
+        Get the latest key of the objects, and increment it by 1
+        to generate a unqiue object ID.
+        """
+        objects = self.project_state.annotation_config.objects
+        # If there are no objects, the first ID should be 0.
+        if not objects or not objects.keys():
+            return str(0)
+
+        # Get all keys, convert them to integers, find the max, and add 1.
+        # This is safer than relying on the last key.
+        keys_as_ints = [int(key) for key in objects.keys() if key.isdigit()]
+        if not keys_as_ints:
+            return str(0)
+
+        return str(max(keys_as_ints) + 1)
 
     def get_frame_tags(self) -> List[str]:
         """
@@ -774,7 +750,7 @@ class AnnotationService:
             frame_intervals,
         )
 
-    def restore_object_relationship(
+    def restore_relationship(
         self,
         relation_id: str,
         relationship_type: str,
@@ -790,7 +766,7 @@ class AnnotationService:
             subject_object_id, object_object_id
         )
 
-        openlabel.restore_object_relationship(
+        openlabel.restore_relationship(
             relation_id,
             relationship_type,
             ontology_uid,
@@ -799,15 +775,33 @@ class AnnotationService:
             frame_intervals,
         )
 
-    def get_object_relationships(self, object_id: str):
+    def get_object_relationships(self, object_id: str) -> list:
         """Get all relationships for a given object_id."""
         openlabel = self.project_state.annotation_config
-        return openlabel.get_object_relationships(object_id)
 
-    def delete_relationship(self, relation_id: str) -> bool:
+        object_relationships = [
+            {
+                "id": relationship["relation_id"],
+                "subject": relationship["relation_metadata"].rdf_subjects[0].uid,
+                "type": relationship["relation_metadata"].type,
+                "object": relationship["relation_metadata"].rdf_objects[0].uid,
+            }
+            for relationship in openlabel.get_object_relationships(object_id)
+        ]
+
+        return object_relationships
+
+    def delete_relationship(self, relation_id: str) -> dict:
         """Delete a relationship by its ID."""
         openlabel = self.project_state.annotation_config
-        return openlabel.delete_relationship(relation_id)
+        deleted_relation = openlabel.delete_relationship(relation_id)
+
+        return {
+            "id": deleted_relation["id"],
+            "subject": deleted_relation["metadata"].rdf_subjects[0].uid,
+            "type": deleted_relation["metadata"].type,
+            "object": deleted_relation["metadata"].rdf_objects[0].uid,
+        }
 
     def _calculate_relation_frame_interval(
         self, subject_object_id: str, object_object_id: str
@@ -876,13 +870,14 @@ class AnnotationService:
         frame_relationships = openlabel.get_relationships_from_frame(frame_index)
 
         if not frame_relationships:
-            return None
+            return []
 
         return [
             {
-                "subject": relationship.rdf_subjects[0].uid,
-                "relationship_type": relationship.type,
-                "object": relationship.rdf_objects[0].uid,
+                "subject": relationship["metadata"].rdf_subjects[0].uid,
+                "relationship_type": relationship["metadata"].type,
+                "object": relationship["metadata"].rdf_objects[0].uid,
+                "id": relationship["relation_id"],
             }
             for relationship in frame_relationships
         ]
