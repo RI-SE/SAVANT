@@ -20,7 +20,7 @@ def test_fixtures_dir():
 @pytest.fixture
 def test_video_path(test_fixtures_dir):
     """Path to test video file."""
-    return str(test_fixtures_dir / "saro_testvid.mp4")
+    return str(test_fixtures_dir / "Kraklanda_short.mp4")
 
 
 @pytest.fixture

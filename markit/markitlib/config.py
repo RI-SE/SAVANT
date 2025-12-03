@@ -22,7 +22,7 @@ from . import __version__
 class Constants:
     """Constants used throughout the application."""
     MP4V_FOURCC = "mp4v"
-    SCHEMA_VERSION = "1.0"
+    SCHEMA_VERSION = "1.1"
     ANNOTATOR_NAME = f"SAVANT markit v{__version__}"
     ONTOLOGY_URL = "https://savant.ri.se/savant_ontology_1.3.0.ttl"
     # Fallback class map used when ontology file cannot be loaded

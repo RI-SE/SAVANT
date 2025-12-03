@@ -13,7 +13,7 @@ tests/
 ├── test_openlabel.py        # OpenLabel JSON generation and validation
 ├── test_integration.py      # End-to-end pipeline tests
 └── fixtures/                # Test data
-    ├── saro_testvid.mp4     # Test video file
+    ├── Kraklanda_short.mp4  # Test video file
     ├── best.pt              # Test YOLO model
     └── sample_outputs/      # Expected outputs for comparison
 ```
@@ -87,7 +87,7 @@ pytest -vv -s
 ## Test Data
 
 The `fixtures/` directory contains:
-- `saro_testvid.mp4`: Sample video file for testing video processing
+- `Kraklanda_short.mp4`: Sample video file for testing video processing
 - `best.pt`: Trained YOLO model weights for object detection
 - `sample_outputs/`: Expected output files for comparison tests
 
@@ -134,7 +134,7 @@ These tests can be integrated into CI/CD pipelines. Example GitHub Actions workf
 
 ### Missing test video or model files
 The test fixtures must be present in `tests/fixtures/`. If missing:
-- Video: `saro_testvid.mp4` should be a valid MP4 file
+- Video: `Kraklanda_short.mp4` should be a valid MP4 file
 - Model: `best.pt` should be a valid YOLO model file
 
 ### YOLO model loading issues

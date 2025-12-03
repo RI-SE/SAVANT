@@ -21,8 +21,8 @@ class TestConstants:
     def test_constants_have_expected_values(self):
         """Verify constants have expected values."""
         assert Constants.MP4V_FOURCC == "mp4v"
-        assert Constants.SCHEMA_VERSION == "1.0"
-        assert "SAVANT Markit" in Constants.ANNOTATOR_NAME
+        assert Constants.SCHEMA_VERSION == "1.1"
+        assert "SAVANT markit" in Constants.ANNOTATOR_NAME
         assert "savant_ontology" in Constants.ONTOLOGY_URL
 
     def test_default_class_map_exists(self):
