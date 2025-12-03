@@ -23,7 +23,7 @@ class AppMenu:
         mb = window.menuBar()
 
         file_menu = mb.addMenu("File")
-
+        edit_menu = mb.addMenu("Edit")
         # Add the "About" action directly to the menubar
         about_action = QAction("About", window)
         about_action.triggered.connect(on_about)
