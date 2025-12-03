@@ -16,14 +16,14 @@ import numpy as np
 
 from savant_common.ontology import create_class_map
 
-__version__ = '2.0.1'
+from . import __version__
 
 
 class Constants:
     """Constants used throughout the application."""
     MP4V_FOURCC = "mp4v"
     SCHEMA_VERSION = "1.0"
-    ANNOTATOR_NAME = f"SAVANT Markit {__version__}"
+    ANNOTATOR_NAME = f"SAVANT markit v{__version__}"
     ONTOLOGY_URL = "https://savant.ri.se/savant_ontology_1.3.0.ttl"
     # Fallback class map used when ontology file cannot be loaded
     # In normal operation, class_map is loaded dynamically from the ontology
@@ -91,6 +91,7 @@ class MarkitConfig:
 
         # ArUco detection configuration
         self.aruco_csv_path = args.aruco_csv if hasattr(args, 'aruco_csv') else None
+        self.aruco_dict = args.aruco_dict if hasattr(args, 'aruco_dict') else 'DICT_4X4_50'
         self.use_aruco = self.aruco_csv_path is not None
 
         # Load class map from ontology if provided, otherwise use default

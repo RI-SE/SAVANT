@@ -41,15 +41,16 @@ frame_intervals in not required. ontology_uid is not required, but points to whi
             "ontology_uid": "0"
         },
         "2" : {
-          "name": "Zurich_24",
+          "name": "GbgSaroRound_24",
           "type": "ArUco",
           "ontology_uid": "0",
           "object_data": {
             "vec": [
               { "name": "arucoID", "val": ["24a", "24c"] },
-              { "name": "long", "val": ["47.3769", "47.3771"]},
-              { "name": "lat", "val": ["8.5417", "8.5419"]},
-              { "name": "description", "val": "Zurich"}
+              { "name": "long", "val": ["12.010028962964366", "12.010052305062038"]},
+              { "name": "lat", "val": ["57.48417200155693", "57.48418583728026"]},
+              { "name": "alt", "val": ["75.03256072998047", "75.01708374023437"]},
+              { "name": "description", "val": "GbgSaroRound"}
             ]
           }
      },

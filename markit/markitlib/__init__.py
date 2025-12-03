@@ -5,6 +5,8 @@ Internal package for markit.py video processing tool.
 Contains detection engines, video processing, postprocessing, and OpenLabel handling.
 """
 
+__version__ = '2.0.0'
+
 from .config import (
     Constants,
     DetectionResult,
@@ -13,8 +15,6 @@ from .config import (
     MarkitConfig,
 )
 from .geometry import BBoxOverlapCalculator
-
-__version__ = '2.0.0'
 
 __all__ = [
     'Constants',

@@ -13,6 +13,7 @@ import numpy as np
 
 from ..config import Constants, DetectionResult
 from ..utils import normalize_angle_to_2pi_range
+from .. import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +47,6 @@ class NumpyEncoder(json.JSONEncoder):
             return o
 
         return super().iterencode(round_floats(obj), _one_shot)
-
-# Get version from config
-__version__ = '2.0.0'
 
 
 class OpenLabelHandler:
@@ -122,6 +120,52 @@ class OpenLabelHandler:
 
         logger.info("Metadata added to OpenLabel structure")
 
+    def add_aruco_objects(self, gps_data: Dict[int, Dict], base_name: str) -> None:
+        """Pre-populate all ArUco markers from GPS data.
+
+        Adds all markers from the CSV file to objects, even if not detected in video.
+        This allows manual annotation tools to attach bounding boxes to pre-defined markers.
+
+        Args:
+            gps_data: Dict mapping aruco_id -> {corner: {'lat', 'lon', 'alt'}}
+            base_name: Base name from CSV filename for object naming
+        """
+        for aruco_id, corners in gps_data.items():
+            obj_id_str = str(2000000 + aruco_id)
+            object_name = f"{base_name}_{aruco_id}"
+
+            # Build GPS vectors from all corners
+            corner_ids, latitudes, longitudes, altitudes = [], [], [], []
+            for corner in sorted(corners.keys()):
+                corner_data = corners[corner]
+                corner_ids.append(f"{aruco_id}{corner}")
+                latitudes.append(str(corner_data['lat']))
+                longitudes.append(str(corner_data['lon']))
+                altitudes.append(str(corner_data.get('alt', 0)))
+
+            # Build object with GPS data at object level
+            aruco_object = {
+                "name": object_name,
+                "type": "ArUco",
+                "ontology_uid": "0"
+            }
+
+            # Add object_data.vec with GPS coordinates
+            if corner_ids:
+                aruco_object["object_data"] = {
+                    "vec": [
+                        {"name": "arucoID", "val": corner_ids},
+                        {"name": "long", "val": longitudes},
+                        {"name": "lat", "val": latitudes},
+                        {"name": "alt", "val": altitudes},
+                        {"name": "description", "val": base_name}
+                    ]
+                }
+
+            self.openlabel_data["openlabel"]["objects"][obj_id_str] = aruco_object
+
+        logger.info(f"Pre-populated {len(gps_data)} ArUco markers from GPS data")
+
     def add_frame_objects(self, frame_idx: int, detection_results: List[DetectionResult],
                          class_map: Dict[int, str]) -> None:
         """Add detected objects for a frame to OpenLabel structure (matching markit.py format).
@@ -159,13 +203,42 @@ class OpenLabelHandler:
                 # Add new object to global objects list if not seen before
                 if obj_id_str not in self.openlabel_data["openlabel"]["objects"]:
                     if is_aruco:
-                        # ArUco marker - use special naming and type
+                        # ArUco marker - use special naming and type with GPS at object level
                         object_name = getattr(detection, 'aruco_name', f"ArUco_{detection.aruco_id}")
-                        self.openlabel_data["openlabel"]["objects"][obj_id_str] = {
+                        gps_data = detection.gps_data
+                        aruco_id = detection.aruco_id
+
+                        # Build GPS vectors from all corners
+                        corner_ids, latitudes, longitudes, altitudes = [], [], [], []
+                        for corner in sorted(gps_data.keys()):
+                            corner_data = gps_data[corner]
+                            corner_ids.append(f"{aruco_id}{corner}")
+                            latitudes.append(str(corner_data['lat']))
+                            longitudes.append(str(corner_data['lon']))
+                            altitudes.append(str(corner_data.get('alt', 0)))
+
+                        description = object_name.split('_')[0]
+
+                        # Build object with GPS data at object level (not per-frame)
+                        aruco_object = {
                             "name": object_name,
                             "type": "ArUco",
                             "ontology_uid": "0"
                         }
+
+                        # Add object_data.vec with GPS coordinates if available
+                        if corner_ids:
+                            aruco_object["object_data"] = {
+                                "vec": [
+                                    {"name": "arucoID", "val": corner_ids},
+                                    {"name": "long", "val": longitudes},
+                                    {"name": "lat", "val": latitudes},
+                                    {"name": "alt", "val": altitudes},
+                                    {"name": "description", "val": description}
+                                ]
+                            }
+
+                        self.openlabel_data["openlabel"]["objects"][obj_id_str] = aruco_object
                     else:
                         # Regular detection - translate YOLO class ID to ontology label
                         class_label = class_map.get(detection.class_id, str(detection.class_id))
@@ -211,49 +284,9 @@ class OpenLabelHandler:
                         ]
                     }
 
-                # Add GPS data for ArUco markers
-                if is_aruco:
-                    gps_data = detection.gps_data
-                    aruco_id = detection.aruco_id
-
-                    # Build corner identifiers and GPS coordinates
-                    corner_ids = []
-                    latitudes = []
-                    longitudes = []
-
-                    # Sort corners alphabetically (a, b, c, d) for consistent output
-                    for corner in sorted(gps_data.keys()):
-                        corner_data = gps_data[corner]
-                        corner_ids.append(f"{aruco_id}{corner}")
-                        latitudes.append(str(corner_data['lat']))
-                        longitudes.append(str(corner_data['lon']))
-
-                    # Add ArUco-specific vectors (only if GPS data exists)
-                    if corner_ids:
-                        vec_data.extend([
-                            {
-                                "name": "arucoID",
-                                "val": corner_ids
-                            },
-                            {
-                                "name": "lat",
-                                "val": latitudes
-                            },
-                            {
-                                "name": "long",
-                                "val": longitudes
-                            }
-                        ])
-
-                        # Add description (base name from CSV filename)
-                        description = getattr(detection, 'aruco_name', '').split('_')[0]
-                        if description:
-                            vec_data.append({
-                                "name": "description",
-                                "val": description
-                            })
-
                 # Add object data for this frame
+                # ArUco: only rbbox + basic vec (GPS data is at object level)
+                # Regular objects: full vec data
                 frame_objects[obj_id_str] = {
                     "object_data": {
                         "rbbox": [{

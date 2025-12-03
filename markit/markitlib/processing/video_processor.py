@@ -40,7 +40,7 @@ class VideoProcessor:
         if config.use_optical_flow:
             self.engines.append(OpticalFlowEngine(config.optical_flow_params))
         if config.use_aruco:
-            self.engines.append(ArUcoEngine(config.aruco_csv_path, config.aruco_class_id))
+            self.engines.append(ArUcoEngine(config.aruco_csv_path, config.aruco_class_id, config.aruco_dict))
 
         # Initialize conflict resolver if multiple engines and conflict resolution enabled
         if len(self.engines) > 1 and config.enable_conflict_resolution:
@@ -50,6 +50,17 @@ class VideoProcessor:
                 enable_logging=config.verbose_conflicts
             )
             self.conflict_resolver = DetectionConflictResolver(conflict_config)
+
+    def get_aruco_gps_data(self) -> Optional[Tuple[Dict, str]]:
+        """Get ArUco GPS data from the ArUco engine if available.
+
+        Returns:
+            Tuple of (gps_data dict, base_name) or None if no ArUco engine
+        """
+        for engine in self.engines:
+            if isinstance(engine, ArUcoEngine):
+                return engine.gps_data.gps_data, engine.gps_data.base_name
+        return None
 
     def initialize(self) -> None:
         """Initialize video capture."""

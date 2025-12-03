@@ -1118,11 +1118,11 @@ class StaticObjectRemovalPass(PostprocessingPass):
        is not desired, do not use this pass or use --static-mark to mark instead of remove.
     """
 
-    def __init__(self, static_threshold: int = 5, mark_only: bool = False):
+    def __init__(self, static_threshold: int = 20, mark_only: bool = False):
         """Initialize static object removal pass.
 
         Args:
-            static_threshold: Movement threshold in pixels (default: 5)
+            static_threshold: Movement threshold in pixels (default: 20)
             mark_only: If True, mark static objects instead of removing them (default: False)
         """
         self.static_threshold = static_threshold

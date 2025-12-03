@@ -40,6 +40,27 @@
                     },
                     "required": ["frame_start", "frame_end"]
                   }
+                },
+                "object_data": {
+                  "type": "object",
+                  "properties": {
+                    "vec": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "val": {
+                            "oneOf": [
+                              { "type": "string" },
+                              { "type": "array", "items": { "type": "string" } }
+                            ]
+                          }
+                        },
+                        "required": ["name", "val"]
+                      }
+                    }
+                  }
                 }
               },
               "required": ["name", "type", "ontology_uid"]

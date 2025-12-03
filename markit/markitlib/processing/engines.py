@@ -623,6 +623,7 @@ class ArUcoGPSData:
                     try:
                         lat = float(row.get('latitude', 0))
                         lon = float(row.get('longitude', 0))
+                        alt = float(row.get('altitude', 0))
                     except (ValueError, TypeError):
                         logger.warning(f"Invalid GPS coordinates for {point_name}")
                         continue
@@ -633,7 +634,8 @@ class ArUcoGPSData:
 
                     self.gps_data[aruco_id][corner] = {
                         'lat': lat,
-                        'lon': lon
+                        'lon': lon,
+                        'alt': alt
                     }
 
             logger.info(f"Loaded GPS data for {len(self.gps_data)} ArUco markers from {self.csv_path}")
@@ -649,7 +651,7 @@ class ArUcoGPSData:
             aruco_id: ArUco marker ID
 
         Returns:
-            Dictionary of corner positions: {corner: {'lat': ..., 'lon': ...}}
+            Dictionary of corner positions: {corner: {'lat': ..., 'lon': ..., 'alt': ...}}
             Empty dict if ID not found
         """
         return self.gps_data.get(aruco_id, {})
@@ -669,19 +671,21 @@ class ArUcoGPSData:
 class ArUcoEngine(BaseDetectionEngine):
     """ArUco marker detection engine with GPS position integration."""
 
-    def __init__(self, csv_path: str, class_id: int):
+    def __init__(self, csv_path: str, class_id: int, aruco_dict_name: str = 'DICT_4X4_50'):
         """Initialize ArUco detection engine.
 
         Args:
             csv_path: Path to GPS CSV file with ArUco positions
             class_id: Class ID for ArUco markers from ontology
+            aruco_dict_name: Name of ArUco dictionary (e.g., 'DICT_4X4_50')
         """
         self.csv_path = csv_path
         self.class_id = class_id
+        self.aruco_dict_name = aruco_dict_name
         self.gps_data = None
         self.aruco_dict = None
         self.aruco_params = None
-        self.tracker = SimpleTracker(id_offset=2000000)  # Offset to avoid conflicts
+        self.detector = None
         self._initialize()
 
     def _initialize(self) -> None:
@@ -691,10 +695,12 @@ class ArUcoEngine(BaseDetectionEngine):
             logger.info(f"Loading ArUco GPS data from {self.csv_path}")
             self.gps_data = ArUcoGPSData(self.csv_path)
 
-            # Initialize ArUco detector with DICT_4X4_50
-            logger.info("Initializing ArUco detector with DICT_4X4_50")
-            self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+            # Initialize ArUco detector with specified dictionary
+            logger.info(f"Initializing ArUco detector with {self.aruco_dict_name}")
+            dict_type = getattr(cv2.aruco, self.aruco_dict_name)
+            self.aruco_dict = cv2.aruco.getPredefinedDictionary(dict_type)
             self.aruco_params = cv2.aruco.DetectorParameters()
+            self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
 
             logger.info("ArUco detection engine initialized successfully")
 
@@ -718,9 +724,7 @@ class ArUcoEngine(BaseDetectionEngine):
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
             # Detect ArUco markers
-            corners, ids, rejected = cv2.aruco.detectMarkers(
-                gray, self.aruco_dict, parameters=self.aruco_params
-            )
+            corners, ids, rejected = self.detector.detectMarkers(gray)
 
             # Process each detected marker
             if ids is not None:
@@ -738,8 +742,8 @@ class ArUcoEngine(BaseDetectionEngine):
                     center_x = float(np.mean(marker_corners[:, 0]))
                     center_y = float(np.mean(marker_corners[:, 1]))
 
-                    # Get or assign tracking ID
-                    obj_id = self.tracker.get_id((center_x, center_y))
+                    # Use deterministic ID based on marker ID (allows pre-population of all markers)
+                    obj_id = 2000000 + aruco_id
 
                     # Calculate rotation angle from corner positions
                     # Use vector from bottom-left to bottom-right corner
@@ -788,6 +792,7 @@ class ArUcoEngine(BaseDetectionEngine):
 
     def cleanup(self) -> None:
         """Clean up ArUco engine resources."""
+        self.detector = None
         self.aruco_dict = None
         self.aruco_params = None
         self.gps_data = None
