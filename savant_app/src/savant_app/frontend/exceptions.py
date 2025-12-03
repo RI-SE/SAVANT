@@ -62,3 +62,27 @@ class InvalidWarningErrorRange(FrontendException):
     """Raised when a warning or error range is invalid."""
 
     pass
+
+
+class FileOperationError(FrontendException):
+    """Raised when file operations such as copy/delete fail."""
+
+    pass
+
+
+class InvalidVideoFileError(FrontendException):
+    """Raised when the selected video has an unsupported format."""
+
+    pass
+
+
+class InvalidConfigFileError(FrontendException):
+    """Raised when the selected OpenLabel config is invalid."""
+
+    pass
+
+
+class TemplateCreationError(FrontendException):
+    """Raised when we cannot create a new OpenLabel template file."""
+
+    pass

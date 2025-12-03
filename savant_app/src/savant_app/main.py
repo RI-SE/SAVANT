@@ -33,10 +33,9 @@ if __name__ == "__main__":
     annotation_controller = AnnotationController(annotation_service)
 
     # Setup UI
-    # TODO - Get project name from current project
     # TODO: Implement passing controllers
     window = MainWindow(
-        project_name="temp_name",
+        project_name="",
         video_controller=video_controller,
         project_state_controller=project_state_controller,
         annotation_controller=annotation_controller,

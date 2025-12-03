@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 _ontology_path: Optional[Path] = None
-_action_interval_offset: int = 0
+_action_interval_offset: int = 50
 _default_ontology_namespace = "http://savant.ri.se/ontology#"
 _ontology_namespace: str = _default_ontology_namespace
 _warning_range: tuple[float, float] = (0.4, 0.6)
@@ -18,6 +18,7 @@ _tag_frames: dict[str, dict[str, list[int]]] = {"frame": {}, "object": {}}
 # New movement sensitivity setting
 _movement_sensitivity: float = 1.0  # default 1.0x
 _rotation_sensitivity: float = 0.1  # default 0.1
+_DEFAULT_ONTOLOGY_FILES = ("savant_ontology_1.3.0.ttl", "savant_ontology_1.0.0.ttl")
 
 
 def get_ontology_path() -> Optional[Path]:
@@ -219,3 +220,14 @@ def get_enabled_tag_frames() -> dict[str, list[int]]:
             frames.update(frame_map.get(name, []))
         result[category] = sorted(frames)
     return result
+
+
+def get_default_ontology_path() -> Optional[Path]:
+    """Return the packaged ontology path if available."""
+
+    base = Path(__file__).resolve().parent.parent / "assets"
+    for filename in _DEFAULT_ONTOLOGY_FILES:
+        candidate = base / filename
+        if candidate.is_file():
+            return candidate
+    return None

@@ -476,9 +476,18 @@ class AnnotationService:
         raise ObjectNotFoundError(f"Object: {object_name}, does not exist.")
 
     def _generate_new_object_id(self) -> str:
-        return str(
-            int(list(self.project_state.annotation_config.objects.keys())[-1]) + 1
-        )
+        existing_ids = list(self.project_state.annotation_config.objects.keys())
+        if not existing_ids:
+            return "1"
+        numeric_ids = []
+        for identifier in existing_ids:
+            try:
+                numeric_ids.append(int(str(identifier)))
+            except ValueError:
+                continue
+        if not numeric_ids:
+            return "1"
+        return str(max(numeric_ids) + 1)
 
     def get_frame_tags(self) -> List[str]:
         """

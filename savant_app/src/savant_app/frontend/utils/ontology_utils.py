@@ -14,6 +14,7 @@ CATEGORY_ACTION = "Action"
 CATEGORY_DYNAMIC = "DynamicObject"
 CATEGORY_STATIC = "StaticObject"
 CATEGORY_RELATION = "Relation"
+ACTIONS_ROOT = "Behaviour"
 
 ontology_cache_key: Optional[Tuple[str, float]] = None
 labels_by_category_cache: Optional[Dict[str, List[str]]] = None
@@ -48,7 +49,7 @@ def _parse_ontology_labels(ttl_text: str) -> Dict[str, List[str]]:
         return sorted({s.lower(): s for s in out}.values(), key=str.lower)
 
     return {
-        CATEGORY_ACTION: labels_under(CATEGORY_ACTION),
+        CATEGORY_ACTION: labels_under(ACTIONS_ROOT),
         CATEGORY_DYNAMIC: labels_under(CATEGORY_DYNAMIC),
         CATEGORY_STATIC: labels_under(CATEGORY_STATIC),
         CATEGORY_RELATION: labels_under(CATEGORY_RELATION),

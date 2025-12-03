@@ -1,0 +1,69 @@
+@prefix : <http://savant.ri.se/ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+:uid a rdf:Property ;
+    rdfs:label "UID" ;
+    rdfs:comment "A unique identifier assigned to a class or resource" ;
+    rdfs:domain rdfs:Class ;
+    rdfs:range xsd:integer .
+
+# Dynamic object tags (must use uid 0-n to align with continuous class indexes for Yolo training)
+:DynamicObject a rdfs:Class ; rdfs:label "DynamicObject" ; :uid 0 .
+:RoadUser a rdfs:Class ; rdfs:subClassOf :DynamicObject ; rdfs:label "RoadUser" ; :uid 1 .
+
+:RoadUserVehicle a rdfs:Class ; rdfs:subClassOf :RoadUser ; rdfs:label "Vehicle" ; :uid 2 .
+:VehicleCar a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Car" ; :uid 3 .
+:VehicleVan a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Van" ; :uid 4 .
+:VehicleTruck a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Truck" ; :uid 5 .
+:VehicleTrailer a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Trailer" ; :uid 6 .
+:VehicleMotorbike a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Motorbike" ; :uid 7 .
+:VehicleBicycle a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Bicycle" ; :uid 8 .
+:VehicleBus a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Bus" ; :uid 9 .
+:VehicleTram a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Tram" ; :uid 10 .
+:VehicleTrain a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Train" ; :uid 11 .
+:VehicleCaravan a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Caravan" ; :uid 12 .
+:VehicleStandupScooter a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "StandupScooter" ; :uid 13 .
+:VehicleAgriculturalVehicle a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "AgriculturalVehicle" ; :uid 14 .
+:VehicleConstructionVehicle a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "ConstructionVehicle" ; :uid 15 .
+:VehicleEmergencyVehicle a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "EmergencyVehicle" ; :uid 16 .
+:VehicleAmbulance a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Ambulance" ; :uid 17 .
+:VehicleFire a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Fire" ; :uid 18 .
+:VehiclePolice a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Police" ; :uid 19 .
+:VehicleSlowMovingVehicle a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "SlowMovingVehicle" ; :uid 20 .
+
+:RoadUserHuman a rdfs:Class ; rdfs:subClassOf :RoadUser ; rdfs:label "Human" ; :uid 21 .
+:HumanPedestrian a rdfs:Class ; rdfs:subClassOf :RoadUserHuman ; rdfs:label "Pedestrian" ; :uid 22 .
+:HumanWheelChairUser a rdfs:Class ; rdfs:subClassOf :RoadUserHuman ; rdfs:label "WheelChairUser" ; :uid 23 .
+:Animal a rdfs:Class ; rdfs:subClassOf :RoadUser ; rdfs:label "Animal" ; :uid 24 .
+
+# Static object tags (currently using uid 200+ to avoid overlap with dynamic objects and are not used for Yolo training)
+:StaticObject a rdfs:Class ; rdfs:label "StaticObject" ; :uid 200 .
+
+:Marker a rdfs:Class ; rdfs:subClassOf :StaticObject ; rdfs:label "Marker" ; :uid 210 .
+:MarkerAruco a rdfs:Class ; rdfs:subClassOf :Marker ; rdfs:label "Aruco" ; :uid 211 .
+:MarkerVisualMarker a rdfs:Class ; rdfs:subClassOf :Marker ; rdfs:label "VisualMarker" ; :uid 212 .
+
+:RoadInfrastructure a rdfs:Class ; rdfs:subClassOf :StaticObject ; rdfs:label "RoadInfrastructure" ; :uid 220 .
+
+# Action tags (Using uid 300+ to avoid overlap with object tags)
+:Behaviour a rdfs:Class ; rdfs:label "Behaviour" ; :uid 300 .
+
+:BehaviourMotion a rdfs:Class ; rdfs:subClassOf :Behaviour ; rdfs:label "Motion" ; :uid 310 .
+:MotionTurnLeft a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "TurnLeft" ; :uid 311 .
+:MotionTurnRight a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "TurnRight" ; :uid 312 .
+:MotionCross a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "Cross" ; :uid 313 .
+:MotionCutIn a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "CutIn" ; :uid 314 .
+:MotionCutOut a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "CutOut" ; :uid 315 .
+:MotionOvertake a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "Overtake" ; :uid 316 .
+:MotionAccelerate a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "Accelerate" ; :uid 317 .
+:MotionDecelerate a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "Decelerate" ; :uid 318 .
+:MotionLaneChangeRight a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "LaneChangeRight" ; :uid 319 .
+:MotionLaneChangeLeft a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "LaneChangeLeft" ; :uid 320 .
+
+# Relation tags
+:Relation a rdfs:Class ; rdfs:label "Relation" ; :uid 400 .
+
+:RelationTowing a rdfs:Class ; rdfs:subClassOf :Relation ; rdfs:label "towed-by" ; :uid 410 .
+:RelationCarrying a rdfs:Class ; rdfs:subClassOf :Relation ; rdfs:label "carried-by" ; :uid 420 .
