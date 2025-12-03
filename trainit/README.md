@@ -9,6 +9,10 @@ This directory contains tools for training and preparing datasets for YOLO OBB m
 - **train_yolo_obb.py** - Train YOLO OBB models for UAV object detection
 - **split_train_val.py** - Split YOLO datasets into train/val by sequence
 
+> [!NOTE]
+> The simple split_train_val tool will be replaced by a more comprehensive dataset management tool in future releases.
+
+
 ## Contents
 
 - [Installation](#installation)
@@ -42,7 +46,9 @@ split-train-val --help
 
 ### train_yolo_obb.py
 
-Trains YOLO OBB (Oriented Bounding Box) models for UAV object detection with advanced configuration options.
+Trains YOLO OBB (Oriented Bounding Box) models for UAV object detection.
+
+An example dataset configuration file is provided in `examples/dataset.yaml`.
 
 #### Quick Start
 
@@ -133,7 +139,7 @@ train-yolo-obb --data dataset.yaml \
     --patience 30 \
     --save-period 10
 ```
-- More epochs for convergence
+- More epochs for convergence (not always needed)
 - Caching for speed
 - Checkpointing for safety
 - Higher patience to avoid premature stopping
@@ -264,37 +270,37 @@ train-yolo-obb --data dataset.yaml \
 
 ```bash
 # 1. Basic training
-train-yolo-obb --data UAV.yaml
+train-yolo-obb --data dataset.yaml
 
 # 2. Larger model with more epochs
-train-yolo-obb --data UAV.yaml --model yolo11m-obb.pt --epochs 100 --batch 16
+train-yolo-obb --data dataset.yaml --model yolo11m-obb.pt --epochs 100 --batch 16
 
 # 3. Fast training with caching
-train-yolo-obb --data UAV.yaml --cache ram --workers 12
+train-yolo-obb --data dataset.yaml --cache ram --workers 12
 
 # 4. Transfer learning with frozen backbone
-train-yolo-obb --data UAV.yaml --freeze 10 --lr0 0.001 --epochs 50
+train-yolo-obb --data dataset.yaml --freeze 10 --lr0 0.001 --epochs 50
 
 # 5. Custom augmentation for aerial imagery
-train-yolo-obb --data UAV.yaml --degrees 180 --perspective 0.0001 --scale 0.7
+train-yolo-obb --data dataset.yaml --degrees 180 --perspective 0.0001 --scale 0.7
 
 # 6. Low memory configuration
-train-yolo-obb --data UAV.yaml --batch 8 --imgsz 512 --cache disk
+train-yolo-obb --data dataset.yaml --batch 8 --imgsz 512 --cache disk
 
 # 7. Production training with checkpoints
-train-yolo-obb --data UAV.yaml --epochs 150 --patience 30 --save-period 10 --cache ram
+train-yolo-obb --data dataset.yaml --epochs 150 --patience 30 --save-period 10 --cache ram
 
 # 8. Resume interrupted training
-train-yolo-obb --data UAV.yaml --resume
+train-yolo-obb --data dataset.yaml --resume
 
 # 9. Custom optimizer and learning rate
-train-yolo-obb --data UAV.yaml --optimizer AdamW --lr0 0.001 --warmup-epochs 5
+train-yolo-obb --data dataset.yaml --optimizer AdamW --lr0 0.001 --warmup-epochs 5
 
 # 10. Training with provenance tracking
-train-yolo-obb --data UAV.yaml --epochs 100 --provenance training_chain.json
+train-yolo-obb --data dataset.yaml --epochs 100 --provenance training_chain.json
 
 # 11. Full configuration example
-train-yolo-obb --data UAV.yaml \
+train-yolo-obb --data dataset.yaml \
     --model yolo11m-obb.pt \
     --epochs 100 \
     --batch 24 \

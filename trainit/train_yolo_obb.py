@@ -51,32 +51,32 @@ Augmentation Parameters (optional - uses YOLO defaults if not specified):
     --mixup            Mixup augmentation probability (default: 0.0)
 
 Examples:
-    # Basic training with YOLO defaults
-    python train_yolo_obb.py --data UAV.yaml
+    # Basic training with YOLO defaults (see examples/dataset.yaml)
+    python train_yolo_obb.py --data dataset.yaml
 
     # Custom learning rate and optimizer
-    python train_yolo_obb.py --data UAV.yaml --lr0 0.001 --optimizer Adam
+    python train_yolo_obb.py --data dataset.yaml --lr0 0.001 --optimizer Adam
 
     # Training with caching and more workers
-    python train_yolo_obb.py --data UAV.yaml --cache ram --workers 12
+    python train_yolo_obb.py --data dataset.yaml --cache ram --workers 12
 
     # Custom augmentation settings
-    python train_yolo_obb.py --data UAV.yaml --degrees 10 --scale 0.8 --mosaic 0.8
+    python train_yolo_obb.py --data dataset.yaml --degrees 10 --scale 0.8 --mosaic 0.8
 
     # Advanced augmentation with perspective and shear
-    python train_yolo_obb.py --data UAV.yaml --perspective 0.0001 --shear 2.0 --degrees 15
+    python train_yolo_obb.py --data dataset.yaml --perspective 0.0001 --shear 2.0 --degrees 15
 
     # Custom warmup settings
-    python train_yolo_obb.py --data UAV.yaml --warmup-epochs 5.0 --warmup-momentum 0.9
+    python train_yolo_obb.py --data dataset.yaml --warmup-epochs 5.0 --warmup-momentum 0.9
 
     # Save checkpoint every 5 epochs
-    python train_yolo_obb.py --data UAV.yaml --save-period 5
+    python train_yolo_obb.py --data dataset.yaml --save-period 5
 
     # Transfer learning - freeze backbone layers
-    python train_yolo_obb.py --data UAV.yaml --freeze 10
+    python train_yolo_obb.py --data dataset.yaml --freeze 10
 
     # Resume training
-    python train_yolo_obb.py --data UAV.yaml --resume
+    python train_yolo_obb.py --data dataset.yaml --resume
 """
 
 import argparse
@@ -562,41 +562,41 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic training with YOLO defaults
-  python train_yolo_obb.py --data UAV.yaml
+  # Basic training with YOLO defaults (see examples/dataset.yaml)
+  python train_yolo_obb.py --data dataset.yaml
 
   # Custom model and training parameters
-  python train_yolo_obb.py --data UAV.yaml --model yolo11m-obb.pt --epochs 100 --batch 16
+  python train_yolo_obb.py --data dataset.yaml --model yolo11m-obb.pt --epochs 100 --batch 16
 
   # Custom learning rate and optimizer
-  python train_yolo_obb.py --data UAV.yaml --lr0 0.001 --optimizer Adam
+  python train_yolo_obb.py --data dataset.yaml --lr0 0.001 --optimizer Adam
 
   # Training with caching and more workers for speed
-  python train_yolo_obb.py --data UAV.yaml --cache ram --workers 12
+  python train_yolo_obb.py --data dataset.yaml --cache ram --workers 12
 
   # Adjust loss weights for better detection
-  python train_yolo_obb.py --data UAV.yaml --box 10.0 --cls 0.7
+  python train_yolo_obb.py --data dataset.yaml --box 10.0 --cls 0.7
 
   # Custom augmentation for better generalization
-  python train_yolo_obb.py --data UAV.yaml --degrees 15 --scale 0.8 --mosaic 0.8 --mixup 0.1
+  python train_yolo_obb.py --data dataset.yaml --degrees 15 --scale 0.8 --mosaic 0.8 --mixup 0.1
 
   # Advanced augmentation with perspective and shear
-  python train_yolo_obb.py --data UAV.yaml --perspective 0.0001 --shear 2.0 --degrees 15
+  python train_yolo_obb.py --data dataset.yaml --perspective 0.0001 --shear 2.0 --degrees 15
 
   # Custom warmup for smoother training start
-  python train_yolo_obb.py --data UAV.yaml --warmup-epochs 5.0 --warmup-momentum 0.9
+  python train_yolo_obb.py --data dataset.yaml --warmup-epochs 5.0 --warmup-momentum 0.9
 
   # Save checkpoint every 5 epochs
-  python train_yolo_obb.py --data UAV.yaml --save-period 5
+  python train_yolo_obb.py --data dataset.yaml --save-period 5
 
   # Transfer learning - freeze backbone layers
-  python train_yolo_obb.py --data UAV.yaml --freeze 10
+  python train_yolo_obb.py --data dataset.yaml --freeze 10
 
   # Resume previous training
-  python train_yolo_obb.py --data UAV.yaml --resume
+  python train_yolo_obb.py --data dataset.yaml --resume
 
   # Custom project and experiment name
-  python train_yolo_obb.py --data UAV.yaml --project my_experiments --name uav_detection
+  python train_yolo_obb.py --data dataset.yaml --project my_experiments --name uav_detection
         """
     )
 
