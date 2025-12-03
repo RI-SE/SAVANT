@@ -111,13 +111,13 @@ class AnnotationController:
         )
 
     @error_handler
-    def create_bbox_existing_object(
+    def add_bbox_to_existing_object(
         self, frame_number: int, bbox_info: dict, annotator: str
     ) -> None:
-        self.annotation_service.create_existing_object_bbox(
+        self.annotation_service.add_bbox_to_existing_object(
             frame_number=frame_number,
             coordinates=bbox_info["coordinates"],
-            object_name=bbox_info["object_id"],
+            object_id=bbox_info["object_id"],
             annotator=annotator,
         )
 

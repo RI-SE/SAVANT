@@ -55,7 +55,7 @@ class AnnotationGateway(Protocol):
         self, frame_number: int, bbox_info: dict, annotator: str
     ) -> CreatedObjectSnapshot: ...
 
-    def create_existing_object_bbox(
+    def add_bbox_to_existing_object(
         self, frame_number: int, bbox_info: dict, annotator: str
     ) -> FrameObjectSnapshot: ...
 
@@ -292,26 +292,16 @@ class ControllerAnnotationGateway:
             metadata_snapshot=metadata_snapshot,
         )
 
-    def create_existing_object_bbox(
+    def add_bbox_to_existing_object(
         self, frame_number: int, bbox_info: dict, annotator: str
     ) -> FrameObjectSnapshot:
-        object_name = str(bbox_info.get("object_id"))
-        self.annotation_controller.create_bbox_existing_object(
+        object_id = str(bbox_info.get("object_id"))
+        self.annotation_controller.add_bbox_to_existing_object(
             frame_number=frame_number,
             bbox_info=bbox_info,
             annotator=annotator,
         )
         config = self._annotation_config()
-        objects_map = getattr(config, "objects", {})
-        object_id = None
-        for key, meta in objects_map.items():
-            if getattr(meta, "name", None) == object_name or key == object_name:
-                object_id = key
-                break
-        if object_id is None:
-            raise UndoGatewayError(
-                f"Failed to resolve object ID for existing object '{object_name}'."
-            )
         frame_key = str(frame_number)
         frame = config.frames.get(frame_key)
         if frame is None or object_id not in frame.objects:

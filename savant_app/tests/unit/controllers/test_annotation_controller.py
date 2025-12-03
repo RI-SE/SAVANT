@@ -59,7 +59,7 @@ class TestAnnotationController:
             {"type": "person", "name": "person_1"},
         ]
 
-    def test_create_bbox_existing_object_calls_service_method(
+    def test_add_bbox_to_existing_object_calls_service_method(
         self, annotation_controller, mock_annotation_service
     ):
         """Test that controller delegates to service method"""
@@ -70,19 +70,19 @@ class TestAnnotationController:
             "object_id": "car_123",
         }
 
-        annotation_controller.create_bbox_existing_object(
+        annotation_controller.add_bbox_to_existing_object(
             frame_number, bbox_info, annotator="test_user"
         )
 
         # Verify service method is called with correct parameters
-        mock_annotation_service.create_existing_object_bbox.assert_called_once_with(
+        mock_annotation_service.add_bbox_to_existing_object.assert_called_once_with(
             frame_number=frame_number,
             coordinates=bbox_info["coordinates"],
-            object_name=bbox_info["object_id"],
+            object_id=bbox_info["object_id"],
             annotator="test_user",
         )
 
-    def test_create_bbox_existing_object_propagates_errors(
+    def test_add_bbox_to_existing_object_propagates_errors(
         self, annotation_controller, mock_annotation_service
     ):
         """Test that controller propagates service errors"""
@@ -92,11 +92,11 @@ class TestAnnotationController:
             "coordinates": {"x": 10, "y": 20, "width": 30, "height": 40},
             "object_id": "invalid_id",
         }
-        mock_annotation_service.create_existing_object_bbox.side_effect = (
+        mock_annotation_service.add_bbox_to_existing_object.side_effect = (
             ObjectNotFoundError("Error")
         )
 
         with pytest.raises(ObjectNotFoundError):
-            annotation_controller.create_bbox_existing_object(
+            annotation_controller.add_bbox_to_existing_object(
                 frame_number, bbox_info, annotator="test_user"
             )

@@ -77,7 +77,7 @@ class CreateExistingObjectBBoxCommand:
     def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         if self._snapshot is None:
-            self._snapshot = gateway.create_existing_object_bbox(
+            self._snapshot = gateway.add_bbox_to_existing_object(
                 frame_number=self.frame_number,
                 bbox_info=self.bbox_info,
                 annotator=self.annotator,

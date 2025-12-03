@@ -96,10 +96,6 @@ class InterpolationDialog(QDialog):
         start_frame = self.start_frame_spin.value()
         end_frame = self.end_frame_spin.value()
 
-        # Extract numeric ID if in format "Type (ID: 123)" or "Object-x"
-        if "-" in object_id:  # Handle "Object-x" format
-            object_id = object_id.split("-")[-1]
-
         # Verify object exists in start frame
         active_objs = self.parent().annotation_controller.get_active_objects(
             start_frame

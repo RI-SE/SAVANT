@@ -288,22 +288,13 @@ class Sidebar(QWidget):
             current_index = 0
         self._refresh_active_frame_tags(current_index)
 
-    def _extract_object_id_from_text(self, text: str) -> str:
-        """Extract object ID from list item text in format 'Type (ID: 123)'"""
-        # Find the ID part and remove trailing parenthesis
-        try:
-            id_part = text.split("ID: ")[1]
-            return id_part.rstrip(")").strip()
-        except IndexError as e:
-            raise InvalidObjectIDFormat(
-                f"Cannot extract object ID from text: {text}"
-            ) from e
-
     def _item_object_id(self, item: QListWidgetItem) -> str:
         stored_id = item.data(Qt.ItemDataRole.UserRole)
         if stored_id is not None:
             return str(stored_id)
-        return self._extract_object_id_from_text(item.text())
+        raise InvalidObjectIDFormat(
+            f"Cannot extract object ID from item: {item.text()}"
+        )
 
     def _on_active_object_selected(self, item):
         # Trigger highlight in the UI
@@ -319,7 +310,7 @@ class Sidebar(QWidget):
             self.active_objects.clearSelection()
             for i in range(self.active_objects.count()):
                 item = self.active_objects.item(i)
-                if object_id == self._extract_object_id_from_text(item.text()):
+                if object_id == self._item_object_id(item):
                     item.setSelected(True)
                     self.active_objects.setCurrentItem(item)
                     self.active_objects.scrollToItem(item)
@@ -335,15 +326,14 @@ class Sidebar(QWidget):
             self.active_objects.clear()
             flags = confidence_flags or {}
             for item in active_objects:
+                obj_id = item.get("id")
                 obj_name = item.get("name") or ""
-                obj_key = item.get("id") or obj_name
-                # Display only numeric part of ID
-                numeric_id = obj_name.split("-")[-1] if "-" in obj_name else obj_name
-                display_text = f'{item.get("type", "Object")} (ID: {numeric_id})'
+                obj_type = item.get("type", "Object")
+                display_text = f"{obj_type} (ID: {obj_id}) - {obj_name}"
                 list_item = QListWidgetItem(display_text)
-                list_item.setData(Qt.ItemDataRole.UserRole, obj_key)
+                list_item.setData(Qt.ItemDataRole.UserRole, obj_id)
 
-                severity = flags.get(obj_key)
+                severity = flags.get(obj_id)
                 if severity == "error":
                     list_item.setBackground(SIDEBAR_ERROR_HIGHLIGHT)
                     list_item.setForeground(SIDEBAR_HIGHLIGHT_TEXT_COLOUR)
@@ -1070,10 +1060,13 @@ class Sidebar(QWidget):
             self.active_objects.clear()
             active = self.annotation_controller.get_active_objects(current_index)
             for item in active:
-                obj_name = item["name"]
-                obj_type = (item["type"] or "").lower()
-                numeric_id = obj_name.split("-")[-1] if "-" in obj_name else obj_name
-                self.active_objects.addItem(f"{obj_type} (ID: {numeric_id})")
+                obj_id = item.get("id")
+                obj_name = item.get("name") or ""
+                obj_type = item.get("type", "Object")
+                display_text = f"{obj_type} (ID: {obj_id}) - {obj_name}"
+                list_item = QListWidgetItem(display_text)
+                list_item.setData(Qt.ItemDataRole.UserRole, obj_id)
+                self.active_objects.addItem(list_item)
 
             self.select_active_object_by_id(self._editing_object_id)
 
