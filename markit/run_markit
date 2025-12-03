@@ -19,6 +19,7 @@ Optional Arguments:
     --ontology           Path to SAVANT ontology file for class mapping (default: ../Specification/savant_ontology_1.3.0.ttl)
     --output_video       Path to output annotated video file (optional)
     --aruco-csv          Path to CSV file with ArUco marker GPS positions (enables ArUco detection)
+    --provenance         Path to provenance chain file for W3C PROV-JSON tracking (created if not exists)
 
 Detection Configuration:
     --detection-method   Detection method: yolo, optical_flow, or both (default: yolo)
@@ -52,6 +53,7 @@ Features:
     - OpenLabel JSON export with SAVANT ontology integration
     - Dynamic class mapping from ontology (41 classes)
     - Configurable postprocessing pipeline for data quality improvement
+    - Optional W3C PROV-JSON provenance tracking via dataprov
 """
 
 import argparse
@@ -137,6 +139,8 @@ Examples:
     optional.add_argument('--output_video', help='Path to output annotated video file')
     optional.add_argument('--aruco-csv', dest='aruco_csv',
                           help='Path to CSV file with ArUco marker GPS positions (enables ArUco detection)')
+    optional.add_argument('--provenance',
+                          help='Path to provenance chain file (will be created if not exists)')
 
     # Detection configuration
     detection = parser.add_argument_group('Detection Configuration')
@@ -192,6 +196,48 @@ Examples:
                                help='Enable verbose output with detailed angle and detection logging')
 
     return parser.parse_args()
+
+
+def build_arguments_string(args: argparse.Namespace) -> str:
+    """Build a string representation of relevant CLI arguments for provenance.
+
+    Args:
+        args: Parsed command line arguments
+
+    Returns:
+        Space-separated string of CLI arguments used
+    """
+    parts = [
+        f"--input {args.input}",
+        f"--output_json {args.output_json}",
+        f"--detection-method {args.detection_method}",
+        f"--schema {args.schema}",
+        f"--ontology {args.ontology}",
+    ]
+    if args.detection_method in ['yolo', 'both']:
+        parts.append(f"--weights {args.weights}")
+    if args.housekeeping:
+        parts.append("--housekeeping")
+        parts.append(f"--duplicate-avg-iou {args.duplicate_avg_iou}")
+        parts.append(f"--duplicate-min-iou {args.duplicate_min_iou}")
+        parts.append(f"--rotation-threshold {args.rotation_threshold}")
+        parts.append(f"--min-movement-pixels {args.min_movement_pixels}")
+        parts.append(f"--temporal-smoothing {args.temporal_smoothing}")
+        parts.append(f"--edge-distance {args.edge_distance}")
+        parts.append(f"--static-threshold {args.static_threshold}")
+        if args.static_mark:
+            parts.append("--static-mark")
+    if args.output_video:
+        parts.append(f"--output_video {args.output_video}")
+    if args.aruco_csv:
+        parts.append(f"--aruco-csv {args.aruco_csv}")
+        parts.append(f"--aruco-dict {args.aruco_dict}")
+    if args.detection_method in ['optical_flow', 'both']:
+        parts.append(f"--motion-threshold {args.motion_threshold}")
+        parts.append(f"--min-object-area {args.min_object_area}")
+    if args.detection_method == 'both' and not args.disable_conflict_resolution:
+        parts.append(f"--iou-threshold {args.iou_threshold}")
+    return " ".join(parts)
 
 
 def process_video(video_processor: VideoProcessor, openlabel_handler: OpenLabelHandler,
@@ -265,6 +311,12 @@ def main():
     try:
         # Parse arguments
         args = parse_arguments()
+
+        # Capture start time for provenance tracking
+        start_time = None
+        if args.provenance:
+            from datetime import datetime, timezone
+            start_time = datetime.now(timezone.utc)
 
         # Determine which engines will be used (before config to log first)
         engines = []
@@ -359,6 +411,69 @@ def main():
 
         # Cleanup and save results
         cleanup(video_processor, openlabel_handler, config)
+
+        # Record provenance if enabled
+        if args.provenance:
+            from datetime import datetime, timezone
+            from dataprov import ProvenanceChain
+
+            end_time = datetime.now(timezone.utc)
+
+            chain = ProvenanceChain.load_or_create(
+                args.provenance,
+                entity_id="savant_markit_output",
+                initial_source=args.input,
+                description="SAVANT markit video processing"
+            )
+
+            # Build arguments string
+            arguments = build_arguments_string(args)
+
+            # Collect all input files used
+            inputs = [args.input]
+            input_formats = ["MP4"]
+
+            # Add schema and ontology (always used)
+            inputs.append(args.schema)
+            input_formats.append("JSON")
+            inputs.append(args.ontology)
+            input_formats.append("TTL")
+
+            # Add weights if YOLO detection used
+            if args.detection_method in ['yolo', 'both']:
+                inputs.append(args.weights)
+                input_formats.append("PT")
+
+            # Add ArUco CSV if provided
+            if args.aruco_csv:
+                inputs.append(args.aruco_csv)
+                input_formats.append("CSV")
+
+            # Collect outputs (JSON always, video if specified)
+            outputs = [args.output_json]
+            output_formats = ["JSON"]
+            if args.output_video:
+                outputs.append(args.output_video)
+                output_formats.append("MP4")
+
+            chain.add(
+                started_at=start_time.isoformat().replace("+00:00", "Z"),
+                ended_at=end_time.isoformat().replace("+00:00", "Z"),
+                tool_name="run_markit",
+                tool_version=__version__,
+                operation="object detection and tracking",
+                inputs=inputs,
+                input_formats=input_formats,
+                outputs=outputs,
+                output_formats=output_formats,
+                arguments=arguments,
+                capture_agent=True,
+                agent_type="automated",
+                capture_environment=True
+            )
+
+            chain.save(args.provenance)
+            logger.info(f"Provenance recorded to {args.provenance}")
 
         logger.info("Multi-engine video processing completed successfully")
 
