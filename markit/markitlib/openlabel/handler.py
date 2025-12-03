@@ -120,6 +120,19 @@ class OpenLabelHandler:
 
         logger.info("Metadata added to OpenLabel structure")
 
+    def set_ontology(self, ontology_uri: str) -> None:
+        """Set the ontology URI in the ontologies section.
+
+        Args:
+            ontology_uri: The ontology namespace URI to use
+        """
+        if ontology_uri:
+            if "openlabel" in self.openlabel_data and "ontologies" in self.openlabel_data["openlabel"]:
+                self.openlabel_data["openlabel"]["ontologies"]["0"] = ontology_uri
+                logger.info(f"Ontology set: {ontology_uri}")
+            else:
+                logger.warning("Could not set ontology: openlabel.ontologies not found in structure")
+
     def add_aruco_objects(self, gps_data: Dict[int, Dict], base_name: str) -> None:
         """Pre-populate all ArUco markers from GPS data.
 

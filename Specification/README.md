@@ -1,5 +1,9 @@
 # SAVANT file formats
 
+NOTE: THE SPECIFICATION FOLDER IS DEPRECATED AND WILL BE REMOVED!!!
+
+Use files in ontology/ and schema/ instead.
+
 ## SAVANT OpenLabel Subset
 The tag file adheres to the ASAM OpenLabel format, but we only use a subset of the tags for SAVANT.
 *Subject to change during development, this is an initial guess*

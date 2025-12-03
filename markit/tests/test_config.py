@@ -23,7 +23,6 @@ class TestConstants:
         assert Constants.MP4V_FOURCC == "mp4v"
         assert Constants.SCHEMA_VERSION == "1.1"
         assert "SAVANT markit" in Constants.ANNOTATOR_NAME
-        assert "savant_ontology" in Constants.ONTOLOGY_URL
 
     def test_default_class_map_exists(self):
         """Default class map should be defined."""

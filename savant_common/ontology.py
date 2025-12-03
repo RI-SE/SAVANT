@@ -1,3 +1,6 @@
+import re
+from typing import Optional
+
 from rdflib import Graph, Namespace, RDF, RDFS
 
 
@@ -18,7 +21,7 @@ def read_ontology_classes(ttl_path):
     g = Graph()
     g.parse(ttl_path, format="turtle")
 
-    SAVANT = Namespace("http://savant.ri.se/ontology#")
+    SAVANT = Namespace("http://github.com/RI-SE/SAVANT/ontology#")
 
     def extract_class_name(uri_str):
         """Extract the class name from a URI (part after #)."""
@@ -55,7 +58,7 @@ def read_ontology_classes(ttl_path):
 
         # If parent is outside SAVANT namespace, current class is top-level
         parent_str = str(parent)
-        if not parent_str.startswith("http://savant.ri.se/ontology#"):
+        if not parent_str.startswith("http://github.com/RI-SE/SAVANT/ontology#"):
             return str(class_uri), extract_class_name(str(class_uri))
 
         # Otherwise, recurse up the chain
@@ -212,6 +215,31 @@ def get_class_by_label(ttl_path, label, case_sensitive=False):
             if c['label'] and c['label'].lower() == label_lower:
                 return c
 
+    return None
+
+
+def extract_namespace_uri(ttl_path: str) -> Optional[str]:
+    """
+    Extract the default namespace URI from a Turtle ontology file.
+
+    Parses the @prefix : <URI> . declaration to get the default namespace.
+
+    Args:
+        ttl_path: Path to the Turtle ontology file (.ttl)
+
+    Returns:
+        The namespace URI string if found, None otherwise.
+
+    Example:
+        # For a file with "@prefix : <http://github.com/RI-SE/SAVANT/ontology#> ."
+        uri = extract_namespace_uri("savant_ontology_1.3.1.ttl")
+        # Returns: "http://github.com/RI-SE/SAVANT/ontology#"
+    """
+    with open(ttl_path, 'r') as f:
+        for line in f:
+            match = re.match(r'@prefix\s+:\s+<(.+)>\s*\.', line)
+            if match:
+                return match.group(1)
     return None
 
 

@@ -15,8 +15,9 @@ Required Arguments:
 
 Optional Arguments:
     --weights            Path to YOLO weights file (.pt) - required if using YOLO detection (default: markit_yolo.pt)
-    --schema             Path to OpenLabel JSON schema file (default: ../Specification/savant_openlabel_subset.schema.json)
-    --ontology           Path to SAVANT ontology file for class mapping (default: ../Specification/savant_ontology_1.3.0.ttl)
+    --schema             Path to OpenLabel JSON schema file (default: ../schema/savant_openlabel_subset.schema.json)
+    --ontology           Path to SAVANT ontology file for class mapping (default: ../ontology/savant_ontology_1.3.1.ttl)
+    --ontology-uri       Ontology URI for OpenLabel output (default: extracted from ontology file)
     --output_video       Path to output annotated video file (optional)
     --aruco-csv          Path to CSV file with ArUco marker GPS positions (enables ArUco detection)
     --provenance         Path to provenance chain file for W3C PROV-JSON tracking (created if not exists)
@@ -132,10 +133,12 @@ Examples:
     optional = parser.add_argument_group('Optional Arguments')
     optional.add_argument('--weights', default='markit_yolo.pt',
                           help='Path to YOLO weights file (.pt) (default: markit_yolo.pt)')
-    optional.add_argument('--schema', default='../Specification/savant_openlabel_subset.schema.json',
-                          help='Path to OpenLabel JSON schema file (default: ../Specification/savant_openlabel_subset.schema.json)')
-    optional.add_argument('--ontology', default='../Specification/savant_ontology_1.3.0.ttl',
-                          help='Path to SAVANT ontology file for class mapping (default: ../Specification/savant_ontology_1.3.0.ttl)')
+    optional.add_argument('--schema', default='../schema/savant_openlabel_subset.schema.json',
+                          help='Path to OpenLabel JSON schema file (default: ../schema/savant_openlabel_subset.schema.json)')
+    optional.add_argument('--ontology', default='../ontology/savant_ontology_1.3.1.ttl',
+                          help='Path to SAVANT ontology file for class mapping (default: ../ontology/savant_ontology_1.3.1.ttl)')
+    optional.add_argument('--ontology-uri', dest='ontology_uri',
+                          help='Ontology URI for OpenLabel output (default: extracted from ontology file)')
     optional.add_argument('--output_video', help='Path to output annotated video file')
     optional.add_argument('--aruco-csv', dest='aruco_csv',
                           help='Path to CSV file with ArUco marker GPS positions (enables ArUco detection)')
@@ -344,6 +347,7 @@ def main():
         # Initialize video processing
         video_processor.initialize()
         openlabel_handler.add_metadata(config.video_path)
+        openlabel_handler.set_ontology(config.ontology_uri)
 
         # Pre-populate ArUco markers from GPS data (if ArUco detection enabled)
         aruco_gps = video_processor.get_aruco_gps_data()

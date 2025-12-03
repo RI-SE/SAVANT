@@ -14,7 +14,7 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 
-from savant_common.ontology import create_class_map
+from savant_common.ontology import create_class_map, extract_namespace_uri
 
 from . import __version__
 
@@ -24,7 +24,6 @@ class Constants:
     MP4V_FOURCC = "mp4v"
     SCHEMA_VERSION = "1.1"
     ANNOTATOR_NAME = f"SAVANT markit v{__version__}"
-    ONTOLOGY_URL = "https://savant.ri.se/savant_ontology_1.3.0.ttl"
     # Fallback class map used when ontology file cannot be loaded
     # In normal operation, class_map is loaded dynamically from the ontology
     DEFAULT_CLASS_MAP = {
@@ -88,6 +87,9 @@ class MarkitConfig:
         self.schema_path = args.schema
         self.output_video_path = args.output_video
         self.ontology_path = args.ontology
+
+        # Ontology URI for OpenLabel output (explicit or extracted from file)
+        self.ontology_uri = self._resolve_ontology_uri(args)
 
         # ArUco detection configuration
         self.aruco_csv_path = args.aruco_csv if hasattr(args, 'aruco_csv') else None
@@ -154,6 +156,33 @@ class MarkitConfig:
         # Validate IoU threshold
         if not (0.0 <= self.iou_threshold <= 1.0):
             raise ValueError(f"IoU threshold must be between 0.0 and 1.0, got: {self.iou_threshold}")
+
+    def _resolve_ontology_uri(self, args: argparse.Namespace) -> Optional[str]:
+        """Resolve ontology URI from explicit argument or by extracting from file.
+
+        Args:
+            args: Parsed command line arguments
+
+        Returns:
+            Ontology URI string, or None if not available.
+        """
+        logger = logging.getLogger(__name__)
+
+        # Use explicit URI if provided
+        if hasattr(args, 'ontology_uri') and args.ontology_uri:
+            logger.info(f"Ontology URI: {args.ontology_uri} (from --ontology-uri)")
+            return args.ontology_uri
+
+        # Otherwise extract from ontology file
+        if self.ontology_path and os.path.exists(self.ontology_path):
+            uri = extract_namespace_uri(self.ontology_path)
+            if uri:
+                logger.info(f"Ontology URI: {uri} (extracted from {self.ontology_path})")
+                return uri
+            else:
+                logger.warning(f"Could not extract namespace URI from {self.ontology_path}")
+
+        return None
 
     def _load_class_map(self, verbose: bool = False) -> Dict[int, str]:
         """Load class map from ontology file or use default.

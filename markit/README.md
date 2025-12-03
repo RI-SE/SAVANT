@@ -2,7 +2,7 @@
 
 ![SAVANT logo](../docs/savant_logo.png)
 
-**Advanced multi-engine object detection and tracking for UAV videos**
+**Multi-engine object detection and tracking with OpenLabel output**
 
 Markit is a command-line tool for detecting and tracking objects using oriented bounding boxes (OBB), the default YOLO model is tuned for drone footage of road traffic. It combines multiple detection engines, resolves conflicts between them, and exports results in an ASAM OpenLabel JSON compatible format (the tool supports a subset of OpenLabel).
 
@@ -150,10 +150,9 @@ markit --input video.mp4 --output_json output.json --housekeeping
 | Duplicate Removal | Removes overlapping detections using IoU thresholds |
 | First Detection Refinement | Refines initial detection angles using lookahead |
 | Rotation Adjustment | Smooths rotation using movement direction |
-| Sudden Detection | Flags objects appearing/disappearing near frame edges |
+| Sudden Detection | Flags objects appearing/disappearing far from frame edges |
 | Frame Interval | Calculates frame intervals for each object |
 | Static Object Removal | Removes or marks objects that don't move |
-| Angle Normalization | Normalizes all angles to [0, 2π) range |
 
 ### Postprocessing Options
 
@@ -171,7 +170,7 @@ markit --input video.mp4 --output_json output.json --housekeeping \
 
 ## Output Format
 
-Markit exports detections in OpenLabel JSON format with SAVANT ontology integration.
+Markit exports detections in OpenLabel (subset) JSON format, including information on annotator and confidence in annotation accuracy.
 
 ### JSON Structure
 
@@ -262,7 +261,7 @@ The provenance file records inputs, outputs, parameters, and processing steps.
 
 ## ArUco Markers
 
-ArUco markers can be used as ground control points with known GPS positions. When detected, markers are added to the OpenLabel output with their associated coordinates.
+ArUco markers can be used as ground control points with known GPS positions. When detected, markers are added to the OpenLabel output with their associated coordinates (see TestVids/Saro_roundabout for example).
 
 ### CSV Format
 
@@ -288,6 +287,53 @@ Each ArUco marker has 4 corners labeled a, b, c, d:
 
 ![ArUco coordinates](docs/coords_aruca.png)
 
+Marker position is included in the OpenLabel output as objects with additional object_data including longitude, latitude, and altitude from the corner(s) where position is measured (from the csv file):
+
+```json
+     "2000017": {
+        "name": "GbgSaroRound_17",
+        "type": "ArUco",
+        "ontology_uid": "0",
+        "object_data": {
+          "vec": [
+            {
+              "name": "arucoID",
+              "val": [
+                "17a",
+                "17c"
+              ]
+            },
+            {
+              "name": "long",
+              "val": [
+                "12.00977788073061",
+                "12.009746301733916"
+              ]
+            },
+            {
+              "name": "lat",
+              "val": [
+                "57.48451372894236",
+                "57.484504456642185"
+              ]
+            },
+            {
+              "name": "alt",
+              "val": [
+                "72.75258941650391",
+                "72.54821319580078"
+              ]
+            },
+            {
+              "name": "description",
+              "val": "GbgSaroRound"
+            }
+          ]
+        }
+      }
+```
+
+
 ### Usage
 
 ```bash
@@ -311,8 +357,9 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--weights` | `markit_yolo.pt` | YOLO weights file (.pt) |
-| `--schema` | `../Specification/savant_openlabel_subset.schema.json` | OpenLabel JSON schema |
-| `--ontology` | `../Specification/savant_ontology_1.3.0.ttl` | SAVANT ontology file |
+| `--schema` | `../schema/savant_openlabel_subset.schema.json` | OpenLabel JSON schema |
+| `--ontology` | `../ontology/savant_ontology_1.3.1.ttl` | SAVANT ontology file |
+| `--ontology-uri` | extracted from file | Ontology URI for OpenLabel output |
 | `--output_video` | - | Output annotated video path |
 | `--aruco-csv` | - | CSV with ArUco marker positions |
 | `--provenance` | - | Provenance chain file path |
