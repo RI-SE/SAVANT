@@ -1,3 +1,4 @@
+import math
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import (
@@ -233,7 +234,9 @@ class PlaybackControls(QWidget):
                 f"<b>Size (w, h):</b> "
                 f"{annotation_details.width:.2f}, {annotation_details.height:.2f}"
             )
-            rot_str = f"<b>Rotation:</b> {annotation_details.rotation:.1f} radians"
+            rot_str = (
+                f"<b>Rotation:</b> {math.degrees(annotation_details.rotation):.1f}°"
+            )
 
             self.center_label.setText(center_str)
             self.size_label.setText(size_str)
