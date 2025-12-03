@@ -271,9 +271,18 @@ class OpenLabel(BaseModel):
         )
         new_frame_obj = FrameLevelObject(object_data=new_obj_data)
 
+        frame_key = str(frame_id)
+        frame_entry = self.frames.get(frame_key)
+        if frame_entry is None:
+            frame_entry = FrameObjects(objects={})
+            self.frames[frame_key] = frame_entry
+
+        if frame_entry.objects is None:
+            frame_entry.objects = {}
+
         # Adds a NEW bounding box.
         # Will overwrite if a bounding box ID already exists.
-        self.frames[str(frame_id)].objects[obj_id] = new_frame_obj
+        frame_entry.objects[obj_id] = new_frame_obj
 
     def _get_frame_object(
         self,

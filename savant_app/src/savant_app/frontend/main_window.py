@@ -13,6 +13,20 @@ from PyQt6.QtWidgets import (
 from savant_app.frontend.exceptions import InvalidWarningErrorRange
 from savant_app.frontend.states.frontend_state import FrontendState
 from savant_app.frontend.states.sidebar_state import SidebarState
+from savant_app.frontend.widgets.annotator_dialog import AnnotatorDialog
+from savant_app.frontend.utils.settings_store import (
+    get_action_interval_offset,
+    # get_ontology_path,  # legacy manual ontology picker
+    get_warning_range,
+    get_error_range,
+    get_show_warnings,
+    get_show_errors,
+    get_tag_options,
+    set_threshold_ranges,
+    set_show_warnings,
+    set_show_errors,
+    set_tag_option_states,
+)
 from savant_app.frontend.utils import (
     annotation_ops,
     confidence_ops,
@@ -22,19 +36,7 @@ from savant_app.frontend.utils import (
     render,
     zoom,
 )
-from savant_app.frontend.utils.settings_store import (
-    get_action_interval_offset,
-    get_error_range,
-    get_ontology_path,
-    get_show_errors,
-    get_show_warnings,
-    get_tag_options,
-    get_warning_range,
-    set_show_errors,
-    set_show_warnings,
-    set_tag_option_states,
-    set_threshold_ranges,
-)
+
 from savant_app.frontend.utils.undo import (
     ControllerAnnotationGateway,
     ControllerFrameTagGateway,
@@ -42,7 +44,6 @@ from savant_app.frontend.utils.undo import (
     UndoRedoManager,
 )
 from savant_app.frontend.widgets.about_dialog import AboutDialog
-from savant_app.frontend.widgets.annotator_dialog import AnnotatorDialog
 from savant_app.frontend.widgets.menu import AppMenu
 from savant_app.frontend.widgets.overlay import Overlay
 from savant_app.frontend.widgets.playback_controls import PlaybackControls
@@ -88,10 +89,14 @@ class MainWindow(QMainWindow):
         # Menu
         self.menu = AppMenu(
             self,
-            on_new=self.noop,
-            on_load=self.noop,
-            on_save=self.noop,
+            on_new=self.start_new_project_flow,
+            on_load=self.load_project_flow,
+            on_save=self.quick_save_project,
             on_settings=self.open_settings,
+            on_new_bbox=self.create_new_bounding_box,
+            on_new_frame_tag=self.create_new_frame_tag,
+            on_interpolate=self.open_interpolation_dialog,
+            on_create_relationship=self.open_relationship_dialog,
             on_about=self.open_about,
         )
 
@@ -171,6 +176,13 @@ class MainWindow(QMainWindow):
         current_annotator_name = annotator_name_dialog.get_annotator_name()
         self.state.set_current_annotator(current_annotator_name)
 
+    def set_project_name(self, name: str) -> None:
+        cleaned = (name or "").strip()
+        if not cleaned:
+            return
+        self.project_name = cleaned
+        self.update_title()
+
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")
 
@@ -194,12 +206,14 @@ class MainWindow(QMainWindow):
             theme="Dark",
             zoom_rate=1.2,
             frame_count=self.sidebar_state.historic_obj_frame_count,
-            ontology_path=get_ontology_path(),
+            # Manual ontology parameter:
+            # ontology_path=get_ontology_path(),
             action_interval_offset=get_action_interval_offset(),
             tag_options=get_tag_options(),
             parent=self,
         )
-        dlg.ontology_path_selected.connect(self.sidebar.reload_bbox_type_combo)
+        # Signal hook for manual ontology updates:
+        # dlg.ontology_path_selected.connect(self.sidebar.reload_bbox_type_combo)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             vals = dlg.values()
             self.sidebar_state.historic_obj_frame_count = vals["previous_frame_count"]
@@ -249,6 +263,49 @@ class MainWindow(QMainWindow):
 
     def noop(*args, **kwargs):
         print("Not implemented yet")
+
+    def start_new_project_flow(self):
+        """Proxy to the sidebar's staged new-project UI."""
+
+        sidebar_flow = getattr(self.sidebar, "start_new_project_flow", None)
+        if callable(sidebar_flow):
+            sidebar_flow()
+
+    def load_project_flow(self):
+        """Trigger the sidebar's open-project folder dialog."""
+        loader = getattr(self.sidebar, "open_project_folder_dialog", None)
+        if callable(loader):
+            loader()
+
+    def quick_save_project(self):
+        """Trigger quick-save through the sidebar wiring."""
+        saver = getattr(self.sidebar, "quick_save_project", None)
+        if callable(saver):
+            saver()
+
+    def create_new_bounding_box(self):
+        """Open the sidebar's bounding box workflow."""
+        creator = getattr(self.sidebar, "create_new_bbox", None)
+        if callable(creator):
+            creator()
+
+    def create_new_frame_tag(self):
+        """Open the sidebar's frame tag dialog."""
+        tagger = getattr(self.sidebar, "create_new_frame_tag", None)
+        if callable(tagger):
+            tagger()
+
+    def open_interpolation_dialog(self):
+        """Open the sidebar's interpolation dialog."""
+        interpolator = getattr(self.sidebar, "open_interpolation_dialog", None)
+        if callable(interpolator):
+            interpolator()
+
+    def open_relationship_dialog(self):
+        """Open the sidebar's relationship dialog."""
+        rel = getattr(self.sidebar, "open_relationship_dialog", None)
+        if callable(rel):
+            rel()
 
     def refresh_confidence_issues(self):
         confidence_ops.refresh_confidence_issues(self)

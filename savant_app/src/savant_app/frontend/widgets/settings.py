@@ -1,7 +1,10 @@
 # settings.py
-from pathlib import Path
 
-from PyQt6.QtCore import Qt, pyqtSignal
+# manual ontology selection imports:
+# from pathlib import Path
+# from PyQt6.QtCore import Qt, pyqtSignal
+
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -9,7 +12,7 @@ from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
-    QFileDialog,
+    # QFileDialog,  # Manual ontology picker
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -33,7 +36,7 @@ from savant_app.frontend.utils.settings_store import (
     get_error_range,
     get_movement_sensitivity,
     get_ontology_namespace,
-    get_ontology_path,
+    # get_ontology_path,  # manual ontology picker
     get_rotation_sensitivity,
     get_show_errors,
     get_show_warnings,
@@ -41,21 +44,21 @@ from savant_app.frontend.utils.settings_store import (
     set_action_interval_offset,
     set_movement_sensitivity,
     set_ontology_namespace,
-    set_ontology_path,
+    # set_ontology_path,  # Manual ontology picker
     set_rotation_sensitivity,
 )
 
 
 class SettingsDialog(QDialog):
-    ontology_path_selected = pyqtSignal(str)
-
+    # Manual ontology selection support:
+    # ontology_path_selected = pyqtSignal(str)
     def __init__(
         self,
         *,
         theme="System",
         zoom_rate=1,
         frame_count=100,
-        ontology_path: Path,
+        # ontology_path: Path, # manual ontology parameter:
         action_interval_offset: int,
         tag_options: dict[str, dict[str, bool]] | None = None,
         parent=None,
@@ -161,12 +164,13 @@ class SettingsDialog(QDialog):
         ontology_group = QGroupBox("Annotations && Ontology", self)
         ontology_form = QFormLayout(ontology_group)
 
-        self._ontology_edit = QLineEdit(self)
-        self._ontology_edit.setReadOnly(True)
-        browse_btn = QPushButton("Browse…", self)
-        browse_btn.clicked.connect(self._on_browse_ontology_clicked)
-        ontology_form.addRow("Frame Tag Ontology:", self._ontology_edit)
-        ontology_form.addRow("", browse_btn)
+        # manual ontology selector:
+        # self._ontology_edit = QLineEdit(self)
+        # self._ontology_edit.setReadOnly(True)
+        # browse_btn = QPushButton("Browse…", self)
+        # browse_btn.clicked.connect(self._on_browse_ontology_clicked)
+        # ontology_form.addRow("Frame Tag Ontology:", self._ontology_edit)
+        # ontology_form.addRow("", browse_btn)
 
         self._namespace_edit = QLineEdit(self)
         self._namespace_edit.setPlaceholderText(get_ontology_namespace())
@@ -545,21 +549,22 @@ class SettingsDialog(QDialog):
             current_btn.setText(hex_str)
             current_btn.setStyleSheet(f"background-color: {hex_str};")
 
-    def _on_browse_ontology_clicked(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Ontology (.ttl)",
-            str(Path.home()),
-            "Turtle files (*.ttl)",
-        )
-        if not path:
-            return
-        set_ontology_path(path)
-        self._ontology_edit.setText(str(get_ontology_path()))
-        QMessageBox.information(
-            self, "Ontology Updated", "Frame tag ontology file has been updated."
-        )
-        self.ontology_path_selected.emit(str(get_ontology_path()))
+    # Manual ontology picker handler:
+    # def _on_browse_ontology_clicked(self) -> None:
+    #     path, _ = QFileDialog.getOpenFileName(
+    #         self,
+    #         "Select Ontology (.ttl)",
+    #         str(Path.home()),
+    #         "Turtle files (*.ttl)",
+    #     )
+    #     if not path:
+    #         return
+    #     set_ontology_path(path)
+    #     self._ontology_edit.setText(str(get_ontology_path()))
+    #     QMessageBox.information(
+    #         self, "Ontology Updated", "Frame tag ontology file has been updated."
+    #     )
+    #     self.ontology_path_selected.emit(str(get_ontology_path()))
 
     def _on_offset_changed(self, value: int) -> None:
         try:

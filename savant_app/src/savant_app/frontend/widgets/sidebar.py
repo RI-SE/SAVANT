@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PyQt6.QtCore import (
     QEvent,
     QItemSelectionModel,
@@ -33,7 +35,10 @@ from PyQt6.QtWidgets import (
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.project_state_controller import ProjectStateController
 from savant_app.controllers.video_controller import VideoController
-from savant_app.frontend.exceptions import InvalidObjectIDFormat
+from savant_app.frontend.exceptions import (
+    InvalidDirectoryError,
+    InvalidObjectIDFormat,
+)
 from savant_app.frontend.states.frontend_state import FrontendState
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.theme.constants import (
@@ -48,6 +53,10 @@ from savant_app.frontend.theme.constants import (
 from savant_app.frontend.theme.sidebar_styles import apply_issue_sort_button_style
 from savant_app.frontend.utils.assets import icon
 from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
+from savant_app.frontend.utils.project_io import (
+    ProjectDirectoryContents,
+    scan_project_directory,
+)
 from savant_app.frontend.utils.settings_store import get_ontology_path
 from savant_app.frontend.utils.sidebar_confidence_items import (
     SidebarConfidenceIssueItemDelegate,
@@ -59,6 +68,7 @@ from savant_app.frontend.utils.undo import (
     RemoveFrameTagCommand,
 )
 from savant_app.frontend.widgets.interpolation_dialog import InterpolationDialog
+from savant_app.frontend.widgets.new_project_dialog import NewProjectDialog
 from savant_app.frontend.widgets.settings import get_action_interval_offset
 from savant_app.services.exceptions import VideoLoadError
 
@@ -70,7 +80,7 @@ class Sidebar(QWidget):
     # TODO: Rename to add_new_bbox_new_obj
     start_bbox_drawing = pyqtSignal(str)
     add_new_bbox_existing_obj = pyqtSignal(str)
-    open_project_dir = pyqtSignal(str)
+    open_project_dir = pyqtSignal(str, str)
     quick_save = pyqtSignal()
     highlight_selected_object = pyqtSignal(str)
     object_selected = pyqtSignal(str)  # New signal for selection changes
@@ -102,6 +112,7 @@ class Sidebar(QWidget):
 
         self.content_widget = QWidget()
         main_layout = QVBoxLayout(self.content_widget)
+        self._video_actors = list(video_actors or [])
 
         # Temporary controller until refactor.
         self.annotation_controller: AnnotationController = annotation_controller
@@ -119,6 +130,7 @@ class Sidebar(QWidget):
         self._error_icon = self._create_confidence_icon(get_error_icon())
         self._confidence_sort_mode: str = "frame"
         self._confidence_sort_ascending: bool = True
+        self._new_project_dialog: NewProjectDialog | None = None
 
         # --- Horizontal layout for New / Load / Save ---
         top_buttons_layout = QHBoxLayout()
@@ -139,8 +151,9 @@ class Sidebar(QWidget):
         # )  # same icon as loading video. Will be removed in a
         #             future ticket when config dir is made.
 
-        load_btn.clicked.connect(self._choose_project_dir)
-        save_btn.clicked.connect(self._trigger_quick_save)
+        new_btn.clicked.connect(self.start_new_project_flow)
+        load_btn.clicked.connect(self.open_project_folder_dialog)
+        save_btn.clicked.connect(self.quick_save_project)
         # load_config_btn.clicked.connect(self._choose_openlabel_file)
 
         top_buttons_layout.addWidget(new_btn)
@@ -154,25 +167,23 @@ class Sidebar(QWidget):
 
         # --- New BBox Button with dropdown ---
         new_bbox_btn = QPushButton("New BBox")
-        new_bbox_btn.clicked.connect(
-            lambda: self.create_bbox(video_actors=video_actors)
-        )
+        new_bbox_btn.clicked.connect(self.create_new_bbox)
         main_layout.addWidget(new_bbox_btn)
 
         # --- New Frame Tag Button ---
         new_tag_btn = QPushButton("New frame tag")
-        new_tag_btn.clicked.connect(self._open_frame_tag_dialog)
+        new_tag_btn.clicked.connect(self.create_new_frame_tag)
         main_layout.addWidget(new_tag_btn)
 
         # --- Interpolation Button ---
         self.interpolate_btn = QPushButton("Interpolate")
         self.interpolate_btn.setEnabled(True)  # Enable now that we have implementation
-        self.interpolate_btn.clicked.connect(self._open_interpolation_dialog)
+        self.interpolate_btn.clicked.connect(self.open_interpolation_dialog)
         main_layout.addWidget(self.interpolate_btn)
 
         # --- Create Relationship Button ---
         self.create_relationship_btn = QPushButton("Create Relationship")
-        self.create_relationship_btn.clicked.connect(self._open_relationship_dialog)
+        self.create_relationship_btn.clicked.connect(self.open_relationship_dialog)
         main_layout.addWidget(self.create_relationship_btn)
         # --- Object Details ---
         parts = create_collapsible_object_details(
@@ -543,11 +554,85 @@ class Sidebar(QWidget):
         """Let the user pick a folder containing the video + OpenLabel JSON."""
         path = QFileDialog.getExistingDirectory(self, "Open Project Folder", "")
         if path:
-            self.open_project_dir.emit(path)
+            self.open_project_dir.emit(path, Path(path).name)
+
+    def open_project_folder_dialog(self) -> None:
+        """Public entry point for selecting an existing project directory."""
+        self._choose_project_dir()
+
+    def start_new_project_flow(self) -> None:
+        """Entry point for the staged new-project creation flow."""
+
+        directory_path = QFileDialog.getExistingDirectory(
+            self, "Select Project Folder", ""
+        )
+        if not directory_path:
+            return
+        try:
+            contents = scan_project_directory(directory_path)
+        except InvalidDirectoryError as error:
+            QMessageBox.critical(self, "Invalid Folder", str(error))
+            return
+        dialog = self._get_or_create_new_project_dialog(contents)
+        dialog.exec()
+
+    def _get_or_create_new_project_dialog(
+        self, contents: ProjectDirectoryContents
+    ) -> NewProjectDialog:
+        """Reuse the same dialog so future stages can keep context."""
+
+        dialog = self._new_project_dialog
+        if dialog is None:
+            dialog = NewProjectDialog(contents, parent=self)
+            dialog.project_ready.connect(self._on_new_project_ready)
+            self._new_project_dialog = dialog
+            return dialog
+
+        current_directory = getattr(dialog, "current_directory", None)
+        if current_directory is None or current_directory != contents.directory:
+            try:
+                dialog.close()
+                dialog.deleteLater()
+            except RuntimeError:
+                pass
+            dialog = NewProjectDialog(contents, parent=self)
+            dialog.project_ready.connect(self._on_new_project_ready)
+            self._new_project_dialog = dialog
+            return dialog
+
+        dialog.update_contents(contents)
+        return dialog
+
+    def _on_new_project_ready(self, directory_path: str, project_name: str) -> None:
+        """Load the prepared project using existing wiring."""
+
+        if directory_path:
+            label = (project_name or Path(directory_path).name).strip()
+            self.open_project_dir.emit(directory_path, label or Path(directory_path).name)
 
     def _trigger_quick_save(self):
         """Trigger quick save signal."""
         self.quick_save.emit()
+
+    def quick_save_project(self) -> None:
+        """Public entry point for quick save requests."""
+        self._trigger_quick_save()
+
+    def create_new_bbox(self) -> None:
+        """Launch the new bounding box workflow."""
+        self.create_bbox(video_actors=self._video_actors)
+
+    def create_new_frame_tag(self) -> None:
+        """Open the frame tag dialog."""
+        self._open_frame_tag_dialog()
+
+    def open_interpolation_dialog(self) -> None:
+        """Open the interpolation dialog."""
+        self._open_interpolation_dialog()
+
+    def open_relationship_dialog(self) -> None:
+        """Open the relationship dialog."""
+        self._open_relationship_dialog()
 
     def _choose_video_file(self):
         path, _ = QFileDialog.getOpenFileName(
