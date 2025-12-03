@@ -19,6 +19,7 @@ Core Arguments:
     --name, -n         Experiment name (default: train)
     --resume           Resume training from last checkpoint
     --verbose, -v      Enable verbose logging
+    --provenance       Path to provenance chain file for W3C PROV-JSON tracking
 
 Advanced Training Parameters (optional - uses YOLO defaults if not specified):
     --lr0              Initial learning rate (default: 0.01)
@@ -91,7 +92,8 @@ import uuid as uuid_module
 # Configure logging
 logger = logging.getLogger(__name__)
 
-__version__ = '2.0.0'
+# Import version from package
+from trainit import __version__
 
 
 def setup_ultralytics_settings(project_dir: str = "runs/obb") -> Path:
@@ -398,9 +400,12 @@ class YOLOTrainer:
 
         print("="*60)
     
-    def train(self) -> None:
+    def train(self) -> object:
         """Execute model training.
-        
+
+        Returns:
+            Training results object from YOLO (contains save_dir, metrics, etc.)
+
         Raises:
             TrainingError: If training fails
         """
@@ -468,9 +473,11 @@ class YOLOTrainer:
             
             # Print training results summary
             self.print_training_results(results)
-            
+
             logger.info("Training completed successfully!")
-            
+
+            return results
+
         except KeyboardInterrupt:
             logger.info("Training interrupted by user")
             raise
@@ -546,7 +553,7 @@ def get_default_device() -> str:
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments.
-    
+
     Returns:
         Parsed arguments namespace
     """
@@ -592,92 +599,180 @@ Examples:
   python train_yolo_obb.py --data UAV.yaml --project my_experiments --name uav_detection
         """
     )
-    
-    # Required arguments
-    parser.add_argument("--data", "-d", required=True,
-                       help="Path to dataset configuration YAML file")
-    
-    # Model arguments
-    parser.add_argument("--model", "-m", default="yolo11s-obb.pt",
-                       help="Pre-trained model path or name (default: yolo11s-obb.pt)")
-    
-    # Training parameters
-    parser.add_argument("--epochs", "-e", type=int, default=50,
-                       help="Number of training epochs (default: 50)")
-    parser.add_argument("--imgsz", "-s", type=int, default=640,
-                       help="Image size for training (default: 640)")
-    parser.add_argument("--batch", "-b", type=int, default=30,
-                       help="Batch size (default: 30)")
-    parser.add_argument("--device", default=get_default_device(),
-                       help=f"Device to use for training (default: {get_default_device()})")
-    
-    # Output arguments
-    parser.add_argument("--project", default="runs/obb",
-                       help="Project directory for saving results (default: runs/obb)")
-    parser.add_argument("--name", "-n", default="train",
-                       help="Experiment name (default: train)")
-    
-    # Training options
-    parser.add_argument("--resume", action="store_true",
-                       help="Resume training from last checkpoint")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                       help="Enable verbose logging")
 
-    # Advanced training parameters (optional - uses YOLO defaults if not specified)
-    parser.add_argument("--lr0", type=float, default=None,
-                       help="Initial learning rate (YOLO default: 0.01)")
-    parser.add_argument("--lrf", type=float, default=None,
-                       help="Final learning rate as fraction of lr0 (YOLO default: 0.01)")
-    parser.add_argument("--optimizer", type=str, default=None,
-                       choices=['SGD', 'Adam', 'AdamW', 'NAdam', 'RAdam', 'RMSProp'],
-                       help="Optimizer choice (YOLO default: auto)")
-    parser.add_argument("--warmup-epochs", type=float, default=None,
-                       help="Number of warmup epochs (YOLO default: 3.0)")
-    parser.add_argument("--warmup-momentum", type=float, default=None,
-                       help="Warmup initial momentum (YOLO default: 0.8)")
-    parser.add_argument("--patience", type=int, default=None,
-                       help="Early stopping patience in epochs (YOLO default: 50)")
-    parser.add_argument("--save-period", type=int, default=None,
-                       help="Save checkpoint every N epochs (YOLO default: -1, disabled)")
-    parser.add_argument("--cache", type=str, default=None,
-                       choices=['true', 'false', 'ram', 'disk'],
-                       help="Cache images to RAM/disk for faster training (YOLO default: false)")
-    parser.add_argument("--workers", type=int, default=None,
-                       help="Number of dataloader worker threads (YOLO default: 8)")
-    parser.add_argument("--close-mosaic", type=int, default=None,
-                       help="Disable mosaic augmentation in final N epochs (YOLO default: 10)")
-    parser.add_argument("--freeze", type=int, default=None,
-                       help="Freeze first N layers for transfer learning (YOLO default: None)")
-    parser.add_argument("--box", type=float, default=None,
-                       help="Box loss gain weight (YOLO default: 7.5 for OBB)")
-    parser.add_argument("--cls", type=float, default=None,
-                       help="Class loss gain weight (YOLO default: 0.5)")
-    parser.add_argument("--dfl", type=float, default=None,
-                       help="Distribution focal loss gain (YOLO default: 1.5)")
-    parser.add_argument("--hsv-h", type=float, default=None,
-                       help="HSV-Hue augmentation range (YOLO default: 0.015)")
-    parser.add_argument("--hsv-s", type=float, default=None,
-                       help="HSV-Saturation augmentation range (YOLO default: 0.7)")
-    parser.add_argument("--hsv-v", type=float, default=None,
-                       help="HSV-Value augmentation range (YOLO default: 0.4)")
-    parser.add_argument("--degrees", type=float, default=None,
-                       help="Rotation augmentation range in degrees (YOLO default: 0.0)")
-    parser.add_argument("--translate", type=float, default=None,
-                       help="Translation augmentation as fraction (YOLO default: 0.1)")
-    parser.add_argument("--scale", type=float, default=None,
-                       help="Scaling augmentation gain (YOLO default: 0.5)")
-    parser.add_argument("--shear", type=float, default=None,
-                       help="Shear augmentation in degrees (YOLO default: 0.0)")
-    parser.add_argument("--perspective", type=float, default=None,
-                       help="Perspective augmentation (YOLO default: 0.0)")
-    parser.add_argument("--fliplr", type=float, default=None,
-                       help="Horizontal flip probability (YOLO default: 0.5)")
-    parser.add_argument("--mosaic", type=float, default=None,
-                       help="Mosaic augmentation probability (YOLO default: 1.0)")
-    parser.add_argument("--mixup", type=float, default=None,
-                       help="Mixup augmentation probability (YOLO default: 0.0)")
+    parser.add_argument('--version', action='version',
+                        version=f'SAVANT trainit v{__version__}')
+
+    # Core Arguments
+    core = parser.add_argument_group('Core Arguments')
+    core.add_argument("--data", "-d", required=True,
+                      help="Path to dataset configuration YAML file")
+    core.add_argument("--model", "-m", default="yolo11s-obb.pt",
+                      help="Pre-trained model path or name (default: yolo11s-obb.pt)")
+    core.add_argument("--epochs", "-e", type=int, default=50,
+                      help="Number of training epochs (default: 50)")
+    core.add_argument("--imgsz", "-s", type=int, default=640,
+                      help="Image size for training (default: 640)")
+    core.add_argument("--batch", "-b", type=int, default=30,
+                      help="Batch size (default: 30)")
+    core.add_argument("--device", default=get_default_device(),
+                      help=f"Device to use for training (default: {get_default_device()})")
+    core.add_argument("--project", default="runs/obb",
+                      help="Project directory for saving results (default: runs/obb)")
+    core.add_argument("--name", "-n", default="train",
+                      help="Experiment name (default: train)")
+    core.add_argument("--resume", action="store_true",
+                      help="Resume training from last checkpoint")
+    core.add_argument("--verbose", "-v", action="store_true",
+                      help="Enable verbose logging")
+    core.add_argument("--provenance",
+                      help="Path to provenance chain file for W3C PROV-JSON tracking (created if not exists)")
+
+    # Advanced Training Parameters
+    advanced = parser.add_argument_group(
+        'Advanced Training Parameters',
+        'Optional parameters - uses YOLO defaults if not specified')
+    advanced.add_argument("--lr0", type=float, default=None,
+                          help="Initial learning rate (YOLO default: 0.01)")
+    advanced.add_argument("--lrf", type=float, default=None,
+                          help="Final learning rate as fraction of lr0 (YOLO default: 0.01)")
+    advanced.add_argument("--optimizer", type=str, default=None,
+                          choices=['SGD', 'Adam', 'AdamW', 'NAdam', 'RAdam', 'RMSProp'],
+                          help="Optimizer choice (YOLO default: auto)")
+    advanced.add_argument("--warmup-epochs", type=float, default=None,
+                          help="Number of warmup epochs (YOLO default: 3.0)")
+    advanced.add_argument("--warmup-momentum", type=float, default=None,
+                          help="Warmup initial momentum (YOLO default: 0.8)")
+    advanced.add_argument("--patience", type=int, default=None,
+                          help="Early stopping patience in epochs (YOLO default: 50)")
+    advanced.add_argument("--save-period", type=int, default=None,
+                          help="Save checkpoint every N epochs (YOLO default: -1, disabled)")
+    advanced.add_argument("--cache", type=str, default=None,
+                          choices=['true', 'false', 'ram', 'disk'],
+                          help="Cache images to RAM/disk for faster training (YOLO default: false)")
+    advanced.add_argument("--workers", type=int, default=None,
+                          help="Number of dataloader worker threads (YOLO default: 8)")
+    advanced.add_argument("--close-mosaic", type=int, default=None,
+                          help="Disable mosaic augmentation in final N epochs (YOLO default: 10)")
+    advanced.add_argument("--freeze", type=int, default=None,
+                          help="Freeze first N layers for transfer learning (YOLO default: None)")
+    advanced.add_argument("--box", type=float, default=None,
+                          help="Box loss gain weight (YOLO default: 7.5 for OBB)")
+    advanced.add_argument("--cls", type=float, default=None,
+                          help="Class loss gain weight (YOLO default: 0.5)")
+    advanced.add_argument("--dfl", type=float, default=None,
+                          help="Distribution focal loss gain (YOLO default: 1.5)")
+
+    # Augmentation Parameters
+    augmentation = parser.add_argument_group(
+        'Augmentation Parameters',
+        'Optional - uses YOLO defaults if not specified')
+    augmentation.add_argument("--hsv-h", type=float, default=None,
+                              help="HSV-Hue augmentation range (YOLO default: 0.015)")
+    augmentation.add_argument("--hsv-s", type=float, default=None,
+                              help="HSV-Saturation augmentation range (YOLO default: 0.7)")
+    augmentation.add_argument("--hsv-v", type=float, default=None,
+                              help="HSV-Value augmentation range (YOLO default: 0.4)")
+    augmentation.add_argument("--degrees", type=float, default=None,
+                              help="Rotation augmentation range in degrees (YOLO default: 0.0)")
+    augmentation.add_argument("--translate", type=float, default=None,
+                              help="Translation augmentation as fraction (YOLO default: 0.1)")
+    augmentation.add_argument("--scale", type=float, default=None,
+                              help="Scaling augmentation gain (YOLO default: 0.5)")
+    augmentation.add_argument("--shear", type=float, default=None,
+                              help="Shear augmentation in degrees (YOLO default: 0.0)")
+    augmentation.add_argument("--perspective", type=float, default=None,
+                              help="Perspective augmentation (YOLO default: 0.0)")
+    augmentation.add_argument("--fliplr", type=float, default=None,
+                              help="Horizontal flip probability (YOLO default: 0.5)")
+    augmentation.add_argument("--mosaic", type=float, default=None,
+                              help="Mosaic augmentation probability (YOLO default: 1.0)")
+    augmentation.add_argument("--mixup", type=float, default=None,
+                              help="Mixup augmentation probability (YOLO default: 0.0)")
 
     return parser.parse_args()
+
+
+def build_arguments_string(args: argparse.Namespace) -> str:
+    """Build a string representation of CLI arguments for provenance tracking.
+
+    Args:
+        args: Parsed command line arguments
+
+    Returns:
+        Space-separated string of CLI arguments used
+    """
+    parts = [
+        f"--data {args.data}",
+        f"--model {args.model}",
+        f"--epochs {args.epochs}",
+        f"--imgsz {args.imgsz}",
+        f"--batch {args.batch}",
+        f"--device {args.device}",
+        f"--project {args.project}",
+        f"--name {args.name}",
+    ]
+
+    if args.resume:
+        parts.append("--resume")
+    if args.verbose:
+        parts.append("--verbose")
+
+    # Advanced training parameters (only if explicitly set)
+    if args.lr0 is not None:
+        parts.append(f"--lr0 {args.lr0}")
+    if args.lrf is not None:
+        parts.append(f"--lrf {args.lrf}")
+    if args.optimizer is not None:
+        parts.append(f"--optimizer {args.optimizer}")
+    if getattr(args, 'warmup_epochs', None) is not None:
+        parts.append(f"--warmup-epochs {args.warmup_epochs}")
+    if getattr(args, 'warmup_momentum', None) is not None:
+        parts.append(f"--warmup-momentum {args.warmup_momentum}")
+    if args.patience is not None:
+        parts.append(f"--patience {args.patience}")
+    if getattr(args, 'save_period', None) is not None:
+        parts.append(f"--save-period {args.save_period}")
+    if args.cache is not None:
+        parts.append(f"--cache {args.cache}")
+    if args.workers is not None:
+        parts.append(f"--workers {args.workers}")
+    if getattr(args, 'close_mosaic', None) is not None:
+        parts.append(f"--close-mosaic {args.close_mosaic}")
+    if args.freeze is not None:
+        parts.append(f"--freeze {args.freeze}")
+    if args.box is not None:
+        parts.append(f"--box {args.box}")
+    if args.cls is not None:
+        parts.append(f"--cls {args.cls}")
+    if args.dfl is not None:
+        parts.append(f"--dfl {args.dfl}")
+
+    # Augmentation parameters (only if explicitly set)
+    if getattr(args, 'hsv_h', None) is not None:
+        parts.append(f"--hsv-h {args.hsv_h}")
+    if getattr(args, 'hsv_s', None) is not None:
+        parts.append(f"--hsv-s {args.hsv_s}")
+    if getattr(args, 'hsv_v', None) is not None:
+        parts.append(f"--hsv-v {args.hsv_v}")
+    if args.degrees is not None:
+        parts.append(f"--degrees {args.degrees}")
+    if args.translate is not None:
+        parts.append(f"--translate {args.translate}")
+    if args.scale is not None:
+        parts.append(f"--scale {args.scale}")
+    if args.shear is not None:
+        parts.append(f"--shear {args.shear}")
+    if args.perspective is not None:
+        parts.append(f"--perspective {args.perspective}")
+    if args.fliplr is not None:
+        parts.append(f"--fliplr {args.fliplr}")
+    if args.mosaic is not None:
+        parts.append(f"--mosaic {args.mosaic}")
+    if args.mixup is not None:
+        parts.append(f"--mixup {args.mixup}")
+
+    return " ".join(parts)
 
 
 def main():
@@ -686,10 +781,16 @@ def main():
         # Parse arguments
         args = parse_arguments()
 
+        # Capture start time for provenance tracking
+        start_time = None
+        if args.provenance:
+            from datetime import datetime, timezone
+            start_time = datetime.now(timezone.utc)
+
         # Setup logging
         setup_logging(args.verbose)
 
-        logger.info(f"YOLO OBB Training Tool v{__version__}")
+        logger.info(f"SAVANT trainit v{__version__}")
 
         # Setup local Ultralytics settings before importing YOLO
         # This must be done before any ultralytics import
@@ -714,12 +815,57 @@ def main():
 
         # Create configuration
         config = YOLOTrainingConfig(args)
-        logger.info(f"Training configuration validated successfully")
+        logger.info("Training configuration validated successfully")
 
         # Create trainer and execute training
         trainer = YOLOTrainer(config, YOLO)
         trainer.load_model()
-        trainer.train()
+        results = trainer.train()
+
+        # Record provenance if enabled
+        if args.provenance and results is not None:
+            from datetime import datetime, timezone
+            from dataprov import ProvenanceChain
+
+            end_time = datetime.now(timezone.utc)
+
+            chain = ProvenanceChain.load_or_create(
+                args.provenance,
+                entity_id="savant_trainit_output",
+                initial_source=str(args.data),
+                description="SAVANT trainit YOLO OBB model training"
+            )
+
+            # Build arguments string
+            arguments = build_arguments_string(args)
+
+            # Inputs: dataset YAML and pre-trained model
+            inputs = [str(args.data), args.model]
+            input_formats = ["YAML", "PT"]
+
+            # Outputs: best.pt and last.pt from training results
+            weights_dir = Path(results.save_dir) / "weights"
+            outputs = [str(weights_dir / "best.pt"), str(weights_dir / "last.pt")]
+            output_formats = ["PT", "PT"]
+
+            chain.add(
+                started_at=start_time.isoformat().replace("+00:00", "Z"),
+                ended_at=end_time.isoformat().replace("+00:00", "Z"),
+                tool_name="train_yolo_obb",
+                tool_version=__version__,
+                operation="YOLO OBB model training",
+                inputs=inputs,
+                input_formats=input_formats,
+                outputs=outputs,
+                output_formats=output_formats,
+                arguments=arguments,
+                capture_agent=True,
+                agent_type="automated",
+                capture_environment=True
+            )
+
+            chain.save(args.provenance)
+            logger.info(f"Provenance recorded to {args.provenance}")
 
         logger.info("Training workflow completed successfully")
         
