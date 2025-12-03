@@ -43,3 +43,4 @@ class Relationship:
     subject: str
     relationship_type: str
     object: str
+    id: str

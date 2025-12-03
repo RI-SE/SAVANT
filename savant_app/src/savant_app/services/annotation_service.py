@@ -765,7 +765,7 @@ class AnnotationService:
             frame_intervals,
         )
 
-    def restore_object_relationship(
+    def restore_relationship(
         self,
         relation_id: str,
         relationship_type: str,
@@ -781,7 +781,7 @@ class AnnotationService:
             subject_object_id, object_object_id
         )
 
-        openlabel.restore_object_relationship(
+        openlabel.restore_relationship(
             relation_id,
             relationship_type,
             ontology_uid,
@@ -790,15 +790,33 @@ class AnnotationService:
             frame_intervals,
         )
 
-    def get_object_relationships(self, object_id: str):
+    def get_object_relationships(self, object_id: str) -> list:
         """Get all relationships for a given object_id."""
         openlabel = self.project_state.annotation_config
-        return openlabel.get_object_relationships(object_id)
 
-    def delete_relationship(self, relation_id: str) -> bool:
+        object_relationships = [
+            {
+                "id": relationship["relation_id"],
+                "subject": relationship["relation_metadata"].rdf_subjects[0].uid,
+                "type": relationship["relation_metadata"].type,
+                "object": relationship["relation_metadata"].rdf_objects[0].uid,
+            }
+            for relationship in openlabel.get_object_relationships(object_id)
+        ]
+
+        return object_relationships
+
+    def delete_relationship(self, relation_id: str) -> dict:
         """Delete a relationship by its ID."""
         openlabel = self.project_state.annotation_config
-        return openlabel.delete_relationship(relation_id)
+        deleted_relation = openlabel.delete_relationship(relation_id)
+
+        return {
+            "id": deleted_relation["id"],
+            "subject": deleted_relation["metadata"].rdf_subjects[0].uid,
+            "type": deleted_relation["metadata"].type,
+            "object": deleted_relation["metadata"].rdf_objects[0].uid,
+        }
 
     def _calculate_relation_frame_interval(
         self, subject_object_id: str, object_object_id: str
@@ -867,13 +885,14 @@ class AnnotationService:
         frame_relationships = openlabel.get_relationships_from_frame(frame_index)
 
         if not frame_relationships:
-            return None
+            return []
 
         return [
             {
-                "subject": relationship.rdf_subjects[0].uid,
-                "relationship_type": relationship.type,
-                "object": relationship.rdf_objects[0].uid,
+                "subject": relationship["metadata"].rdf_subjects[0].uid,
+                "relationship_type": relationship["metadata"].type,
+                "object": relationship["metadata"].rdf_objects[0].uid,
+                "id": relationship["relation_id"],
             }
             for relationship in frame_relationships
         ]

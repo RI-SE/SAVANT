@@ -89,6 +89,18 @@ class CreatedRelationshipSnapshot:
 
 
 @dataclass(frozen=True)
+class RelationshipSnapshot:
+    """
+    Snapshot representing a relationship
+    """
+
+    id: str
+    subject: str
+    type: str
+    object: str
+
+
+@dataclass(frozen=True)
 class FrameTagSnapshot:
     """Snapshot representing a frame-tag interval."""
 
