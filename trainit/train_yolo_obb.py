@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 train_yolo_obb.py
 
@@ -83,19 +84,96 @@ import sys
 import os
 from pathlib import Path
 from typing import Optional
-
-try:
-    from ultralytics import YOLO
-    import ultralytics.utils as ultralytics_utils
-except ImportError:
-    print("Error: ultralytics package not found. Please install it:")
-    print("pip install ultralytics")
-    sys.exit(1)
+import yaml
+import hashlib
+import uuid as uuid_module
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 __version__ = '2.0.0'
+
+
+def setup_ultralytics_settings(project_dir: str = "runs/obb") -> Path:
+    """Setup local Ultralytics settings to avoid using default ~/.config/Ultralytics.
+
+    Creates or updates a local settings.yaml file in the current working directory,
+    preserving UUID if it already exists.
+
+    Args:
+        project_dir: Directory for training runs (from --project argument)
+
+    Returns:
+        Path to the settings file
+    """
+    # Get the current working directory
+    cwd = Path.cwd().resolve()
+    settings_file = cwd / "settings.yaml"
+
+    # Set environment variable to redirect Ultralytics config to local directory
+    os.environ["YOLO_CONFIG_DIR"] = str(cwd)
+
+    # Default paths relative to current working directory
+    datasets_dir = cwd / "datasets"
+    runs_dir = cwd / project_dir
+    weights_dir = cwd / "weights"
+
+    # Check if settings file already exists
+    existing_uuid = None
+    if settings_file.exists():
+        try:
+            with open(settings_file, 'r') as f:
+                existing_settings = yaml.safe_load(f)
+                if existing_settings and 'uuid' in existing_settings:
+                    existing_uuid = existing_settings['uuid']
+                    logger.info(f"Found existing settings file with UUID: {existing_uuid[:8]}...")
+        except Exception as e:
+            logger.warning(f"Could not read existing settings file: {e}")
+
+    # Generate or reuse UUID
+    if existing_uuid:
+        settings_uuid = existing_uuid
+    else:
+        # Generate a new UUID and hash it (same way Ultralytics does)
+        new_uuid = uuid_module.uuid4()
+        settings_uuid = hashlib.sha256(str(new_uuid).encode()).hexdigest()
+        logger.info(f"Generated new UUID: {settings_uuid[:8]}...")
+
+    # Create settings dictionary with required paths
+    settings = {
+        'settings_version': '0.0.4',
+        'datasets_dir': str(datasets_dir),
+        'weights_dir': str(weights_dir),
+        'runs_dir': str(runs_dir),
+        'uuid': settings_uuid,
+        'sync': True,
+        'api_key': '',
+        'openai_api_key': '',
+        'clearml': True,
+        'comet': True,
+        'dvc': True,
+        'hub': True,
+        'mlflow': True,
+        'neptune': True,
+        'raytune': True,
+        'tensorboard': True,
+        'wandb': True
+    }
+
+    # Write settings to local file
+    try:
+        settings_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(settings_file, 'w') as f:
+            yaml.dump(settings, f, default_flow_style=False, sort_keys=False)
+        logger.info(f"Ultralytics settings written to: {settings_file}")
+        logger.info(f"  Datasets dir: {datasets_dir}")
+        logger.info(f"  Weights dir: {weights_dir}")
+        logger.info(f"  Runs dir: {runs_dir}")
+    except Exception as e:
+        logger.error(f"Failed to write settings file: {e}")
+        raise
+
+    return settings_file
 
 
 class ValidationError(Exception):
@@ -212,25 +290,27 @@ class YOLOTrainingConfig:
 
 class YOLOTrainer:
     """Handles YOLO OBB model training operations."""
-    
-    def __init__(self, config: YOLOTrainingConfig):
+
+    def __init__(self, config: YOLOTrainingConfig, yolo_class):
         """Initialize YOLO trainer.
-        
+
         Args:
             config: Training configuration
+            yolo_class: The YOLO class to use for model loading
         """
         self.config = config
         self.model = None
-    
+        self.YOLO = yolo_class
+
     def load_model(self) -> None:
         """Load YOLO model for training.
-        
+
         Raises:
             TrainingError: If model loading fails
         """
         try:
             logger.info(f"Loading model: {self.config.model_path}")
-            self.model = YOLO(self.config.model_path)
+            self.model = self.YOLO(self.config.model_path)
             logger.info("Model loaded successfully")
         except Exception as e:
             raise TrainingError(f"Failed to load model '{self.config.model_path}': {e}")
@@ -431,7 +511,7 @@ class YOLOTrainer:
 
 
 def setup_logging(verbose: bool = False) -> None:
-    """Setup logging configuration for both script and YOLO.
+    """Setup logging configuration for the script.
 
     Args:
         verbose: Enable debug level logging
@@ -445,16 +525,6 @@ def setup_logging(verbose: bool = False) -> None:
             logging.StreamHandler()
         ]
     )
-
-    # Configure Ultralytics/YOLO logging
-    # When verbose=False (default), suppress YOLO progress bars and info messages
-    # When verbose=True, allow full YOLO output
-    if not verbose:
-        ultralytics_utils.LOGGER.setLevel(logging.WARNING)
-        logger.info("YOLO output suppressed (use --verbose to enable)")
-    else:
-        ultralytics_utils.LOGGER.setLevel(logging.INFO)
-        logger.info("YOLO verbose output enabled")
 
 
 def get_default_device() -> str:
@@ -615,21 +685,42 @@ def main():
     try:
         # Parse arguments
         args = parse_arguments()
-        
+
         # Setup logging
         setup_logging(args.verbose)
-        
+
         logger.info(f"YOLO OBB Training Tool v{__version__}")
-        
+
+        # Setup local Ultralytics settings before importing YOLO
+        # This must be done before any ultralytics import
+        setup_ultralytics_settings(project_dir=args.project)
+
+        # Now import ultralytics (after settings are configured)
+        try:
+            from ultralytics import YOLO
+            import ultralytics.utils as ultralytics_utils
+        except ImportError:
+            logger.error("Error: ultralytics package not found. Please install it:")
+            logger.error("pip install ultralytics")
+            sys.exit(1)
+
+        # Configure Ultralytics/YOLO logging
+        if not args.verbose:
+            ultralytics_utils.LOGGER.setLevel(logging.WARNING)
+            logger.info("YOLO output suppressed (use --verbose to enable)")
+        else:
+            ultralytics_utils.LOGGER.setLevel(logging.INFO)
+            logger.info("YOLO verbose output enabled")
+
         # Create configuration
         config = YOLOTrainingConfig(args)
         logger.info(f"Training configuration validated successfully")
-        
+
         # Create trainer and execute training
-        trainer = YOLOTrainer(config)
+        trainer = YOLOTrainer(config, YOLO)
         trainer.load_model()
         trainer.train()
-        
+
         logger.info("Training workflow completed successfully")
         
     except KeyboardInterrupt:
