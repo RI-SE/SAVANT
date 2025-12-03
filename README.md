@@ -5,9 +5,9 @@
 Development repository for RISE SAVANT - Semi-automated video annotation toolkit
 ![SAVANT logo](./savant_app/src/savant_app/frontend/assets/savant_logo.png)
 
-```diff
-- This repository is for development so we can add references and other stuff used temporarily. Will move the relevant parts to a new repo in the Rise org when there is something working which we want to release later.
-```
+> [!NOTE]
+> This open source project is maintained by [RISE Research Institutes of Sweden](https://ri.se/). See [LICENSE](LICENSE) file for open source license information.
+
 
 ## Installation
 
@@ -138,3 +138,17 @@ All dependencies are compatible with AGPL-3.0 licensing.
 For the complete license text, see the [LICENSE](LICENSE) file. For more information about AGPL-3.0, visit https://www.gnu.org/licenses/agpl-3.0.html
 
 See [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) for detailed usage examples.
+
+
+## Acknowledgement
+<br><div align="center">
+  <img src="docs/synergies.svg" alt="Synergies logo" width="200"/>
+</div>
+
+This package is developed as part of the [SYNERGIES](https://synergies-ccam.eu/) project.
+
+<br><div align="center">
+  <img src="docs/funded_by_eu.svg" alt="Funded by EU" width="200"/>
+</div>
+
+Funded by the European Union. Views and opinions expressed are however those of the author(s) only and do not necessarily reflect those of the European Union or European Climate, Infrastructure and Environment Executive Agency (CINEA). Neither the European Union nor the granting authority can be held responsible for them.
