@@ -11,16 +11,21 @@ from savant_app.frontend.exceptions import OntologyNotFound
 # ---------- helpers ----------
 
 EX_NS = "http://example.org/ns#"
+ACTION_ROOT_CLASS = getattr(ou, "ACTIONS_ROOT", "Action")
 
-TTL_BASE = """@prefix : <{ns}> .
+
+def build_ttl(ns: str) -> str:
+    """Create a miniature ontology matching the current action root."""
+
+    return f"""@prefix : <{ns}> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 :Tag a rdfs:Class ; rdfs:label "Tag" .
-:Action a rdfs:Class ; rdfs:subClassOf :Tag ; rdfs:label "Action" .
+:{ACTION_ROOT_CLASS} a rdfs:Class ; rdfs:subClassOf :Tag ; rdfs:label "{ACTION_ROOT_CLASS}" .
 :DynamicObject a rdfs:Class ; rdfs:subClassOf :Tag ; rdfs:label "DynamicObject" .
 :StaticObject a rdfs:Class ; rdfs:subClassOf :Tag ; rdfs:label "StaticObject" .
 
-:Motion a rdfs:Class ; rdfs:subClassOf :Action ; rdfs:label "Motion" .
+:Motion a rdfs:Class ; rdfs:subClassOf :{ACTION_ROOT_CLASS} ; rdfs:label "Motion" .
 :TurnLeft a rdfs:Class ; rdfs:subClassOf :Motion ; rdfs:label "TurnLeft" .
 
 :Car a rdfs:Class ; rdfs:subClassOf :DynamicObject ; rdfs:label "Car" .
@@ -29,7 +34,7 @@ TTL_BASE = """@prefix : <{ns}> .
 
 
 def write_ttl(path: Path, ns: str, extra: str = "") -> None:
-    path.write_text(TTL_BASE.format(ns=ns) + extra, encoding="utf-8")
+    path.write_text(build_ttl(ns) + extra, encoding="utf-8")
 
 
 def reset_cache():
@@ -49,7 +54,7 @@ def test_parse_transitive_subclasses(monkeypatch):
     # Force namespace used by the parser
     monkeypatch.setattr(ou, "get_ontology_namespace", lambda: EX_NS)
 
-    ttl = TTL_BASE.format(ns=EX_NS)
+    ttl = build_ttl(EX_NS)
     out = ou._parse_ontology_labels(ttl)
 
     assert "Action" in out and "DynamicObject" in out and "StaticObject" in out
