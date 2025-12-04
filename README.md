@@ -1,9 +1,16 @@
 [![CD](https://github.com/fwrise/SAVANT/actions/workflows/cd.yml/badge.svg)](https://github.com/fwrise/SAVANT/actions/workflows/cd.yml)
 [![CI](https://github.com/fwrise/SAVANT/actions/workflows/ci.yml/badge.svg)](https://github.com/fwrise/SAVANT/actions/workflows/ci.yml)
 
-# SAVANT
-Development repository for RISE SAVANT - Semi-automated video annotation toolkit
+
 ![SAVANT logo](./savant_app/src/savant_app/frontend/assets/savant_logo.png)
+
+# SAVANT - Semi-automated video annotation toolkit
+A toolkit for 2D-annotation of video with rotated bounding boxes and object tagging.
+- *markit* - automated annotation (supports YOLO for object detection and classification optical flow for object detection, and AruCo detection for geotags)
+- *edit* - manual annotation or corrections of pre-annotated video, and annotation quality assurance
+- *trainit* - managing datasets and training object detection models
+
+The initial use-case is aerial video annotation of traffic, supported by the use of ASAM OpenLabel output and a traffic-focused default ontology.
 
 > [!NOTE]
 > This open source project is maintained by [RISE Research Institutes of Sweden](https://ri.se/). See [LICENSE](LICENSE) file for open source license information.
@@ -11,134 +18,36 @@ Development repository for RISE SAVANT - Semi-automated video annotation toolkit
 
 ## Installation
 
-### Prerequisites
-- Python 3.10 or higher
-- Git (with SSH access to fwrise repositories)
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-
-### Install from Repository
-
-**Using uv (recommended):**
+Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-# Clone the repository
 git clone git@github.com:fwrise/SAVANT.git
 cd SAVANT
-
-# Sync dependencies and create virtual environment
 uv sync
-
-# Or sync with development dependencies
-uv sync --dev
-
-# Activate the virtual environment
-source .venv/bin/activate  # Linux/macOS
-# or
-.venv\Scripts\activate  # Windows
-```
-
-**Alternative using pip:**
-
-```bash
-# Clone the repository
-git clone git@github.com:fwrise/SAVANT.git
-cd SAVANT
-
-# Create and activate virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-
-# Install in development mode
-pip install -e .
-
-# Or install with development dependencies
-pip install -e ".[dev]"
-```
-
-### Verify Installation
-
-```bash
-# Check that CLI tools are available
-markit --help
-train-yolo-obb --help
-
-# Test imports
-python -c "from savant_common import read_ontology_classes; print('✓ savant_common installed')"
-```
-
-### Running Commands with uv
-
-You can run commands directly with uv without activating the virtual environment:
-
-```bash
-# Run markit
-uv run markit --input video.mp4 --output_json output.json
-
-# Run training
-uv run train-yolo-obb --data dataset.yaml --epochs 50
-
-# Run Python scripts
-uv run python -c "from savant_common import read_ontology_classes; print('OK')"
-```
-
-## Quick Start
-
-### Object Detection with markit
-```bash
-# With uv (from project root)
-uv run markit --input markit/video.mp4 --output_json output.json
-
-# Or activate venv and run from markit directory
-source .venv/bin/activate
-cd markit
-markit --input video.mp4 --output_json output.json
-```
-
-### Train YOLO Model with trainit
-```bash
-# With uv (from project root)
-uv run train-yolo-obb --data trainit/dataset.yaml --epochs 50
-
-# Or activate venv and run from trainit directory
-source .venv/bin/activate
-cd trainit
-train-yolo-obb --data dataset.yaml --epochs 50
 ```
 
 ## Repository Structure
 
-- **savant_common/** - Shared utilities (ontology parsing, etc.)
-- **markit/** - Object detection and video annotation tool
-- **trainit/** - YOLO model training and dataset preparation tools
-- **utils/** - Command-line utilities (ontology inspection, dataset remapping)
-- **Specification/** - Ontology and OpenLabel schema files
-- **savant_app/** - Qt6 desktop application (separate installation)
+| Directory | Description |
+|-----------|-------------|
+| [markit/](markit/) | Automated video annotation ([README](markit/README.md)) |
+| [trainit/](trainit/) | YOLO training and dataset tools ([README](trainit/README.md)) |
+| [savant_app/](savant_app/) | Qt6 desktop application ([README](savant_app/README.md)) |
+| [utils/](utils/) | CLI utilities ([README](utils/README.md)) |
+| [ontology/](ontology/) | SAVANT ontology definition ([README](ontology/README.md)) |
+| [schema/](schema/) | Supported ASAM OpenLabel subset JSON schema ([README](schema/README.md)) |
+
+## Example Workflow
+
+1. **Capture** - Record aerial video of traffic scenario
+2. **Auto-annotate** - Run `markit` to detect and track objects
+3. **Review** - Use `savant_app` to correct annotations and verify quality
+4. **Train** - Use `trainit` to fine-tune models with corrected data
+5. **Iterate** - Re-run markit with improved model
 
 ## License
 
-SAVANT is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
-
-This project uses dependencies with the following licenses:
-- **Ultralytics YOLO** (AGPL-3.0) - Required for object detection
-- **PyQt6** (GPL-3.0) - Used in savant_app
-- **OpenCV** (Apache 2.0)
-- **NumPy** (BSD-3-Clause)
-- **RDFlib** (BSD-3-Clause)
-- **Pydantic** (MIT)
-
-All dependencies are compatible with AGPL-3.0 licensing.
-
-### What does AGPL-3.0 mean?
-
-- You are free to use, modify, and distribute this software
-- If you distribute modified versions, you must share the source code under AGPL-3.0
-- If you use this software to provide a network service (e.g., web API), you must make the source code available to users of that service
-- Commercial use is permitted, but the source code must remain available
-
-For the complete license text, see the [LICENSE](LICENSE) file. For more information about AGPL-3.0, visit https://www.gnu.org/licenses/agpl-3.0.html
-
-See [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) for detailed usage examples.
-
+SAVANT is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
 
 ## Acknowledgement
 <br><div align="center">
