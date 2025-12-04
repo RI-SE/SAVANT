@@ -1,3 +1,5 @@
+from typing import Callable
+
 from PyQt6.QtCore import QObject, pyqtSignal
 
 
@@ -22,6 +24,7 @@ class FrontendState(QObject):
         self._warning_frames: set[int] = set()
         self._error_frames: set[int] = set()
         self._current_annotator: str = ""
+        self._annotator_prompt: Callable[[], str | None] | None = None
         self._frame_tag_details: dict[int, list[dict]] = {}
 
     @property
@@ -44,11 +47,27 @@ class FrontendState(QObject):
     def tool(self):
         return self._tool
 
-    def set_current_annotator(self, new_annotator: str) -> str:
-        self.current_annotator = new_annotator
+    def register_annotator_prompt(self, prompt: Callable[[], str | None]) -> None:
+        self._annotator_prompt = prompt
+
+    def set_current_annotator(self, new_annotator: str | None) -> str:
+        normalized = (new_annotator or "").strip()
+        self._current_annotator = normalized
+        return self._current_annotator
 
     def get_current_annotator(self) -> str:
-        return self.current_annotator
+        return self._current_annotator
+
+    def require_current_annotator(self) -> str | None:
+        annotator = self.get_current_annotator()
+        if annotator:
+            return annotator
+        if callable(self._annotator_prompt):
+            provided = self._annotator_prompt() or ""
+            if provided:
+                self.set_current_annotator(provided)
+                return provided
+        return None
 
     def set_frame(self, idx: int):
         if idx != self._frame_index and idx >= 0:
