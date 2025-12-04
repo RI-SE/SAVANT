@@ -2,7 +2,7 @@
 [![CI](https://github.com/fwrise/SAVANT/actions/workflows/ci.yml/badge.svg)](https://github.com/fwrise/SAVANT/actions/workflows/ci.yml)
 
 
-![SAVANT logo](./savant_app/src/savant_app/frontend/assets/savant_logo.png)
+![SAVANT logo](./docs/savant_logo.png)
 
 # SAVANT - Semi-automated video annotation toolkit
 A toolkit for 2D-annotation of video with rotated bounding boxes and object tagging.
@@ -41,9 +41,11 @@ uv sync
 
 1. **Capture** - Record aerial video of traffic scenario
 2. **Auto-annotate** - Run `markit` to detect and track objects
-3. **Review** - Use `savant_app` to correct annotations and verify quality
+3. **Review** - Use `edit` to correct annotations and verify quality
 4. **Train** - Use `trainit` to fine-tune models with corrected data
 5. **Iterate** - Re-run markit with improved model
+
+![SAVANT edit screenshot](./docs/SAVANTedit.png)
 
 ## License
 
