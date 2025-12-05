@@ -42,16 +42,29 @@ def wire(main_window, frontend_state: FrontendState):
     Connect all annotation-related signals. Safe to call once in MainWindow.__init__.
     """
 
+    def _ensure_annotator_available() -> bool:
+        annotator = frontend_state.require_current_annotator()
+        return bool(annotator)
+
+    def _call_with_annotator(callback, *args, **kwargs):
+        annotator = frontend_state.require_current_annotator()
+        if not annotator:
+            return
+        kwargs.setdefault("annotator", annotator)
+        return callback(*args, **kwargs)
+
     # TODO: Reverse naming of signal and function here.
     if hasattr(main_window.sidebar, "start_bbox_drawing"):
         main_window.sidebar.start_bbox_drawing.connect(
-            lambda object_type: on_new_object_bbox(main_window, object_type)
+            lambda object_type: _ensure_annotator_available()
+            and on_new_object_bbox(main_window, object_type)
         )
 
     # TODO: Reverse naming of signal and function here.
     if hasattr(main_window.sidebar, "add_new_bbox_existing_obj"):
         main_window.sidebar.add_new_bbox_existing_obj.connect(
-            lambda object_id: on_existing_object_bbox(main_window, object_id)
+            lambda object_id: _ensure_annotator_available()
+            and on_existing_object_bbox(main_window, object_id)
         )
 
     if hasattr(main_window.sidebar, "highlight_selected_object"):
@@ -61,8 +74,8 @@ def wire(main_window, frontend_state: FrontendState):
 
     if hasattr(main_window.video_widget, "bbox_drawn"):
         main_window.video_widget.bbox_drawn.connect(
-            lambda annotation: handle_drawn_bbox(
-                main_window, annotation, frontend_state.get_current_annotator()
+            lambda annotation: _call_with_annotator(
+                handle_drawn_bbox, main_window, annotation
             )
         )
 
@@ -87,62 +100,60 @@ def wire(main_window, frontend_state: FrontendState):
         )
 
     main_window.overlay.boxMoved.connect(
-        lambda i, x, y: _moved(
-            main_window, i, x, y, frontend_state.get_current_annotator()
-        )
+        lambda i, x, y: _call_with_annotator(_moved, main_window, i, x, y)
     )
 
     main_window.overlay.boxResized.connect(
-        lambda id, x, y, w, h, rotation: _resized(
+        lambda id, x, y, w, h, rotation: _call_with_annotator(
+            _resized,
             main_window,
             id,
             x,
             y,
             w,
             h,
-            rotation,
-            frontend_state.get_current_annotator(),
+            rotation=rotation,
         )
     )
     main_window.overlay.boxRotated.connect(
-        lambda id, width, height, rotation: _rotated(
+        lambda id, width, height, rotation: _call_with_annotator(
+            _rotated,
             main_window,
             id,
             width,
             height,
-            rotation,
-            frontend_state.get_current_annotator(),
+            rotation=rotation,
         )
     )
 
     # Connect cascade signals
     if hasattr(main_window.overlay, "cascadeApplyAll"):
         main_window.overlay.cascadeApplyAll.connect(
-            lambda object_id, width, height, rotation, direction: _apply_cascade_all_frames(
+            lambda object_id, width, height, rotation, direction: _call_with_annotator(
+                _apply_cascade_all_frames,
                 main_window,
                 object_id,
                 width,
                 height,
-                frontend_state.get_current_annotator(),
-                rotation,
-                direction,
+                new_rotation=rotation,
+                direction=direction,
             )
         )
     if hasattr(main_window.overlay, "cascadeApplyFrameRange"):
         main_window.overlay.cascadeApplyFrameRange.connect(
-            lambda object_id, width, height, rotation, direction: _apply_cascade_next_frames(
+            lambda object_id, width, height, rotation, direction: _call_with_annotator(
+                _apply_cascade_next_frames,
                 main_window,
                 object_id,
                 width,
                 height,
-                frontend_state.get_current_annotator(),
-                rotation,
-                direction,
+                rotation=rotation,
+                direction=direction,
             )
         )
 
     # Keep this here so that right-click works without having to select a bbox first
-    _install_overlay_context_menu(main_window)
+    _install_overlay_context_menu(main_window, frontend_state)
 
 
 def _refresh_after_bbox_update(main_window):
@@ -512,16 +523,18 @@ def _apply_cascade_next_frames(
     _refresh_after_annotation_change(main_window)
 
 
-def _install_overlay_context_menu(main_window):
+def _install_overlay_context_menu(main_window, frontend_state: FrontendState):
     """Attach a custom right-click (context) menu to the video overlay."""
     overlay_widget = main_window.overlay
     overlay_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
     overlay_widget.customContextMenuRequested.connect(
-        lambda click_position: _on_overlay_context_menu(main_window, click_position)
+        lambda click_position: _on_overlay_context_menu(
+            main_window, frontend_state, click_position
+        )
     )
 
 
-def _on_overlay_context_menu(main_window, click_position):
+def _on_overlay_context_menu(main_window, frontend_state, click_position):
     """Handle right-clicks on the overlay and show a context menu for bbox actions."""
     overlay_widget = main_window.overlay
     bbox_index, _ = overlay_widget.hit_test(click_position)
@@ -570,10 +583,11 @@ def _on_overlay_context_menu(main_window, click_position):
         except MissingObjectIDError as e:
             QMessageBox.warning(main_window, "Cascade Delete", str(e))
     elif selected_action == mark_resolved_action:
-        annotator = ""
-        state = getattr(main_window, "state", None)
-        if state and hasattr(state, "get_current_annotator"):
-            annotator = state.get_current_annotator() or ""
+        annotator = None
+        if frontend_state is not None:
+            annotator = frontend_state.require_current_annotator()
+        if not annotator:
+            return
         _mark_confidence_issue_resolved(main_window, obj_id, annotator)
     elif selected_action == link_ids_action:
         _link_object_ids_interactive(main_window, obj_id, available_ids)

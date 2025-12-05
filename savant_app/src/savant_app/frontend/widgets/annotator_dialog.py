@@ -1,4 +1,6 @@
+from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import (
+    QApplication,
     QDialog,
     QLabel,
     QLineEdit,
@@ -9,9 +11,10 @@ from PyQt6.QtWidgets import (
 
 
 class AnnotatorDialog(QDialog):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.annotator_name = None
+        self._has_centered = False
         self.init_ui()
 
     def init_ui(self):
@@ -47,6 +50,29 @@ class AnnotatorDialog(QDialog):
         # Set focus to input field
         self.name_input.setFocus()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._has_centered:
+            self._center_on_screen()
+            self._has_centered = True
+
+    def _center_on_screen(self):
+        cursor_pos = QCursor.pos()
+        screen = (
+            QApplication.screenAt(cursor_pos)
+            or self.screen()
+            or QApplication.primaryScreen()
+        )
+        if screen is None:
+            return
+        window_handle = self.windowHandle()
+        if window_handle is not None:
+            window_handle.setScreen(screen)
+        self.adjustSize()
+        frame_geometry = self.frameGeometry()
+        frame_geometry.moveCenter(screen.availableGeometry().center())
+        self.move(frame_geometry.topLeft())
+
     def accept_input(self):
         name = self.name_input.text().strip()
         if name:
@@ -57,17 +83,3 @@ class AnnotatorDialog(QDialog):
 
     def get_annotator_name(self):
         return self.annotator_name
-
-    # Example usage
-    # if __name__ == '__main__':
-    #    app = QApplication(sys.argv)
-
-    #    dialog = AnnotatorDialog()
-    #    result = dialog.exec_()
-
-    #    if result == QDialog.Accepted:
-    #        print(f"Annotator: {dialog.get_annotator_name()}")
-    #    else:
-    #        print("Dialog cancelled")
-
-    # sys.exit()

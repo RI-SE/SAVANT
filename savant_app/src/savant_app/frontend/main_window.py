@@ -82,6 +82,7 @@ class MainWindow(QMainWindow):
 
         # state
         self.state = FrontendState(self)
+        self.state.register_annotator_prompt(self.prompt_for_annotator)
         self.state.confidenceIssuesChanged.connect(
             lambda _: confidence_ops.apply_confidence_markers(self)
         )
@@ -170,11 +171,9 @@ class MainWindow(QMainWindow):
         self.refresh_confidence_issues()
         self.update_issue_info()
 
-        # Display dialog for annotater name input
-        annotator_name_dialog = AnnotatorDialog()
-        annotator_name_dialog.exec()
-        current_annotator_name = annotator_name_dialog.get_annotator_name()
-        self.state.set_current_annotator(current_annotator_name)
+        initial_annotator = self.prompt_for_annotator()
+        if initial_annotator:
+            self.state.set_current_annotator(initial_annotator)
 
     def set_project_name(self, name: str) -> None:
         cleaned = (name or "").strip()
@@ -185,6 +184,12 @@ class MainWindow(QMainWindow):
 
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")
+
+    def prompt_for_annotator(self) -> str | None:
+        dialog = AnnotatorDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            return dialog.get_annotator_name()
+        return None
 
     def open_about(self):
         # Determine current theme based on the window's palette

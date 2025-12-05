@@ -519,7 +519,9 @@ class Sidebar(QWidget):
         items = self.confidence_issue_list.selectedItems()
         if not items:
             return
-        annotator = self.frontend_state.get_current_annotator() or ""
+        annotator = self.frontend_state.require_current_annotator()
+        if not annotator:
+            return
         unique_keys = {
             tuple(item.data(Qt.ItemDataRole.UserRole) or ()) for item in items
         }
@@ -620,18 +622,26 @@ class Sidebar(QWidget):
 
     def create_new_bbox(self) -> None:
         """Launch the new bounding box workflow."""
+        if not self.frontend_state.require_current_annotator():
+            return
         self.create_bbox(video_actors=self._video_actors)
 
     def create_new_frame_tag(self) -> None:
         """Open the frame tag dialog."""
+        if not self.frontend_state.require_current_annotator():
+            return
         self._open_frame_tag_dialog()
 
     def open_interpolation_dialog(self) -> None:
         """Open the interpolation dialog."""
+        if not self.frontend_state.require_current_annotator():
+            return
         self._open_interpolation_dialog()
 
     def open_relationship_dialog(self) -> None:
         """Open the relationship dialog."""
+        if not self.frontend_state.require_current_annotator():
+            return
         self._open_relationship_dialog()
 
     def _choose_video_file(self):
@@ -1202,13 +1212,16 @@ class Sidebar(QWidget):
         dialog.exec()
 
     def on_interpolate(self, object_id: str, start_frame: int, end_frame: int):
-        current_annotator = self.frontend_state.get_current_annotator()
         if end_frame - start_frame <= 1:
             QMessageBox.information(
                 self,
                 "Interpolate",
                 "Select start and end frames with at least one frame in between.",
             )
+            return
+
+        current_annotator = self.frontend_state.require_current_annotator()
+        if not current_annotator:
             return
 
         host_window = self.window()
