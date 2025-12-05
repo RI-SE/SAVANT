@@ -31,7 +31,7 @@ uv sync
 | Directory | Description |
 |-----------|-------------|
 | [markit/](markit/) | Automated video annotation ([README](markit/README.md)) |
-| [edit/](edit/) | Desktop application for manual label editing and quality assurance. ([README](edit/README.md)) |
+| [edit/](edit/) | Desktop application for manual label editing and quality assurance ([README](edit/README.md)) |
 | [trainit/](trainit/) | YOLO training and dataset tools ([README](trainit/README.md)) |
 | [utils/](utils/) | CLI utilities ([README](utils/README.md)) |
 | [ontology/](ontology/) | SAVANT ontology definition ([README](ontology/README.md)) |
