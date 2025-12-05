@@ -96,6 +96,9 @@ class MarkitConfig:
         self.aruco_dict = args.aruco_dict if hasattr(args, 'aruco_dict') else 'DICT_4X4_50'
         self.use_aruco = self.aruco_csv_path is not None
 
+        # Visual markers configuration
+        self.visual_markers_csv_path = args.visual_markers if hasattr(args, 'visual_markers') else None
+
         # Load class map from ontology if provided, otherwise use default
         # Pass verbose flag for debug logging
         verbose = args.verbose if hasattr(args, 'verbose') else False
@@ -145,6 +148,8 @@ class MarkitConfig:
             required_files.append(self.weights_path)
         if self.use_aruco:
             required_files.append(self.aruco_csv_path)
+        if self.visual_markers_csv_path:
+            required_files.append(self.visual_markers_csv_path)
 
         for file_path in required_files:
             if not os.path.exists(file_path):

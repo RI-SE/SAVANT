@@ -358,10 +358,11 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 |----------|---------|-------------|
 | `--weights` | `markit_yolo.pt` | YOLO weights file (.pt) |
 | `--schema` | `../schema/savant_openlabel_subset.schema.json` | OpenLabel JSON schema |
-| `--ontology` | `../ontology/savant_ontology_1.3.1.ttl` | SAVANT ontology file |
+| `--ontology` | `../ontology/savant.ttl` | SAVANT ontology file |
 | `--ontology-uri` | extracted from file | Ontology URI for OpenLabel output |
 | `--output_video` | - | Output annotated video path |
 | `--aruco-csv` | - | CSV with ArUco marker positions |
+| `--visual-markers` | - | CSV with visual marker positions (same format as ArUco) |
 | `--provenance` | - | Provenance chain file path |
 
 ### Detection Options

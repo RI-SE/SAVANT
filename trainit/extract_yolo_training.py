@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 extract_yolo_training - Extract YOLO OBB training data from video with OpenLabel annotations
 

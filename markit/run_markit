@@ -135,13 +135,15 @@ Examples:
                           help='Path to YOLO weights file (.pt) (default: markit_yolo.pt)')
     optional.add_argument('--schema', default='../schema/savant_openlabel_subset.schema.json',
                           help='Path to OpenLabel JSON schema file (default: ../schema/savant_openlabel_subset.schema.json)')
-    optional.add_argument('--ontology', default='../ontology/savant_ontology_1.3.1.ttl',
-                          help='Path to SAVANT ontology file for class mapping (default: ../ontology/savant_ontology_1.3.1.ttl)')
+    optional.add_argument('--ontology', default='../ontology/savant.ttl',
+                          help='Path to SAVANT ontology file for class mapping (default: ../ontology/savant.ttl)')
     optional.add_argument('--ontology-uri', dest='ontology_uri',
                           help='Ontology URI for OpenLabel output (default: extracted from ontology file)')
     optional.add_argument('--output_video', help='Path to output annotated video file')
     optional.add_argument('--aruco-csv', dest='aruco_csv',
                           help='Path to CSV file with ArUco marker GPS positions (enables ArUco detection)')
+    optional.add_argument('--visual-markers', dest='visual_markers',
+                          help='Path to CSV file with visual marker GPS positions (same format as ArUco CSV)')
     optional.add_argument('--provenance',
                           help='Path to provenance chain file (will be created if not exists)')
 
@@ -352,8 +354,20 @@ def main():
         # Pre-populate ArUco markers from GPS data (if ArUco detection enabled)
         aruco_gps = video_processor.get_aruco_gps_data()
         if aruco_gps:
-            gps_data, base_name = aruco_gps
-            openlabel_handler.add_aruco_objects(gps_data, base_name)
+            gps_data, csv_name = aruco_gps
+            id_mapping = video_processor.get_aruco_id_mapping()
+            openlabel_handler.add_aruco_objects(gps_data, csv_name, id_mapping)
+
+        # Pre-populate visual markers from GPS data (if provided)
+        visual_marker_result = video_processor.get_visual_marker_data()
+        if visual_marker_result:
+            visual_marker_data, vm_id_mapping = visual_marker_result
+            openlabel_handler.add_visual_marker_objects(
+                visual_marker_data.gps_data,
+                visual_marker_data.marker_names,
+                vm_id_mapping,
+                visual_marker_data.csv_name
+            )
 
         # Process video
         process_video(video_processor, openlabel_handler, config)

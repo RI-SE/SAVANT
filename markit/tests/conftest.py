@@ -38,7 +38,7 @@ def schema_path():
 @pytest.fixture
 def ontology_path():
     """Path to SAVANT ontology file."""
-    return str(Path(__file__).parent.parent.parent / "ontology" / "savant_ontology_1.3.1.ttl")
+    return str(Path(__file__).parent.parent.parent / "ontology" / "savant.ttl")
 
 
 @pytest.fixture

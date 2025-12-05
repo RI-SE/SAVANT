@@ -36,18 +36,21 @@ class BaseDetectionEngine(ABC):
 class YOLOEngine(BaseDetectionEngine):
     """YOLO-based detection engine."""
 
-    def __init__(self, weights_path: str, class_map: Optional[Dict[int, str]] = None, verbose: bool = False):
+    def __init__(self, weights_path: str, class_map: Optional[Dict[int, str]] = None, verbose: bool = False,
+                 id_manager: Optional['ObjectIDManager'] = None):
         """Initialize YOLO engine.
 
         Args:
             weights_path: Path to YOLO weights file
             class_map: Expected class mapping from ontology (for validation)
             verbose: Enable verbose logging
+            id_manager: Optional ID manager for unified sequential IDs
         """
         self.weights_path = weights_path
         self.model = None
         self.class_map = class_map
         self.verbose = verbose
+        self.id_manager = id_manager
         # Track semantic dimensions and angles per object for continuity
         self.object_tracking: Dict[int, Dict[str, float]] = {}
         # Structure: {obj_id: {'w_sem': float, 'h_sem': float, 'angle': float}}
@@ -166,8 +169,14 @@ class YOLOEngine(BaseDetectionEngine):
                         rotated_corners = corners @ rotation_matrix.T
                         oriented_bbox = rotated_corners + np.array([center_x, center_y])
 
+                        # Remap YOLO native ID to sequential ID if ID manager available
+                        if obj_id is not None and self.id_manager:
+                            remapped_id = self.id_manager.get_dynamic_id('yolo', int(obj_id))
+                        else:
+                            remapped_id = int(obj_id) if obj_id is not None else None
+
                         detection_results.append(DetectionResult(
-                            object_id=int(obj_id) if obj_id is not None else None,
+                            object_id=remapped_id,
                             class_id=int(cls),
                             confidence=float(conf),
                             oriented_bbox=oriented_bbox,
@@ -276,11 +285,15 @@ class YOLOEngine(BaseDetectionEngine):
 class SimpleTracker:
     """Simple object tracker for optical flow detections."""
 
-    def __init__(self, max_distance: float = 50.0, id_offset: int = 0):
+    def __init__(self, max_distance: float = 50.0,
+                 id_manager: Optional['ObjectIDManager'] = None):
         self.max_distance = max_distance
-        self.tracks = {}
-        self.next_id = 1 + id_offset
-        self.id_offset = id_offset
+        self.tracks = {}  # Maps remapped_id -> center position
+        self.id_manager = id_manager
+        # Local tracking ID for ID manager lookup (sequential per tracker)
+        self._next_local_id = 1
+        # Fallback for legacy mode without ID manager
+        self._next_legacy_id = 1000001
 
     def get_id(self, center: Tuple[float, float]) -> int:
         """Get object ID for center position.
@@ -289,7 +302,7 @@ class SimpleTracker:
             center: Object center position (x, y)
 
         Returns:
-            Object ID
+            Object ID (remapped if ID manager available)
         """
         min_distance = float('inf')
         best_track_id = None
@@ -306,26 +319,35 @@ class SimpleTracker:
             self.tracks[best_track_id] = center
             return best_track_id
         else:
-            # Create new track
-            new_id = self.next_id
+            # Create new track with remapped ID
+            if self.id_manager:
+                new_id = self.id_manager.get_dynamic_id('optical_flow', self._next_local_id)
+                self._next_local_id += 1
+            else:
+                # Fallback: use legacy offset
+                new_id = self._next_legacy_id
+                self._next_legacy_id += 1
+
             self.tracks[new_id] = center
-            self.next_id += 1
             return new_id
 
 
 class OpticalFlowEngine(BaseDetectionEngine):
     """Optical flow + background subtraction detection engine."""
 
-    def __init__(self, params: OpticalFlowParams):
+    def __init__(self, params: OpticalFlowParams,
+                 id_manager: Optional['ObjectIDManager'] = None):
         """Initialize optical flow engine.
 
         Args:
             params: Optical flow parameters
+            id_manager: Optional ID manager for unified sequential IDs
         """
         self.params = params
+        self.id_manager = id_manager
         self.back_sub = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
         self.prev_gray = None
-        self.object_tracker = SimpleTracker(id_offset=1000000)
+        self.object_tracker = SimpleTracker(id_manager=id_manager)
         self.optical_flow_method = None  # Will be set by availability check
         self.optical_flow_available = self._check_optical_flow_availability()
 
@@ -577,6 +599,7 @@ class ArUcoGPSData:
         self.csv_path = Path(csv_path)
         self.gps_data = {}  # {aruco_id: {corner: {'lat': ..., 'lon': ...}}}
         self.base_name = self._extract_base_name()
+        self.csv_name = self.csv_path.stem  # Full filename without extension
         self._load_csv()
 
     def _extract_base_name(self) -> str:
@@ -667,21 +690,152 @@ class ArUcoGPSData:
         """
         return f"{self.base_name}_{aruco_id}"
 
+    def get_marker_ids(self) -> List[int]:
+        """Get list of all ArUco marker IDs from GPS data.
+
+        Returns:
+            Sorted list of physical ArUco marker IDs
+        """
+        return sorted(self.gps_data.keys())
+
+
+class VisualMarkerGPSData:
+    """Parses and stores visual marker GPS position data from CSV file.
+
+    Similar to ArUcoGPSData but for generic visual markers like lampposts,
+    features, or other reference points.
+    """
+
+    def __init__(self, csv_path: str):
+        """Initialize visual marker GPS data parser.
+
+        Args:
+            csv_path: Path to CSV file with visual marker GPS positions
+
+        CSV format:
+            point_name,latitude,longitude,altitude,...
+            lamppost_1a,57.484585691968014,12.008951647166743,...
+            feature_3a,57.484161220753606,12.010498613144026,...
+
+        Naming convention:
+            <description>_<ID><corner> where corner is a, b, c, or d
+            a = bottom-left, b = top-left, c = top-right, d = bottom-right
+        """
+        self.csv_path = Path(csv_path)
+        self.gps_data = {}  # {marker_id: {corner: {'lat': ..., 'lon': ..., 'description': ...}}}
+        self.marker_names = {}  # {marker_id: description} e.g., {1: 'lamppost', 3: 'feature'}
+        self.base_name = self._extract_base_name()
+        self.csv_name = self.csv_path.stem  # Full filename without extension
+        self._load_csv()
+
+    def _extract_base_name(self) -> str:
+        """Extract base name from CSV filename (before first underscore).
+
+        Returns:
+            Base name (e.g., 'SaroRound' from 'SaroRound_coords_visualmarkers.csv')
+        """
+        filename = self.csv_path.stem  # Get filename without extension
+        parts = filename.split('_')
+        return parts[0] if parts else filename
+
+    def _load_csv(self) -> None:
+        """Load and parse CSV file."""
+        import re
+        try:
+            with open(self.csv_path, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    point_name = row.get('point_name', '').strip()
+                    if not point_name:
+                        continue
+
+                    # Parse point_name: lamppost_1a -> description='lamppost', ID=1, corner='a'
+                    # Pattern: <description>_<ID><corner>
+                    match = re.match(r'^(.+)_(\d+)([abcd])$', point_name, re.IGNORECASE)
+                    if not match:
+                        logger.debug(f"Skipping non-visual-marker entry: {point_name}")
+                        continue
+
+                    description = match.group(1)
+                    marker_id = int(match.group(2))
+                    corner = match.group(3).lower()
+
+                    # Extract GPS coordinates
+                    try:
+                        lat = float(row.get('latitude', 0))
+                        lon = float(row.get('longitude', 0))
+                        alt = float(row.get('altitude', 0))
+                    except (ValueError, TypeError):
+                        logger.warning(f"Invalid GPS coordinates for {point_name}")
+                        continue
+
+                    # Store data
+                    if marker_id not in self.gps_data:
+                        self.gps_data[marker_id] = {}
+                        self.marker_names[marker_id] = description
+
+                    self.gps_data[marker_id][corner] = {
+                        'lat': lat,
+                        'lon': lon,
+                        'alt': alt
+                    }
+
+            logger.info(f"Loaded GPS data for {len(self.gps_data)} visual markers from {self.csv_path}")
+
+        except Exception as e:
+            logger.error(f"Failed to load visual marker GPS CSV: {e}")
+            raise
+
+    def get_gps_data(self, marker_id: int) -> Dict[str, Dict[str, float]]:
+        """Get GPS data for specific marker ID.
+
+        Args:
+            marker_id: Visual marker ID
+
+        Returns:
+            Dictionary of corner positions: {corner: {'lat': ..., 'lon': ..., 'alt': ...}}
+            Empty dict if ID not found
+        """
+        return self.gps_data.get(marker_id, {})
+
+    def get_object_name(self, marker_id: int) -> str:
+        """Get OpenLabel object name for visual marker.
+
+        Args:
+            marker_id: Visual marker ID
+
+        Returns:
+            Object name in format: "description_ID" (e.g., "lamppost_1")
+        """
+        description = self.marker_names.get(marker_id, 'marker')
+        return f"{description}_{marker_id}"
+
+    def get_marker_ids(self) -> List[int]:
+        """Get list of all visual marker IDs from GPS data.
+
+        Returns:
+            Sorted list of marker IDs
+        """
+        return sorted(self.gps_data.keys())
+
 
 class ArUcoEngine(BaseDetectionEngine):
     """ArUco marker detection engine with GPS position integration."""
 
-    def __init__(self, csv_path: str, class_id: int, aruco_dict_name: str = 'DICT_4X4_50'):
+    def __init__(self, csv_path: str, class_id: int, aruco_dict_name: str = 'DICT_4X4_50',
+                 id_manager: Optional['ObjectIDManager'] = None):
         """Initialize ArUco detection engine.
 
         Args:
             csv_path: Path to GPS CSV file with ArUco positions
             class_id: Class ID for ArUco markers from ontology
             aruco_dict_name: Name of ArUco dictionary (e.g., 'DICT_4X4_50')
+            id_manager: Optional ID manager for unified sequential IDs
         """
         self.csv_path = csv_path
         self.class_id = class_id
         self.aruco_dict_name = aruco_dict_name
+        self.id_manager = id_manager
         self.gps_data = None
         self.aruco_dict = None
         self.aruco_params = None
@@ -742,8 +896,11 @@ class ArUcoEngine(BaseDetectionEngine):
                     center_x = float(np.mean(marker_corners[:, 0]))
                     center_y = float(np.mean(marker_corners[:, 1]))
 
-                    # Use deterministic ID based on marker ID (allows pre-population of all markers)
-                    obj_id = 2000000 + aruco_id
+                    # Use ID manager for sequential IDs, or fallback to legacy offset
+                    if self.id_manager:
+                        obj_id = self.id_manager.get_aruco_id(aruco_id)
+                    else:
+                        obj_id = 2000000 + aruco_id
 
                     # Calculate rotation angle from corner positions
                     # Use vector from bottom-left to bottom-right corner

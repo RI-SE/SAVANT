@@ -13,9 +13,9 @@ Processed with:
 ```
 
 ### Saro_roundabout/
-Roundabout scene with ArUco markers for GPS coordinate testing.
+Roundabout scene with ArUco markers and visual markers for GPS coordinate testing.
 
 Processed with:
 ```bash
-./run_markit --input ../TestVids/Saro_roundabout/Saro_roundabout.mp4 --output_json ../TestVids/Saro_roundabout/Saro_roundabout.json --aruco-csv ../TestVids/Saro_roundabout/GbgSaroRound_coords.csv --housekeeping --static-mark
+./run_markit --input ../TestVids/Saro_roundabout/Saro_roundabout.mp4 --output_json ../TestVids/Saro_roundabout/Saro_roundabout.json --aruco-csv ../TestVids/Saro_roundabout/Saro_aruco.csv --visual-markers ../TestVids/Saro_roundabout/Saro_visualmarkers.csv --housekeeping --static-mark
 ```

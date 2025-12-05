@@ -7,7 +7,7 @@ Manages OpenLabel data structure creation, frame object addition, and file savin
 import json
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -133,7 +133,8 @@ class OpenLabelHandler:
             else:
                 logger.warning("Could not set ontology: openlabel.ontologies not found in structure")
 
-    def add_aruco_objects(self, gps_data: Dict[int, Dict], base_name: str) -> None:
+    def add_aruco_objects(self, gps_data: Dict[int, Dict], csv_name: str,
+                          id_mapping: Optional[Dict[int, int]] = None) -> None:
         """Pre-populate all ArUco markers from GPS data.
 
         Adds all markers from the CSV file to objects, even if not detected in video.
@@ -141,11 +142,17 @@ class OpenLabelHandler:
 
         Args:
             gps_data: Dict mapping aruco_id -> {corner: {'lat', 'lon', 'alt'}}
-            base_name: Base name from CSV filename for object naming
+            csv_name: CSV filename without extension (used for description field)
+            id_mapping: Optional mapping of physical ArUco ID to sequential object ID.
+                        If None, uses legacy 2000000 + aruco_id scheme.
         """
         for aruco_id, corners in gps_data.items():
-            obj_id_str = str(2000000 + aruco_id)
-            object_name = f"{base_name}_{aruco_id}"
+            # Use mapping if provided, otherwise legacy scheme
+            if id_mapping and aruco_id in id_mapping:
+                obj_id_str = str(id_mapping[aruco_id])
+            else:
+                obj_id_str = str(2000000 + aruco_id)
+            object_name = f"aruco_{aruco_id}"
 
             # Build GPS vectors from all corners
             corner_ids, latitudes, longitudes, altitudes = [], [], [], []
@@ -171,13 +178,66 @@ class OpenLabelHandler:
                         {"name": "long", "val": longitudes},
                         {"name": "lat", "val": latitudes},
                         {"name": "alt", "val": altitudes},
-                        {"name": "description", "val": base_name}
+                        {"name": "description", "val": csv_name}
                     ]
                 }
 
             self.openlabel_data["openlabel"]["objects"][obj_id_str] = aruco_object
 
         logger.info(f"Pre-populated {len(gps_data)} ArUco markers from GPS data")
+
+    def add_visual_marker_objects(self, gps_data: Dict[int, Dict],
+                                   marker_names: Dict[int, str],
+                                   id_mapping: Dict[int, int],
+                                   csv_name: str) -> None:
+        """Pre-populate visual markers from GPS data.
+
+        Adds all visual markers to objects list. These are reference points like
+        lampposts, features, etc. that are not automatically detected but have
+        known GPS coordinates.
+
+        Args:
+            gps_data: Dict mapping marker_id -> {corner: {'lat', 'lon', 'alt'}}
+            marker_names: Dict mapping marker_id -> description (e.g., 'lamppost')
+            id_mapping: Mapping of marker ID to sequential object ID
+            csv_name: CSV filename without extension (used for description field)
+        """
+        for marker_id, corners in gps_data.items():
+            obj_id_str = str(id_mapping[marker_id])
+            marker_type = marker_names.get(marker_id, 'marker')
+            object_name = f"{marker_type}_{marker_id}"
+
+            # Build GPS vectors from all corners
+            corner_ids, latitudes, longitudes, altitudes = [], [], [], []
+            for corner in sorted(corners.keys()):
+                corner_data = corners[corner]
+                corner_ids.append(f"{marker_id}{corner}")
+                latitudes.append(str(corner_data['lat']))
+                longitudes.append(str(corner_data['lon']))
+                altitudes.append(str(corner_data.get('alt', 0)))
+
+            # Build object with GPS data at object level
+            marker_object = {
+                "name": object_name,
+                "type": "VisualMarker",
+                "ontology_uid": "0"
+            }
+
+            # Add object_data.vec with GPS coordinates
+            if corner_ids:
+                marker_object["object_data"] = {
+                    "vec": [
+                        {"name": "markerID", "val": corner_ids},
+                        {"name": "long", "val": longitudes},
+                        {"name": "lat", "val": latitudes},
+                        {"name": "alt", "val": altitudes},
+                        {"name": "description", "val": csv_name}
+                    ]
+                }
+
+            self.openlabel_data["openlabel"]["objects"][obj_id_str] = marker_object
+
+        logger.info(f"Pre-populated {len(gps_data)} visual markers from GPS data")
 
     def add_frame_objects(self, frame_idx: int, detection_results: List[DetectionResult],
                          class_map: Dict[int, str]) -> None:

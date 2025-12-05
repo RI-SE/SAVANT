@@ -6,6 +6,7 @@ Training tools for YOLO OBB (Oriented Bounding Box) models.
 
 This directory contains tools for training and preparing datasets for YOLO OBB models:
 
+- **extract_yolo_training.py** - Extract YOLO OBB training data from video with OpenLabel annotations
 - **train_yolo_obb.py** - Train YOLO OBB models for UAV object detection
 - **split_train_val.py** - Split YOLO datasets into train/val by sequence
 
@@ -17,6 +18,7 @@ This directory contains tools for training and preparing datasets for YOLO OBB m
 
 - [Installation](#installation)
 - [Scripts](#scripts)
+  - [extract_yolo_training.py](#extract_yolo_trainingpy)
   - [train_yolo_obb.py](#train_yolo_obbpy)
     - [Quick Start](#quick-start)
     - [Core Arguments](#core-arguments)
@@ -38,11 +40,100 @@ These tools are installed as part of the SAVANT package:
 uv sync --dev
 
 # The scripts are available as CLI commands
+extract-yolo-training --help
 train-yolo-obb --help
 split-train-val --help
 ```
 
 ## Scripts
+
+### extract_yolo_training.py
+
+Extracts YOLO OBB training data from video files with OpenLabel annotations. This tool samples frames from a video at regular intervals and creates a complete YOLO OBB dataset with images, labels, and configuration.
+
+**Key Features:**
+- Extracts frames at configurable intervals (by seconds or frame count)
+- Converts OpenLabel annotations to YOLO OBB format (oriented bounding boxes)
+- Uses ontology UIDs directly as YOLO class IDs (consecutive UIDs 0-N only)
+- Optional train/val split
+- Generates ready-to-use dataset.yaml configuration
+
+**Quick Start:**
+
+```bash
+# Basic extraction with default settings (every 5 seconds)
+extract-yolo-training -i path/to/video_folder -o path/to/output_dataset
+
+# Extract every 2 seconds with 90/10 train/val split
+extract-yolo-training -i input_folder -o output_dataset --interval-seconds 2 --train-ratio 0.9
+
+# Extract every 30 frames
+extract-yolo-training -i input_folder -o output_dataset --interval-frames 30
+```
+
+**Arguments:**
+
+| Argument | Short | Default | Description |
+|----------|-------|---------|-------------|
+| `--input` | `-i` | (required) | Input folder containing video (.mp4) and OpenLabel JSON |
+| `--output` | `-o` | (required) | Output folder for YOLO dataset |
+| `--ontology` | | `ontology/savant.ttl` | Path to SAVANT ontology (.ttl) file |
+| `--video` | | auto-detect | Video filename (if multiple .mp4 in folder) |
+| `--openlabel` | | auto-detect | Force specific OpenLabel JSON (skips tagged_file check) |
+| `--interval-seconds` | | 5.0 | Extract every N seconds |
+| `--interval-frames` | | | Extract every N frames (mutually exclusive with seconds) |
+| `--train-ratio` | | None | Train/val split ratio (e.g., 0.9 for 90% train) |
+| `--seed` | | 42 | Random seed for train/val split |
+| `--verbose` | `-v` | False | Enable verbose logging |
+| `--version` | | | Show version and exit |
+
+**Input Requirements:**
+
+The input folder must contain:
+- A video file (.mp4)
+- An OpenLabel JSON file with `metadata.tagged_file` matching the video filename
+
+**Output Structure:**
+
+```
+output_dataset/
+├── dataset.yaml          # YOLO configuration file
+├── images/
+│   ├── train/           # Training images
+│   │   ├── frame_000000.jpg
+│   │   └── ...
+│   └── val/             # Validation images (if --train-ratio used)
+└── labels/
+    ├── train/           # Training labels (YOLO OBB format)
+    │   ├── frame_000000.txt
+    │   └── ...
+    └── val/             # Validation labels (if --train-ratio used)
+```
+
+**Class ID Mapping:**
+
+The tool uses ontology UIDs directly as YOLO class IDs:
+- Only consecutive UIDs starting from 0 are included (e.g., 0, 1, 2, ..., 24)
+- Non-consecutive UIDs (e.g., 200, 300) are excluded
+- All consecutive UIDs appear in the YAML file, even if not present in the dataset
+- Objects with non-consecutive UIDs are skipped during extraction
+
+**Example Workflow:**
+
+```bash
+# 1. Extract training data from annotated video
+extract-yolo-training -i annotated_videos/scene1 -o datasets/scene1 --train-ratio 0.9
+
+# 2. Train the model
+train-yolo-obb --data datasets/scene1/dataset.yaml --epochs 50
+
+# 3. Or combine multiple extractions and use split-train-val
+extract-yolo-training -i videos/scene1 -o datasets/combined
+extract-yolo-training -i videos/scene2 -o datasets/combined  # Append to same dataset
+split-train-val --dataset-path datasets/combined
+```
+
+---
 
 ### train_yolo_obb.py
 
@@ -453,6 +544,7 @@ You can run these scripts directly with uv without activating the virtual enviro
 
 ```bash
 # From repository root
+uv run extract-yolo-training -i videos/scene1 -o datasets/scene1
 uv run split-train-val --dataset-path datasets/UAV_yolo_obb
 uv run train-yolo-obb --data dataset.yaml --epochs 50
 ```
@@ -462,21 +554,35 @@ uv run train-yolo-obb --data dataset.yaml --epochs 50
 Here's a typical workflow for training a YOLO OBB model:
 
 ```bash
-# 1. Split your dataset
-split-train-val --dataset-path datasets/UAV_yolo_obb --dry-run  # Preview
-split-train-val --dataset-path datasets/UAV_yolo_obb            # Execute
+# 1. Extract training data from annotated videos
+extract-yolo-training -i annotated_videos/scene1 -o datasets/my_dataset
+extract-yolo-training -i annotated_videos/scene2 -o datasets/my_dataset  # Add more scenes
 
-# 2. Train the model
-train-yolo-obb --data datasets/UAV_yolo_obb/dataset.yaml \
+# 2. Split the dataset (if not using --train-ratio during extraction)
+split-train-val --dataset-path datasets/my_dataset --dry-run  # Preview
+split-train-val --dataset-path datasets/my_dataset            # Execute
+
+# 3. Train the model
+train-yolo-obb --data datasets/my_dataset/dataset.yaml \
     --model yolo11s-obb.pt \
     --epochs 50 \
     --batch 30 \
     --imgsz 640
 
-# 3. If needed, adjust and continue training
-train-yolo-obb --data datasets/UAV_yolo_obb/dataset.yaml \
+# 4. If needed, adjust and continue training
+train-yolo-obb --data datasets/my_dataset/dataset.yaml \
     --resume \
     --epochs 100
+```
+
+**Alternative: Single video with built-in split:**
+
+```bash
+# Extract with automatic train/val split
+extract-yolo-training -i annotated_video -o datasets/my_dataset --train-ratio 0.9
+
+# Train directly
+train-yolo-obb --data datasets/my_dataset/dataset.yaml --epochs 50
 ```
 
 ## Notes

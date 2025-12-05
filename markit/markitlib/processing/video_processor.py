@@ -11,8 +11,9 @@ import cv2
 import numpy as np
 
 from ..config import Constants, ConflictResolutionConfig, DetectionResult, MarkitConfig
-from .engines import YOLOEngine, OpticalFlowEngine, ArUcoEngine
+from .engines import YOLOEngine, OpticalFlowEngine, ArUcoEngine, ArUcoGPSData, VisualMarkerGPSData
 from .conflict_resolution import DetectionConflictResolver
+from .id_manager import ObjectIDManager
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +35,45 @@ class VideoProcessor:
         self.frame_height = 0
         self.fps = 0.0
 
+        # Create ID manager for unified sequential IDs
+        self.id_manager = ObjectIDManager()
+
+        # Initialize ArUco mapping first (if ArUco enabled) to set dynamic ID start point
+        aruco_marker_ids = []
+        if config.use_aruco:
+            # Load ArUco GPS data to get marker IDs
+            aruco_gps = ArUcoGPSData(config.aruco_csv_path)
+            aruco_marker_ids = aruco_gps.get_marker_ids()
+
+        # Initialize ArUco ID mapping (ArUcos get 0 to N-1)
+        self.id_manager.initialize_aruco_mapping(aruco_marker_ids)
+
+        # Initialize visual marker mapping (if provided) - IDs continue after ArUco
+        self.visual_marker_data: Optional[VisualMarkerGPSData] = None
+        visual_marker_ids = []
+        if config.visual_markers_csv_path:
+            self.visual_marker_data = VisualMarkerGPSData(config.visual_markers_csv_path)
+            visual_marker_ids = self.visual_marker_data.get_marker_ids()
+
+        # Initialize visual marker ID mapping (visual markers get N to M-1, dynamics start from M)
+        self.id_manager.initialize_visual_marker_mapping(visual_marker_ids)
+
         # Initialize detection engines based on configuration
         if config.use_yolo:
-            self.engines.append(YOLOEngine(config.weights_path, config.class_map, config.verbose))
+            self.engines.append(YOLOEngine(
+                config.weights_path, config.class_map, config.verbose,
+                id_manager=self.id_manager
+            ))
         if config.use_optical_flow:
-            self.engines.append(OpticalFlowEngine(config.optical_flow_params))
+            self.engines.append(OpticalFlowEngine(
+                config.optical_flow_params,
+                id_manager=self.id_manager
+            ))
         if config.use_aruco:
-            self.engines.append(ArUcoEngine(config.aruco_csv_path, config.aruco_class_id, config.aruco_dict))
+            self.engines.append(ArUcoEngine(
+                config.aruco_csv_path, config.aruco_class_id, config.aruco_dict,
+                id_manager=self.id_manager
+            ))
 
         # Initialize conflict resolver if multiple engines and conflict resolution enabled
         if len(self.engines) > 1 and config.enable_conflict_resolution:
@@ -55,11 +88,32 @@ class VideoProcessor:
         """Get ArUco GPS data from the ArUco engine if available.
 
         Returns:
-            Tuple of (gps_data dict, base_name) or None if no ArUco engine
+            Tuple of (gps_data dict, csv_name) or None if no ArUco engine
         """
         for engine in self.engines:
             if isinstance(engine, ArUcoEngine):
-                return engine.gps_data.gps_data, engine.gps_data.base_name
+                return engine.gps_data.gps_data, engine.gps_data.csv_name
+        return None
+
+    def get_aruco_id_mapping(self) -> Optional[Dict[int, int]]:
+        """Get ArUco physical-to-sequential ID mapping.
+
+        Returns:
+            Dict mapping physical ArUco ID to sequential object ID,
+            or None if no ArUco markers configured
+        """
+        if self.id_manager.aruco_count > 0:
+            return self.id_manager.aruco_mapping
+        return None
+
+    def get_visual_marker_data(self) -> Optional[Tuple[VisualMarkerGPSData, Dict[int, int]]]:
+        """Get visual marker GPS data and ID mapping if available.
+
+        Returns:
+            Tuple of (VisualMarkerGPSData, id_mapping) or None if no visual markers
+        """
+        if self.visual_marker_data and self.id_manager.visual_marker_count > 0:
+            return self.visual_marker_data, self.id_manager.visual_marker_mapping
         return None
 
     def initialize(self) -> None:
