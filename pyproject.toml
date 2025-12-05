@@ -17,6 +17,8 @@ dependencies = [
     "lap>=0.5.12",
     "opencv-contrib-python>=4.5.0",
     "numpy",
+    "pyyaml",
+    "pydantic>=2.0",
     "rdflib",
     "dataprov @ git+ssh://git@github.com/fwrise/dataprov.git",
 ]
@@ -52,5 +54,6 @@ addopts = "-v --cov=markitlib --cov-report=term-missing"
 markit = "markit.markit:main"
 train-yolo-obb = "trainit.train_yolo_obb:main"
 split-train-val = "trainit.split_train_val:main"
+extract-yolo-training = "trainit.extract_yolo_training:main"
 remap-classes-to-ontology = "utils.remap_classes_to_ontology:main"
 print-ontology = "utils.print_ontology:main"

@@ -13,8 +13,7 @@ The SAVANT ontology defines classes for objects, behaviours, and relations in tr
 
 ## Files
 
-- **`savant_ontology_1.3.1.ttl`** - Current ontology definition in Turtle format
-- **`savant_ontology_1.3.0.ttl`** - Previous version (for compatibility)
+- **`savant.ttl`** - Current ontology definition in Turtle format (v1.3.1)
 - **`README.md`** - This documentation file
 
 ## UID Ranges
@@ -122,7 +121,7 @@ The ontology is used by markit to map YOLO class IDs to semantic labels:
 
 ```bash
 markit --input video.mp4 --output_json output.json \
-       --ontology ontology/savant_ontology_1.3.1.ttl
+       --ontology ontology/savant.ttl
 ```
 
 ### train-yolo-obb
@@ -139,10 +138,10 @@ Validate the ontology file with RDF tools:
 
 ```bash
 # Using rapper (raptor2-utils)
-rapper -i turtle -o ntriples savant_ontology_1.3.1.ttl > /dev/null
+rapper -i turtle -o ntriples savant.ttl > /dev/null
 
 # Using riot (Apache Jena)
-riot --validate savant_ontology_1.3.1.ttl
+riot --validate savant.ttl
 ```
 
 ## Extending the Ontology
