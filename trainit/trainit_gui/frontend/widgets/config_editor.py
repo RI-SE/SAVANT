@@ -6,15 +6,70 @@ from typing import Optional, Any
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
     QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox,
-    QGroupBox, QScrollArea, QPushButton, QTextEdit
+    QGroupBox, QScrollArea, QPushButton, QTextEdit, QMessageBox
 )
 from PyQt6.QtCore import Qt
 
 from ..states.app_state import AppState
+from ..help_texts import PARAMETER_HELP, GROUP_HELP, AUGMENTATION_PRESETS
 from ...controllers.config_controller import ConfigController
 from ...models.project import TrainingConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _create_info_button(parent: QWidget, param_name: str) -> QPushButton:
+    """Create an info button that shows help for the given parameter."""
+    btn = QPushButton("\u24d8")  # Circled i character
+    btn.setFixedSize(22, 22)
+    btn.setToolTip("Click for help")
+    btn.setStyleSheet(
+        "QPushButton { border: none; color: #0066cc; font-size: 14px; }"
+        "QPushButton:hover { color: #0044aa; }"
+    )
+    btn.clicked.connect(lambda: _show_help_dialog(parent, param_name))
+    return btn
+
+
+def _create_group_info_button(parent: QWidget, group_name: str) -> QPushButton:
+    """Create an info button for a group box."""
+    btn = QPushButton("\u24d8")
+    btn.setFixedSize(22, 22)
+    btn.setToolTip("About this section")
+    btn.setStyleSheet(
+        "QPushButton { border: none; color: #0066cc; font-size: 14px; }"
+        "QPushButton:hover { color: #0044aa; }"
+    )
+    btn.clicked.connect(lambda: _show_group_help_dialog(parent, group_name))
+    return btn
+
+
+def _show_help_dialog(parent: QWidget, param_name: str) -> None:
+    """Show a help dialog for a parameter."""
+    help_info = PARAMETER_HELP.get(param_name)
+    if help_info:
+        msg = QMessageBox(parent)
+        msg.setWindowTitle(f"Help: {help_info['title']}")
+        msg.setText(help_info['text'])
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+
+
+def _show_group_help_dialog(parent: QWidget, group_name: str) -> None:
+    """Show a help dialog for a group."""
+    help_info = GROUP_HELP.get(group_name)
+    if help_info:
+        msg = QMessageBox(parent)
+        msg.setWindowTitle(help_info['title'])
+        msg.setText(help_info['text'])
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+
+
+def _get_tooltip(param_name: str) -> str:
+    """Get tooltip text for a parameter."""
+    help_info = PARAMETER_HELP.get(param_name, {})
+    return help_info.get('tooltip', '')
 
 
 class ConfigEditor(QWidget):
@@ -32,6 +87,7 @@ class ConfigEditor(QWidget):
         self.config_controller = config_controller
         self._updating = False
         self._widgets = {}  # field_name -> widget
+        self._preset_combo = None  # Augmentation preset dropdown
 
         self._setup_ui()
         self._connect_signals()
@@ -67,7 +123,16 @@ class ConfigEditor(QWidget):
 
         # Core parameters
         core_group = QGroupBox("Core Parameters")
-        core_layout = QFormLayout(core_group)
+        core_group_layout = QVBoxLayout(core_group)
+
+        # Group header with info button
+        core_header = QHBoxLayout()
+        core_header.addStretch()
+        core_header.addWidget(_create_group_info_button(self, "core"))
+        core_group_layout.addLayout(core_header)
+
+        core_layout = QFormLayout()
+        core_group_layout.addLayout(core_layout)
 
         self._add_line_edit(core_layout, "model", "Model:", "yolo11s-obb.pt")
         self._add_spin_box(core_layout, "epochs", "Epochs:", 1, 1000, 50)
@@ -81,7 +146,16 @@ class ConfigEditor(QWidget):
 
         # Advanced parameters (YOLO defaults shown as greyed values)
         advanced_group = QGroupBox("Advanced Training Parameters")
-        advanced_layout = QFormLayout(advanced_group)
+        advanced_group_layout = QVBoxLayout(advanced_group)
+
+        # Group header with info button
+        advanced_header = QHBoxLayout()
+        advanced_header.addStretch()
+        advanced_header.addWidget(_create_group_info_button(self, "advanced"))
+        advanced_group_layout.addLayout(advanced_header)
+
+        advanced_layout = QFormLayout()
+        advanced_group_layout.addLayout(advanced_layout)
 
         self._add_optional_double(advanced_layout, "lr0", "Initial LR:", 0.0001, 1.0, 0.01)
         self._add_optional_double(advanced_layout, "lrf", "Final LR (fraction):", 0.0, 1.0, 0.01)
@@ -103,7 +177,16 @@ class ConfigEditor(QWidget):
 
         # Loss weights (YOLO defaults)
         loss_group = QGroupBox("Loss Weights")
-        loss_layout = QFormLayout(loss_group)
+        loss_group_layout = QVBoxLayout(loss_group)
+
+        # Group header with info button
+        loss_header = QHBoxLayout()
+        loss_header.addStretch()
+        loss_header.addWidget(_create_group_info_button(self, "loss"))
+        loss_group_layout.addLayout(loss_header)
+
+        loss_layout = QFormLayout()
+        loss_group_layout.addLayout(loss_layout)
 
         self._add_optional_double(loss_layout, "box", "Box Loss:", 0.1, 20.0, 7.5)
         self._add_optional_double(loss_layout, "cls", "Class Loss:", 0.1, 5.0, 0.5)
@@ -113,7 +196,33 @@ class ConfigEditor(QWidget):
 
         # Augmentation parameters (YOLO defaults)
         aug_group = QGroupBox("Augmentation Parameters")
-        aug_layout = QFormLayout(aug_group)
+        aug_group_layout = QVBoxLayout(aug_group)
+
+        # Group header with info button
+        aug_header = QHBoxLayout()
+        aug_header.addStretch()
+        aug_header.addWidget(_create_group_info_button(self, "augmentation"))
+        aug_group_layout.addLayout(aug_header)
+
+        # Presets dropdown
+        preset_layout = QHBoxLayout()
+        preset_label = QLabel("Preset:")
+        preset_label.setStyleSheet("font-weight: bold;")
+        preset_layout.addWidget(preset_label)
+
+        self._preset_combo = QComboBox()
+        for preset_name, preset_info in AUGMENTATION_PRESETS.items():
+            self._preset_combo.addItem(preset_name)
+            # Store description as tooltip
+            idx = self._preset_combo.count() - 1
+            self._preset_combo.setItemData(idx, preset_info['description'], Qt.ItemDataRole.ToolTipRole)
+        self._preset_combo.setToolTip("Apply preset augmentation settings for common use cases")
+        self._preset_combo.currentTextChanged.connect(self._on_preset_changed)
+        preset_layout.addWidget(self._preset_combo, stretch=1)
+        aug_group_layout.addLayout(preset_layout)
+
+        aug_layout = QFormLayout()
+        aug_group_layout.addLayout(aug_layout)
 
         self._add_optional_double(aug_layout, "hsv_h", "HSV Hue:", 0, 1, 0.015)
         self._add_optional_double(aug_layout, "hsv_s", "HSV Saturation:", 0, 1, 0.7)
@@ -157,11 +266,21 @@ class ConfigEditor(QWidget):
         label: str,
         default: str = ""
     ):
-        """Add a line edit field."""
+        """Add a line edit field with info button."""
+        container = QWidget()
+        h_layout = QHBoxLayout(container)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+
         widget = QLineEdit()
         widget.setText(default)
+        widget.setToolTip(_get_tooltip(name))
         widget.textChanged.connect(self._on_value_changed)
-        layout.addRow(label, widget)
+        h_layout.addWidget(widget, stretch=1)
+
+        info_btn = _create_info_button(self, name)
+        h_layout.addWidget(info_btn)
+
+        layout.addRow(label, container)
         self._widgets[name] = widget
 
     def _add_spin_box(
@@ -173,12 +292,22 @@ class ConfigEditor(QWidget):
         max_val: int,
         default: int
     ):
-        """Add a spin box field."""
+        """Add a spin box field with info button."""
+        container = QWidget()
+        h_layout = QHBoxLayout(container)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+
         widget = QSpinBox()
         widget.setRange(min_val, max_val)
         widget.setValue(default)
+        widget.setToolTip(_get_tooltip(name))
         widget.valueChanged.connect(self._on_value_changed)
-        layout.addRow(label, widget)
+        h_layout.addWidget(widget, stretch=1)
+
+        info_btn = _create_info_button(self, name)
+        h_layout.addWidget(info_btn)
+
+        layout.addRow(label, container)
         self._widgets[name] = widget
 
     def _add_combo_box(
@@ -189,13 +318,23 @@ class ConfigEditor(QWidget):
         options: list,
         optional: bool = False
     ):
-        """Add a combo box field."""
+        """Add a combo box field with info button."""
+        container = QWidget()
+        h_layout = QHBoxLayout(container)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+
         widget = QComboBox()
         if optional:
             widget.addItem("(default)")
         widget.addItems(options if not optional else options[1:] if options[0] == "auto" else options)
+        widget.setToolTip(_get_tooltip(name))
         widget.currentIndexChanged.connect(self._on_value_changed)
-        layout.addRow(label, widget)
+        h_layout.addWidget(widget, stretch=1)
+
+        info_btn = _create_info_button(self, name)
+        h_layout.addWidget(info_btn)
+
+        layout.addRow(label, container)
         self._widgets[name] = widget
 
     def _add_optional_spin(
@@ -207,7 +346,7 @@ class ConfigEditor(QWidget):
         max_val: int,
         default: int = 0
     ):
-        """Add an optional spin box with checkbox."""
+        """Add an optional spin box with checkbox and info button."""
         container = QWidget()
         h_layout = QHBoxLayout(container)
         h_layout.setContentsMargins(0, 0, 0, 0)
@@ -220,9 +359,13 @@ class ConfigEditor(QWidget):
         spin.setRange(min_val, max_val)
         spin.setValue(default)
         spin.setEnabled(False)
+        spin.setToolTip(_get_tooltip(name))
         spin.valueChanged.connect(self._on_value_changed)
         checkbox.stateChanged.connect(lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value))
         h_layout.addWidget(spin, stretch=1)
+
+        info_btn = _create_info_button(self, name)
+        h_layout.addWidget(info_btn)
 
         layout.addRow(label, container)
         self._widgets[name] = (checkbox, spin)
@@ -236,7 +379,7 @@ class ConfigEditor(QWidget):
         max_val: float,
         default: float = 0.0
     ):
-        """Add an optional double spin box with checkbox."""
+        """Add an optional double spin box with checkbox and info button."""
         container = QWidget()
         h_layout = QHBoxLayout(container)
         h_layout.setContentsMargins(0, 0, 0, 0)
@@ -251,9 +394,13 @@ class ConfigEditor(QWidget):
         spin.setSingleStep(0.01)
         spin.setValue(default)
         spin.setEnabled(False)
+        spin.setToolTip(_get_tooltip(name))
         spin.valueChanged.connect(self._on_value_changed)
         checkbox.stateChanged.connect(lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value))
         h_layout.addWidget(spin, stretch=1)
+
+        info_btn = _create_info_button(self, name)
+        h_layout.addWidget(info_btn)
 
         layout.addRow(label, container)
         self._widgets[name] = (checkbox, spin)
@@ -473,3 +620,27 @@ class ConfigEditor(QWidget):
                     # Restore selected datasets from saved config
                     self.app_state.selected_datasets = list(saved_config.selected_datasets)
             self.app_state.config_dirty = False
+
+    def _on_preset_changed(self, preset_name: str):
+        """Apply an augmentation preset."""
+        if self._updating:
+            return
+
+        preset = AUGMENTATION_PRESETS.get(preset_name)
+        if not preset or not preset.get('values'):
+            return  # "Custom" or empty preset
+
+        # Apply preset values
+        self._updating = True
+        for param_name, value in preset['values'].items():
+            widget = self._widgets.get(param_name)
+            if widget and isinstance(widget, tuple):
+                checkbox, spin = widget
+                checkbox.setChecked(True)
+                spin.setEnabled(True)
+                spin.setValue(value)
+        self._updating = False
+
+        # Mark as dirty
+        if self.app_state.current_config:
+            self.app_state.config_dirty = True

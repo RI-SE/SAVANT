@@ -6,13 +6,69 @@ from typing import Optional, Any
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
     QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox,
-    QGroupBox, QScrollArea, QPushButton, QDialogButtonBox, QWidget
+    QGroupBox, QScrollArea, QPushButton, QDialogButtonBox, QWidget,
+    QMessageBox
 )
 from PyQt6.QtCore import Qt
 
+from ..help_texts import PARAMETER_HELP, GROUP_HELP
 from ...models.project import ProjectDefaults
 
 logger = logging.getLogger(__name__)
+
+
+def _create_info_button(parent: QWidget, param_name: str) -> QPushButton:
+    """Create an info button that shows help for the given parameter."""
+    btn = QPushButton("\u24d8")  # Circled i character
+    btn.setFixedSize(22, 22)
+    btn.setToolTip("Click for help")
+    btn.setStyleSheet(
+        "QPushButton { border: none; color: #0066cc; font-size: 14px; }"
+        "QPushButton:hover { color: #0044aa; }"
+    )
+    btn.clicked.connect(lambda: _show_help_dialog(parent, param_name))
+    return btn
+
+
+def _create_group_info_button(parent: QWidget, group_name: str) -> QPushButton:
+    """Create an info button for a group box."""
+    btn = QPushButton("\u24d8")
+    btn.setFixedSize(22, 22)
+    btn.setToolTip("About this section")
+    btn.setStyleSheet(
+        "QPushButton { border: none; color: #0066cc; font-size: 14px; }"
+        "QPushButton:hover { color: #0044aa; }"
+    )
+    btn.clicked.connect(lambda: _show_group_help_dialog(parent, group_name))
+    return btn
+
+
+def _show_help_dialog(parent: QWidget, param_name: str) -> None:
+    """Show a help dialog for a parameter."""
+    help_info = PARAMETER_HELP.get(param_name)
+    if help_info:
+        msg = QMessageBox(parent)
+        msg.setWindowTitle(f"Help: {help_info['title']}")
+        msg.setText(help_info['text'])
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+
+
+def _show_group_help_dialog(parent: QWidget, group_name: str) -> None:
+    """Show a help dialog for a group."""
+    help_info = GROUP_HELP.get(group_name)
+    if help_info:
+        msg = QMessageBox(parent)
+        msg.setWindowTitle(help_info['title'])
+        msg.setText(help_info['text'])
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+
+
+def _get_tooltip(param_name: str) -> str:
+    """Get tooltip text for a parameter."""
+    help_info = PARAMETER_HELP.get(param_name, {})
+    return help_info.get('tooltip', '')
 
 
 class ProjectDefaultsDialog(QDialog):
@@ -52,7 +108,16 @@ class ProjectDefaultsDialog(QDialog):
 
         # Core parameters
         core_group = QGroupBox("Core Parameters")
-        core_layout = QFormLayout(core_group)
+        core_header = QHBoxLayout()
+        core_header.addWidget(QLabel("Core Parameters"))
+        core_header.addWidget(_create_group_info_button(self, "core"))
+        core_header.addStretch()
+        core_group.setTitle("")
+        core_inner = QVBoxLayout()
+        core_inner.addLayout(core_header)
+        core_layout = QFormLayout()
+        core_inner.addLayout(core_layout)
+        core_group.setLayout(core_inner)
 
         self._add_optional_line(core_layout, "model", "Model:", "yolo11s-obb.pt")
         self._add_optional_spin(core_layout, "epochs", "Epochs:", 1, 1000, 50)
@@ -65,8 +130,16 @@ class ProjectDefaultsDialog(QDialog):
         scroll_layout.addWidget(core_group)
 
         # Advanced parameters
-        advanced_group = QGroupBox("Advanced Training Parameters")
-        advanced_layout = QFormLayout(advanced_group)
+        advanced_group = QGroupBox()
+        advanced_header = QHBoxLayout()
+        advanced_header.addWidget(QLabel("Advanced Training Parameters"))
+        advanced_header.addWidget(_create_group_info_button(self, "advanced"))
+        advanced_header.addStretch()
+        advanced_inner = QVBoxLayout()
+        advanced_inner.addLayout(advanced_header)
+        advanced_layout = QFormLayout()
+        advanced_inner.addLayout(advanced_layout)
+        advanced_group.setLayout(advanced_inner)
 
         self._add_optional_double(advanced_layout, "lr0", "Initial LR:", 0.0001, 1.0, 0.01)
         self._add_optional_double(advanced_layout, "lrf", "Final LR:", 0.0, 1.0, 0.01)
@@ -85,8 +158,16 @@ class ProjectDefaultsDialog(QDialog):
         scroll_layout.addWidget(advanced_group)
 
         # Loss weights
-        loss_group = QGroupBox("Loss Weights")
-        loss_layout = QFormLayout(loss_group)
+        loss_group = QGroupBox()
+        loss_header = QHBoxLayout()
+        loss_header.addWidget(QLabel("Loss Weights"))
+        loss_header.addWidget(_create_group_info_button(self, "loss"))
+        loss_header.addStretch()
+        loss_inner = QVBoxLayout()
+        loss_inner.addLayout(loss_header)
+        loss_layout = QFormLayout()
+        loss_inner.addLayout(loss_layout)
+        loss_group.setLayout(loss_inner)
 
         self._add_optional_double(loss_layout, "box", "Box Loss:", 0.1, 20.0, 7.5)
         self._add_optional_double(loss_layout, "cls", "Class Loss:", 0.1, 5.0, 0.5)
@@ -95,8 +176,16 @@ class ProjectDefaultsDialog(QDialog):
         scroll_layout.addWidget(loss_group)
 
         # Augmentation parameters
-        aug_group = QGroupBox("Augmentation Parameters")
-        aug_layout = QFormLayout(aug_group)
+        aug_group = QGroupBox()
+        aug_header = QHBoxLayout()
+        aug_header.addWidget(QLabel("Augmentation Parameters"))
+        aug_header.addWidget(_create_group_info_button(self, "augmentation"))
+        aug_header.addStretch()
+        aug_inner = QVBoxLayout()
+        aug_inner.addLayout(aug_header)
+        aug_layout = QFormLayout()
+        aug_inner.addLayout(aug_layout)
+        aug_group.setLayout(aug_inner)
 
         self._add_optional_double(aug_layout, "hsv_h", "HSV Hue:", 0, 1, 0.015)
         self._add_optional_double(aug_layout, "hsv_s", "HSV Saturation:", 0, 1, 0.7)
@@ -150,8 +239,12 @@ class ProjectDefaultsDialog(QDialog):
         edit = QLineEdit()
         edit.setText(default)
         edit.setEnabled(False)
+        edit.setToolTip(_get_tooltip(name))
         checkbox.stateChanged.connect(lambda state: edit.setEnabled(state == Qt.CheckState.Checked.value))
         h_layout.addWidget(edit, stretch=1)
+
+        info_btn = _create_info_button(self, name)
+        h_layout.addWidget(info_btn)
 
         layout.addRow(label, container)
         self._widgets[name] = (checkbox, edit)
@@ -177,8 +270,12 @@ class ProjectDefaultsDialog(QDialog):
         spin.setRange(min_val, max_val)
         spin.setValue(default)
         spin.setEnabled(False)
+        spin.setToolTip(_get_tooltip(name) or f"Range: {min_val}-{max_val}, Default: {default}")
         checkbox.stateChanged.connect(lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value))
         h_layout.addWidget(spin, stretch=1)
+
+        info_btn = _create_info_button(self, name)
+        h_layout.addWidget(info_btn)
 
         layout.addRow(label, container)
         self._widgets[name] = (checkbox, spin)
@@ -206,8 +303,12 @@ class ProjectDefaultsDialog(QDialog):
         spin.setSingleStep(0.01)
         spin.setValue(default)
         spin.setEnabled(False)
+        spin.setToolTip(_get_tooltip(name) or f"Range: {min_val}-{max_val}, Default: {default}")
         checkbox.stateChanged.connect(lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value))
         h_layout.addWidget(spin, stretch=1)
+
+        info_btn = _create_info_button(self, name)
+        h_layout.addWidget(info_btn)
 
         layout.addRow(label, container)
         self._widgets[name] = (checkbox, spin)
@@ -230,8 +331,12 @@ class ProjectDefaultsDialog(QDialog):
         combo = QComboBox()
         combo.addItems(options)
         combo.setEnabled(False)
+        combo.setToolTip(_get_tooltip(name))
         checkbox.stateChanged.connect(lambda state: combo.setEnabled(state == Qt.CheckState.Checked.value))
         h_layout.addWidget(combo, stretch=1)
+
+        info_btn = _create_info_button(self, name)
+        h_layout.addWidget(info_btn)
 
         layout.addRow(label, container)
         self._widgets[name] = (checkbox, combo)

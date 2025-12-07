@@ -1,5 +1,5 @@
 {
-  "name": "Example",
+  "name": "Test",
   "version": "1.0",
   "description": "",
   "datasets_root": "/home/fredrik/fwrise/SAVANT/trainit/examples/datasets",
@@ -10,10 +10,11 @@
   "default_config": null,
   "configs": [
     {
-      "name": "Kraklanda",
+      "name": "Both",
       "description": "",
       "selected_datasets": [
-        "Kraklanda"
+        "Kraklanda",
+        "Saro"
       ],
       "model": "yolo11s-obb.pt",
       "epochs": 50,
@@ -44,10 +45,11 @@
       "shear": null,
       "perspective": null,
       "fliplr": null,
+      "flipud": null,
       "mosaic": null,
       "mixup": null
     }
   ],
-  "created_at": "2025-12-07T18:04:40.320724",
-  "modified_at": "2025-12-07T18:05:25.126877"
+  "created_at": "2025-12-07T19:22:37.878781",
+  "modified_at": "2025-12-07T19:23:25.452821"
 }
