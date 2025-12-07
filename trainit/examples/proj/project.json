@@ -1,0 +1,53 @@
+{
+  "name": "Example",
+  "version": "1.0",
+  "description": "",
+  "datasets_root": "/home/fredrik/fwrise/SAVANT/trainit/examples/datasets",
+  "available_datasets": [
+    "Kraklanda",
+    "Saro"
+  ],
+  "default_config": null,
+  "configs": [
+    {
+      "name": "Kraklanda",
+      "description": "",
+      "selected_datasets": [
+        "Kraklanda"
+      ],
+      "model": "yolo11s-obb.pt",
+      "epochs": 50,
+      "imgsz": 640,
+      "batch": 30,
+      "device": "auto",
+      "project": "runs/obb",
+      "lr0": null,
+      "lrf": null,
+      "optimizer": null,
+      "warmup_epochs": null,
+      "warmup_momentum": null,
+      "patience": null,
+      "save_period": null,
+      "cache": null,
+      "workers": null,
+      "close_mosaic": null,
+      "freeze": null,
+      "box": null,
+      "cls": null,
+      "dfl": null,
+      "hsv_h": null,
+      "hsv_s": null,
+      "hsv_v": null,
+      "degrees": null,
+      "translate": null,
+      "scale": null,
+      "shear": null,
+      "perspective": null,
+      "fliplr": null,
+      "mosaic": null,
+      "mixup": null
+    }
+  ],
+  "created_at": "2025-12-07T18:04:40.320724",
+  "modified_at": "2025-12-07T18:05:25.126877"
+}

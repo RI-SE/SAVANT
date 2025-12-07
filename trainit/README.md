@@ -26,6 +26,7 @@ This directory contains tools for training and preparing datasets for YOLO OBB m
     - [Augmentation Parameters](#augmentation-parameters)
     - [Usage Strategies and Tradeoffs](#usage-strategies-and-tradeoffs)
     - [Examples](#examples)
+    - [In-Depth Parameter Guide](#in-depth-parameter-guide)
   - [split_train_val.py](#split_train_valpy)
 - [Running with uv](#running-with-uv)
 - [Complete Training Workflow](#complete-training-workflow)
@@ -203,6 +204,7 @@ Data augmentation improves model generalization. Optional - uses YOLO defaults i
 | `--shear` | 0.0 | Shear augmentation in degrees. |
 | `--perspective` | 0.0 | Perspective augmentation. Use small values (0.0001) for aerial views. |
 | `--fliplr` | 0.5 | Horizontal flip probability. |
+| `--flipud` | 0.0 | Vertical flip probability. Useful for aerial nadir views. |
 | `--mosaic` | 1.0 | Mosaic augmentation probability. Combines 4 images. |
 | `--mixup` | 0.0 | Mixup augmentation probability. Blends images for regularization. |
 
@@ -409,6 +411,175 @@ train-yolo-obb --data dataset.yaml \
 ```
 
 See `train-yolo-obb --help` for the complete categorized argument list.
+
+#### In-Depth Parameter Guide
+
+This section provides detailed explanations of training parameters for users who want to understand the underlying concepts and tune their training for specific use cases.
+
+##### Image Size (imgsz)
+
+The image size parameter controls the resolution at which images are processed during training.
+
+| imgsz | Best For | Trade-offs |
+|-------|----------|------------|
+| 320-512 | Fast experiments, large objects | May miss small objects |
+| 640 | General purpose (default) | Good balance of speed and accuracy |
+| 1024-1280 | Small object detection, UAV imagery | Higher memory, slower training |
+
+**Key considerations:**
+- Image size must be divisible by 32
+- Larger imgsz requires more GPU memory: `memory ∝ batch × imgsz²`
+- Model size (n/s/m/l/x) doesn't affect recommended imgsz - choose based on object size in your images
+- For UAV imagery with small objects, consider 1024 or higher
+
+##### Batch Size
+
+Batch size determines how many images are processed together in each training step.
+
+| GPU VRAM | imgsz 640 | imgsz 1024 |
+|----------|-----------|------------|
+| 8GB | 8-16 | 2-4 |
+| 16GB | 16-32 | 8-12 |
+| 24GB+ | 32-64 | 16-24 |
+
+**Tips:**
+- Use `batch=-1` for automatic batch size (targets 60% GPU utilization)
+- Larger batches give more stable gradients but may need higher learning rate
+- YOLO is batch-size agnostic - smaller GPUs can achieve similar results with smaller batches
+
+##### Learning Rate (lr0, lrf)
+
+Learning rate controls how much the model weights are updated during training.
+
+- **lr0** (default 0.01): Initial learning rate
+  - SGD typically uses 0.01
+  - Adam/AdamW typically uses 0.001
+  - Reduce to 0.001-0.005 for transfer learning
+  - Increase proportionally for batch sizes >32
+
+- **lrf** (default 0.01): Final LR as fraction of lr0
+  - Training uses cosine annealing from lr0 to lr0×lrf
+  - Lower values (0.001) give slower decay for fine-grained learning at end
+
+##### Optimizer
+
+| Optimizer | Best For | Characteristics |
+|-----------|----------|-----------------|
+| auto | Most cases | Selects based on configuration |
+| SGD | Production, large datasets | Stable, well-tested, good generalization |
+| Adam | Quick experiments, small datasets | Faster convergence |
+| AdamW | When overfitting is a concern | Adam with decoupled weight decay |
+
+##### Warmup Parameters
+
+Warmup gradually increases the learning rate at the start of training to prevent instability.
+
+- **warmup_epochs** (default 3.0): Number of epochs to ramp up learning rate
+  - Increase to 5+ for large datasets or if training is unstable
+- **warmup_momentum** (default 0.8): Starting momentum, ramps up to 0.937
+
+##### Close Mosaic (close_mosaic)
+
+Disables mosaic augmentation in the final N epochs (default 10).
+
+**Why it matters:** Mosaic combines 4 images, which is great for learning but creates unrealistic scenes. Disabling it in final epochs lets the model fine-tune on realistic single images.
+
+##### Freeze Layers
+
+Freezes the first N backbone layers during training for transfer learning.
+
+- Use `--freeze 10` to freeze backbone, training only detection head
+- Best for small datasets (<1000 images) where you want to preserve pre-trained features
+- Combine with lower learning rate (0.001)
+
+##### Loss Weights (box, cls, dfl)
+
+These control the relative importance of different loss components:
+
+- **box** (default 7.5): Bounding box localization loss
+  - Increase to 10+ if bounding boxes are inaccurate
+  - OBB default (7.5) is higher than regular detection
+- **cls** (default 0.5): Classification loss
+  - Increase if class predictions are poor
+- **dfl** (default 1.5): Distribution focal loss for bbox regression
+  - Fine-tunes bounding box quality
+
+##### Augmentation Parameters In-Depth
+
+**Rotation (degrees)**
+- Range: 0-180 (default 0.0)
+- **Aerial imagery:** Use 180 - objects can appear at any orientation from above
+- **Ground photography:** Use 10-30 - natural camera tilt only
+- **OBB note:** Rotation is especially important since OBB captures object orientation
+
+**Translation (translate)**
+- Range: 0.0-1.0 (default 0.1)
+- Shifts images by fraction of width/height
+- Helps detect partially visible objects at image edges
+
+**Scale**
+- Range: ≥0.0 (default 0.5)
+- Value of 0.5 means objects appear at 50%-150% of original size
+- **UAV imagery:** Use 0.5-0.8 (altitude varies significantly)
+- **Ground imagery:** Use 0.3-0.5
+
+**Shear**
+- Range: 0-90 degrees (default 0.0)
+- Skews image diagonally, simulating perspective effects
+- **Ground imagery:** 2-5°
+- **Aerial at angle:** 5-15°
+
+**Perspective**
+- Range: 0.0-0.001 (default 0.0)
+- Applies perspective distortion
+- **Aerial with tilt variation:** 0.0001-0.0003
+- **Nadir (straight-down):** Keep at 0
+
+**Horizontal Flip (fliplr)**
+- Range: 0.0-1.0 (default 0.5)
+- Safe for most scenarios
+- Disable (0.0) for asymmetric objects like text or directional signs
+
+**Vertical Flip (flipud)**
+- Range: 0.0-1.0 (default 0.0)
+- **Aerial nadir:** Use 0.5 - objects can appear inverted
+- **Ground photography:** Keep 0.0 - sky shouldn't appear below ground
+- **Aerial at angle:** Keep 0.0 - horizon orientation matters
+
+**Mosaic**
+- Range: 0.0-1.0 (default 1.0)
+- Combines 4 images into one during training
+- Excellent for small object detection and varied backgrounds
+- Increases effective batch size and context diversity
+
+**Mixup**
+- Range: 0.0-1.0 (default 0.0)
+- Blends two images together with their labels
+- Use 0.1-0.3 for large datasets as regularization
+- Keep 0.0 for small datasets or when precise boundaries matter
+
+##### Use-Case Recommendations
+
+**Aerial Photo - Nadir (Straight Down)**
+```bash
+train-yolo-obb --data dataset.yaml \
+    --degrees 180 --flipud 0.5 --fliplr 0.5 --scale 0.7 --perspective 0
+```
+Objects can appear at any orientation; no horizon to preserve.
+
+**Aerial Photo - Oblique (Angled)**
+```bash
+train-yolo-obb --data dataset.yaml \
+    --degrees 15 --flipud 0 --fliplr 0.5 --scale 0.6 --perspective 0.0002 --shear 5
+```
+Preserve horizon orientation; add perspective for altitude variation.
+
+**Ground-Level Photography**
+```bash
+train-yolo-obb --data dataset.yaml \
+    --degrees 10 --flipud 0 --fliplr 0.5 --scale 0.4 --perspective 0.0001
+```
+Natural camera tilt only; preserve up/down orientation.
 
 ---
 
