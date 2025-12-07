@@ -6,18 +6,22 @@ Training tools for YOLO OBB (Oriented Bounding Box) models.
 
 This directory contains tools for training and preparing datasets for YOLO OBB models:
 
+- **trainit-gui** - GUI application for managing training datasets and configurations
 - **extract_yolo_training.py** - Extract YOLO OBB training data from video with OpenLabel annotations
 - **train_yolo_obb.py** - Train YOLO OBB models for UAV object detection
 - **split_train_val.py** - Split YOLO datasets into train/val by sequence
-
-> [!NOTE]
-> The simple split_train_val tool will be replaced by a more comprehensive dataset management tool in future releases.
 
 
 ## Contents
 
 - [Installation](#installation)
-- [Scripts](#scripts)
+- [Tools](#tools)
+  - [trainit-gui](#trainit-gui)
+    - [Features](#features)
+    - [Getting Started](#getting-started)
+    - [Project Workflow](#project-workflow)
+    - [Configuration Editor](#configuration-editor)
+    - [Generate Training Files](#generate-training-files)
   - [extract_yolo_training.py](#extract_yolo_trainingpy)
   - [train_yolo_obb.py](#train_yolo_obbpy)
     - [Quick Start](#quick-start)
@@ -40,13 +44,120 @@ These tools are installed as part of the SAVANT package:
 # From repository root
 uv sync --dev
 
-# The scripts are available as CLI commands
+# The tools are available as CLI commands
+trainit-gui              # Launch the GUI application
 extract-yolo-training --help
 train-yolo-obb --help
 split-train-val --help
 ```
 
-## Scripts
+## Tools
+
+### trainit-gui
+
+A graphical application for managing YOLO training datasets and configurations. It provides a visual interface for combining multiple datasets, configuring training parameters, and generating ready-to-use training files.
+
+![trainit-gui screenshot](docs/trainit_gui.png)
+
+#### Features
+
+- **Project-based workflow** - Organize your training configurations in projects with persistent settings
+- **Dataset browser** - Browse and select multiple datasets from a root directory
+- **Configuration editor** - Visual editor for all YOLO training parameters with grouped categories
+- **Augmentation presets** - Quick-apply settings for common scenarios (Aerial-Nadir, Aerial-Oblique, Ground-Level)
+- **Project defaults** - Set default parameters that apply to all new configurations
+- **Train/val re-splitting** - Optionally redistribute train/val sets with stratified sampling by sequence
+- **Manifest generation** - Create SHA256 file manifests to verify source file integrity
+- **Manifest verification** - Validate that source files haven't changed since training files were generated
+
+#### Getting Started
+
+```bash
+# Launch the GUI
+trainit-gui
+
+# Or with uv
+uv run trainit-gui
+```
+
+#### Project Workflow
+
+1. **Create or open a project** (File → New Project / Open Project)
+   - Projects are stored as `project.json` files
+   - Set a datasets root directory where your YOLO datasets are located
+
+2. **Select datasets**
+   - Available datasets appear in the left panel
+   - Check the datasets you want to include in your training configuration
+
+3. **Configure training parameters**
+   - Use the Configuration tab to adjust model, epochs, batch size, etc.
+   - Optional parameters show YOLO defaults (or project defaults) when unchecked
+   - Apply augmentation presets for quick configuration
+
+4. **Generate training files**
+   - File → Generate Training Files (Ctrl+G)
+   - Creates dataset YAML, parameters JSON, and optional manifest
+   - Optionally re-split train/val with stratified sampling
+
+#### Configuration Editor
+
+The configuration editor organizes parameters into logical groups:
+
+| Group | Parameters |
+|-------|------------|
+| **Core** | model, epochs, image size, batch size, device, project |
+| **Advanced** | learning rate, optimizer, warmup, patience, caching, workers |
+| **Loss Weights** | box, cls, dfl loss weights |
+| **Augmentation** | rotation, flips, scale, perspective, mosaic, mixup, etc. |
+
+**Augmentation Presets:**
+
+| Preset | Use Case | Key Settings |
+|--------|----------|--------------|
+| Aerial - Nadir | Straight-down drone/satellite view | degrees=180, flipud=0.5, perspective=0 |
+| Aerial - Oblique | Angled aerial with horizon | degrees=180, flipud=0, perspective=0.0002 |
+| Ground-Level | Standard ground photography | degrees=10, flipud=0, perspective=0.0001 |
+
+#### Generate Training Files
+
+The generation dialog (File → Generate Training Files) creates:
+
+1. **Dataset YAML** (`{config_name}_dataset.yaml`)
+   - Combined dataset configuration for YOLO
+   - Paths to train/val images and labels
+   - Class names from selected datasets
+
+2. **Parameters JSON** (`{config_name}_params.json`)
+   - All non-default training parameters
+   - Ready for use with `train-yolo-obb --config`
+
+3. **Manifest JSON** (optional, `{config_name}_manifest.json`)
+   - SHA256 hashes of all source files
+   - Use File → Verify Manifest to check integrity later
+
+**Train/Val Re-splitting:**
+
+When enabled, the generator can redistribute train/val sets:
+- Pools files from selected datasets (optionally including val folders)
+- Uses stratified sampling by sequence ID (prefix before underscore in filename)
+- Falls back to random split if sequences aren't detected
+- Configurable train ratio (default 0.9) and random seed
+
+**Example workflow:**
+
+```bash
+# 1. Use trainit-gui to configure and generate files
+trainit-gui
+
+# 2. Train using the generated config
+train-yolo-obb --config output/my_config_params.json
+
+# 3. Later, verify source files haven't changed
+# (Use File → Verify Manifest in trainit-gui)
+```
+
+---
 
 ### extract_yolo_training.py
 
@@ -711,10 +822,11 @@ Moved labels: 1000
 
 ## Running with uv
 
-You can run these scripts directly with uv without activating the virtual environment:
+You can run these tools directly with uv without activating the virtual environment:
 
 ```bash
 # From repository root
+uv run trainit-gui
 uv run extract-yolo-training -i videos/scene1 -o datasets/scene1
 uv run split-train-val --dataset-path datasets/UAV_yolo_obb
 uv run train-yolo-obb --data dataset.yaml --epochs 50
@@ -756,8 +868,27 @@ extract-yolo-training -i annotated_video -o datasets/my_dataset --train-ratio 0.
 train-yolo-obb --data datasets/my_dataset/dataset.yaml --epochs 50
 ```
 
+**Alternative: Using trainit-gui for multi-dataset training:**
+
+```bash
+# 1. Extract datasets (without splitting - GUI can handle that)
+extract-yolo-training -i annotated_videos/scene1 -o datasets/scene1
+extract-yolo-training -i annotated_videos/scene2 -o datasets/scene2
+
+# 2. Use GUI to combine datasets and configure training
+trainit-gui
+# - Create a project with datasets root pointing to 'datasets/'
+# - Select scene1 and scene2
+# - Configure parameters (or use presets)
+# - Generate training files with optional re-splitting
+
+# 3. Train using the generated config
+train-yolo-obb --config output/my_config_params.json
+```
+
 ## Notes
 
+- **Use trainit-gui** for visual dataset management and configuration when working with multiple datasets
 - **Always use `--dry-run` first** with `split-train-val` to preview changes
 - The splitter preserves sequence diversity by sampling from each video sequence
 - Label files should be in YOLO format: `<class_id> <x> <y> <w> <h> <angle>`
