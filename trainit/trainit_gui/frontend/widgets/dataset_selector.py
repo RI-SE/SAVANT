@@ -54,7 +54,7 @@ class DatasetSelector(QWidget):
         self.select_all_btn.clicked.connect(self._on_select_all)
         btn_layout.addWidget(self.select_all_btn)
 
-        self.clear_btn = QPushButton("Clear")
+        self.clear_btn = QPushButton("Deselect All")
         self.clear_btn.clicked.connect(self._on_clear_selection)
         btn_layout.addWidget(self.clear_btn)
 

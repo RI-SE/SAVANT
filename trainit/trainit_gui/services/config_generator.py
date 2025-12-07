@@ -11,7 +11,10 @@ import yaml
 
 from ..models.project import Project, TrainingConfig
 from ..models.dataset import DatasetInfo
+from ..models.manifest import ManifestInfo
 from .dataset_service import DatasetService
+from .manifest_service import ManifestService
+from .split_service import SplitService
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +27,24 @@ class ConfigGenerator:
     2. Training params JSON - parameters for train_yolo_obb.py --config option
     """
 
-    def __init__(self, dataset_service: Optional[DatasetService] = None):
+    def __init__(
+        self,
+        dataset_service: Optional[DatasetService] = None,
+        manifest_service: Optional[ManifestService] = None,
+        split_service: Optional[SplitService] = None
+    ):
         self.dataset_service = dataset_service or DatasetService()
+        self.manifest_service = manifest_service or ManifestService()
+        self.split_service = split_service or SplitService()
 
     def generate_training_files(
         self,
         project: Project,
         config: TrainingConfig,
         output_dir: str,
-        copy_images: bool = False
-    ) -> tuple[str, str]:
+        copy_images: bool = False,
+        generate_manifest: bool = True
+    ) -> tuple[str, str, Optional[str]]:
         """Generate training configuration files for a config.
 
         Args:
@@ -41,9 +52,10 @@ class ConfigGenerator:
             config: The training configuration to generate files for
             output_dir: Directory to write output files
             copy_images: If True, copy images to output dir (default: use symlinks)
+            generate_manifest: If True, generate manifest JSON with file hashes
 
         Returns:
-            Tuple of (dataset_yaml_path, params_json_path)
+            Tuple of (dataset_yaml_path, params_json_path, manifest_json_path or None)
 
         Raises:
             ValueError: If datasets have mismatched class definitions
@@ -61,15 +73,44 @@ class ConfigGenerator:
         # Validate class compatibility
         self._validate_class_compatibility(datasets)
 
-        # Generate merged dataset YAML
+        # Create output directories
+        images_train_dir = output_path / "images" / "train"
+        images_val_dir = output_path / "images" / "val"
+        labels_train_dir = output_path / "labels" / "train"
+        labels_val_dir = output_path / "labels" / "val"
+
+        for d in [images_train_dir, images_val_dir, labels_train_dir, labels_val_dir]:
+            d.mkdir(parents=True, exist_ok=True)
+
+        # Track file mappings for manifest: list of (dest_path, source_path)
+        file_mappings: list[tuple[Path, Path]] = []
+        split_method: Optional[str] = None
+
+        if config.split_enabled:
+            # Re-map train/val split
+            file_mappings, split_method = self._generate_with_split(
+                datasets=datasets,
+                config=config,
+                output_path=output_path,
+                copy_images=copy_images
+            )
+        else:
+            # Preserve source train/val structure
+            file_mappings = self._generate_preserve_split(
+                datasets=datasets,
+                output_path=output_path,
+                copy_images=copy_images
+            )
+
+        # Generate the dataset YAML
         yaml_path = output_path / f"{config.name}_dataset.yaml"
-        self._generate_merged_dataset_yaml(
+        self._generate_dataset_yaml(
             datasets=datasets,
             output_path=yaml_path,
+            output_dir=output_path,
             project=project,
             config=config,
-            copy_images=copy_images,
-            output_dir=output_path
+            split_method=split_method
         )
 
         # Generate training params JSON
@@ -80,8 +121,30 @@ class ConfigGenerator:
             output_path=json_path
         )
 
+        # Generate manifest if requested
+        manifest_path: Optional[str] = None
+        if generate_manifest and file_mappings:
+            manifest_file = output_path / f"{config.name}_manifest.json"
+            manifest_info = ManifestInfo(
+                generated_at=datetime.now().isoformat(),
+                project_name=project.name,
+                config_name=config.name,
+                split_enabled=config.split_enabled,
+                split_ratio=config.split_ratio if config.split_enabled else None,
+                split_seed=config.split_seed if config.split_enabled else None,
+                split_method=split_method,
+                source_datasets=config.selected_datasets
+            )
+            manifest = self.manifest_service.generate_manifest(
+                output_dir=output_path,
+                info=manifest_info,
+                file_mappings=file_mappings
+            )
+            self.manifest_service.save_manifest(manifest, manifest_file)
+            manifest_path = str(manifest_file)
+
         logger.info(f"Generated training files in {output_dir}")
-        return str(yaml_path), str(json_path)
+        return str(yaml_path), str(json_path), manifest_path
 
     def _load_selected_datasets(
         self,
@@ -118,65 +181,198 @@ class ConfigGenerator:
                     f"All datasets must have identical class definitions."
                 )
 
-    def _generate_merged_dataset_yaml(
+    def _generate_preserve_split(
         self,
         datasets: list[DatasetInfo],
         output_path: Path,
-        project: Project,
-        config: TrainingConfig,
-        copy_images: bool,
-        output_dir: Path
-    ) -> None:
-        """Generate a merged dataset.yaml file.
+        copy_images: bool
+    ) -> list[tuple[Path, Path]]:
+        """Generate files preserving source train/val structure.
 
-        Creates symlinks (or copies) to combine multiple datasets.
+        Args:
+            datasets: List of datasets to include
+            output_path: Output directory
+            copy_images: If True, copy files; otherwise create symlinks
+
+        Returns:
+            List of (dest_path, source_path) tuples for manifest
         """
-        # Use class names from first dataset (all validated to be identical)
-        first_ds = datasets[0]
+        file_mappings: list[tuple[Path, Path]] = []
 
-        # Create images and labels directories
-        images_train_dir = output_dir / "images" / "train"
-        images_val_dir = output_dir / "images" / "val"
-        labels_train_dir = output_dir / "labels" / "train"
-        labels_val_dir = output_dir / "labels" / "val"
+        images_train_dir = output_path / "images" / "train"
+        images_val_dir = output_path / "images" / "val"
+        labels_train_dir = output_path / "labels" / "train"
+        labels_val_dir = output_path / "labels" / "val"
 
-        for d in [images_train_dir, images_val_dir, labels_train_dir, labels_val_dir]:
-            d.mkdir(parents=True, exist_ok=True)
-
-        # Link/copy files from each dataset with prefixed names
         for ds in datasets:
             ds_path = Path(ds.path)
             prefix = ds.name + "_"
 
             # Link train images and labels
-            self._link_files(
+            file_mappings.extend(self._link_files_with_tracking(
                 src_dir=ds_path / "images" / "train",
                 dst_dir=images_train_dir,
                 prefix=prefix,
                 copy=copy_images
-            )
-            self._link_files(
+            ))
+            file_mappings.extend(self._link_files_with_tracking(
                 src_dir=ds_path / "labels" / "train",
                 dst_dir=labels_train_dir,
                 prefix=prefix,
                 copy=copy_images
-            )
+            ))
 
             # Link val images and labels
-            self._link_files(
+            file_mappings.extend(self._link_files_with_tracking(
                 src_dir=ds_path / "images" / "val",
                 dst_dir=images_val_dir,
                 prefix=prefix,
                 copy=copy_images
-            )
-            self._link_files(
+            ))
+            file_mappings.extend(self._link_files_with_tracking(
                 src_dir=ds_path / "labels" / "val",
                 dst_dir=labels_val_dir,
                 prefix=prefix,
                 copy=copy_images
-            )
+            ))
 
-        # Generate the YAML content
+        return file_mappings
+
+    def _generate_with_split(
+        self,
+        datasets: list[DatasetInfo],
+        config: TrainingConfig,
+        output_path: Path,
+        copy_images: bool
+    ) -> tuple[list[tuple[Path, Path]], str]:
+        """Generate files with train/val re-mapping.
+
+        Args:
+            datasets: List of datasets to include
+            config: Training config with split settings
+            output_path: Output directory
+            copy_images: If True, copy files; otherwise create symlinks
+
+        Returns:
+            Tuple of (file_mappings, split_method)
+        """
+        file_mappings: list[tuple[Path, Path]] = []
+
+        # Collect all files from all datasets
+        all_files: list[tuple[Path, str]] = []  # (file_path, dataset_name)
+
+        for ds in datasets:
+            ds_path = Path(ds.path)
+            include_val = config.include_val_in_pool.get(ds.name, False)
+
+            files = self.split_service.collect_files_from_dataset(ds_path, include_val)
+            all_files.extend((f, ds.name) for f in files)
+
+        # Perform split
+        just_files = [f for f, _ in all_files]
+        split_result = self.split_service.split_files(
+            files=just_files,
+            train_ratio=config.split_ratio,
+            seed=config.split_seed
+        )
+
+        # Create file_to_dataset mapping
+        file_to_ds = {f: ds for f, ds in all_files}
+
+        images_train_dir = output_path / "images" / "train"
+        images_val_dir = output_path / "images" / "val"
+        labels_train_dir = output_path / "labels" / "train"
+        labels_val_dir = output_path / "labels" / "val"
+
+        # Process train files
+        for src_file in split_result.train_files:
+            ds_name = file_to_ds[src_file]
+            prefix = ds_name + "_"
+
+            # Link image
+            img_dst = images_train_dir / (prefix + src_file.name)
+            self._create_link_or_copy(src_file, img_dst, copy_images)
+            file_mappings.append((img_dst, src_file))
+
+            # Link corresponding label
+            label_src = self._find_label_for_image(src_file)
+            if label_src:
+                label_dst = labels_train_dir / (prefix + label_src.name)
+                self._create_link_or_copy(label_src, label_dst, copy_images)
+                file_mappings.append((label_dst, label_src))
+
+        # Process val files
+        for src_file in split_result.val_files:
+            ds_name = file_to_ds[src_file]
+            prefix = ds_name + "_"
+
+            # Link image
+            img_dst = images_val_dir / (prefix + src_file.name)
+            self._create_link_or_copy(src_file, img_dst, copy_images)
+            file_mappings.append((img_dst, src_file))
+
+            # Link corresponding label
+            label_src = self._find_label_for_image(src_file)
+            if label_src:
+                label_dst = labels_val_dir / (prefix + label_src.name)
+                self._create_link_or_copy(label_src, label_dst, copy_images)
+                file_mappings.append((label_dst, label_src))
+
+        logger.info(
+            f"Split generated: {len(split_result.train_files)} train, "
+            f"{len(split_result.val_files)} val ({split_result.method})"
+        )
+
+        return file_mappings, split_result.method
+
+    def _find_label_for_image(self, image_path: Path) -> Optional[Path]:
+        """Find label file corresponding to image.
+
+        Checks in both train and val label directories.
+        """
+        label_name = image_path.stem + ".txt"
+
+        # Determine which split the image is in
+        if "train" in str(image_path):
+            labels_dir = image_path.parent.parent.parent / "labels" / "train"
+        else:
+            labels_dir = image_path.parent.parent.parent / "labels" / "val"
+
+        label_path = labels_dir / label_name
+        if label_path.exists():
+            return label_path
+
+        # Check other folder (for pooled val case)
+        other_split = "val" if "train" in str(labels_dir) else "train"
+        other_dir = labels_dir.parent / other_split
+        other_path = other_dir / label_name
+        if other_path.exists():
+            return other_path
+
+        return None
+
+    def _create_link_or_copy(self, src: Path, dst: Path, copy: bool) -> None:
+        """Create symlink or copy file."""
+        if dst.exists():
+            dst.unlink()
+
+        if copy:
+            shutil.copy2(src, dst)
+        else:
+            dst.symlink_to(src.resolve())
+
+    def _generate_dataset_yaml(
+        self,
+        datasets: list[DatasetInfo],
+        output_path: Path,
+        output_dir: Path,
+        project: Project,
+        config: TrainingConfig,
+        split_method: Optional[str]
+    ) -> None:
+        """Generate the dataset YAML file."""
+        first_ds = datasets[0]
+
         yaml_content = {
             'path': str(output_dir.resolve()),
             'train': 'images/train',
@@ -186,11 +382,15 @@ class ConfigGenerator:
         }
 
         # Add metadata as comments
+        split_info = ""
+        if config.split_enabled:
+            split_info = f"\n# Split: {config.split_ratio:.0%} train ({split_method}), seed={config.split_seed}"
+
         header = f"""# Generated by trainit-gui
 # Project: {project.name}
 # Config: {config.name}
 # Generated: {datetime.now().isoformat()}
-# Source datasets: {', '.join(config.selected_datasets)}
+# Source datasets: {', '.join(config.selected_datasets)}{split_info}
 
 """
         with open(output_path, 'w') as f:
@@ -199,31 +399,32 @@ class ConfigGenerator:
 
         logger.info(f"Generated dataset YAML: {output_path}")
 
-    def _link_files(
+    def _link_files_with_tracking(
         self,
         src_dir: Path,
         dst_dir: Path,
         prefix: str,
         copy: bool = False
-    ) -> None:
-        """Link or copy files from source to destination with prefix."""
+    ) -> list[tuple[Path, Path]]:
+        """Link or copy files from source to destination with prefix.
+
+        Returns:
+            List of (dest_path, source_path) tuples for manifest
+        """
+        mappings: list[tuple[Path, Path]] = []
+
         if not src_dir.exists():
-            return
+            return mappings
 
         for src_file in src_dir.iterdir():
             if not src_file.is_file():
                 continue
 
             dst_file = dst_dir / (prefix + src_file.name)
+            self._create_link_or_copy(src_file, dst_file, copy)
+            mappings.append((dst_file, src_file))
 
-            if dst_file.exists():
-                dst_file.unlink()
-
-            if copy:
-                shutil.copy2(src_file, dst_file)
-            else:
-                # Create symlink
-                dst_file.symlink_to(src_file.resolve())
+        return mappings
 
     def _generate_params_json(
         self,
@@ -256,7 +457,8 @@ class ConfigGenerator:
         self,
         project: Project,
         config: TrainingConfig,
-        output_dir: str
+        output_dir: str,
+        generate_manifest: bool = True
     ) -> dict:
         """Preview what files would be generated without creating them.
 
@@ -277,17 +479,45 @@ class ConfigGenerator:
             total_val = sum(ds.val_images for ds in datasets)
             total_objects = sum(ds.total_objects for ds in datasets)
 
-            return {
+            # Calculate totals considering split settings
+            if config.split_enabled:
+                # Count total files that would be pooled
+                total_pooled = 0
+                for ds in datasets:
+                    ds_path = Path(ds.path)
+                    include_val = config.include_val_in_pool.get(ds.name, False)
+                    files = self.split_service.collect_files_from_dataset(
+                        ds_path, include_val
+                    )
+                    total_pooled += len(files)
+
+                estimated_train = int(total_pooled * config.split_ratio)
+                estimated_val = total_pooled - estimated_train
+            else:
+                estimated_train = total_train
+                estimated_val = total_val
+
+            result = {
                 'valid': True,
                 'output_dir': str(output_path),
                 'dataset_yaml': str(output_path / f"{config.name}_dataset.yaml"),
                 'params_json': str(output_path / f"{config.name}_params.json"),
-                'total_train_images': total_train,
-                'total_val_images': total_val,
+                'total_train_images': estimated_train,
+                'total_val_images': estimated_val,
                 'total_objects': total_objects,
                 'num_classes': datasets[0].num_classes if datasets else 0,
-                'datasets': [ds.name for ds in datasets]
+                'datasets': [ds.name for ds in datasets],
+                'split_enabled': config.split_enabled,
+                'split_ratio': config.split_ratio if config.split_enabled else None,
+                'split_seed': config.split_seed if config.split_enabled else None,
             }
+
+            if generate_manifest:
+                result['manifest_json'] = str(
+                    output_path / f"{config.name}_manifest.json"
+                )
+
+            return result
 
         except Exception as e:
             return {

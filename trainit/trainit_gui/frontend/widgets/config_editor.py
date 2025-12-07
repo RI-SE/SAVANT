@@ -91,6 +91,8 @@ class ConfigEditor(QWidget):
 
         self._setup_ui()
         self._connect_signals()
+        # Apply any existing project defaults
+        self._update_widget_defaults()
 
     def _setup_ui(self):
         """Setup the UI."""
@@ -162,7 +164,7 @@ class ConfigEditor(QWidget):
         self._add_combo_box(advanced_layout, "optimizer", "Optimizer:",
                            ["auto", "SGD", "Adam", "AdamW", "NAdam", "RAdam", "RMSProp"],
                            optional=True)
-        self._add_optional_double(advanced_layout, "warmup_epochs", "Warmup Epochs:", 0, 10, 3.0)
+        self._add_optional_spin(advanced_layout, "warmup_epochs", "Warmup Epochs:", 0, 10, 3)
         self._add_optional_double(advanced_layout, "warmup_momentum", "Warmup Momentum:", 0, 1, 0.8)
         self._add_optional_spin(advanced_layout, "patience", "Patience:", 1, 500, 50)
         self._add_optional_spin(advanced_layout, "save_period", "Save Period:", -1, 100, -1)
@@ -231,11 +233,11 @@ class ConfigEditor(QWidget):
         self._add_optional_double(aug_layout, "translate", "Translation:", 0, 1, 0.1)
         self._add_optional_double(aug_layout, "scale", "Scale:", 0, 2, 0.5)
         self._add_optional_double(aug_layout, "shear", "Shear:", 0, 90, 0.0)
-        self._add_optional_double(aug_layout, "perspective", "Perspective:", 0, 0.01, 0.0)
-        self._add_optional_double(aug_layout, "fliplr", "Horizontal Flip:", 0, 1, 0.5)
-        self._add_optional_double(aug_layout, "flipud", "Vertical Flip:", 0, 1, 0.0)
-        self._add_optional_double(aug_layout, "mosaic", "Mosaic:", 0, 1, 1.0)
-        self._add_optional_double(aug_layout, "mixup", "Mixup:", 0, 1, 0.0)
+        self._add_optional_double(aug_layout, "perspective", "Perspective:", 0, 0.01, 0.0, step=0.0001)
+        self._add_optional_double(aug_layout, "fliplr", "Horizontal Flip:", 0, 1, 0.5, step=0.1, decimals=1)
+        self._add_optional_double(aug_layout, "flipud", "Vertical Flip:", 0, 1, 0.0, step=0.1, decimals=1)
+        self._add_optional_double(aug_layout, "mosaic", "Mosaic:", 0, 1, 1.0, step=0.1, decimals=1)
+        self._add_optional_double(aug_layout, "mixup", "Mixup:", 0, 1, 0.0, step=0.1, decimals=1)
 
         scroll_layout.addWidget(aug_group)
 
@@ -377,7 +379,9 @@ class ConfigEditor(QWidget):
         label: str,
         min_val: float,
         max_val: float,
-        default: float = 0.0
+        default: float = 0.0,
+        step: float = 0.01,
+        decimals: int = 4
     ):
         """Add an optional double spin box with checkbox and info button."""
         container = QWidget()
@@ -390,8 +394,8 @@ class ConfigEditor(QWidget):
 
         spin = QDoubleSpinBox()
         spin.setRange(min_val, max_val)
-        spin.setDecimals(4)
-        spin.setSingleStep(0.01)
+        spin.setDecimals(decimals)
+        spin.setSingleStep(step)
         spin.setValue(default)
         spin.setEnabled(False)
         spin.setToolTip(_get_tooltip(name))
@@ -409,6 +413,85 @@ class ConfigEditor(QWidget):
         """Connect app state signals."""
         self.app_state.current_config_changed.connect(self._on_config_changed)
         self.app_state.config_dirty_changed.connect(self._on_dirty_changed)
+        self.app_state.project_changed.connect(self._on_project_changed)
+
+    def _on_project_changed(self, project):
+        """Handle project change - update widget defaults from project defaults."""
+        self._update_widget_defaults()
+
+    def _get_default(self, name: str, fallback: Any) -> Any:
+        """Get default value for a parameter - project default if set, else fallback."""
+        if self.app_state.project and self.app_state.project.default_config:
+            value = getattr(self.app_state.project.default_config, name, None)
+            if value is not None:
+                return value
+        return fallback
+
+    def _update_widget_defaults(self):
+        """Update widget default values from project defaults."""
+        # Map of widget name -> (fallback default, is_optional)
+        defaults_map = {
+            # Core parameters
+            "model": ("yolo11s-obb.pt", False),
+            "epochs": (50, False),
+            "imgsz": (640, False),
+            "batch": (30, False),
+            "project": ("runs/obb", False),
+            # Advanced parameters
+            "lr0": (0.01, True),
+            "lrf": (0.01, True),
+            "warmup_epochs": (3, True),
+            "warmup_momentum": (0.8, True),
+            "patience": (50, True),
+            "save_period": (-1, True),
+            "workers": (8, True),
+            "close_mosaic": (10, True),
+            "freeze": (0, True),
+            # Loss weights
+            "box": (7.5, True),
+            "cls": (0.5, True),
+            "dfl": (1.5, True),
+            # Augmentation
+            "hsv_h": (0.015, True),
+            "hsv_s": (0.7, True),
+            "hsv_v": (0.4, True),
+            "degrees": (0.0, True),
+            "translate": (0.1, True),
+            "scale": (0.5, True),
+            "shear": (0.0, True),
+            "perspective": (0.0, True),
+            "fliplr": (0.5, True),
+            "flipud": (0.0, True),
+            "mosaic": (1.0, True),
+            "mixup": (0.0, True),
+        }
+
+        for name, (fallback, is_optional) in defaults_map.items():
+            widget = self._widgets.get(name)
+            if not widget:
+                continue
+
+            default_val = self._get_default(name, fallback)
+
+            if is_optional and isinstance(widget, tuple):
+                checkbox, spin = widget
+                # Only update spin value if not checked (i.e., using default)
+                # This preserves explicit config values while updating defaults
+                if not checkbox.isChecked():
+                    if isinstance(spin, QSpinBox):
+                        spin.setValue(int(default_val))
+                    elif isinstance(spin, QDoubleSpinBox):
+                        spin.setValue(float(default_val))
+            elif isinstance(widget, QLineEdit):
+                # For line edits, set placeholder text showing the default
+                widget.setPlaceholderText(str(default_val))
+            elif isinstance(widget, QSpinBox):
+                # For required spin boxes, the default is the initial value
+                if not self.app_state.current_config:
+                    widget.setValue(int(default_val))
+            elif isinstance(widget, QDoubleSpinBox):
+                if not self.app_state.current_config:
+                    widget.setValue(float(default_val))
 
     def _on_dirty_changed(self, dirty: bool):
         """Handle dirty state change."""
@@ -459,10 +542,15 @@ class ConfigEditor(QWidget):
             self._set_optional_value("mosaic", config.mosaic)
             self._set_optional_value("mixup", config.mixup)
 
+            # Update unchecked parameters to show project defaults
+            self._update_widget_defaults()
+
         else:
             self.name_label.setText("No configuration selected")
             self.description_edit.clear()
             self.save_btn.setEnabled(False)
+            # Show project defaults when no config selected
+            self._update_widget_defaults()
 
         self._updating = False
 

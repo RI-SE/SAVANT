@@ -201,6 +201,23 @@ class ProjectDefaultsDialog(QDialog):
         self._add_optional_double(aug_layout, "mixup", "Mixup:", 0, 1, 0.0)
 
         scroll_layout.addWidget(aug_group)
+
+        # Train/Val Split defaults (just ratio and seed - enable/disable is in Generate dialog)
+        split_group = QGroupBox()
+        split_header = QHBoxLayout()
+        split_header.addWidget(QLabel("Train/Val Split Defaults"))
+        split_header.addWidget(_create_group_info_button(self, "split"))
+        split_header.addStretch()
+        split_inner = QVBoxLayout()
+        split_inner.addLayout(split_header)
+        split_layout = QFormLayout()
+        split_inner.addLayout(split_layout)
+        split_group.setLayout(split_inner)
+
+        self._add_optional_double(split_layout, "split_ratio", "Train Ratio:", 0.5, 0.99, 0.9)
+        self._add_optional_spin(split_layout, "split_seed", "Seed:", 0, 999999, 42)
+
+        scroll_layout.addWidget(split_group)
         scroll_layout.addStretch()
 
         scroll.setWidget(scroll_content)
@@ -361,6 +378,8 @@ class ProjectDefaultsDialog(QDialog):
                     idx = widget.findText(str(value))
                     if idx >= 0:
                         widget.setCurrentIndex(idx)
+                elif isinstance(widget, QCheckBox):
+                    widget.setChecked(bool(value))
 
     def _clear_all(self):
         """Clear all checkboxes."""
@@ -383,6 +402,8 @@ class ProjectDefaultsDialog(QDialog):
                     data[name] = widget.value()
                 elif isinstance(widget, QComboBox):
                     data[name] = widget.currentText()
+                elif isinstance(widget, QCheckBox):
+                    data[name] = widget.isChecked()
             else:
                 data[name] = None
 

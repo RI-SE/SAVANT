@@ -162,50 +162,61 @@ class ConfigController:
     def generate_files(
         self,
         output_dir: str,
-        copy_images: bool = False
-    ) -> tuple[bool, str, str]:
+        copy_images: bool = False,
+        generate_manifest: bool = True
+    ) -> tuple[bool, str, str, Optional[str]]:
         """Generate training configuration files.
 
         Args:
             output_dir: Directory to write output files
             copy_images: If True, copy images instead of symlinking
+            generate_manifest: If True, generate manifest JSON with file hashes
 
         Returns:
-            Tuple of (success, yaml_path, json_path)
+            Tuple of (success, yaml_path, json_path, manifest_path or None)
         """
         if not self.app_state.project or not self.app_state.current_config:
             self.app_state.error_occurred.emit("No project or config selected")
-            return False, "", ""
+            return False, "", "", None
 
         config = self.app_state.current_config
 
         if not config.selected_datasets:
             self.app_state.error_occurred.emit("No datasets selected in config")
-            return False, "", ""
+            return False, "", "", None
 
         try:
             self.app_state.status_message.emit("Generating training files...")
 
-            yaml_path, json_path = self.config_generator.generate_training_files(
+            yaml_path, json_path, manifest_path = self.config_generator.generate_training_files(
                 project=self.app_state.project,
                 config=config,
                 output_dir=output_dir,
-                copy_images=copy_images
+                copy_images=copy_images,
+                generate_manifest=generate_manifest
             )
 
             self.app_state.status_message.emit(
                 f"Generated files in {output_dir}"
             )
-            logger.info(f"Generated training files: {yaml_path}, {json_path}")
-            return True, yaml_path, json_path
+            logger.info(f"Generated training files: {yaml_path}, {json_path}, {manifest_path}")
+            return True, yaml_path, json_path, manifest_path
 
         except Exception as e:
             self.app_state.error_occurred.emit(f"Generation failed: {e}")
             logger.error(f"Generation failed: {e}")
-            return False, "", ""
+            return False, "", "", None
 
-    def preview_generation(self, output_dir: str) -> dict:
+    def preview_generation(
+        self,
+        output_dir: str,
+        generate_manifest: bool = True
+    ) -> dict:
         """Preview what files would be generated.
+
+        Args:
+            output_dir: Directory to write output files
+            generate_manifest: If True, include manifest in preview
 
         Returns:
             Preview information dict
@@ -216,5 +227,21 @@ class ConfigController:
         return self.config_generator.preview_generation(
             project=self.app_state.project,
             config=self.app_state.current_config,
-            output_dir=output_dir
+            output_dir=output_dir,
+            generate_manifest=generate_manifest
         )
+
+    def verify_manifest(self, manifest_path: str):
+        """Verify source files against a manifest.
+
+        Args:
+            manifest_path: Path to manifest JSON file
+
+        Returns:
+            VerificationResult with verification details
+        """
+        from ..services.manifest_service import ManifestService
+        from pathlib import Path
+
+        manifest_service = ManifestService()
+        return manifest_service.verify_manifest(Path(manifest_path))

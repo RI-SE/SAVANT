@@ -6,10 +6,10 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QMenuBar, QMenu, QStatusBar, QFileDialog, QMessageBox,
-    QTabWidget, QLabel
+    QTabWidget, QLabel, QDialog, QDialogButtonBox
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QKeySequence
+from PyQt6.QtGui import QAction, QKeySequence, QPixmap
 
 from .states.app_state import AppState
 from .widgets.project_browser import ProjectBrowser
@@ -163,6 +163,11 @@ class MainWindow(QMainWindow):
         generate_action.triggered.connect(self._on_generate)
         file_menu.addAction(generate_action)
 
+        verify_action = QAction("&Verify Manifest...", self)
+        verify_action.setShortcut("Ctrl+Shift+V")
+        verify_action.triggered.connect(self._on_verify_manifest)
+        file_menu.addAction(verify_action)
+
         file_menu.addSeparator()
 
         exit_action = QAction("E&xit", self)
@@ -302,18 +307,56 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             self.app_state.project.default_config = dialog.get_defaults()
             self.project_controller.save_project()
+            # Notify listeners that project (defaults) changed so they can update
+            self.app_state.project_changed.emit(self.app_state.project)
             self.app_state.status_message.emit("Project defaults updated")
 
     def _on_about(self):
-        """Show about dialog."""
-        QMessageBox.about(
-            self,
-            "About trainit-gui",
-            "trainit-gui v1.0.0\n\n"
-            "PyQt6 GUI for managing YOLO training datasets "
-            "and generating training configurations.\n\n"
-            "Part of the SAVANT toolkit."
+        """Show about dialog with logo."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("About trainit-gui")
+
+        layout = QHBoxLayout(dialog)
+
+        # Logo on the left
+        logo_label = QLabel()
+        logo_path = Path(__file__).parent.parent.parent.parent / "docs" / "savant_logo.png"
+        if logo_path.exists():
+            pixmap = QPixmap(str(logo_path))
+            # Scale to reasonable size (max 128px height)
+            scaled = pixmap.scaledToHeight(128, Qt.TransformationMode.SmoothTransformation)
+            logo_label.setPixmap(scaled)
+        layout.addWidget(logo_label)
+
+        # Text and button on the right
+        right_layout = QVBoxLayout()
+
+        text_label = QLabel(
+            "<h2>trainit-gui</h2>"
+            "<p>Version 1.0.0</p>"
+            "<p>GUI for managing YOLO training datasets "
+            "and generating training configurations.</p>"
+            "<p>Part of the <b>SAVANT</b> toolkit.</p>"
         )
+        text_label.setWordWrap(True)
+        right_layout.addWidget(text_label)
+
+        right_layout.addStretch()
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        button_box.accepted.connect(dialog.accept)
+        right_layout.addWidget(button_box)
+
+        layout.addLayout(right_layout)
+
+        dialog.exec()
+
+    def _on_verify_manifest(self):
+        """Handle verify manifest action."""
+        from .dialogs.verify_manifest_dialog import VerifyManifestDialog
+
+        dialog = VerifyManifestDialog(self)
+        dialog.exec()
 
     def closeEvent(self, event):
         """Handle window close."""

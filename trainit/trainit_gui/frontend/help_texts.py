@@ -379,6 +379,43 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
         ),
         "tooltip": "Range: 0-1, Default: 0.0"
     },
+
+    # Train/Val Split Parameters
+    "split_enabled": {
+        "title": "Enable Train/Val Split",
+        "text": (
+            "Re-map train/val split during file generation.\n\n"
+            "When enabled, source files from selected datasets are\n"
+            "pooled together and redistributed into new train/val\n"
+            "splits based on the configured ratio.\n\n"
+            "Uses stratified sampling by sequence ID when possible\n"
+            "(extracts prefix before underscore from filenames).\n"
+            "Falls back to random split if sequences aren't detected."
+        ),
+        "tooltip": "Enable train/val re-splitting"
+    },
+    "split_ratio": {
+        "title": "Train Ratio",
+        "text": (
+            "Fraction of data to use for training.\n\n"
+            "Example: 0.9 means 90% train, 10% validation.\n\n"
+            "Recommendations:\n"
+            "  - Small datasets (<500 images): 0.8\n"
+            "  - Medium datasets: 0.85-0.9\n"
+            "  - Large datasets (>5000 images): 0.9-0.95"
+        ),
+        "tooltip": "Range: 0.5-0.99, Default: 0.9"
+    },
+    "split_seed": {
+        "title": "Random Seed",
+        "text": (
+            "Seed for reproducible train/val splits.\n\n"
+            "Using the same seed produces identical splits,\n"
+            "useful for reproducible experiments.\n\n"
+            "Change the seed to get a different random split."
+        ),
+        "tooltip": "Range: 0-999999, Default: 42"
+    },
 }
 
 # Group descriptions - displayed when clicking group info buttons
@@ -430,6 +467,16 @@ GROUP_HELP: Dict[str, Dict[str, str]] = {
             "Use the 'Preset' dropdown for recommended settings."
         )
     },
+    "split": {
+        "title": "Train/Val Split Defaults",
+        "text": (
+            "Default values for train/val split parameters.\n\n"
+            "These defaults are used when you enable splitting in\n"
+            "the 'Generate Training Files' dialog.\n\n"
+            "Train Ratio: Fraction of data for training (e.g. 0.9).\n"
+            "Seed: Random seed for reproducible splits."
+        )
+    },
 }
 
 # Augmentation presets for common use cases
@@ -452,7 +499,7 @@ AUGMENTATION_PRESETS: Dict[str, Dict[str, Any]] = {
     "Aerial - Oblique": {
         "description": "Angled aerial view with visible horizon",
         "values": {
-            "degrees": 15.0,
+            "degrees": 180.0,
             "flipud": 0.0,
             "fliplr": 0.5,
             "scale": 0.6,

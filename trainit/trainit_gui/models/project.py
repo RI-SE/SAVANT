@@ -151,17 +151,40 @@ class TrainingConfig(BaseModel):
         description="Mixup augmentation probability"
     )
 
+    # Train/Val split configuration (used during generation, not training)
+    split_enabled: bool = Field(
+        default=False,
+        description="Enable train/val re-mapping during generation"
+    )
+    split_ratio: float = Field(
+        default=0.9, ge=0.5, le=0.99,
+        description="Ratio of data to keep in train (e.g., 0.9 = 90% train)"
+    )
+    split_seed: int = Field(
+        default=42, ge=0,
+        description="Random seed for reproducible splits"
+    )
+    include_val_in_pool: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Per-dataset toggle for including val folder in split pool"
+    )
+
     def get_non_default_params(self) -> dict:
         """Return dict of parameters that are not None (non-default).
 
         Useful for generating CLI arguments or config files.
+        Excludes metadata and split fields which are not YOLO training params.
         """
+        # Fields to skip (not passed to YOLO training)
+        skip_fields = {
+            'name', 'description', 'selected_datasets',
+            'split_enabled', 'split_ratio', 'split_seed', 'include_val_in_pool'
+        }
         result = {}
         for field_name, field_info in self.model_fields.items():
             value = getattr(self, field_name)
-            # Include core params always, optional params only if set
-            if field_name in ('name', 'description', 'selected_datasets'):
-                continue  # Skip metadata fields
+            if field_name in skip_fields:
+                continue
             if value is not None:
                 result[field_name] = value
         return result
@@ -210,6 +233,11 @@ class ProjectDefaults(BaseModel):
     flipud: Optional[float] = None
     mosaic: Optional[float] = None
     mixup: Optional[float] = None
+
+    # Train/Val split defaults
+    split_enabled: Optional[bool] = None
+    split_ratio: Optional[float] = Field(default=None, ge=0.5, le=0.99)
+    split_seed: Optional[int] = Field(default=None, ge=0)
 
     def apply_to_config(self, config: 'TrainingConfig') -> 'TrainingConfig':
         """Apply these defaults to a config, only overriding trainit defaults."""
