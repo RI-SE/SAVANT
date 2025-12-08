@@ -1,4 +1,4 @@
-@prefix : <http://savant.ri.se/ontology#> .
+@prefix : <http://github.com/RI-SE/SAVANT/ontology#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
@@ -30,9 +30,9 @@
 :VehicleAgriculturalVehicle a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "AgriculturalVehicle" ; :uid 14 .
 :VehicleConstructionVehicle a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "ConstructionVehicle" ; :uid 15 .
 :VehicleEmergencyVehicle a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "EmergencyVehicle" ; :uid 16 .
-:VehicleAmbulance a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Ambulance" ; :uid 17 .
-:VehicleFire a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Fire" ; :uid 18 .
-:VehiclePolice a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Police" ; :uid 19 .
+:VehicleAmbulance a rdfs:Class ; rdfs:subClassOf :VehicleEmergencyVehicle ; rdfs:label "Ambulance" ; :uid 17 .
+:VehicleFire a rdfs:Class ; rdfs:subClassOf :VehicleEmergencyVehicle ; rdfs:label "Fire" ; :uid 18 .
+:VehiclePolice a rdfs:Class ; rdfs:subClassOf :VehicleEmergencyVehicle ; rdfs:label "Police" ; :uid 19 .
 :VehicleSlowMovingVehicle a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "SlowMovingVehicle" ; :uid 20 .
 
 :RoadUserHuman a rdfs:Class ; rdfs:subClassOf :RoadUser ; rdfs:label "Human" ; :uid 21 .

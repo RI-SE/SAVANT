@@ -1,0 +1,30 @@
+path: /data/mydataset/
+train: images/train
+val: images/val
+nc: 25
+names:
+  0: DynamicObject
+  1: RoadUser
+  2: Vehicle
+  3: Car
+  4: Van
+  5: Truck
+  6: Trailer
+  7: Motorbike
+  8: Bicycle
+  9: Bus
+  10: Tram
+  11: Train
+  12: Caravan
+  13: StandupScooter
+  14: AgriculturalVehicle
+  15: ConstructionVehicle
+  16: EmergencyVehicle
+  17: Ambulance
+  18: Fire
+  19: Police
+  20: SlowMovingVehicle
+  21: Human
+  22: Pedestrian
+  23: WheelchairUser
+  24: Animal

@@ -1,5 +1,9 @@
 # SAVANT file formats
 
+NOTE: THE SPECIFICATION FOLDER IS DEPRECATED AND WILL BE REMOVED!!!
+
+Use files in ontology/ and schema/ instead.
+
 ## SAVANT OpenLabel Subset
 The tag file adheres to the ASAM OpenLabel format, but we only use a subset of the tags for SAVANT.
 *Subject to change during development, this is an initial guess*
@@ -12,16 +16,16 @@ The tag file adheres to the ASAM OpenLabel format, but we only use a subset of t
 Only OpenLabel schema version is required in the metadata section. We use tagged_file to indicate the source video file, and annotator to initially add which version of the auto annotator is used or if it was annotated using the UI.
 ```json
     "metadata": { 
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "tagged_file": "filename.mp4",
-        "annotator": "SAVANT AutoAnno v0.1, SAVANT AnnoUI v0.1",
+        "annotator": "SAVANT markit v2.0.0, SAVANT edit v1.3.0",
     },
 ```
 
 Ontologies is a definition of types. We may use our own, or the one used for openlabel scenario tagging, or both. But we need to define types for the objects we want to tag, and the actions (e.g. overtake, pedestrian crossing) we want to be able to tag in the UI. Every ontology has a unique uid which can be an unsigned integer sequence ("0" in the example) or a uuid (which we don't use).
 ```json
     "ontologies" : {
-        "0" : "https://savant.ri.se/savant_ontology_1.0.0.ttl"
+        "0" : "https://github.com/RI-SE/SAVANT/Specification/savant_ontology_1.3.0.ttl"
     },
 ```
 Objects carry static information about objects in the project, i.e. the type and name of objects appearing in the sequence can be held here. It may be static information about dynamic objects (where the dynamic information is in the frame tags, see below) or static information about static objects (like a sign) which only need to appear once.
@@ -41,15 +45,16 @@ frame_intervals in not required. ontology_uid is not required, but points to whi
             "ontology_uid": "0"
         },
         "2" : {
-          "name": "Zurich_24",
+          "name": "GbgSaroRound_24",
           "type": "ArUco",
           "ontology_uid": "0",
           "object_data": {
             "vec": [
               { "name": "arucoID", "val": ["24a", "24c"] },
-              { "name": "long", "val": ["47.3769", "47.3771"]},
-              { "name": "lat", "val": ["8.5417", "8.5419"]},
-              { "name": "description", "val": "Zurich"}
+              { "name": "long", "val": ["12.010028962964366", "12.010052305062038"]},
+              { "name": "lat", "val": ["57.48417200155693", "57.48418583728026"]},
+              { "name": "alt", "val": ["75.03256072998047", "75.01708374023437"]},
+              { "name": "description", "val": "GbgSaroRound"}
             ]
           }
      },
@@ -92,7 +97,7 @@ We only use one type, which is rotated bounding box which is a rectangle with an
             "object_data": {
               "rbbox": [{ "name": "shape", "val": [400, 200, 10, 3, 0.24] }],
               "vec": [
-                { "name": "annotator", "val": ["SAVANT AutoAnno v0.1", "thanh"] },
+                { "name": "annotator", "val": ["SAVANT markit v2.0.0", "personX"] },
                 { "name": "confidence",   "val": [0.87, 0.91] }
               ]
             }
@@ -102,7 +107,7 @@ We only use one type, which is rotated bounding box which is a rectangle with an
     } 
 ```
 
-![RBBOX](doc/OpenLabel_rbbox.png)
+![RBBOX](docs/OpenLabel_rbbox.png)
 
 ## SAVANT Ontology
 
