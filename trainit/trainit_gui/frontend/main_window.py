@@ -320,11 +320,11 @@ class MainWindow(QMainWindow):
 
         # Logo on the left
         logo_label = QLabel()
-        logo_path = Path(__file__).parent.parent.parent.parent / "docs" / "savant_logo.png"
+        logo_path = Path(__file__).parent.parent.parent.parent / "docs" / "savant_logo_sq.png"
         if logo_path.exists():
             pixmap = QPixmap(str(logo_path))
-            # Scale to reasonable size (max 128px height)
-            scaled = pixmap.scaledToHeight(128, Qt.TransformationMode.SmoothTransformation)
+            # Scale to reasonable size
+            scaled = pixmap.scaledToHeight(150, Qt.TransformationMode.SmoothTransformation)
             logo_label.setPixmap(scaled)
         layout.addWidget(logo_label)
 
@@ -332,7 +332,7 @@ class MainWindow(QMainWindow):
         right_layout = QVBoxLayout()
 
         text_label = QLabel(
-            "<h2>trainit-gui</h2>"
+            "<h2>SAVANT trainit GUI</h2>"
             "<p>Version 1.0.0</p>"
             "<p>GUI for managing YOLO training datasets "
             "and generating training configurations.</p>"
