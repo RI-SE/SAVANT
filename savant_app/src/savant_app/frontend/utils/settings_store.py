@@ -4,9 +4,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Optional
 
+from savant_app.frontend.exceptions import (
+    InvalidActionIntervalOffsetError,
+    InvalidFrameHistoryCountError,
+    InvalidOntologyNamespaceError,
+    InvalidZoomRateError,
+)
+
 _ontology_path: Optional[Path] = None
 _action_interval_offset: int = 50
-_default_ontology_namespace = "http://savant.ri.se/ontology#"
+_default_ontology_namespace = "http://github.com/RI-SE/SAVANT/ontology#"
 _ontology_namespace: str = _default_ontology_namespace
 _warning_range: tuple[float, float] = (0.4, 0.6)
 _error_range: tuple[float, float] = (0.0, 0.4)
@@ -18,7 +25,9 @@ _tag_frames: dict[str, dict[str, list[int]]] = {"frame": {}, "object": {}}
 # New movement sensitivity setting
 _movement_sensitivity: float = 1.0  # default 1.0x
 _rotation_sensitivity: float = 0.1  # default 0.1
-_DEFAULT_ONTOLOGY_FILES = ("savant_ontology_1.3.0.ttl", "savant_ontology_1.0.0.ttl")
+_zoom_rate: float = 1.0
+_frame_history_count: int = 50
+_DEFAULT_ONTOLOGY_FILES = ("1.3.1.ttl",)
 
 
 def get_ontology_path() -> Optional[Path]:
@@ -41,7 +50,9 @@ def set_action_interval_offset(value: int) -> None:
     global _action_interval_offset
     interval = int(value)
     if interval < 0:
-        raise ValueError("Action interval offset must be >= 0.")
+        raise InvalidActionIntervalOffsetError(
+            "Action interval offset must be >= 0."
+        )
     _action_interval_offset = interval
 
 
@@ -53,9 +64,11 @@ def set_ontology_namespace(ns: str) -> None:
     global _ontology_namespace
     ns = str(ns).strip()
     if not ns:
-        raise ValueError("Ontology namespace cannot be empty.")
+        raise InvalidOntologyNamespaceError("Ontology namespace cannot be empty.")
     if not (ns.endswith("#") or ns.endswith("/") or ns.endswith(":")):
-        raise ValueError(f"Ontology namespace '{ns}' must end with '#', '/' or ':'.")
+        raise InvalidOntologyNamespaceError(
+            f"Ontology namespace '{ns}' must end with '#', '/' or ':'."
+        )
     _ontology_namespace = ns
 
 
@@ -146,6 +159,36 @@ def set_rotation_sensitivity(value: float) -> None:
     float_value = float(value)
 
     _rotation_sensitivity = float_value
+
+
+def get_zoom_rate() -> float:
+    """Return the configured default zoom multiplier."""
+    return float(_zoom_rate)
+
+
+def set_zoom_rate(value: float) -> None:
+    """Update the default zoom multiplier and clamp to sensible bounds."""
+    global _zoom_rate
+    zoom_value = float(value)
+    if zoom_value < 0.1:
+        raise InvalidZoomRateError("Zoom rate must be at least 0.1x.")
+    _zoom_rate = zoom_value
+
+
+def get_frame_history_count() -> int:
+    """Return the frame history depth used for sidebar calculations."""
+    return int(_frame_history_count)
+
+
+def set_frame_history_count(value: int) -> None:
+    """Update the frame history depth."""
+    global _frame_history_count
+    count = int(value)
+    if count < 1:
+        raise InvalidFrameHistoryCountError(
+            "Frame history must be at least 1 frame."
+        )
+    _frame_history_count = count
 
 
 def update_tag_options(tag_data: dict[str, dict[str, Iterable[int]]]) -> None:

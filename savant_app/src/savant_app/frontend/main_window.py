@@ -10,7 +10,11 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from savant_app.frontend.exceptions import InvalidWarningErrorRange
+from savant_app.frontend.exceptions import (
+    InvalidFrameHistoryCountError,
+    InvalidWarningErrorRange,
+    InvalidZoomRateError,
+)
 from savant_app.frontend.states.frontend_state import FrontendState
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.widgets.annotator_dialog import AnnotatorDialog
@@ -22,10 +26,14 @@ from savant_app.frontend.utils.settings_store import (
     get_show_warnings,
     get_show_errors,
     get_tag_options,
+    get_frame_history_count,
+    get_zoom_rate,
     set_threshold_ranges,
     set_show_warnings,
     set_show_errors,
     set_tag_option_states,
+    set_frame_history_count,
+    set_zoom_rate,
 )
 from savant_app.frontend.utils import (
     annotation_ops,
@@ -149,7 +157,7 @@ class MainWindow(QMainWindow):
         render.wire(self)
 
         annotation_ops.wire(self, self.state)
-        zoom.wire(self, initial=1.0)
+        zoom.wire(self)
 
         QShortcut(
             QKeySequence.StandardKey.Undo,
@@ -204,8 +212,8 @@ class MainWindow(QMainWindow):
     def open_settings(self):
         dlg = SettingsDialog(
             theme="Dark",
-            zoom_rate=1.2,
-            frame_count=self.sidebar_state.historic_obj_frame_count,
+            zoom_rate=get_zoom_rate(),
+            frame_count=get_frame_history_count(),
             # Manual ontology parameter:
             # ontology_path=get_ontology_path(),
             action_interval_offset=get_action_interval_offset(),
@@ -216,7 +224,18 @@ class MainWindow(QMainWindow):
         # dlg.ontology_path_selected.connect(self.sidebar.reload_bbox_type_combo)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             vals = dlg.values()
-            self.sidebar_state.historic_obj_frame_count = vals["previous_frame_count"]
+            try:
+                set_zoom_rate(vals.get("zoom_rate", get_zoom_rate()))
+            except InvalidZoomRateError as exc:
+                QMessageBox.critical(self, "Invalid Zoom Rate", str(exc))
+            else:
+                if hasattr(self, "set_default_zoom"):
+                    self.set_default_zoom(get_zoom_rate(), apply=True)
+            try:
+                set_frame_history_count(vals["previous_frame_count"])
+            except InvalidFrameHistoryCountError as exc:
+                QMessageBox.critical(self, "Invalid Frame History", str(exc))
+            self.sidebar_state.historic_obj_frame_count = get_frame_history_count()
             self.sidebar.refresh_confidence_issue_list()
             warning_vals = vals.get("warning_range", get_warning_range())
             error_vals = vals.get("error_range", get_error_range())
