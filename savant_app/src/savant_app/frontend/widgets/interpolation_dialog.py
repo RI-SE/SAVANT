@@ -1,14 +1,18 @@
+from typing import Callable, Dict, List
+
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
+    QComboBox,
     QDialog,
-    QVBoxLayout,
     QFormLayout,
     QLabel,
-    QSpinBox,
-    QComboBox,
-    QPushButton,
     QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
 )
-from typing import List, Dict, Callable
+
+from savant_app.frontend.utils.formats import format_object_identity
 
 
 class InterpolationDialog(QDialog):
@@ -41,16 +45,25 @@ class InterpolationDialog(QDialog):
         ):
             frame_limit = parent.state.historic_obj_frame_count
             current_frame = parent.video_controller.current_index()
-            recent_ids = parent.annotation_controller.get_frame_object_ids(
-                frame_limit=frame_limit, current_frame=current_frame
+            recent_identities = (
+                parent.annotation_controller.get_frame_object_identities(
+                    frame_limit=frame_limit, current_frame=current_frame
+                )
             )
-            self.object_combo.addItems(sorted(set(recent_ids)))
+            for identity in sorted(recent_identities, key=lambda x: x["id"]):
+                display_text = format_object_identity(identity)
+                self.object_combo.addItem(display_text, userData=identity["id"])
         else:
-            self.object_combo.addItems(object_ids)
+            for identity in object_ids:
+                if isinstance(identity, dict):
+                    display_text = format_object_identity(identity)
+                    self.object_combo.addItem(display_text, userData=identity["id"])
+                else:
+                    self.object_combo.addItem(str(identity), userData=str(identity))
 
         self.object_combo.setCurrentIndex(-1)  # No pre-selected item
 
-        # Add helper text
+        # Helper text
         help_label = QLabel("Interpolate annotations between start and end frames")
         help_label.setStyleSheet("font-style: italic; color: #666;")
         help_label.setWordWrap(True)
@@ -92,7 +105,15 @@ class InterpolationDialog(QDialog):
             self.interpolate_btn.setEnabled(True)
 
     def _interpolate(self):
-        object_id = self.object_combo.currentText()
+        object_id = self.object_combo.currentData()
+        if not object_id:
+            object_id = self.object_combo.currentText()
+            if not object_id:
+                QMessageBox.warning(
+                    self, "Invalid Input", "Please select or enter an Object ID."
+                )
+                return
+
         start_frame = self.start_frame_spin.value()
         end_frame = self.end_frame_spin.value()
 
@@ -109,26 +130,9 @@ class InterpolationDialog(QDialog):
             return
 
         self.on_interpolate(object_id, start_frame, end_frame)
-
-        # self.annotation_controller.interpolate_annotations(
-        #    object_id,
-        #    start_frame,
-        #    end_frame,
-        #    formatted_ctrl,
-        #    "auto"  # annotator
-        # )
-
         QMessageBox.information(
             self,
             "Interpolation Complete",
             f"Interpolated {object_id} from frame {start_frame} to {end_frame}",
         )
         self.accept()
-
-
-#        except Exception as e:
-#            QMessageBox.critical(
-#                self,
-#                "Interpolation Error",
-#                f"Failed to interpolate: {str(e)}"
-#            )

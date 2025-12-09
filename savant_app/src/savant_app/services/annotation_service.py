@@ -108,7 +108,7 @@ class AnnotationService:
             if key in active_object_keys
         ]
 
-    def get_frame_objects(self, frame_limit: int, current_frame: int) -> list[str]:
+    def get_frame_objects(self, frame_limit: int, current_frame: int) -> list[dict]:
         """
         Get a list of all objects with bboxes in the frame range between the
         current frame and frame_limit.
@@ -129,8 +129,16 @@ class AnnotationService:
         for frame_data in frame_subset.values():  # Use new variable name
             object_ids.update(frame_data.objects.keys())  # Use update() for set
 
-        # Correct list comprehension:
-        return [obj_id for obj_id in object_ids if obj_id in global_objects]
+        # Return full object identity information
+        return [
+            {
+                "type": object_instance.type,
+                "name": object_instance.name,
+                "id": object_id,
+            }
+            for object_id, object_instance in global_objects.items()
+            if object_id in object_ids
+        ]
 
     def get_bbox(
         self,

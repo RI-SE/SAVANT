@@ -127,7 +127,9 @@ class AnnotationController:
         return self.annotation_service.get_active_objects(frame_number)
 
     @error_handler
-    def get_frame_object_ids(self, frame_limit: int, current_frame: int) -> list[str]:
+    def get_frame_object_identities(
+        self, frame_limit: int, current_frame: int
+    ) -> list[dict]:
         """
         Get a list of all objects with bboxes in the frame range between the
         current frame and frame_limit.

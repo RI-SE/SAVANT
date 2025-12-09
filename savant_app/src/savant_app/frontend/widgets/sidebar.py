@@ -35,10 +35,7 @@ from PyQt6.QtWidgets import (
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.project_state_controller import ProjectStateController
 from savant_app.controllers.video_controller import VideoController
-from savant_app.frontend.exceptions import (
-    InvalidDirectoryError,
-    InvalidObjectIDFormat,
-)
+from savant_app.frontend.exceptions import InvalidDirectoryError, InvalidObjectIDFormat
 from savant_app.frontend.states.frontend_state import FrontendState
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.theme.constants import (
@@ -53,6 +50,7 @@ from savant_app.frontend.theme.constants import (
 from savant_app.frontend.theme.sidebar_styles import apply_issue_sort_button_style
 from savant_app.frontend.utils.assets import icon
 from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
+from savant_app.frontend.utils.formats import format_object_identity
 from savant_app.frontend.utils.project_io import (
     ProjectDirectoryContents,
     scan_project_directory,
@@ -610,7 +608,9 @@ class Sidebar(QWidget):
 
         if directory_path:
             label = (project_name or Path(directory_path).name).strip()
-            self.open_project_dir.emit(directory_path, label or Path(directory_path).name)
+            self.open_project_dir.emit(
+                directory_path, label or Path(directory_path).name
+            )
 
     def _trigger_quick_save(self):
         """Trigger quick save signal."""
@@ -723,14 +723,12 @@ class Sidebar(QWidget):
 
         return new_obj_bbox_btn
 
-    def get_recent_frame_object_ids(self):
-        """Fetch object IDs from previous frames and update sidebar."""
+    def get_recent_frame_object_identities(self):
+        """Fetch object identities from previous frames and update sidebar."""
         current_frame = self.video_controller.current_index()
-        return set(
-            self.annotation_controller.get_frame_object_ids(
-                frame_limit=self.state.historic_obj_frame_count,
-                current_frame=current_frame,
-            )
+        return self.annotation_controller.get_frame_object_identities(
+            frame_limit=self.state.historic_obj_frame_count,
+            current_frame=current_frame,
         )
 
     def create_existing_obj_bbox_button(self, dialog: QDialog, object_type: str):
@@ -744,11 +742,11 @@ class Sidebar(QWidget):
         link_obj_bbox_btn.lineEdit().setPlaceholderText(placeholder_text)
         link_obj_bbox_btn.setMinimumWidth(len(placeholder_text) * 10)
 
-        recent_obj_ids = self.get_recent_frame_object_ids()
-        unique_ids = set()
-        for obj_id in recent_obj_ids:
-            unique_ids.add(obj_id)
-        link_obj_bbox_btn.addItems(sorted(unique_ids))
+        recent_obj_identities = self.get_recent_frame_object_identities()
+        for identity in sorted(recent_obj_identities, key=lambda x: x["id"]):
+            display_text = format_object_identity(identity)
+            link_obj_bbox_btn.addItem(display_text, userData=identity["id"])
+
         link_obj_bbox_btn.setCurrentIndex(
             -1
         )  # This is done to reset the index back to the placeholder,
@@ -756,9 +754,15 @@ class Sidebar(QWidget):
 
         # Emit signal once editing is finished OR user selects from the dropdown
         def _emit_id():
-            text = link_obj_bbox_btn.currentText()
-            if text:  # Only emit if something is typed/selected
-                self.add_new_bbox_existing_obj.emit(text)
+            object_id = link_obj_bbox_btn.currentData()
+            if not object_id:
+                # Handle case where user typed a non-existent ID
+                object_id = link_obj_bbox_btn.currentText()
+                if not object_id:
+                    return  # Or show a warning
+
+            if object_id:  # Only emit if something is typed/selected
+                self.add_new_bbox_existing_obj.emit(object_id)
                 dialog.accept()
 
         link_obj_bbox_btn.lineEdit().editingFinished.connect(_emit_id)
