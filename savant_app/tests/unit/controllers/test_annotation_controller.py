@@ -100,3 +100,21 @@ class TestAnnotationController:
             annotation_controller.add_bbox_to_existing_object(
                 frame_number, bbox_info, annotator="test_user"
             )
+
+    def test_get_all_static_object_identities_calls_service_method(
+        self, annotation_controller, mock_annotation_service
+    ):
+        """Test that controller delegates to service method"""
+        mock_annotation_service.get_all_static_objects.return_value = [
+            {"type": "box", "name": "box_1"},
+            {"type": "box", "name": "box_2"},
+        ]
+
+        result = annotation_controller.get_all_static_object_identities()
+
+        # Verify service method is called and result is returned
+        mock_annotation_service.get_all_static_objects.assert_called_once_with()
+        assert result == [
+            {"type": "box", "name": "box_1"},
+            {"type": "box", "name": "box_2"},
+        ]

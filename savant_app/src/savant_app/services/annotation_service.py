@@ -140,6 +140,23 @@ class AnnotationService:
             if object_id in object_ids
         ]
 
+    def get_all_static_objects(self) -> list[dict]:
+        """
+        Get a list of all static objects.
+        """
+        global_objects = self.project_state.annotation_config.objects
+        static_object_types = self.bbox_types().get("StaticObject", [])
+
+        return [
+            {
+                "type": object_instance.type,
+                "name": object_instance.name,
+                "id": object_id,
+            }
+            for object_id, object_instance in global_objects.items()
+            if object_instance.type in static_object_types
+        ]
+
     def get_bbox(
         self,
         frame_key: Union[int, str],

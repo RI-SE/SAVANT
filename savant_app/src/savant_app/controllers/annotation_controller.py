@@ -139,6 +139,13 @@ class AnnotationController:
         )
 
     @error_handler
+    def get_all_static_object_identities(self) -> list[dict]:
+        """
+        Get a list of all static objects.
+        """
+        return self.annotation_service.get_all_static_objects()
+
+    @error_handler
     def delete_bbox(
         self, frame_key: int, object_key: str
     ) -> Optional[FrameLevelObject]:
