@@ -1,8 +1,10 @@
 from PyQt6.QtGui import QShortcut, QKeySequence
 from PyQt6.QtCore import Qt
 
+from savant_app.frontend.utils.settings_store import get_zoom_rate
 
-def wire(main_window, initial: float = 1.0):
+
+def wire(main_window, initial: float | None = None):
 
     def _clamp(zoom_value: float) -> float:
         return max(0.05, min(zoom_value, 20.0))
@@ -26,10 +28,19 @@ def wire(main_window, initial: float = 1.0):
         _apply_zoom(main_window._zoom / 1.1, anchor_position)
 
     def zoom_fit():
-        _apply_zoom(1.0)
+        target = getattr(main_window, "_default_zoom", None) or 1.0
+        _apply_zoom(target)
 
-    main_window._zoom = initial
-    _apply_zoom(main_window._zoom)
+    def _set_default_zoom(value: float, *, apply: bool = False):
+        main_window._default_zoom = _clamp(value)
+        if apply:
+            _apply_zoom(main_window._default_zoom)
+
+    default_zoom = initial if initial is not None else get_zoom_rate()
+    if default_zoom <= 0:
+        default_zoom = 1.0
+    main_window._zoom = default_zoom
+    _set_default_zoom(default_zoom, apply=True)
 
     def _wheel_zoom(event):
         mods = event.modifiers()
@@ -61,3 +72,6 @@ def wire(main_window, initial: float = 1.0):
     main_window.zoom_in = zoom_in
     main_window.zoom_out = zoom_out
     main_window.zoom_fit = zoom_fit
+    main_window.set_default_zoom = lambda value, *, apply=False: _set_default_zoom(
+        value, apply=apply
+    )

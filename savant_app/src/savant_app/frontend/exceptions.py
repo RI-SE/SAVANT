@@ -86,3 +86,27 @@ class TemplateCreationError(FrontendException):
     """Raised when we cannot create a new OpenLabel template file."""
 
     pass
+
+
+class InvalidZoomRateError(FrontendException):
+    """Raised when a zoom multiplier falls outside the supported range."""
+
+    pass
+
+
+class InvalidFrameHistoryCountError(FrontendException):
+    """Raised when the frame history depth is invalid."""
+
+    pass
+
+
+class InvalidOntologyNamespaceError(FrontendException):
+    """Raised when an ontology namespace fails validation."""
+
+    pass
+
+
+class InvalidActionIntervalOffsetError(FrontendException):
+    """Raised when the action interval offset is invalid."""
+
+    pass
