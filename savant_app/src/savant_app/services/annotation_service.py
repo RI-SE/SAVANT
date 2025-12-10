@@ -74,20 +74,38 @@ class AnnotationService:
     def add_bbox_to_existing_object(
         self, frame_number: int, coordinates: tuple, object_id: str, annotator: str
     ) -> None:
-        """Handles adding a bbox for an existing object."""
+        """
+        Handles adding a bbox for an existing object.
+        If the object is static, the bbox is added to all frames.
+        """
 
-        # Verify if current frame already has the object
-        if self._does_object_exist_in_frame(frame_number, object_id):
-            raise ObjectInFrameError(
-                f"Object ID {object_id} already has a bbox in frame {frame_number}."
+        obj_meta = self.project_state.annotation_config.objects.get(object_id)
+        static_object_types = self.bbox_types().get("StaticObject", [])
+        is_static = obj_meta and obj_meta.type in static_object_types
+
+        if is_static:
+            # If the object is static, add the bbox to all frames
+            total_frames = self.project_state.video_metadata.frame_count
+            for i in range(total_frames):
+                self._add_object_bbox(
+                    frame_number=i,
+                    bbox_coordinates=coordinates,
+                    obj_id=object_id,
+                    annotator=annotator,
+                )
+        else:
+            # Verify if current frame already has the object
+            if self._does_object_exist_in_frame(frame_number, object_id):
+                raise ObjectInFrameError(
+                    f"Object ID {object_id} already has a bbox in frame {frame_number}."
+                )
+
+            self._add_object_bbox(
+                frame_number=frame_number,
+                bbox_coordinates=coordinates,
+                obj_id=object_id,
+                annotator=annotator,
             )
-
-        self._add_object_bbox(
-            frame_number=frame_number,
-            bbox_coordinates=coordinates,
-            obj_id=object_id,
-            annotator=annotator,
-        )
 
     def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number.

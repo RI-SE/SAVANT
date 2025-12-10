@@ -413,6 +413,7 @@ def _apply_cascade_all_frames(
     if direction == CascadeDirection.FORWARDS:
         start_frame = current_frame
         end_frame = last_frame
+        print(f"Direction forwards: startframe: {start_frame}, endframe: {end_frame}")
     else:  # backwards
         start_frame = 0
         end_frame = current_frame

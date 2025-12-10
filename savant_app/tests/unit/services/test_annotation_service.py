@@ -139,6 +139,48 @@ class TestAnnotationService:
             obj_id=object_id,
         )
 
+    def test_add_bbox_to_existing_static_object(
+        self, annotation_service, mock_project_state
+    ):
+        """Test adding a bbox to an existing static object adds it to all frames."""
+        frame_number = 42
+        coordinates = (10, 20, 30, 40)
+        object_id = "1"
+        total_frames = 100
+
+        # Mock object metadata and type
+        mock_obj = MagicMock()
+        mock_obj.type = "StaticObject"
+        mock_project_state.annotation_config.objects = {object_id: mock_obj}
+
+        # Mock bbox_types to return a static object type
+        annotation_service.bbox_types = MagicMock(
+            return_value={"StaticObject": ["StaticObject"]}
+        )
+
+        # Mock video metadata
+        mock_project_state.video_metadata.frame_count = total_frames
+
+        # Mock _add_object_bbox to verify calls
+        annotation_service._add_object_bbox = MagicMock()
+
+        annotation_service.add_bbox_to_existing_object(
+            frame_number, coordinates, object_id, "test_annotator"
+        )
+
+        assert annotation_service._add_object_bbox.call_count == total_frames
+
+        expected_calls = [
+            call(
+                frame_number=i,
+                bbox_coordinates=coordinates,
+                obj_id=object_id,
+                annotator="test_annotator",
+            )
+            for i in range(total_frames)
+        ]
+        annotation_service._add_object_bbox.assert_has_calls(expected_calls)
+
 
 def _make_frame_object(confidence_values):
     return SimpleNamespace(
