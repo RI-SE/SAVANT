@@ -498,6 +498,43 @@ class TestCascadeBboxEdit:
         ]
         mock_update.assert_has_calls(expected_calls, any_order=False)
 
+    def test_cascade_bbox_edit_center(self, setup_cascade_test, annotation_service):
+        """Test applying center changes to all frames"""
+        mock_project_state = setup_cascade_test
+        mock_update = mock_project_state.annotation_config.update_bbox
+
+        # Apply center changes starting from frame 20
+        edited_frames = annotation_service.cascade_bbox_edit(
+            frame_start=20,
+            frame_end=90,
+            object_key="obj1",
+            annotator="test_annotator",
+            center_x=100,
+            center_y=200,
+        )
+
+        # Verify edited frames (20-90 in increments of 10)
+        assert edited_frames == [20, 30, 40, 50, 60, 70, 80, 90]
+
+        # Verify update_bbox called with correct parameters
+        expected_calls = [
+            call(
+                frame_key=str(frame),
+                object_key="obj1",
+                bbox_index=0,
+                center_x=100,
+                center_y=200,
+                width=None,
+                height=None,
+                rotation=None,
+                min_width=1e-6,
+                min_height=1e-6,
+                annotator="test_annotator",
+            )
+            for frame in [20, 30, 40, 50, 60, 70, 80, 90]
+        ]
+        mock_update.assert_has_calls(expected_calls, any_order=False)
+
 
 class TestAddObjectRelationship:
     def test_add_object_relationship_with_overlap(

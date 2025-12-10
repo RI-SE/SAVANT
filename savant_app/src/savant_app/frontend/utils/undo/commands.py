@@ -184,6 +184,8 @@ class CascadeBBoxCommand:
     object_id: str
     frame_start: int
     frame_end: Optional[int]
+    center_x: Optional[float]
+    center_y: Optional[float]
     width: Optional[float]
     height: Optional[float]
     rotation: Optional[float]
@@ -215,6 +217,8 @@ class CascadeBBoxCommand:
                 frame_start=self.frame_start,
                 frame_end=self.frame_end,
                 object_id=self.object_id,
+                center_x=self.center_x,
+                center_y=self.center_y,
                 width=self.width,
                 height=self.height,
                 rotation=self.rotation,

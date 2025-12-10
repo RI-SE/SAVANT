@@ -19,8 +19,10 @@ class CascadeDropdown(QWidget):
 
     applySizeToAll = pyqtSignal(object)
     applyRotationToAll = pyqtSignal(object)
+    applyCenterToAll = pyqtSignal(object)
     applySizeToFrameRange = pyqtSignal(object)
     applyRotationToFrameRange = pyqtSignal(object)
+    applyCenterToFrameRange = pyqtSignal(object)
     cancelled = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -66,6 +68,10 @@ class CascadeDropdown(QWidget):
         self.apply_rotation_to_all_btn.clicked.connect(self._on_apply_rotation_all)
         layout.addWidget(self.apply_rotation_to_all_btn)
 
+        self.apply_center_to_all_btn = QPushButton("Apply Center to All Frames")
+        self.apply_center_to_all_btn.clicked.connect(self._on_apply_center_all)
+        layout.addWidget(self.apply_center_to_all_btn)
+
         self.apply_size_to_next_btn = QPushButton("Apply size to Next X Frames")
         self.apply_size_to_next_btn.clicked.connect(self._on_apply_size_next_frame)
         layout.addWidget(self.apply_size_to_next_btn)
@@ -76,12 +82,20 @@ class CascadeDropdown(QWidget):
         )
         layout.addWidget(self.apply_rotation_to_next_btn)
 
+        self.apply_center_to_next_btn = QPushButton("Apply Center to Next X Frames")
+        self.apply_center_to_next_btn.clicked.connect(
+            self._on_apply_center_next_frame
+        )
+        layout.addWidget(self.apply_center_to_next_btn)
+
         # Store action buttons for easy access
         self._action_buttons = [
             self.apply_size_to_all_btn,
             self.apply_rotation_to_all_btn,
+            self.apply_center_to_all_btn,
             self.apply_size_to_next_btn,
             self.apply_rotation_to_next_btn,
+            self.apply_center_to_next_btn,
         ]
 
         # Cancel button (always visible)
@@ -122,6 +136,11 @@ class CascadeDropdown(QWidget):
         self.hide()
         self.applyRotationToAll.emit(self._current_direction)
 
+    def _on_apply_center_all(self):
+        """Handle cascade center to all frames button click."""
+        self.hide()
+        self.applyCenterToAll.emit(self._current_direction)
+
     def _on_apply_size_next_frame(self):
         """Handle cascade size to next X frames button click."""
         self.hide()
@@ -131,6 +150,11 @@ class CascadeDropdown(QWidget):
         """Handle cascade rotation to next X frames button click."""
         self.hide()
         self.applyRotationToFrameRange.emit(self._current_direction)
+
+    def _on_apply_center_next_frame(self):
+        """Handle cascade center to next X frames button click."""
+        self.hide()
+        self.applyCenterToFrameRange.emit(self._current_direction)
 
     def _on_cancel(self):
         """Handle cancel button click."""

@@ -129,10 +129,12 @@ def wire(main_window, frontend_state: FrontendState):
     # Connect cascade signals
     if hasattr(main_window.overlay, "cascadeApplyAll"):
         main_window.overlay.cascadeApplyAll.connect(
-            lambda object_id, width, height, rotation, direction: _call_with_annotator(
+            lambda object_id, center_x, center_y, width, height, rotation, direction: _call_with_annotator(
                 _apply_cascade_all_frames,
                 main_window,
                 object_id,
+                center_x,
+                center_y,
                 width,
                 height,
                 new_rotation=rotation,
@@ -141,10 +143,12 @@ def wire(main_window, frontend_state: FrontendState):
         )
     if hasattr(main_window.overlay, "cascadeApplyFrameRange"):
         main_window.overlay.cascadeApplyFrameRange.connect(
-            lambda object_id, width, height, rotation, direction: _call_with_annotator(
+            lambda object_id, center_x, center_y, width, height, rotation, direction: _call_with_annotator(
                 _apply_cascade_next_frames,
                 main_window,
                 object_id,
+                center_x,
+                center_y,
                 width,
                 height,
                 rotation=rotation,
@@ -400,6 +404,8 @@ def _frames_to_ranges(frames: list[int]) -> str:
 def _apply_cascade_all_frames(
     main_window,
     object_id: str,
+    center_x: float,
+    center_y: float,
     new_width: float,
     new_height: float,
     annotator: str,
@@ -422,6 +428,8 @@ def _apply_cascade_all_frames(
         object_id=str(object_id),
         frame_start=start_frame,
         frame_end=end_frame,
+        center_x=center_x,
+        center_y=center_y,
         width=new_width,
         height=new_height,
         rotation=new_rotation,
@@ -451,6 +459,8 @@ def _apply_cascade_all_frames(
 def _apply_cascade_next_frames(
     main_window,
     object_id: str,
+    center_x: float,
+    center_y: float,
     width: float,
     height: float,
     annotator: str,
@@ -497,6 +507,8 @@ def _apply_cascade_next_frames(
         object_id=str(object_id),
         frame_start=start_frame,
         frame_end=end_frame,
+        center_x=center_x,
+        center_y=center_y,
         width=width,
         height=height,
         rotation=rotation,

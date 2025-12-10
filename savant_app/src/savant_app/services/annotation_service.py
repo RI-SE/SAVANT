@@ -258,6 +258,9 @@ class AnnotationService:
         frame_end: Optional[int],
         annotator: str,
         *,
+        # position values
+        center_x: Optional[float] = None,
+        center_y: Optional[float] = None,
         # size values
         width: Optional[float] = None,
         height: Optional[float] = None,
@@ -297,6 +300,8 @@ class AnnotationService:
                 frame_key=str(frame_num),
                 object_key=object_key,
                 bbox_index=0,
+                x_center=center_x,
+                y_center=center_y,
                 width=width,
                 height=height,
                 rotation=rotation,
