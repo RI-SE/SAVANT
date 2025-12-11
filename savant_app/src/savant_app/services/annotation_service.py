@@ -81,7 +81,8 @@ class AnnotationService:
 
         obj_meta = self.project_state.annotation_config.objects.get(object_id)
         static_object_types = self.bbox_types().get("StaticObject", [])
-        is_static = obj_meta and obj_meta.type in static_object_types
+        static_object_types_lower = [t.lower() for t in static_object_types]
+        is_static = obj_meta and obj_meta.type.lower() in static_object_types_lower
 
         if is_static:
             # If the object is static, add the bbox to all frames
