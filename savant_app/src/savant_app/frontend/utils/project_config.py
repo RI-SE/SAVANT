@@ -143,6 +143,31 @@ def _snapshot_settings() -> Dict[str, Any]:
     }
 
 
+def _serialize_settings(settings: Dict[str, Any]) -> str:
+    """Return a JSON string for consistent comparisons."""
+
+    try:
+        return json.dumps(settings, sort_keys=True)
+    except TypeError:
+        # Fallback in case future settings add unsupported types.
+        return repr(settings)
+
+
+def settings_changed_since_last_save(project_dir: Path | None = None) -> bool:
+    """Return True if the current in-memory settings differ from the stored config."""
+
+    if project_dir is None:
+        project_dir = _active_project_dir
+    if project_dir is None:
+        return False
+    project_dir = Path(project_dir)
+    current_settings = _snapshot_settings()
+    stored_settings = load_project_config(project_dir).settings or {}
+    return _serialize_settings(current_settings) != _serialize_settings(
+        dict(stored_settings)
+    )
+
+
 def persist_current_settings(project_dir: Path | None = None) -> ProjectConfig:
     """Persist the in-memory settings to the active project's config file."""
 
