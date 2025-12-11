@@ -17,7 +17,7 @@ def mock_project_state():
     state.annotation_config = MagicMock(spec=OpenLabel)
 
     # Add video_metadata mock
-    state.annotation_config.video_metadata = MagicMock()
+    state.video_metadata = MagicMock()
 
     # Initialize mock objects
     state.annotation_config.objects = MagicMock()
@@ -126,6 +126,7 @@ class TestAnnotationService:
 
         # Mock object existence check
         annotation_service._does_object_exist_in_frame = MagicMock(return_value=False)
+        annotation_service.bbox_types = MagicMock(return_value={"StaticObject": []})
 
         annotation_service.add_bbox_to_existing_object(
             frame_number, coordinates, object_id, "test_annotator"
@@ -354,7 +355,7 @@ class TestCascadeBboxEdit:
     def setup_cascade_test(self, mock_project_state):
         """Setup common test environment for cascade_bbox_edit tests"""
         # Configure video metadata with 100 frames
-        mock_project_state.annotation_config.video_metadata.frame_count = 100
+        mock_project_state.video_metadata.frame_count = 100
 
         # Create frames with test object "obj1" present in frames 10-90
         frames = {}
@@ -392,6 +393,8 @@ class TestCascadeBboxEdit:
                 frame_key=str(frame),
                 object_key="obj1",
                 bbox_index=0,
+                x_center=None,
+                y_center=None,
                 width=5,
                 height=-3,
                 rotation=15,
@@ -430,6 +433,8 @@ class TestCascadeBboxEdit:
                 frame_key=str(frame),
                 object_key="obj1",
                 bbox_index=0,
+                x_center=None,
+                y_center=None,
                 width=60,
                 height=40,
                 rotation=10,
@@ -487,6 +492,8 @@ class TestCascadeBboxEdit:
                 frame_key=str(frame),
                 object_key="obj1",
                 bbox_index=0,
+                x_center=None,
+                y_center=None,
                 width=-100,
                 height=None,
                 rotation=None,
@@ -522,8 +529,8 @@ class TestCascadeBboxEdit:
                 frame_key=str(frame),
                 object_key="obj1",
                 bbox_index=0,
-                center_x=100,
-                center_y=200,
+                x_center=100,
+                y_center=200,
                 width=None,
                 height=None,
                 rotation=None,
