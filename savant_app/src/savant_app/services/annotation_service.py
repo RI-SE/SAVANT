@@ -164,6 +164,7 @@ class AnnotationService:
         """
         global_objects = self.project_state.annotation_config.objects
         static_object_types = self.bbox_types().get("StaticObject", [])
+        static_object_types_lower = [t.lower() for t in static_object_types]
 
         return [
             {
@@ -172,7 +173,7 @@ class AnnotationService:
                 "id": object_id,
             }
             for object_id, object_instance in global_objects.items()
-            if object_instance.type in static_object_types
+            if object_instance.type.lower() in static_object_types_lower
         ]
 
     def get_bbox(
