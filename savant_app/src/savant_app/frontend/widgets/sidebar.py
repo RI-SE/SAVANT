@@ -680,12 +680,7 @@ class Sidebar(QWidget):
         new_obj_bbox_btn = QComboBox()
         new_obj_bbox_btn.setPlaceholderText("Select new object type")
         types = self.annotation_controller.allowed_bbox_types()
-        self._add_combo_separator(new_obj_bbox_btn, "— DynamicObject —")
         for label in types.get("DynamicObject", []):
-            new_obj_bbox_btn.addItem(label)
-
-        self._add_combo_separator(new_obj_bbox_btn, "— StaticObject —")
-        for label in types.get("StaticObject", []):
             new_obj_bbox_btn.addItem(label)
 
         new_obj_bbox_btn.setCurrentIndex(-1)
