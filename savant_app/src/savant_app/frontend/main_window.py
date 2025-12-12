@@ -91,7 +91,7 @@ class MainWindow(QMainWindow):
 
         # state
         self.state = FrontendState(self)
-        self.state.register_annotator_prompt(self.prompt_for_annotator)
+        self.state.register_annotator_prompt(self._prompt_and_record_annotator)
         self.state.confidenceIssuesChanged.connect(
             lambda _: confidence_ops.apply_confidence_markers(self)
         )
@@ -217,6 +217,13 @@ class MainWindow(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return dialog.get_annotator_name()
         return None
+
+    def _prompt_and_record_annotator(self) -> str | None:
+        selected = self.prompt_for_annotator()
+        if selected:
+            self.add_known_annotator(selected)
+            record_annotator_login(selected)
+        return selected
 
     def change_current_annotator(self) -> None:
         selected = self.prompt_for_annotator()
