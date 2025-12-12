@@ -73,7 +73,7 @@ class AnnotationService:
 
     def add_bbox_to_existing_object(
         self, frame_number: int, coordinates: tuple, object_id: str, annotator: str
-    ) -> None:
+    ) -> Optional[List[Tuple[int, FrameLevelObject]]]:
         """
         Handles adding a bbox for an existing object.
         If the object is static, the bbox is added to all frames.
@@ -84,16 +84,19 @@ class AnnotationService:
         static_object_types_lower = [t.lower() for t in static_object_types]
         is_static = obj_meta and obj_meta.type.lower() in static_object_types_lower
 
+        created_bboxes = []
         if is_static:
             # If the object is static, add the bbox to all frames
             total_frames = self.project_state.video_metadata.frame_count
             for i in range(total_frames):
-                self._add_object_bbox(
+                bbox = self._add_object_bbox(
                     frame_number=i,
                     bbox_coordinates=coordinates,
                     obj_id=object_id,
                     annotator=annotator,
                 )
+                created_bboxes.append((i, bbox))
+            return created_bboxes
         else:
             # Verify if current frame already has the object
             if self._does_object_exist_in_frame(frame_number, object_id):
@@ -101,12 +104,13 @@ class AnnotationService:
                     f"Object ID {object_id} already has a bbox in frame {frame_number}."
                 )
 
-            self._add_object_bbox(
+            bbox = self._add_object_bbox(
                 frame_number=frame_number,
                 bbox_coordinates=coordinates,
                 obj_id=object_id,
                 annotator=annotator,
             )
+            return [(frame_number, bbox)]
 
     def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number.
@@ -475,13 +479,13 @@ class AnnotationService:
 
     def _add_object_bbox(
         self, frame_number: int, bbox_coordinates: dict, obj_id: str, annotator: str
-    ) -> None:
+    ) -> FrameLevelObject:
         """
         Service function to add new annotations to the config.
         """
 
         # Append new bounding box (under frames)
-        self.project_state.annotation_config.append_object_bbox(
+        return self.project_state.annotation_config.append_object_bbox(
             frame_id=frame_number,
             bbox_coordinates=bbox_coordinates,
             obj_id=obj_id,

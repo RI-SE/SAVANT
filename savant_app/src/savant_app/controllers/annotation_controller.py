@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import List, Optional, Tuple, Union
 
 from savant_app.models.OpenLabel import FrameLevelObject, RotatedBBox
 from savant_app.services.annotation_service import AnnotationService
@@ -117,8 +117,8 @@ class AnnotationController:
     @error_handler
     def add_bbox_to_existing_object(
         self, frame_number: int, bbox_info: dict, annotator: str
-    ) -> None:
-        self.annotation_service.add_bbox_to_existing_object(
+    ) -> Optional[List[Tuple[int, FrameLevelObject]]]:
+        return self.annotation_service.add_bbox_to_existing_object(
             frame_number=frame_number,
             coordinates=bbox_info["coordinates"],
             object_id=bbox_info["object_id"],
