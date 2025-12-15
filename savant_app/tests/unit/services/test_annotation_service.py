@@ -143,7 +143,7 @@ class TestAnnotationService:
     def test_add_bbox_to_existing_static_object(
         self, annotation_service, mock_project_state
     ):
-        """Test adding a bbox to an existing static object adds it to all frames."""
+        """Test adding a bbox to an existing static object adds it to all frames where it does not exist."""
         frame_number = 42
         coordinates = (10, 20, 30, 40)
         object_id = "1"
@@ -164,6 +164,9 @@ class TestAnnotationService:
 
         # Mock _add_object_bbox to verify calls
         annotation_service._add_object_bbox = MagicMock()
+
+        # Mock _does_object_exist_in_frame to return False for all frames
+        annotation_service._does_object_exist_in_frame = MagicMock(return_value=False)
 
         annotation_service.add_bbox_to_existing_object(
             frame_number, coordinates, object_id, "test_annotator"
