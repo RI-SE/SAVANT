@@ -1,3 +1,5 @@
+from typing import Sequence
+
 # main_window.py
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeySequence, QShortcut
@@ -40,6 +42,7 @@ from savant_app.frontend.utils import (
     render,
     zoom,
 )
+from savant_app.frontend.utils.project_config import record_annotator_login
 
 from savant_app.frontend.utils.undo import (
     ControllerAnnotationGateway,
@@ -75,6 +78,8 @@ class MainWindow(QMainWindow):
         self.annotation_controller = annotation_controller
         self.project_state_controller = project_state_controller
 
+        self._annotator_suggestions: list[str] = []
+
         self.undo_manager = UndoRedoManager()
         self.undo_context = GatewayHolder(
             annotation_gateway=ControllerAnnotationGateway(
@@ -86,7 +91,7 @@ class MainWindow(QMainWindow):
 
         # state
         self.state = FrontendState(self)
-        self.state.register_annotator_prompt(self.prompt_for_annotator)
+        self.state.register_annotator_prompt(self._prompt_and_record_annotator)
         self.state.confidenceIssuesChanged.connect(
             lambda _: confidence_ops.apply_confidence_markers(self)
         )
@@ -102,6 +107,7 @@ class MainWindow(QMainWindow):
             on_new_frame_tag=self.create_new_frame_tag,
             on_interpolate=self.open_interpolation_dialog,
             on_create_relationship=self.open_relationship_dialog,
+            on_change_annotator=self.change_current_annotator,
             on_about=self.open_about,
         )
 
@@ -175,10 +181,6 @@ class MainWindow(QMainWindow):
         self.refresh_confidence_issues()
         self.update_issue_info()
 
-        initial_annotator = self.prompt_for_annotator()
-        if initial_annotator:
-            self.state.set_current_annotator(initial_annotator)
-
     def set_project_name(self, name: str) -> None:
         cleaned = (name or "").strip()
         if not cleaned:
@@ -189,11 +191,47 @@ class MainWindow(QMainWindow):
     def update_title(self):
         self.setWindowTitle(f"SAVANT {self.project_name}")
 
-    def prompt_for_annotator(self) -> str | None:
-        dialog = AnnotatorDialog(self)
+    def _add_annotator_suggestion(self, annotator_name: str) -> None:
+        normalized = (annotator_name or "").strip()
+        if not normalized:
+            return
+        lowered = normalized.lower()
+        for existing in self._annotator_suggestions:
+            if existing.lower() == lowered:
+                return
+        self._annotator_suggestions.append(normalized)
+
+    def set_known_annotators(self, annotator_names: Sequence[str] | None) -> None:
+        self._annotator_suggestions = []
+        for name in annotator_names or []:
+            self._add_annotator_suggestion(name)
+
+    def add_known_annotator(self, annotator_name: str | None) -> None:
+        self._add_annotator_suggestion(annotator_name or "")
+
+    def prompt_for_annotator(
+        self, annotator_names: Sequence[str] | None = None
+    ) -> str | None:
+        suggestions = list(annotator_names or self._annotator_suggestions or [])
+        dialog = AnnotatorDialog(self, annotator_names=suggestions)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return dialog.get_annotator_name()
         return None
+
+    def _prompt_and_record_annotator(self) -> str | None:
+        selected = self.prompt_for_annotator()
+        if selected:
+            self.add_known_annotator(selected)
+            record_annotator_login(selected)
+        return selected
+
+    def change_current_annotator(self) -> None:
+        selected = self.prompt_for_annotator()
+        if not selected:
+            return
+        self.state.set_current_annotator(selected)
+        self.add_known_annotator(selected)
+        record_annotator_login(selected)
 
     def open_about(self):
         # Determine current theme based on the window's palette
