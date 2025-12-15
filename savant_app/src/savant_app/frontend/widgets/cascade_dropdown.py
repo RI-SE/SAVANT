@@ -83,9 +83,7 @@ class CascadeDropdown(QWidget):
         layout.addWidget(self.apply_rotation_to_next_btn)
 
         self.apply_center_to_next_btn = QPushButton("Apply Center to Next X Frames")
-        self.apply_center_to_next_btn.clicked.connect(
-            self._on_apply_center_next_frame
-        )
+        self.apply_center_to_next_btn.clicked.connect(self._on_apply_center_next_frame)
         layout.addWidget(self.apply_center_to_next_btn)
 
         # Store action buttons for easy access

@@ -59,7 +59,7 @@ class AnnotationController:
         delta_theta: float = 0.0,
         min_width: float = 1e-6,
         min_height: float = 1e-6,
-        annotator: str
+        annotator: str,
     ) -> RotatedBBox:
         """
         UI-level update for bbox geometry; delegates to the service.

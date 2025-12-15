@@ -1,6 +1,5 @@
 from typing import Callable, Dict, List
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,

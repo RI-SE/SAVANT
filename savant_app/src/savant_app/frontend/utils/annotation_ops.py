@@ -637,7 +637,9 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
             _apply_to_all_empty_frames(main_window, obj_id, frontend_state)
 
 
-def _apply_to_all_empty_frames(main_window, object_id: str, frontend_state: FrontendState):
+def _apply_to_all_empty_frames(
+    main_window, object_id: str, frontend_state: FrontendState
+):
     """Apply the bbox from the current frame to all frames where it's missing."""
     annotator = frontend_state.require_current_annotator()
     if not annotator:
@@ -647,9 +649,7 @@ def _apply_to_all_empty_frames(main_window, object_id: str, frontend_state: Fron
         return
 
     current_frame = int(main_window.video_controller.current_index())
-    source_bbox = main_window.annotation_controller.get_bbox(
-        current_frame, object_id
-    )
+    source_bbox = main_window.annotation_controller.get_bbox(current_frame, object_id)
     if not source_bbox:
         QMessageBox.warning(
             main_window, "Action Canceled", "Source bounding box not found."
@@ -721,7 +721,6 @@ def _apply_to_all_empty_frames(main_window, object_id: str, frontend_state: Fron
         "Operation Complete",
         f"Applied bounding box to {len(missing_frame_indices)} frames.",
     )
-
 
 
 def _get_selected_object_relationships(
