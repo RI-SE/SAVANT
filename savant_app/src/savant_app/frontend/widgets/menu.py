@@ -17,6 +17,7 @@ class AppMenu:
         on_new_frame_tag,
         on_interpolate,
         on_create_relationship,
+        on_change_annotator,
         on_about,
     ):
 
@@ -54,11 +55,15 @@ class AppMenu:
         self.interpolate_action.triggered.connect(on_interpolate)
         self.create_relationship_action = QAction("Create relationship", window)
         self.create_relationship_action.triggered.connect(on_create_relationship)
+        self.change_annotator_action = QAction("Change annotator", window)
+        self.change_annotator_action.triggered.connect(on_change_annotator)
 
         edit_menu.addAction(self.new_bbox_action)
         edit_menu.addAction(self.new_frame_tag_action)
         edit_menu.addAction(self.interpolate_action)
         edit_menu.addAction(self.create_relationship_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.change_annotator_action)
 
         # expose menus if you want to add more later
         self.file_menu = file_menu
