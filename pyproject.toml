@@ -30,6 +30,7 @@ markit = [
     "pyyaml",
     "pydantic>=2.0",
     "rdflib",
+    "httpx>=0.24.0",
     "dataprov @ git+https://github.com/RI-SE/dataprov.git",
     "PyQt6>=6.5.0",
     "matplotlib>=3.7.0",
