@@ -76,7 +76,7 @@ class AnnotationService:
     ) -> Optional[List[Tuple[int, FrameLevelObject]]]:
         """
         Handles adding a bbox for an existing object.
-        If the object is static, the bbox is added to all frames.
+        If the object is static, the bbox is added to all frames where it does not exist.
         """
 
         obj_meta = self.project_state.annotation_config.objects.get(object_id)
@@ -86,16 +86,17 @@ class AnnotationService:
 
         created_bboxes = []
         if is_static:
-            # If the object is static, add the bbox to all frames
+            # If the object is static, add the bbox to all frames where it does not exist.
             total_frames = self.project_state.video_metadata.frame_count
             for i in range(total_frames):
-                bbox = self._add_object_bbox(
-                    frame_number=i,
-                    bbox_coordinates=coordinates,
-                    obj_id=object_id,
-                    annotator=annotator,
-                )
-                created_bboxes.append((i, bbox))
+                if not self._does_object_exist_in_frame(i, object_id):
+                    bbox = self._add_object_bbox(
+                        frame_number=i,
+                        bbox_coordinates=coordinates,
+                        obj_id=object_id,
+                        annotator=annotator,
+                    )
+                    created_bboxes.append((i, bbox))
             return created_bboxes
         else:
             # Verify if current frame already has the object
