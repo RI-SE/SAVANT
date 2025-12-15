@@ -200,6 +200,28 @@ Examples:
     logging_group.add_argument('--verbose', action='store_true',
                                help='Enable verbose output with detailed angle and detection logging')
 
+    # VLM Analysis Configuration
+    vlm_group = parser.add_argument_group('VLM Scene Analysis')
+    vlm_group.add_argument('--vlm', action='store_true',
+                           help='Enable VLM-based scene analysis for scenario tagging')
+    vlm_group.add_argument('--vlm-model', default='llama-3.2-11b-vision-instruct',
+                           help='VLM model name on the vLLM server (default: llama-3.2-11b-vision-instruct)')
+    vlm_group.add_argument('--vlm-url', default='http://localhost:8000',
+                           help='vLLM API base URL (default: http://localhost:8000)')
+    vlm_group.add_argument('--vlm-api-key',
+                           help='API key for vLLM server (if required)')
+    vlm_group.add_argument('--vlm-sampling', choices=['uniform', 'scene_change', 'keyframes'],
+                           default='uniform',
+                           help='Frame sampling strategy for VLM analysis (default: uniform)')
+    vlm_group.add_argument('--vlm-interval', type=int, default=30,
+                           help='Frame interval for uniform sampling (default: 30)')
+    vlm_group.add_argument('--vlm-max-frames', type=int, default=20,
+                           help='Maximum frames to analyze with VLM (default: 20)')
+    vlm_group.add_argument('--vlm-timeout', type=int, default=120,
+                           help='VLM request timeout in seconds (default: 120)')
+    vlm_group.add_argument('--vlm-prompts',
+                           help='Path to custom prompts JSON file (optional)')
+
     return parser.parse_args()
 
 
@@ -422,6 +444,39 @@ def main():
             )
         else:
             logger.info("Housekeeping disabled, skipping postprocessing")
+
+        # VLM Scene Analysis (if enabled)
+        if args.vlm:
+            logger.info("Starting VLM scene analysis...")
+            from markit.markitlib.vlm import VLMConfig, VLMProvider, SamplingStrategy, VLMAnalysisPass
+
+            vlm_config = VLMConfig(
+                enabled=True,
+                provider=VLMProvider.VLLM,
+                model_name=args.vlm_model,
+                base_url=args.vlm_url,
+                api_key=args.vlm_api_key,
+                timeout=args.vlm_timeout,
+                sampling_strategy=SamplingStrategy(args.vlm_sampling),
+                sample_interval=args.vlm_interval,
+                max_samples=args.vlm_max_frames,
+                prompts_file=args.vlm_prompts,
+            )
+
+            vlm_pass = VLMAnalysisPass(vlm_config)
+            vlm_pass.set_video_path(config.video_path)
+            vlm_pass.set_video_properties(
+                video_processor.frame_width,
+                video_processor.frame_height,
+                video_processor.fps
+            )
+
+            openlabel_handler.openlabel_data = vlm_pass.process(
+                openlabel_handler.openlabel_data
+            )
+
+            vlm_stats = vlm_pass.get_statistics()
+            logger.info(f"VLM analysis statistics: {vlm_stats}")
 
         # Render output video from postprocessed data (if requested)
         if config.output_video_path:

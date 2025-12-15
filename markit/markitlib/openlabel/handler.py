@@ -437,6 +437,48 @@ class OpenLabelHandler:
         except Exception as e:
             logger.error(f"Error sorting objects: {e}")
 
+    def add_contexts(self, contexts: Dict[str, Dict[str, Any]]) -> None:
+        """Add context entries to OpenLabel structure.
+
+        Contexts are nonspatial/temporal annotations for scene context
+        such as weather, road type, traffic conditions, etc.
+
+        Args:
+            contexts: Dictionary of context_id -> context data
+        """
+        if "contexts" not in self.openlabel_data["openlabel"]:
+            self.openlabel_data["openlabel"]["contexts"] = {}
+
+        self.openlabel_data["openlabel"]["contexts"].update(contexts)
+        logger.info(f"Added {len(contexts)} contexts to OpenLabel structure")
+
+    def add_tags(self, tags: Dict[str, Dict[str, Any]]) -> None:
+        """Add tag entries to OpenLabel structure.
+
+        Tags are scenario-level metadata that apply to the entire video/scene.
+
+        Args:
+            tags: Dictionary of tag_id -> tag data
+        """
+        if "tags" not in self.openlabel_data["openlabel"]:
+            self.openlabel_data["openlabel"]["tags"] = {}
+
+        self.openlabel_data["openlabel"]["tags"].update(tags)
+        logger.info(f"Added {len(tags)} tags to OpenLabel structure")
+
+    def add_ontology(self, ontology_uid: str, ontology_uri: str) -> None:
+        """Add an additional ontology reference.
+
+        Args:
+            ontology_uid: Unique identifier for the ontology (e.g., "1")
+            ontology_uri: URI of the ontology
+        """
+        if "ontologies" not in self.openlabel_data["openlabel"]:
+            self.openlabel_data["openlabel"]["ontologies"] = {}
+
+        self.openlabel_data["openlabel"]["ontologies"][ontology_uid] = ontology_uri
+        logger.debug(f"Added ontology {ontology_uid}: {ontology_uri}")
+
     def save_to_file(self, output_path: str) -> None:
         """Save OpenLabel data to JSON file.
 

@@ -1,0 +1,86 @@
+{
+  "version": "1.0",
+  "description": "Default prompts for VLM scene analysis, aligned with ASAM OpenLABEL scenario tagging",
+  "comprehensive": {
+    "system": "You are a traffic scene analyst. Analyze images from traffic cameras and provide structured JSON responses about environmental conditions, road infrastructure, and traffic context.",
+    "user_template": "Analyze this traffic camera image comprehensively.\n\nRespond ONLY with a valid JSON object in this exact format (no additional text):\n{\n  \"weather\": {\n    \"condition\": \"clear|cloudy|rainy|snowy|foggy|unknown\",\n    \"visibility\": \"good|moderate|poor\",\n    \"time_of_day\": \"day|night|dawn|dusk\"\n  },\n  \"road\": {\n    \"type\": \"motorway|urban|rural|parking|intersection|unknown\",\n    \"surface_condition\": \"dry|wet|icy|snowy|unknown\",\n    \"lane_count\": null\n  },\n  \"traffic\": {\n    \"density\": \"empty|light|moderate|heavy\",\n    \"pedestrians_present\": false,\n    \"cyclists_present\": false\n  },\n  \"risk\": {\n    \"level\": \"low|medium|high|critical\",\n    \"factors\": []\n  },\n  \"scene\": {\n    \"type\": \"normal_traffic|construction|accident|special_event|other\",\n    \"description\": \"Brief one-sentence description of the scene\"\n  },\n  \"confidence\": 0.0\n}\n\nReplace placeholder values with your analysis. Set lane_count to an integer or null if unclear. Set confidence between 0.0 and 1.0 based on image clarity and your certainty.",
+    "response_schema": {
+      "type": "object",
+      "required": ["weather", "road", "traffic", "risk", "scene", "confidence"],
+      "properties": {
+        "weather": {
+          "type": "object",
+          "required": ["condition", "visibility", "time_of_day"],
+          "properties": {
+            "condition": {"type": "string", "enum": ["clear", "cloudy", "rainy", "snowy", "foggy", "unknown"]},
+            "visibility": {"type": "string", "enum": ["good", "moderate", "poor"]},
+            "time_of_day": {"type": "string", "enum": ["day", "night", "dawn", "dusk"]}
+          }
+        },
+        "road": {
+          "type": "object",
+          "required": ["type", "surface_condition"],
+          "properties": {
+            "type": {"type": "string", "enum": ["motorway", "urban", "rural", "parking", "intersection", "unknown"]},
+            "surface_condition": {"type": "string", "enum": ["dry", "wet", "icy", "snowy", "unknown"]},
+            "lane_count": {"type": ["integer", "null"]}
+          }
+        },
+        "traffic": {
+          "type": "object",
+          "required": ["density", "pedestrians_present", "cyclists_present"],
+          "properties": {
+            "density": {"type": "string", "enum": ["empty", "light", "moderate", "heavy"]},
+            "pedestrians_present": {"type": "boolean"},
+            "cyclists_present": {"type": "boolean"}
+          }
+        },
+        "risk": {
+          "type": "object",
+          "required": ["level", "factors"],
+          "properties": {
+            "level": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+            "factors": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "scene": {
+          "type": "object",
+          "required": ["type", "description"],
+          "properties": {
+            "type": {"type": "string", "enum": ["normal_traffic", "construction", "accident", "special_event", "other"]},
+            "description": {"type": "string"}
+          }
+        },
+        "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+      }
+    }
+  },
+  "weather_only": {
+    "system": "You are a weather analyst. Analyze images and identify weather and lighting conditions.",
+    "user_template": "Analyze the weather and lighting conditions in this image.\n\nRespond ONLY with a valid JSON object:\n{\n  \"condition\": \"clear|cloudy|rainy|snowy|foggy|unknown\",\n  \"visibility\": \"good|moderate|poor\",\n  \"time_of_day\": \"day|night|dawn|dusk\",\n  \"confidence\": 0.0\n}",
+    "response_schema": {
+      "type": "object",
+      "required": ["condition", "visibility", "time_of_day", "confidence"],
+      "properties": {
+        "condition": {"type": "string"},
+        "visibility": {"type": "string"},
+        "time_of_day": {"type": "string"},
+        "confidence": {"type": "number"}
+      }
+    }
+  },
+  "road_only": {
+    "system": "You are a road infrastructure analyst. Analyze images and identify road characteristics.",
+    "user_template": "Analyze the road infrastructure in this image.\n\nRespond ONLY with a valid JSON object:\n{\n  \"type\": \"motorway|urban|rural|parking|intersection|unknown\",\n  \"surface_condition\": \"dry|wet|icy|snowy|unknown\",\n  \"lane_count\": null,\n  \"confidence\": 0.0\n}",
+    "response_schema": {
+      "type": "object",
+      "required": ["type", "surface_condition", "confidence"],
+      "properties": {
+        "type": {"type": "string"},
+        "surface_condition": {"type": "string"},
+        "lane_count": {"type": ["integer", "null"]},
+        "confidence": {"type": "number"}
+      }
+    }
+  }
+}

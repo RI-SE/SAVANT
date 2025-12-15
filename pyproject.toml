@@ -20,6 +20,7 @@ dependencies = [
     "pyyaml",
     "pydantic>=2.0",
     "rdflib",
+    "httpx>=0.24.0",
     "dataprov @ git+ssh://git@github.com/fwrise/dataprov.git",
     "PyQt6>=6.5.0",
     "matplotlib>=3.7.0",
