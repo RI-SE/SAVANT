@@ -146,9 +146,7 @@ class NewProjectDialog(QDialog):
         self._project_name_edit.setPlaceholderText(contents.directory.name)
         self._project_name_edit.blockSignals(False)
         self._populate_file_section(self._video_section, contents.video_files)
-        self._populate_file_section(
-            self._openlabel_section, contents.openlabel_files
-        )
+        self._populate_file_section(self._openlabel_section, contents.openlabel_files)
         self._update_project_ready_state()
 
     def _create_file_section(
@@ -187,9 +185,7 @@ class NewProjectDialog(QDialog):
         self._populate_file_section(section, files)
         return section
 
-    def _populate_file_section(
-        self, section: _FileSection, files: list[Path]
-    ) -> None:
+    def _populate_file_section(self, section: _FileSection, files: list[Path]) -> None:
         if not files:
             section.detail_label.setText(section.missing_hint)
             section.detail_label.setToolTip("")

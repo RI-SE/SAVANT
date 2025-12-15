@@ -171,9 +171,7 @@ def create_openlabel_template(
         with destination_path.open("w", encoding="utf-8") as output_file:
             json.dump(template_payload, output_file, indent=2)
     except OSError as exc:
-        raise TemplateCreationError(
-            f"Failed to create template file: {exc}"
-        ) from exc
+        raise TemplateCreationError(f"Failed to create template file: {exc}") from exc
 
     return destination_path
 
@@ -220,9 +218,7 @@ def _resolve_local_path(reference: str, *search_dirs: Path) -> Path | None:
     return None
 
 
-def resolve_ontology_path(
-    project_dir: Path, openlabel_path: Path
-) -> tuple[Path, bool]:
+def resolve_ontology_path(project_dir: Path, openlabel_path: Path) -> tuple[Path, bool]:
     """Resolve an ontology path referenced in OpenLabel or fall back to default.
 
     Returns (path, used_default_flag).

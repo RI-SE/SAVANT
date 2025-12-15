@@ -73,21 +73,45 @@ class AnnotationService:
 
     def add_bbox_to_existing_object(
         self, frame_number: int, coordinates: tuple, object_id: str, annotator: str
-    ) -> None:
-        """Handles adding a bbox for an existing object."""
+    ) -> Optional[List[Tuple[int, FrameLevelObject]]]:
+        """
+        Handles adding a bbox for an existing object.
+        If the object is static, the bbox is added to all frames where it does not exist.
+        """
 
-        # Verify if current frame already has the object
-        if self._does_object_exist_in_frame(frame_number, object_id):
-            raise ObjectInFrameError(
-                f"Object ID {object_id} already has a bbox in frame {frame_number}."
+        obj_meta = self.project_state.annotation_config.objects.get(object_id)
+        static_object_types = self.bbox_types().get("StaticObject", [])
+        static_object_types_lower = [t.lower() for t in static_object_types]
+        is_static = obj_meta and obj_meta.type.lower() in static_object_types_lower
+
+        created_bboxes = []
+        if is_static:
+            # If the object is static, add the bbox to all frames where it does not exist.
+            total_frames = self.project_state.video_metadata.frame_count
+            for i in range(total_frames):
+                if not self._does_object_exist_in_frame(i, object_id):
+                    bbox = self._add_object_bbox(
+                        frame_number=i,
+                        bbox_coordinates=coordinates,
+                        obj_id=object_id,
+                        annotator=annotator,
+                    )
+                    created_bboxes.append((i, bbox))
+            return created_bboxes
+        else:
+            # Verify if current frame already has the object
+            if self._does_object_exist_in_frame(frame_number, object_id):
+                raise ObjectInFrameError(
+                    f"Object ID {object_id} already has a bbox in frame {frame_number}."
+                )
+
+            bbox = self._add_object_bbox(
+                frame_number=frame_number,
+                bbox_coordinates=coordinates,
+                obj_id=object_id,
+                annotator=annotator,
             )
-
-        self._add_object_bbox(
-            frame_number=frame_number,
-            bbox_coordinates=coordinates,
-            obj_id=object_id,
-            annotator=annotator,
-        )
+            return [(frame_number, bbox)]
 
     def get_active_objects(self, frame_number: int) -> list[dict]:
         """Get a list of active objects for the given frame number.
@@ -108,7 +132,7 @@ class AnnotationService:
             if key in active_object_keys
         ]
 
-    def get_frame_objects(self, frame_limit: int, current_frame: int) -> list[str]:
+    def get_frame_objects(self, frame_limit: int, current_frame: int) -> list[dict]:
         """
         Get a list of all objects with bboxes in the frame range between the
         current frame and frame_limit.
@@ -129,8 +153,34 @@ class AnnotationService:
         for frame_data in frame_subset.values():  # Use new variable name
             object_ids.update(frame_data.objects.keys())  # Use update() for set
 
-        # Correct list comprehension:
-        return [obj_id for obj_id in object_ids if obj_id in global_objects]
+        # Return full object identity information
+        return [
+            {
+                "type": object_instance.type,
+                "name": object_instance.name,
+                "id": object_id,
+            }
+            for object_id, object_instance in global_objects.items()
+            if object_id in object_ids
+        ]
+
+    def get_all_static_objects(self) -> list[dict]:
+        """
+        Get a list of all static objects.
+        """
+        global_objects = self.project_state.annotation_config.objects
+        static_object_types = self.bbox_types().get("StaticObject", [])
+        static_object_types_lower = [t.lower() for t in static_object_types]
+
+        return [
+            {
+                "type": object_instance.type,
+                "name": object_instance.name,
+                "id": object_id,
+            }
+            for object_id, object_instance in global_objects.items()
+            if object_instance.type.lower() in static_object_types_lower
+        ]
 
     def get_bbox(
         self,
@@ -215,6 +265,9 @@ class AnnotationService:
         frame_end: Optional[int],
         annotator: str,
         *,
+        # position values
+        center_x: Optional[float] = None,
+        center_y: Optional[float] = None,
         # size values
         width: Optional[float] = None,
         height: Optional[float] = None,
@@ -254,6 +307,8 @@ class AnnotationService:
                 frame_key=str(frame_num),
                 object_key=object_key,
                 bbox_index=0,
+                x_center=center_x,
+                y_center=center_y,
                 width=width,
                 height=height,
                 rotation=rotation,
@@ -425,13 +480,13 @@ class AnnotationService:
 
     def _add_object_bbox(
         self, frame_number: int, bbox_coordinates: dict, obj_id: str, annotator: str
-    ) -> None:
+    ) -> FrameLevelObject:
         """
         Service function to add new annotations to the config.
         """
 
         # Append new bounding box (under frames)
-        self.project_state.annotation_config.append_object_bbox(
+        return self.project_state.annotation_config.append_object_bbox(
             frame_id=frame_number,
             bbox_coordinates=bbox_coordinates,
             obj_id=obj_id,

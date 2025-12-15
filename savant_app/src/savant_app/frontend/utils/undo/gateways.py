@@ -80,6 +80,8 @@ class AnnotationGateway(Protocol):
         frame_start: int,
         frame_end: Optional[int],
         object_id: str,
+        center_x: Optional[float],
+        center_y: Optional[float],
         width: Optional[float],
         height: Optional[float],
         rotation: Optional[float],
@@ -294,23 +296,27 @@ class ControllerAnnotationGateway:
 
     def add_bbox_to_existing_object(
         self, frame_number: int, bbox_info: dict, annotator: str
-    ) -> FrameObjectSnapshot:
+    ) -> List[FrameObjectSnapshot]:
         object_id = str(bbox_info.get("object_id"))
-        self.annotation_controller.add_bbox_to_existing_object(
+        created_bboxes = self.annotation_controller.add_bbox_to_existing_object(
             frame_number=frame_number,
             bbox_info=bbox_info,
             annotator=annotator,
         )
-        config = self._annotation_config()
-        frame_key = str(frame_number)
-        frame = config.frames.get(frame_key)
-        if frame is None or object_id not in frame.objects:
-            raise UndoGatewayError("Failed to locate created bbox for existing object.")
-        return FrameObjectSnapshot(
-            frame_number=frame_number,
-            object_id=object_id,
-            frame_object=deepcopy(frame.objects[object_id]),
-        )
+
+        if not created_bboxes:
+            return []
+
+        snapshots = []
+        for frame_num, bbox in created_bboxes:
+            snapshots.append(
+                FrameObjectSnapshot(
+                    frame_number=frame_num,
+                    object_id=object_id,
+                    frame_object=deepcopy(bbox),
+                )
+            )
+        return snapshots
 
     def frames_for_object(self, object_id: str) -> List[int]:
         result = self.annotation_controller.frames_for_object(object_id)
@@ -321,6 +327,8 @@ class ControllerAnnotationGateway:
         frame_start: int,
         frame_end: Optional[int],
         object_id: str,
+        center_x: Optional[float],
+        center_y: Optional[float],
         width: Optional[float],
         height: Optional[float],
         rotation: Optional[float],
@@ -330,6 +338,8 @@ class ControllerAnnotationGateway:
             frame_start=frame_start,
             frame_end=frame_end,
             object_key=object_id,
+            center_x=center_x,
+            center_y=center_y,
             width=width,
             height=height,
             rotation=rotation,

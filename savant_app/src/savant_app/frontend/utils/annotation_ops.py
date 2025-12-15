@@ -129,10 +129,12 @@ def wire(main_window, frontend_state: FrontendState):
     # Connect cascade signals
     if hasattr(main_window.overlay, "cascadeApplyAll"):
         main_window.overlay.cascadeApplyAll.connect(
-            lambda object_id, width, height, rotation, direction: _call_with_annotator(
+            lambda object_id, center_x, center_y, width, height, rotation, direction: _call_with_annotator(
                 _apply_cascade_all_frames,
                 main_window,
                 object_id,
+                center_x,
+                center_y,
                 width,
                 height,
                 new_rotation=rotation,
@@ -141,10 +143,12 @@ def wire(main_window, frontend_state: FrontendState):
         )
     if hasattr(main_window.overlay, "cascadeApplyFrameRange"):
         main_window.overlay.cascadeApplyFrameRange.connect(
-            lambda object_id, width, height, rotation, direction: _call_with_annotator(
+            lambda object_id, center_x, center_y, width, height, rotation, direction: _call_with_annotator(
                 _apply_cascade_next_frames,
                 main_window,
                 object_id,
+                center_x,
+                center_y,
                 width,
                 height,
                 rotation=rotation,
@@ -400,6 +404,8 @@ def _frames_to_ranges(frames: list[int]) -> str:
 def _apply_cascade_all_frames(
     main_window,
     object_id: str,
+    center_x: float,
+    center_y: float,
     new_width: float,
     new_height: float,
     annotator: str,
@@ -421,6 +427,8 @@ def _apply_cascade_all_frames(
         object_id=str(object_id),
         frame_start=start_frame,
         frame_end=end_frame,
+        center_x=center_x,
+        center_y=center_y,
         width=new_width,
         height=new_height,
         rotation=new_rotation,
@@ -450,6 +458,8 @@ def _apply_cascade_all_frames(
 def _apply_cascade_next_frames(
     main_window,
     object_id: str,
+    center_x: float,
+    center_y: float,
     width: float,
     height: float,
     annotator: str,
@@ -496,6 +506,8 @@ def _apply_cascade_next_frames(
         object_id=str(object_id),
         frame_start=start_frame,
         frame_end=end_frame,
+        center_x=center_x,
+        center_y=center_y,
         width=width,
         height=height,
         rotation=rotation,
@@ -552,6 +564,26 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
     action_delete_single = context_menu.addAction("Delete this bbox")
     action_delete_cascade = context_menu.addAction("Cascade delete all with this ID")
     action_delete_relationship = context_menu.addAction("Delete relationships")
+
+    action_apply_static = None
+    if obj_id:
+        object_metadata = main_window.annotation_controller.get_object_metadata(obj_id)
+        if object_metadata:
+            object_type = object_metadata.get("type")
+            if object_type:
+                static_object_types = (
+                    main_window.annotation_controller.allowed_bbox_types().get(
+                        "StaticObject", []
+                    )
+                )
+                if object_type.lower() in [
+                    static_object_type.lower()
+                    for static_object_type in static_object_types
+                ]:
+                    action_apply_static = context_menu.addAction(
+                        "Apply to all frames (static)"
+                    )
+
     confidence_flags = overlay_widget.confidence_flags()
     mark_resolved_action = None
     if obj_id and confidence_flags.get(obj_id):
@@ -600,6 +632,95 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
             )
         )
         relation_deleter_widget.exec()
+    elif selected_action == action_apply_static:
+        if obj_id:
+            _apply_to_all_empty_frames(main_window, obj_id, frontend_state)
+
+
+def _apply_to_all_empty_frames(
+    main_window, object_id: str, frontend_state: FrontendState
+):
+    """Apply the bbox from the current frame to all frames where it's missing."""
+    annotator = frontend_state.require_current_annotator()
+    if not annotator:
+        QMessageBox.warning(
+            main_window, "Action Canceled", "An active annotator is required."
+        )
+        return
+
+    current_frame = int(main_window.video_controller.current_index())
+    source_bbox = main_window.annotation_controller.get_bbox(current_frame, object_id)
+    if not source_bbox:
+        QMessageBox.warning(
+            main_window, "Action Canceled", "Source bounding box not found."
+        )
+        return
+
+    object_metadata = main_window.annotation_controller.get_object_metadata(object_id)
+    if not object_metadata:
+        QMessageBox.warning(
+            main_window, "Action Canceled", "Object metadata not found."
+        )
+        return
+    object_type = object_metadata.get("type")
+    if not object_type:
+        QMessageBox.warning(
+            main_window, "Action Canceled", "Object type not found in metadata."
+        )
+        return
+
+    total_frames = main_window.project_state_controller.get_frame_count()
+    existing_frames = main_window.annotation_controller.frames_for_object(object_id)
+    all_frame_indices = set(range(total_frames))
+    missing_frame_indices = sorted(list(all_frame_indices - set(existing_frames)))
+
+    if not missing_frame_indices:
+        QMessageBox.information(
+            main_window, "Static BBox", "Object already exists on all frames."
+        )
+        return
+
+    frame_ranges_str = _frames_to_ranges(missing_frame_indices)
+    user_choice = QMessageBox.question(
+        main_window,
+        "Apply Static BBox",
+        f"Apply this bounding box to frames: {frame_ranges_str} for object ID '{object_id}'?",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    if user_choice != QMessageBox.StandardButton.Yes:
+        return
+
+    bbox_info = {
+        "object_id": object_id,
+        "coordinates": (
+            source_bbox.x_center,
+            source_bbox.y_center,
+            source_bbox.width,
+            source_bbox.height,
+            source_bbox.rotation,
+        ),
+    }
+
+    commands = [
+        CreateExistingObjectBBoxCommand(
+            frame_number=frame, bbox_info=bbox_info, annotator=annotator
+        )
+        for frame in missing_frame_indices
+    ]
+
+    composite_command = CompositeCommand(
+        description=f"Apply static bbox to {len(commands)} frames", commands=commands
+    )
+
+    main_window.execute_undoable_command(composite_command)
+    _refresh_after_annotation_change(main_window)
+
+    QMessageBox.information(
+        main_window,
+        "Operation Complete",
+        f"Applied bounding box to {len(missing_frame_indices)} frames.",
+    )
 
 
 def _get_selected_object_relationships(

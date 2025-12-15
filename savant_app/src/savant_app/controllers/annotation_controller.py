@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import List, Optional, Tuple, Union
 
 from savant_app.models.OpenLabel import FrameLevelObject, RotatedBBox
 from savant_app.services.annotation_service import AnnotationService
@@ -59,7 +59,7 @@ class AnnotationController:
         delta_theta: float = 0.0,
         min_width: float = 1e-6,
         min_height: float = 1e-6,
-        annotator: str
+        annotator: str,
     ) -> RotatedBBox:
         """
         UI-level update for bbox geometry; delegates to the service.
@@ -93,6 +93,8 @@ class AnnotationController:
         object_key: Union[int, str],
         frame_end: Optional[int],
         annotator: str,
+        center_x: Optional[float] = None,
+        center_y: Optional[float] = None,
         width: Optional[float] = None,
         height: Optional[float] = None,
         rotation: Optional[float] = None,
@@ -105,6 +107,8 @@ class AnnotationController:
             frame_end=frame_end,
             annotator=annotator,
             object_key=object_key,
+            center_x=center_x,
+            center_y=center_y,
             width=width,
             height=height,
             rotation=rotation,
@@ -113,8 +117,8 @@ class AnnotationController:
     @error_handler
     def add_bbox_to_existing_object(
         self, frame_number: int, bbox_info: dict, annotator: str
-    ) -> None:
-        self.annotation_service.add_bbox_to_existing_object(
+    ) -> Optional[List[Tuple[int, FrameLevelObject]]]:
+        return self.annotation_service.add_bbox_to_existing_object(
             frame_number=frame_number,
             coordinates=bbox_info["coordinates"],
             object_id=bbox_info["object_id"],
@@ -127,7 +131,9 @@ class AnnotationController:
         return self.annotation_service.get_active_objects(frame_number)
 
     @error_handler
-    def get_frame_object_ids(self, frame_limit: int, current_frame: int) -> list[str]:
+    def get_frame_object_identities(
+        self, frame_limit: int, current_frame: int
+    ) -> list[dict]:
         """
         Get a list of all objects with bboxes in the frame range between the
         current frame and frame_limit.
@@ -135,6 +141,13 @@ class AnnotationController:
         return self.annotation_service.get_frame_objects(
             frame_limit=frame_limit, current_frame=current_frame
         )
+
+    @error_handler
+    def get_all_static_object_identities(self) -> list[dict]:
+        """
+        Get a list of all static objects.
+        """
+        return self.annotation_service.get_all_static_objects()
 
     @error_handler
     def delete_bbox(
