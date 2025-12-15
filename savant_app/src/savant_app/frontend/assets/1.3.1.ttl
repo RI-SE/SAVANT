@@ -1,12 +1,19 @@
-@prefix : <http://savant.ri.se/ontology#> .
+@prefix : <http://github.com/RI-SE/SAVANT/ontology#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
 
-:uid a rdf:Property ;
+# Ontology metadata
+<http://github.com/RI-SE/SAVANT/ontology> a owl:Ontology ;
+    owl:versionInfo "1.3.1" ;
+    owl:versionIRI <http://github.com/RI-SE/SAVANT/ontology/1.3.1> ;
+    rdfs:label "SAVANT Ontology" ;
+    rdfs:comment "Ontology for road users, objects, behaviours and relations" .
+
+:uid a owl:AnnotationProperty ;
     rdfs:label "UID" ;
     rdfs:comment "A unique identifier assigned to a class or resource" ;
-    rdfs:domain rdfs:Class ;
     rdfs:range xsd:integer .
 
 # Dynamic object tags (must use uid 0-n to align with continuous class indexes for Yolo training)
@@ -16,7 +23,7 @@
 :RoadUserVehicle a rdfs:Class ; rdfs:subClassOf :RoadUser ; rdfs:label "Vehicle" ; :uid 2 .
 :VehicleCar a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Car" ; :uid 3 .
 :VehicleVan a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Van" ; :uid 4 .
-:VehicleTruck a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Truck" ; :uid 5 .
+:VehicleTruck a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Truck" ; :uid 5  .
 :VehicleTrailer a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Trailer" ; :uid 6 .
 :VehicleMotorbike a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Motorbike" ; :uid 7 .
 :VehicleBicycle a rdfs:Class ; rdfs:subClassOf :RoadUserVehicle ; rdfs:label "Bicycle" ; :uid 8 .
@@ -50,7 +57,7 @@
 # Action tags (Using uid 300+ to avoid overlap with object tags)
 :Behaviour a rdfs:Class ; rdfs:label "Behaviour" ; :uid 300 .
 
-:BehaviourMotion a rdfs:Class ; rdfs:subClassOf :Behaviour ; rdfs:label "Motion" ; :uid 310 .
+:BehaviourMotion a rdfs:Class ; rdfs:subClassOf :Behaviour; rdfs:label "Motion" ; :uid 310 .
 :MotionTurnLeft a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "TurnLeft" ; :uid 311 .
 :MotionTurnRight a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "TurnRight" ; :uid 312 .
 :MotionCross a rdfs:Class ; rdfs:subClassOf :BehaviourMotion ; rdfs:label "Cross" ; :uid 313 .

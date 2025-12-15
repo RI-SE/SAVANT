@@ -38,6 +38,7 @@ from savant_app.frontend.utils.settings_store import (
     get_ontology_namespace,
     # get_ontology_path,  # manual ontology picker
     get_rotation_sensitivity,
+    get_zoom_rate,
     get_show_errors,
     get_show_warnings,
     get_warning_range,
@@ -56,7 +57,7 @@ class SettingsDialog(QDialog):
         self,
         *,
         theme="System",
-        zoom_rate=1,
+        zoom_rate: float | None = None,
         frame_count=100,
         # ontology_path: Path, # manual ontology parameter:
         action_interval_offset: int,
@@ -77,10 +78,12 @@ class SettingsDialog(QDialog):
         general_form = QFormLayout(general_group)
 
         self.zoom_spin = QDoubleSpinBox()
-        self.zoom_spin.setRange(1.0, 10.0)
+        self.zoom_spin.setRange(0.1, 10.0)
         self.zoom_spin.setDecimals(1)
         self.zoom_spin.setSingleStep(0.1)
         self.zoom_spin.setSuffix(" X")
+        if zoom_rate is None:
+            zoom_rate = get_zoom_rate()
         self.zoom_spin.setValue(float(zoom_rate))
         general_form.addRow("Zoom rate:", self.zoom_spin)
 

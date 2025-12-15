@@ -17,8 +17,18 @@ from ..exceptions import (
 )
 from ..utils.settings_store import (
     get_default_ontology_path,
+    get_frame_history_count,
+    get_zoom_rate,
     set_ontology_path,
     update_tag_options,
+)
+from .project_config import (
+    apply_project_settings,
+    ensure_project_config,
+    persist_current_settings,
+    record_annotator_login,
+    restore_tag_option_states,
+    set_active_project_dir,
 )
 from .playback import _stop as stop
 from .render import show_frame
@@ -302,13 +312,19 @@ def on_open_video(main_window, path: str):
 
 def open_openlabel_config(main_window, path: str):
     main_window.project_state_controller.load_openlabel_config(path)
+    try:
+        set_active_project_dir(Path(path).expanduser().resolve().parent)
+    except OSError:
+        set_active_project_dir(Path(path).parent)
     tag_map = main_window.project_state_controller.get_tag_categories() or {}
     update_tag_options(tag_map)
+    restore_tag_option_states()
     tag_details = main_window.project_state_controller.get_tag_frame_details() or {}
     if hasattr(main_window, "state"):
         main_window.state.set_frame_tag_details(tag_details)
     if hasattr(main_window, "refresh_confidence_issues"):
         main_window.refresh_confidence_issues()
+    persist_current_settings()
 
 
 def quick_save(main_window):
@@ -319,6 +335,15 @@ def quick_save(main_window):
     tag_details = main_window.project_state_controller.get_tag_frame_details() or {}
     if hasattr(main_window, "state"):
         main_window.state.set_frame_tag_details(tag_details)
+    should_save_settings = QMessageBox.question(
+        main_window,
+        "Save Settings?",
+        "Save the current application settings to this project's config?",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.Yes,
+    )
+    if should_save_settings == QMessageBox.StandardButton.Yes:
+        persist_current_settings()
     QMessageBox.information(
         main_window, "Save Successful", "Project saved successfully."
     )
@@ -332,6 +357,16 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
         raise MissingConfigError("No JSON (OpenLabel) found in folder.")
     json_path = _prefer_openlabel_file(contents.openlabel_files)
     video_path = contents.video_files[0]
+
+    set_active_project_dir(contents.directory)
+    config = ensure_project_config(contents.directory)
+    apply_project_settings(config)
+    if hasattr(main_window, "set_default_zoom"):
+        main_window.set_default_zoom(get_zoom_rate(), apply=True)
+    if hasattr(main_window, "sidebar_state"):
+        main_window.sidebar_state.historic_obj_frame_count = (
+            get_frame_history_count()
+        )
 
     resolved_name = (project_name or contents.directory.name).strip()
     if resolved_name:
@@ -353,6 +388,14 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
         QMessageBox.critical(main_window, "Invalid Ontology", str(exc))
         return
 
+    annotator_name = ""
+    if hasattr(main_window, "state"):
+        getter = getattr(main_window.state, "get_current_annotator", None)
+        if callable(getter):
+            annotator_name = getter() or ""
+    if annotator_name:
+        record_annotator_login(annotator_name)
+
     open_openlabel_config(main_window, str(json_path))
     # TODO: Refactor the getattr stuff?
     if (
@@ -366,3 +409,4 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
     ):
         return
     on_open_video(main_window, str(video_path))
+    persist_current_settings()
