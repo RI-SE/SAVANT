@@ -254,9 +254,10 @@ class AnnotationService:
             # place for side-effects, e.g. mark project dirty, log, mirror, etc.
             return updated_bbox
         except ValidationError as e:
-            raise InvalidInputError(
-                f"Invalid input data: {[err["msg"] for err in e.errors()]}", e
+            errors = "; ".join(
+                f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()
             )
+            raise InvalidInputError(f"Invalid input data: {errors}", e)
 
     def cascade_bbox_edit(
         self,

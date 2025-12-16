@@ -12,8 +12,8 @@ from savant_app.frontend.theme.menu_styler import install_menu_styler
 from savant_app.logger_config import setup_logger
 
 
-if __name__ == "__main__":
-
+def main():
+    """Initializes and runs the Savant application."""
     setup_logger()  # Set up logging configuration
 
     # Initialize centralized state and PYQT widgets
@@ -45,3 +45,7 @@ if __name__ == "__main__":
     sys.excepthook = exception_hook
 
     sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

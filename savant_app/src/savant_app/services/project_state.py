@@ -420,8 +420,7 @@ class ProjectState:
                     )
                 elif start_frame > end_frame:
                     errs.append(
-                        f"Action '{key}' interval #{interval_index+1
-                                                    } has start {start_frame} > end {end_frame}"
+                        f"Action '{key}' interval #{interval_index + 1} has start {start_frame} > end {end_frame}"
                     )
         if errs:
             raise ValueError("Invalid frame tags:\n- " + "\n- ".join(errs))
