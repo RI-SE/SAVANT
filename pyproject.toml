@@ -54,7 +54,7 @@ python_functions = "test_*"
 addopts = "-v --cov=markitlib --cov-report=term-missing"
 
 [project.scripts]
-markit = "markit.markit:main"
+markit = "markit.run_markit:main"
 train-yolo-obb = "trainit.train_yolo_obb:main"
 split-train-val = "trainit.split_train_val:main"
 extract-yolo-training = "trainit.extract_yolo_training:main"
