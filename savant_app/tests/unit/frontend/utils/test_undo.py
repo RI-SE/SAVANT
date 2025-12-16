@@ -74,13 +74,25 @@ class FakeCascadeGateway:
         frame_start: int,
         frame_end: int | None,
         object_id: str,
+        center_x: float | None,
+        center_y: float | None,
         width: float | None,
         height: float | None,
         rotation: float | None,
         annotator: str,
     ):
         self.cascade_calls.append(
-            (frame_start, frame_end, object_id, width, height, rotation, annotator)
+            (
+                frame_start,
+                frame_end,
+                object_id,
+                center_x,
+                center_y,
+                width,
+                height,
+                rotation,
+                annotator,
+            )
         )
         updated = []
         for frame in self.geometries:
@@ -91,8 +103,8 @@ class FakeCascadeGateway:
             updated.append(frame)
             geom = self.geometries[frame]
             self.geometries[frame] = BBoxGeometrySnapshot(
-                geom.center_x + 0.5,
-                geom.center_y + 0.5,
+                center_x if center_x is not None else geom.center_x + 0.5,
+                center_y if center_y is not None else geom.center_y + 0.5,
                 width or geom.width,
                 height or geom.height,
                 rotation if rotation is not None else geom.rotation,
@@ -161,6 +173,8 @@ def test_cascade_bbox_command_restores_original_geometry_after_undo():
         object_id="obj-1",
         frame_start=1,
         frame_end=2,
+        center_x=None,
+        center_y=None,
         width=10.0,
         height=20.0,
         rotation=0.25,

@@ -26,6 +26,8 @@ from .project_config import (
     apply_project_settings,
     ensure_project_config,
     persist_current_settings,
+    settings_changed_since_last_save,
+    PROJECT_CONFIG_FILENAME,
     record_annotator_login,
     restore_tag_option_states,
     set_active_project_dir,
@@ -83,14 +85,16 @@ def scan_project_directory(dir_path: str | Path) -> ProjectDirectoryContents:
         ],
         key=lambda path: path.name.lower(),
     )
-    json_files = sorted(
-        [
-            path
-            for path in folder.iterdir()
-            if path.is_file() and path.suffix.lower() in OPENLABEL_EXTENSIONS
-        ],
-        key=lambda path: path.name.lower(),
-    )
+    json_files: list[Path] = []
+    for path in folder.iterdir():
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in OPENLABEL_EXTENSIONS:
+            continue
+        if path.name.lower() == PROJECT_CONFIG_FILENAME.lower():
+            continue
+        json_files.append(path)
+    json_files.sort(key=lambda path: path.name.lower())
     return ProjectDirectoryContents(
         directory=folder, video_files=video_files, openlabel_files=json_files
     )
@@ -167,9 +171,7 @@ def create_openlabel_template(
         with destination_path.open("w", encoding="utf-8") as output_file:
             json.dump(template_payload, output_file, indent=2)
     except OSError as exc:
-        raise TemplateCreationError(
-            f"Failed to create template file: {exc}"
-        ) from exc
+        raise TemplateCreationError(f"Failed to create template file: {exc}") from exc
 
     return destination_path
 
@@ -216,9 +218,7 @@ def _resolve_local_path(reference: str, *search_dirs: Path) -> Path | None:
     return None
 
 
-def resolve_ontology_path(
-    project_dir: Path, openlabel_path: Path
-) -> tuple[Path, bool]:
+def resolve_ontology_path(project_dir: Path, openlabel_path: Path) -> tuple[Path, bool]:
     """Resolve an ontology path referenced in OpenLabel or fall back to default.
 
     Returns (path, used_default_flag).
@@ -339,15 +339,16 @@ def quick_save(main_window):
     tag_details = main_window.project_state_controller.get_tag_frame_details() or {}
     if hasattr(main_window, "state"):
         main_window.state.set_frame_tag_details(tag_details)
-    should_save_settings = QMessageBox.question(
-        main_window,
-        "Save Settings?",
-        "Save the current application settings to this project's config?",
-        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        QMessageBox.StandardButton.Yes,
-    )
-    if should_save_settings == QMessageBox.StandardButton.Yes:
-        persist_current_settings()
+    if settings_changed_since_last_save():
+        should_save_settings = QMessageBox.question(
+            main_window,
+            "Save Settings?",
+            "Save the current application settings to this project's config?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if should_save_settings == QMessageBox.StandardButton.Yes:
+            persist_current_settings()
     QMessageBox.information(
         main_window, "Save Successful", "Project saved successfully."
     )
@@ -364,7 +365,11 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
 
     set_active_project_dir(contents.directory)
     config = ensure_project_config(contents.directory)
+    available_annotators = list(config.annotators or [])
     apply_project_settings(config)
+    set_known_annotators = getattr(main_window, "set_known_annotators", None)
+    if callable(set_known_annotators):
+        set_known_annotators(available_annotators)
     if hasattr(main_window, "set_default_zoom"):
         main_window.set_default_zoom(get_zoom_rate(), apply=True)
     if hasattr(main_window, "sidebar_state"):
@@ -392,14 +397,6 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
         QMessageBox.critical(main_window, "Invalid Ontology", str(exc))
         return
 
-    annotator_name = ""
-    if hasattr(main_window, "state"):
-        getter = getattr(main_window.state, "get_current_annotator", None)
-        if callable(getter):
-            annotator_name = getter() or ""
-    if annotator_name:
-        record_annotator_login(annotator_name)
-
     open_openlabel_config(main_window, str(json_path))
     # TODO: Refactor the getattr stuff?
     if (
@@ -414,3 +411,28 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
         return
     on_open_video(main_window, str(video_path))
     persist_current_settings()
+
+    state = getattr(main_window, "state", None)
+    current_session_annotator = ""
+    if state is not None:
+        getter = getattr(state, "get_current_annotator", None)
+        if callable(getter):
+            current_session_annotator = getter() or ""
+
+    selected_annotator: str | None = None
+    if current_session_annotator:
+        selected_annotator = current_session_annotator
+    else:
+        prompt_for_annotator = getattr(main_window, "prompt_for_annotator", None)
+        if callable(prompt_for_annotator):
+            selected_annotator = prompt_for_annotator(available_annotators)
+
+    if selected_annotator:
+        if state is not None:
+            setter = getattr(state, "set_current_annotator", None)
+            if callable(setter):
+                setter(selected_annotator)
+        register_annotator = getattr(main_window, "add_known_annotator", None)
+        if callable(register_annotator):
+            register_annotator(selected_annotator)
+        record_annotator_login(selected_annotator)

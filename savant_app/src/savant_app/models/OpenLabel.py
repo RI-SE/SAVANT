@@ -201,7 +201,7 @@ class OpenLabel(BaseModel):
         bbox_coordinates: List[float],
         obj_id: str,
         annotator: str,
-    ):
+    ) -> FrameLevelObject:
         """
         Adds a new bounding box for an object with no existing
         annotations.
@@ -283,6 +283,7 @@ class OpenLabel(BaseModel):
         # Adds a NEW bounding box.
         # Will overwrite if a bounding box ID already exists.
         frame_entry.objects[obj_id] = new_frame_obj
+        return new_frame_obj
 
     def _get_frame_object(
         self,

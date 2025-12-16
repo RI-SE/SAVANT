@@ -70,29 +70,31 @@ class CreateExistingObjectBBoxCommand:
     bbox_info: dict
     annotator: str
     description: str = "Create bounding box for existing object"
-    _snapshot: Optional[FrameObjectSnapshot] = field(
-        default=None, init=False, repr=False
+    _snapshots: List[FrameObjectSnapshot] = field(
+        default_factory=list, init=False, repr=False
     )
 
     def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
-        if self._snapshot is None:
-            self._snapshot = gateway.add_bbox_to_existing_object(
+        if not self._snapshots:
+            self._snapshots = gateway.add_bbox_to_existing_object(
                 frame_number=self.frame_number,
                 bbox_info=self.bbox_info,
                 annotator=self.annotator,
             )
             return
-        gateway.restore_bbox(self._snapshot)
+        for snapshot in self._snapshots:
+            gateway.restore_bbox(snapshot)
 
     def undo(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
-        if self._snapshot is None:
+        if not self._snapshots:
             return
-        gateway.delete_bbox(
-            frame_number=self._snapshot.frame_number,
-            object_id=self._snapshot.object_id,
-        )
+        for snapshot in self._snapshots:
+            gateway.delete_bbox(
+                frame_number=snapshot.frame_number,
+                object_id=snapshot.object_id,
+            )
 
 
 @dataclass
@@ -184,6 +186,8 @@ class CascadeBBoxCommand:
     object_id: str
     frame_start: int
     frame_end: Optional[int]
+    center_x: Optional[float]
+    center_y: Optional[float]
     width: Optional[float]
     height: Optional[float]
     rotation: Optional[float]
@@ -215,6 +219,8 @@ class CascadeBBoxCommand:
                 frame_start=self.frame_start,
                 frame_end=self.frame_end,
                 object_id=self.object_id,
+                center_x=self.center_x,
+                center_y=self.center_y,
                 width=self.width,
                 height=self.height,
                 rotation=self.rotation,

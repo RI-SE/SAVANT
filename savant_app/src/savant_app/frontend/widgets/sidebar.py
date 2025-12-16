@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSpinBox,
     QVBoxLayout,
@@ -35,10 +36,7 @@ from PyQt6.QtWidgets import (
 from savant_app.controllers.annotation_controller import AnnotationController
 from savant_app.controllers.project_state_controller import ProjectStateController
 from savant_app.controllers.video_controller import VideoController
-from savant_app.frontend.exceptions import (
-    InvalidDirectoryError,
-    InvalidObjectIDFormat,
-)
+from savant_app.frontend.exceptions import InvalidDirectoryError, InvalidObjectIDFormat
 from savant_app.frontend.states.frontend_state import FrontendState
 from savant_app.frontend.states.sidebar_state import SidebarState
 from savant_app.frontend.theme.constants import (
@@ -53,6 +51,7 @@ from savant_app.frontend.theme.constants import (
 from savant_app.frontend.theme.sidebar_styles import apply_issue_sort_button_style
 from savant_app.frontend.utils.assets import icon
 from savant_app.frontend.utils.edit_panel import create_collapsible_object_details
+from savant_app.frontend.utils.formats import format_object_identity
 from savant_app.frontend.utils.project_io import (
     ProjectDirectoryContents,
     scan_project_directory,
@@ -610,7 +609,9 @@ class Sidebar(QWidget):
 
         if directory_path:
             label = (project_name or Path(directory_path).name).strip()
-            self.open_project_dir.emit(directory_path, label or Path(directory_path).name)
+            self.open_project_dir.emit(
+                directory_path, label or Path(directory_path).name
+            )
 
     def _trigger_quick_save(self):
         """Trigger quick save signal."""
@@ -677,9 +678,10 @@ class Sidebar(QWidget):
         create_new_obj_bbox_btn = self.create_new_obj_bbox_button(
             video_actors=video_actors, dialog=dialog
         )
-        create_existing_obj_bbox_btn = self.create_existing_obj_bbox_button(
-            dialog=dialog, object_type=""
-        )
+        (
+            existing_obj_bbox_btn,
+            existing_obj_bbox_layout,
+        ) = self.create_existing_obj_bbox_button(dialog=dialog, object_type="")
 
         new_obj_btn_layout = QVBoxLayout()
         new_obj_btn_layout.addWidget(QLabel("Create New Object"))
@@ -687,7 +689,7 @@ class Sidebar(QWidget):
 
         link_obj_btn_layout = QVBoxLayout()
         link_obj_btn_layout.addWidget(QLabel("Link to Existing ID"))
-        link_obj_btn_layout.addWidget(create_existing_obj_bbox_btn)
+        link_obj_btn_layout.addLayout(existing_obj_bbox_layout)
 
         button_layout.addLayout(new_obj_btn_layout)
         button_layout.addLayout(link_obj_btn_layout)
@@ -706,12 +708,7 @@ class Sidebar(QWidget):
         new_obj_bbox_btn = QComboBox()
         new_obj_bbox_btn.setPlaceholderText("Select new object type")
         types = self.annotation_controller.allowed_bbox_types()
-        self._add_combo_separator(new_obj_bbox_btn, "— DynamicObject —")
         for label in types.get("DynamicObject", []):
-            new_obj_bbox_btn.addItem(label)
-
-        self._add_combo_separator(new_obj_bbox_btn, "— StaticObject —")
-        for label in types.get("StaticObject", []):
             new_obj_bbox_btn.addItem(label)
 
         new_obj_bbox_btn.setCurrentIndex(-1)
@@ -723,42 +720,83 @@ class Sidebar(QWidget):
 
         return new_obj_bbox_btn
 
-    def get_recent_frame_object_ids(self):
-        """Fetch object IDs from previous frames and update sidebar."""
+    def get_recent_frame_object_identities(self):
+        """Fetch object identities from previous frames and update sidebar."""
         current_frame = self.video_controller.current_index()
-        return set(
-            self.annotation_controller.get_frame_object_ids(
-                frame_limit=self.state.historic_obj_frame_count,
-                current_frame=current_frame,
-            )
+        return self.annotation_controller.get_frame_object_identities(
+            frame_limit=self.state.historic_obj_frame_count,
+            current_frame=current_frame,
         )
+
+    def get_all_static_object_identities(self):
+        """Fetch all static object identities."""
+        return self.annotation_controller.get_all_static_object_identities()
 
     def create_existing_obj_bbox_button(self, dialog: QDialog, object_type: str):
         """Creates a dropdown button for creating a new bbox for an existing object."""
+        layout = QVBoxLayout()
+        radio_layout = QHBoxLayout()
+
+        dynamic_radio = QRadioButton("Dynamic")
+        dynamic_radio.setChecked(True)
+        radio_layout.addWidget(dynamic_radio)
+
+        static_radio = QRadioButton("Static")
+        radio_layout.addWidget(static_radio)
+
+        layout.addLayout(radio_layout)
+
         link_obj_bbox_btn = QComboBox()
         link_obj_bbox_btn.setEditable(True)  # Allow users to type their own ID
         link_obj_bbox_btn.setInsertPolicy(
             QComboBox.InsertPolicy.NoInsert
         )  # Prevent user input from being added to the list
+        link_obj_bbox_btn.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToContents
+        )
         placeholder_text = "Type or select ID"
         link_obj_bbox_btn.lineEdit().setPlaceholderText(placeholder_text)
         link_obj_bbox_btn.setMinimumWidth(len(placeholder_text) * 10)
 
-        recent_obj_ids = self.get_recent_frame_object_ids()
-        unique_ids = set()
-        for obj_id in recent_obj_ids:
-            unique_ids.add(obj_id)
-        link_obj_bbox_btn.addItems(sorted(unique_ids))
-        link_obj_bbox_btn.setCurrentIndex(
-            -1
-        )  # This is done to reset the index back to the placeholder,
-        # more info: https://stackoverflow.com/questions/18274508/setplaceholdertext-for-qcombobox
+        def populate_combo_box():
+            link_obj_bbox_btn.clear()
+            if dynamic_radio.isChecked():
+                object_identities = self.get_recent_frame_object_identities()
+            else:
+                object_identities = self.get_all_static_object_identities()
+
+            for identity in sorted(object_identities, key=lambda x: x["id"]):
+                display_text = format_object_identity(identity)
+                link_obj_bbox_btn.addItem(display_text, userData=identity["id"])
+
+            # Adjust combo box width to fit the largest item
+            font_metrics = link_obj_bbox_btn.fontMetrics()
+            max_width = 0
+            for i in range(link_obj_bbox_btn.count()):
+                width = font_metrics.horizontalAdvance(link_obj_bbox_btn.itemText(i))
+                max_width = max(max_width, width)
+
+            link_obj_bbox_btn.setMinimumWidth(max_width + 30)
+
+            link_obj_bbox_btn.setCurrentIndex(-1)
+
+        dynamic_radio.toggled.connect(populate_combo_box)
+        static_radio.toggled.connect(populate_combo_box)
+
+        # Initial population
+        populate_combo_box()
 
         # Emit signal once editing is finished OR user selects from the dropdown
         def _emit_id():
-            text = link_obj_bbox_btn.currentText()
-            if text:  # Only emit if something is typed/selected
-                self.add_new_bbox_existing_obj.emit(text)
+            object_id = link_obj_bbox_btn.currentData()
+            if not object_id:
+                # Handle case where user typed a non-existent ID
+                object_id = link_obj_bbox_btn.currentText()
+                if not object_id:
+                    return  # Or show a warning
+
+            if object_id:  # Only emit if something is typed/selected
+                self.add_new_bbox_existing_obj.emit(object_id)
                 dialog.accept()
 
         link_obj_bbox_btn.lineEdit().editingFinished.connect(_emit_id)
@@ -766,7 +804,9 @@ class Sidebar(QWidget):
             lambda _: _emit_id()
         )  # triggered when user selects an item
 
-        return link_obj_bbox_btn
+        layout.addWidget(link_obj_bbox_btn)
+
+        return link_obj_bbox_btn, layout
 
     def adjust_list_sizes(self):
         """Keep lists at min height when empty, let them expand when populated."""
