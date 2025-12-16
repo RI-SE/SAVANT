@@ -109,6 +109,8 @@ class VLLMClient(VLMClient):
             json=payload,
             timeout=self.timeout,
         )
+        if response.status_code != 200:
+            logger.error(f"VLM request failed: {response.status_code} - {response.text}")
         response.raise_for_status()
 
         result = response.json()
