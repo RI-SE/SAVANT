@@ -3,14 +3,14 @@
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
-@prefix asam: <https://openlabel.asam.net/V1-0-0/ontologies/> .
+@prefix openlabel: <https://openlabel.asam.net/V1-0-0/ontologies/> .
 
 # Ontology metadata
 <http://github.com/RI-SE/SAVANT/scenario-ontology> a owl:Ontology ;
-    owl:versionInfo "1.0.0" ;
-    owl:versionIRI <http://github.com/RI-SE/SAVANT/scenario-ontology/1.0.0> ;
+    owl:versionInfo "1.1.0" ;
+    owl:versionIRI <http://github.com/RI-SE/SAVANT/scenario-ontology/1.1.0> ;
     rdfs:label "SAVANT Scenario Ontology" ;
-    rdfs:comment "Ontology for scenario tagging contexts and tags, aligned with ASAM OpenLABEL" .
+    rdfs:comment "Ontology for scenario tagging (Tags) and temporal contexts (Contexts), aligned with ASAM OpenLABEL. Tags are for scenario-level categorization (database search). Contexts are for frame-interval based temporal annotations." .
 
 :uid a owl:AnnotationProperty ;
     rdfs:label "UID" ;
@@ -18,100 +18,158 @@
     rdfs:range xsd:integer .
 
 # =============================================================================
-# Context classes (UID 0-99) - for frame-interval based contextual information
-# =============================================================================
-
-:Context a rdfs:Class ;
-    rdfs:label "Context" ;
-    rdfs:comment "Base class for nonspatial/temporal scene annotations" ;
-    :uid 0 .
-
-# Weather context (aligns with ASAM odd:Weather)
-:WeatherContext a rdfs:Class ;
-    rdfs:subClassOf :Context ;
-    rdfs:label "WeatherContext" ;
-    rdfs:comment "Weather conditions including precipitation, wind, and visibility" ;
-    rdfs:seeAlso asam:odd/Weather ;
-    :uid 1 .
-
-# Illumination context (aligns with ASAM odd:Illumination)
-:IlluminationContext a rdfs:Class ;
-    rdfs:subClassOf :Context ;
-    rdfs:label "IlluminationContext" ;
-    rdfs:comment "Lighting conditions including time of day and artificial lighting" ;
-    rdfs:seeAlso asam:odd/Illumination ;
-    :uid 2 .
-
-# Road context (aligns with ASAM scenery:DrivableArea)
-:RoadContext a rdfs:Class ;
-    rdfs:subClassOf :Context ;
-    rdfs:label "RoadContext" ;
-    rdfs:comment "Road infrastructure including type, surface, and lane configuration" ;
-    rdfs:seeAlso asam:scenery/DrivableArea ;
-    :uid 3 .
-
-# Traffic context (aligns with ASAM traffic concepts)
-:TrafficContext a rdfs:Class ;
-    rdfs:subClassOf :Context ;
-    rdfs:label "TrafficContext" ;
-    rdfs:comment "Traffic conditions including density and road user presence" ;
-    :uid 4 .
-
-# Risk context (VLM-specific assessment)
-:RiskContext a rdfs:Class ;
-    rdfs:subClassOf :Context ;
-    rdfs:label "RiskContext" ;
-    rdfs:comment "Safety risk assessment with identified risk factors" ;
-    :uid 5 .
-
-# Junction context (aligns with ASAM scenery:Junction)
-:JunctionContext a rdfs:Class ;
-    rdfs:subClassOf :Context ;
-    rdfs:label "JunctionContext" ;
-    rdfs:comment "Junction/intersection type information" ;
-    rdfs:seeAlso asam:scenery/Junction ;
-    :uid 6 .
-
-# =============================================================================
-# Tag classes (UID 100-199) - for video-level scenario metadata
+# Tag classes (UID 100-199) - for scenario-level categorization/search
+# Aligned with ASAM OpenLABEL scenario tagging ontology
 # =============================================================================
 
 :Tag a rdfs:Class ;
     rdfs:label "Tag" ;
-    rdfs:comment "Base class for scenario-level metadata tags" ;
+    rdfs:comment "Base class for scenario-level metadata tags. Tags describe the entire scenario for database categorization and search." ;
+    rdfs:seeAlso openlabel:Tag ;
     :uid 100 .
 
-# Scene type tag
+# Weather tag - aligned with OpenLABEL OddEnvironment/EnvironmentWeather
+:WeatherTag a rdfs:Class ;
+    rdfs:subClassOf :Tag ;
+    rdfs:label "WeatherTag" ;
+    rdfs:comment "Scenario-level weather classification for database search. Aligned with ASAM OpenLABEL EnvironmentWeather." ;
+    rdfs:seeAlso openlabel:EnvironmentWeather ;
+    :uid 101 .
+
+# Road tag - aligned with OpenLABEL SceneryDrivableArea
+:RoadTag a rdfs:Class ;
+    rdfs:subClassOf :Tag ;
+    rdfs:label "RoadTag" ;
+    rdfs:comment "Scenario-level road infrastructure classification. Aligned with ASAM OpenLABEL SceneryDrivableArea." ;
+    rdfs:seeAlso openlabel:SceneryDrivableArea ;
+    :uid 102 .
+
+# Traffic tag - aligned with OpenLABEL DynamicElementsTraffic
+:TrafficTag a rdfs:Class ;
+    rdfs:subClassOf :Tag ;
+    rdfs:label "TrafficTag" ;
+    rdfs:comment "Scenario-level traffic conditions classification. Aligned with ASAM OpenLABEL DynamicElementsTraffic." ;
+    rdfs:seeAlso openlabel:DynamicElementsTraffic ;
+    :uid 103 .
+
+# Risk tag - SAVANT-specific extension
+:RiskTag a rdfs:Class ;
+    rdfs:subClassOf :Tag ;
+    rdfs:label "RiskTag" ;
+    rdfs:comment "Scenario-level safety risk assessment (SAVANT extension, not in OpenLABEL)" ;
+    :uid 104 .
+
+# Scene type tag - aligned with OpenLABEL scenario tagging concepts
 :SceneTypeTag a rdfs:Class ;
     rdfs:subClassOf :Tag ;
     rdfs:label "SceneTypeTag" ;
-    rdfs:comment "Classification of the overall scene type" ;
-    :uid 101 .
+    rdfs:comment "Classification of the overall scene type (normal traffic, construction, accident, etc.)" ;
+    :uid 105 .
 
-# VLM analysis metadata tag
+# VLM analysis metadata tag - SAVANT-specific
 :VLMAnalysisTag a rdfs:Class ;
     rdfs:subClassOf :Tag ;
     rdfs:label "VLMAnalysisTag" ;
-    rdfs:comment "Metadata about VLM analysis process and confidence" ;
-    :uid 102 .
+    rdfs:comment "Metadata about VLM analysis process including model name and confidence (SAVANT extension)" ;
+    :uid 106 .
 
 # =============================================================================
-# Enumerated value classes for structured context data
+# Context classes (UID 0-99) - for frame-interval based temporal annotations
+# Contexts track when conditions CHANGE over the course of a video
 # =============================================================================
 
-# Weather conditions
+:Context a rdfs:Class ;
+    rdfs:label "Context" ;
+    rdfs:comment "Base class for frame-interval contextual annotations. Contexts have frame_intervals and track temporal changes in conditions." ;
+    :uid 0 .
+
+# Weather context - for temporal weather tracking
+:WeatherContext a rdfs:Class ;
+    rdfs:subClassOf :Context ;
+    rdfs:label "WeatherContext" ;
+    rdfs:comment "Weather conditions for a specific frame interval. Used when weather changes mid-video." ;
+    rdfs:seeAlso openlabel:EnvironmentWeather ;
+    :uid 1 .
+
+# Illumination context
+:IlluminationContext a rdfs:Class ;
+    rdfs:subClassOf :Context ;
+    rdfs:label "IlluminationContext" ;
+    rdfs:comment "Lighting conditions for a specific frame interval (time of day, artificial lighting)." ;
+    rdfs:seeAlso openlabel:EnvironmentIllumination ;
+    :uid 2 .
+
+# Road context - for temporal road condition tracking
+:RoadContext a rdfs:Class ;
+    rdfs:subClassOf :Context ;
+    rdfs:label "RoadContext" ;
+    rdfs:comment "Road infrastructure conditions for a specific frame interval. Used when road conditions change." ;
+    rdfs:seeAlso openlabel:SceneryDrivableArea ;
+    :uid 3 .
+
+# Traffic context - for temporal traffic tracking
+:TrafficContext a rdfs:Class ;
+    rdfs:subClassOf :Context ;
+    rdfs:label "TrafficContext" ;
+    rdfs:comment "Traffic conditions for a specific frame interval. Used when traffic density changes." ;
+    rdfs:seeAlso openlabel:DynamicElementsTraffic ;
+    :uid 4 .
+
+# Risk context - for temporal risk tracking
+:RiskContext a rdfs:Class ;
+    rdfs:subClassOf :Context ;
+    rdfs:label "RiskContext" ;
+    rdfs:comment "Safety risk assessment for a specific frame interval (SAVANT extension)" ;
+    :uid 5 .
+
+# Junction context
+:JunctionContext a rdfs:Class ;
+    rdfs:subClassOf :Context ;
+    rdfs:label "JunctionContext" ;
+    rdfs:comment "Junction/intersection information for a specific frame interval." ;
+    rdfs:seeAlso openlabel:SceneryJunction ;
+    :uid 6 .
+
+# =============================================================================
+# Enumerated values - aligned with ASAM OpenLABEL where applicable
+# =============================================================================
+
+# --- Weather conditions (aligned with OpenLABEL EnvironmentWeather hierarchy) ---
 :WeatherCondition a rdfs:Class ;
     rdfs:label "WeatherCondition" ;
     rdfs:comment "Enumeration of weather condition types" ;
     :uid 200 .
 
-:Clear a :WeatherCondition ; rdfs:label "clear" ; :uid 201 .
-:Cloudy a :WeatherCondition ; rdfs:label "cloudy" ; :uid 202 .
-:Rainy a :WeatherCondition ; rdfs:label "rainy" ; :uid 203 .
-:Snowy a :WeatherCondition ; rdfs:label "snowy" ; :uid 204 .
-:Foggy a :WeatherCondition ; rdfs:label "foggy" ; :uid 205 .
+:Clear a :WeatherCondition ;
+    rdfs:label "clear" ;
+    rdfs:comment "Clear weather, no precipitation" ;
+    :uid 201 .
 
-# Visibility levels
+:Cloudy a :WeatherCondition ;
+    rdfs:label "cloudy" ;
+    rdfs:comment "Cloudy conditions" ;
+    rdfs:seeAlso openlabel:IlluminationCloudiness ;
+    :uid 202 .
+
+:Rainy a :WeatherCondition ;
+    rdfs:label "rainy" ;
+    rdfs:comment "Rainfall present" ;
+    rdfs:seeAlso openlabel:WeatherRain ;
+    :uid 203 .
+
+:Snowy a :WeatherCondition ;
+    rdfs:label "snowy" ;
+    rdfs:comment "Snowfall present" ;
+    rdfs:seeAlso openlabel:WeatherSnow ;
+    :uid 204 .
+
+:Foggy a :WeatherCondition ;
+    rdfs:label "foggy" ;
+    rdfs:comment "Fog or mist present" ;
+    rdfs:seeAlso openlabel:ParticulatesWater ;
+    :uid 205 .
+
+# --- Visibility levels ---
 :VisibilityLevel a rdfs:Class ;
     rdfs:label "VisibilityLevel" ;
     rdfs:comment "Enumeration of visibility levels" ;
@@ -121,44 +179,100 @@
 :ModerateVisibility a :VisibilityLevel ; rdfs:label "moderate" ; :uid 212 .
 :PoorVisibility a :VisibilityLevel ; rdfs:label "poor" ; :uid 213 .
 
-# Time of day
+# --- Time of day (aligned with OpenLABEL EnvironmentIllumination) ---
 :TimeOfDay a rdfs:Class ;
     rdfs:label "TimeOfDay" ;
     rdfs:comment "Enumeration of time of day categories" ;
+    rdfs:seeAlso openlabel:EnvironmentIllumination ;
     :uid 220 .
 
-:Day a :TimeOfDay ; rdfs:label "day" ; :uid 221 .
-:Night a :TimeOfDay ; rdfs:label "night" ; :uid 222 .
-:Dawn a :TimeOfDay ; rdfs:label "dawn" ; :uid 223 .
-:Dusk a :TimeOfDay ; rdfs:label "dusk" ; :uid 224 .
+:Day a :TimeOfDay ;
+    rdfs:label "day" ;
+    rdfs:seeAlso openlabel:IlluminationDay ;
+    :uid 221 .
 
-# Road types (aligned with ASAM)
+:Night a :TimeOfDay ;
+    rdfs:label "night" ;
+    rdfs:seeAlso openlabel:LowLightNight ;
+    :uid 222 .
+
+:Dawn a :TimeOfDay ;
+    rdfs:label "dawn" ;
+    rdfs:comment "Early morning twilight" ;
+    :uid 223 .
+
+:Dusk a :TimeOfDay ;
+    rdfs:label "dusk" ;
+    rdfs:comment "Evening twilight" ;
+    :uid 224 .
+
+# --- Road types (aligned with OpenLABEL DrivableAreaType) ---
 :RoadType a rdfs:Class ;
     rdfs:label "RoadType" ;
     rdfs:comment "Enumeration of road types" ;
+    rdfs:seeAlso openlabel:DrivableAreaType ;
     :uid 230 .
 
-:Motorway a :RoadType ; rdfs:label "motorway" ; :uid 231 .
-:Urban a :RoadType ; rdfs:label "urban" ; :uid 232 .
-:Rural a :RoadType ; rdfs:label "rural" ; :uid 233 .
-:Parking a :RoadType ; rdfs:label "parking" ; :uid 234 .
-:Intersection a :RoadType ; rdfs:label "intersection" ; :uid 235 .
+:Motorway a :RoadType ;
+    rdfs:label "motorway" ;
+    rdfs:seeAlso openlabel:RoadTypeMotorway ;
+    :uid 231 .
 
-# Road surface conditions
+:Urban a :RoadType ;
+    rdfs:label "urban" ;
+    rdfs:comment "Urban roads (distributors, minor roads)" ;
+    rdfs:seeAlso openlabel:RoadTypeDistributor ;
+    :uid 232 .
+
+:Rural a :RoadType ;
+    rdfs:label "rural" ;
+    rdfs:comment "Rural/radial roads" ;
+    rdfs:seeAlso openlabel:RoadTypeRadial ;
+    :uid 233 .
+
+:Parking a :RoadType ;
+    rdfs:label "parking" ;
+    rdfs:seeAlso openlabel:RoadTypeParking ;
+    :uid 234 .
+
+:Intersection a :RoadType ;
+    rdfs:label "intersection" ;
+    rdfs:comment "Road intersection or junction" ;
+    rdfs:seeAlso openlabel:SceneryJunction ;
+    :uid 235 .
+
+# --- Road surface conditions (aligned with OpenLABEL DrivableAreaSurfaceCondition) ---
 :SurfaceCondition a rdfs:Class ;
     rdfs:label "SurfaceCondition" ;
     rdfs:comment "Enumeration of road surface conditions" ;
+    rdfs:seeAlso openlabel:DrivableAreaSurfaceCondition ;
     :uid 240 .
 
-:DrySurface a :SurfaceCondition ; rdfs:label "dry" ; :uid 241 .
-:WetSurface a :SurfaceCondition ; rdfs:label "wet" ; :uid 242 .
-:IcySurface a :SurfaceCondition ; rdfs:label "icy" ; :uid 243 .
-:SnowySurface a :SurfaceCondition ; rdfs:label "snowy" ; :uid 244 .
+:DrySurface a :SurfaceCondition ;
+    rdfs:label "dry" ;
+    rdfs:comment "Dry road surface" ;
+    :uid 241 .
 
-# Traffic density
+:WetSurface a :SurfaceCondition ;
+    rdfs:label "wet" ;
+    rdfs:seeAlso openlabel:SurfaceConditionWet ;
+    :uid 242 .
+
+:IcySurface a :SurfaceCondition ;
+    rdfs:label "icy" ;
+    rdfs:seeAlso openlabel:SurfaceConditionIcy ;
+    :uid 243 .
+
+:SnowySurface a :SurfaceCondition ;
+    rdfs:label "snowy" ;
+    rdfs:seeAlso openlabel:SurfaceConditionSnow ;
+    :uid 244 .
+
+# --- Traffic density (aligned with OpenLABEL TrafficAgentDensity concept) ---
 :TrafficDensity a rdfs:Class ;
     rdfs:label "TrafficDensity" ;
     rdfs:comment "Enumeration of traffic density levels" ;
+    rdfs:seeAlso openlabel:TrafficAgentDensity ;
     :uid 250 .
 
 :EmptyTraffic a :TrafficDensity ; rdfs:label "empty" ; :uid 251 .
@@ -166,10 +280,10 @@
 :ModerateTraffic a :TrafficDensity ; rdfs:label "moderate" ; :uid 253 .
 :HeavyTraffic a :TrafficDensity ; rdfs:label "heavy" ; :uid 254 .
 
-# Risk levels
+# --- Risk levels (SAVANT extension) ---
 :RiskLevel a rdfs:Class ;
     rdfs:label "RiskLevel" ;
-    rdfs:comment "Enumeration of risk assessment levels" ;
+    rdfs:comment "Enumeration of risk assessment levels (SAVANT extension)" ;
     :uid 260 .
 
 :LowRisk a :RiskLevel ; rdfs:label "low" ; :uid 261 .
@@ -177,7 +291,7 @@
 :HighRisk a :RiskLevel ; rdfs:label "high" ; :uid 263 .
 :CriticalRisk a :RiskLevel ; rdfs:label "critical" ; :uid 264 .
 
-# Scene types
+# --- Scene types ---
 :SceneType a rdfs:Class ;
     rdfs:label "SceneType" ;
     rdfs:comment "Enumeration of scene type classifications" ;

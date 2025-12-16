@@ -1,7 +1,7 @@
 """
 response_parser - Parse VLM responses into structured data for OpenLABEL
 
-Provides parsing of VLM text responses and conversion to OpenLABEL contexts/tags.
+Provides parsing of VLM text responses and conversion to OpenLABEL tags.
 """
 
 import json
@@ -86,139 +86,261 @@ class VLMResponseParser:
         analysis_results: List[Dict[str, Any]],
         frame_intervals: List[Dict[str, int]],
     ) -> Dict[str, Dict[str, Any]]:
-        """Convert VLM analysis results to OpenLABEL contexts format.
+        """Convert VLM analysis results to OpenLABEL contexts with frame intervals.
+
+        Creates contexts that track when conditions change over time. A new context
+        is only created when a condition differs from the previous analyzed frame.
 
         Args:
-            analysis_results: List of parsed VLM analysis dicts
-            frame_intervals: Frame intervals for the contexts
+            analysis_results: List of parsed VLM analysis dicts (must have _frame_idx)
+            frame_intervals: Video frame range for extending final segment
 
         Returns:
-            OpenLABEL contexts dict ready for insertion
+            OpenLABEL contexts dict with frame_intervals for each condition segment
         """
+        if not analysis_results:
+            return {}
+
         contexts = {}
         context_id = 0
 
-        # Aggregate results across sampled frames
-        aggregated = VLMResponseParser._aggregate_results(analysis_results)
+        # Sort results by frame index
+        sorted_results = sorted(
+            analysis_results, key=lambda x: x.get("_frame_idx", 0)
+        )
 
-        # Weather context
-        if "weather" in aggregated:
-            weather = aggregated["weather"]
-            context_data = {"text": [], "num": []}
+        # Get video frame range for final segment extension
+        video_start = frame_intervals[0]["frame_start"] if frame_intervals else 0
+        video_end = frame_intervals[0]["frame_end"] if frame_intervals else None
 
-            if "condition" in weather:
-                context_data["text"].append(
-                    {"name": "condition", "val": weather["condition"]}
-                )
-            if "visibility" in weather:
-                context_data["text"].append(
-                    {"name": "visibility", "val": weather["visibility"]}
-                )
-            if "time_of_day" in weather:
-                context_data["text"].append(
-                    {"name": "time_of_day", "val": weather["time_of_day"]}
-                )
-            if "confidence" in weather:
-                context_data["num"].append(
-                    {"name": "confidence", "val": float(weather["confidence"])}
-                )
+        # Track segments for each condition type
+        # Each tracker: {"current": value, "start": frame, "data": full_data_dict}
+        weather_tracker = {"current": None, "start": None, "data": None}
+        road_tracker = {"current": None, "start": None, "data": None}
+        traffic_tracker = {"current": None, "start": None, "data": None}
+        risk_tracker = {"current": None, "start": None, "data": None}
 
-            # Remove empty arrays
-            context_data = {k: v for k, v in context_data.items() if v}
+        prev_frame = video_start
 
-            contexts[str(context_id)] = {
-                "name": "weather_conditions",
-                "type": "WeatherContext",
-                "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                "frame_intervals": frame_intervals,
-                "context_data": context_data,
-            }
+        for result in sorted_results:
+            frame_idx = result.get("_frame_idx", 0)
+
+            # Weather tracking - key on condition
+            weather = result.get("weather", {})
+            weather_key = weather.get("condition")
+            if weather_key != weather_tracker["current"]:
+                if weather_tracker["current"] is not None:
+                    # Close previous weather segment
+                    contexts[str(context_id)] = (
+                        VLMResponseParser._create_weather_context(
+                            weather_tracker["data"],
+                            weather_tracker["start"],
+                            prev_frame,
+                        )
+                    )
+                    context_id += 1
+                # Start new segment
+                weather_tracker = {
+                    "current": weather_key,
+                    "start": frame_idx,
+                    "data": weather,
+                }
+
+            # Road tracking - key on type + surface_condition
+            road = result.get("road", {})
+            road_key = (road.get("type"), road.get("surface_condition"))
+            if road_key != road_tracker["current"]:
+                if road_tracker["current"] is not None:
+                    contexts[str(context_id)] = (
+                        VLMResponseParser._create_road_context(
+                            road_tracker["data"],
+                            road_tracker["start"],
+                            prev_frame,
+                        )
+                    )
+                    context_id += 1
+                road_tracker = {"current": road_key, "start": frame_idx, "data": road}
+
+            # Traffic tracking - key on density
+            traffic = result.get("traffic", {})
+            traffic_key = traffic.get("density")
+            if traffic_key != traffic_tracker["current"]:
+                if traffic_tracker["current"] is not None:
+                    contexts[str(context_id)] = (
+                        VLMResponseParser._create_traffic_context(
+                            traffic_tracker["data"],
+                            traffic_tracker["start"],
+                            prev_frame,
+                        )
+                    )
+                    context_id += 1
+                traffic_tracker = {
+                    "current": traffic_key,
+                    "start": frame_idx,
+                    "data": traffic,
+                }
+
+            # Risk tracking - key on level
+            risk = result.get("risk", {})
+            risk_key = risk.get("level")
+            if risk_key != risk_tracker["current"]:
+                if risk_tracker["current"] is not None:
+                    contexts[str(context_id)] = (
+                        VLMResponseParser._create_risk_context(
+                            risk_tracker["data"],
+                            risk_tracker["start"],
+                            prev_frame,
+                        )
+                    )
+                    context_id += 1
+                risk_tracker = {"current": risk_key, "start": frame_idx, "data": risk}
+
+            prev_frame = frame_idx
+
+        # Close final segments (extend to video end if available)
+        final_frame = video_end if video_end is not None else prev_frame
+
+        if weather_tracker["current"] is not None:
+            contexts[str(context_id)] = VLMResponseParser._create_weather_context(
+                weather_tracker["data"],
+                weather_tracker["start"],
+                final_frame,
+            )
             context_id += 1
 
-        # Road context
-        if "road" in aggregated:
-            road = aggregated["road"]
-            context_data = {"text": [], "num": []}
-
-            if "type" in road:
-                context_data["text"].append({"name": "road_type", "val": road["type"]})
-            if "surface_condition" in road:
-                context_data["text"].append(
-                    {"name": "surface_condition", "val": road["surface_condition"]}
-                )
-            if road.get("lane_count") is not None:
-                context_data["num"].append(
-                    {"name": "lane_count", "val": int(road["lane_count"])}
-                )
-
-            context_data = {k: v for k, v in context_data.items() if v}
-
-            contexts[str(context_id)] = {
-                "name": "road_infrastructure",
-                "type": "RoadContext",
-                "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                "frame_intervals": frame_intervals,
-                "context_data": context_data,
-            }
+        if road_tracker["current"] is not None:
+            contexts[str(context_id)] = VLMResponseParser._create_road_context(
+                road_tracker["data"],
+                road_tracker["start"],
+                final_frame,
+            )
             context_id += 1
 
-        # Traffic context
-        if "traffic" in aggregated:
-            traffic = aggregated["traffic"]
-            context_data = {"text": [], "boolean": [], "num": []}
-
-            if "density" in traffic:
-                context_data["text"].append(
-                    {"name": "density", "val": traffic["density"]}
-                )
-            if "pedestrians_present" in traffic:
-                context_data["boolean"].append(
-                    {"name": "pedestrians_present", "val": traffic["pedestrians_present"]}
-                )
-            if "cyclists_present" in traffic:
-                context_data["boolean"].append(
-                    {"name": "cyclists_present", "val": traffic["cyclists_present"]}
-                )
-            if "vehicle_count" in traffic:
-                context_data["num"].append(
-                    {"name": "vehicle_count", "val": int(traffic["vehicle_count"])}
-                )
-
-            context_data = {k: v for k, v in context_data.items() if v}
-
-            contexts[str(context_id)] = {
-                "name": "traffic_conditions",
-                "type": "TrafficContext",
-                "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                "frame_intervals": frame_intervals,
-                "context_data": context_data,
-            }
+        if traffic_tracker["current"] is not None:
+            contexts[str(context_id)] = VLMResponseParser._create_traffic_context(
+                traffic_tracker["data"],
+                traffic_tracker["start"],
+                final_frame,
+            )
             context_id += 1
 
-        # Risk context
-        if "risk" in aggregated:
-            risk = aggregated["risk"]
-            context_data = {"text": [], "vec": []}
-
-            if "level" in risk:
-                context_data["text"].append({"name": "risk_level", "val": risk["level"]})
-            if "factors" in risk and risk["factors"]:
-                context_data["vec"].append(
-                    {"name": "risk_factors", "val": risk["factors"]}
-                )
-
-            context_data = {k: v for k, v in context_data.items() if v}
-
-            contexts[str(context_id)] = {
-                "name": "risk_assessment",
-                "type": "RiskContext",
-                "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                "frame_intervals": frame_intervals,
-                "context_data": context_data,
-            }
+        if risk_tracker["current"] is not None:
+            contexts[str(context_id)] = VLMResponseParser._create_risk_context(
+                risk_tracker["data"],
+                risk_tracker["start"],
+                final_frame,
+            )
             context_id += 1
 
         return contexts
+
+    @staticmethod
+    def _create_weather_context(
+        weather: Dict[str, Any], frame_start: int, frame_end: int
+    ) -> Dict[str, Any]:
+        """Create a weather context for a frame interval."""
+        context_data = {"text": []}
+
+        if weather.get("condition"):
+            context_data["text"].append(
+                {"name": "condition", "val": weather["condition"]}
+            )
+        if weather.get("visibility"):
+            context_data["text"].append(
+                {"name": "visibility", "val": weather["visibility"]}
+            )
+        if weather.get("time_of_day"):
+            context_data["text"].append(
+                {"name": "time_of_day", "val": weather["time_of_day"]}
+            )
+
+        context_data = {k: v for k, v in context_data.items() if v}
+
+        return {
+            "name": "weather_conditions",
+            "type": "WeatherContext",
+            "ontology_uid": SCENARIO_ONTOLOGY_UID,
+            "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
+            "context_data": context_data,
+        }
+
+    @staticmethod
+    def _create_road_context(
+        road: Dict[str, Any], frame_start: int, frame_end: int
+    ) -> Dict[str, Any]:
+        """Create a road context for a frame interval."""
+        context_data = {"text": [], "num": []}
+
+        if road.get("type"):
+            context_data["text"].append({"name": "road_type", "val": road["type"]})
+        if road.get("surface_condition"):
+            context_data["text"].append(
+                {"name": "surface_condition", "val": road["surface_condition"]}
+            )
+        if road.get("lane_count") is not None:
+            context_data["num"].append(
+                {"name": "lane_count", "val": int(road["lane_count"])}
+            )
+
+        context_data = {k: v for k, v in context_data.items() if v}
+
+        return {
+            "name": "road_infrastructure",
+            "type": "RoadContext",
+            "ontology_uid": SCENARIO_ONTOLOGY_UID,
+            "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
+            "context_data": context_data,
+        }
+
+    @staticmethod
+    def _create_traffic_context(
+        traffic: Dict[str, Any], frame_start: int, frame_end: int
+    ) -> Dict[str, Any]:
+        """Create a traffic context for a frame interval."""
+        context_data = {"text": [], "boolean": []}
+
+        if traffic.get("density"):
+            context_data["text"].append({"name": "density", "val": traffic["density"]})
+        if "pedestrians_present" in traffic:
+            context_data["boolean"].append(
+                {"name": "pedestrians_present", "val": traffic["pedestrians_present"]}
+            )
+        if "cyclists_present" in traffic:
+            context_data["boolean"].append(
+                {"name": "cyclists_present", "val": traffic["cyclists_present"]}
+            )
+
+        context_data = {k: v for k, v in context_data.items() if v}
+
+        return {
+            "name": "traffic_conditions",
+            "type": "TrafficContext",
+            "ontology_uid": SCENARIO_ONTOLOGY_UID,
+            "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
+            "context_data": context_data,
+        }
+
+    @staticmethod
+    def _create_risk_context(
+        risk: Dict[str, Any], frame_start: int, frame_end: int
+    ) -> Dict[str, Any]:
+        """Create a risk context for a frame interval."""
+        context_data = {"text": [], "vec": []}
+
+        if risk.get("level"):
+            context_data["text"].append({"name": "risk_level", "val": risk["level"]})
+        if risk.get("factors"):
+            context_data["vec"].append({"name": "risk_factors", "val": risk["factors"]})
+
+        context_data = {k: v for k, v in context_data.items() if v}
+
+        return {
+            "name": "risk_assessment",
+            "type": "RiskContext",
+            "ontology_uid": SCENARIO_ONTOLOGY_UID,
+            "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
+            "context_data": context_data,
+        }
 
     @staticmethod
     def to_openlabel_tags(
@@ -227,6 +349,8 @@ class VLMResponseParser:
         frames_analyzed: int,
     ) -> Dict[str, Dict[str, Any]]:
         """Convert VLM analysis to OpenLABEL tags for scenario-level metadata.
+
+        Per OpenLABEL spec, tags are for scenario categorization and organization.
 
         Args:
             analysis_results: List of parsed VLM analysis dicts
@@ -240,6 +364,114 @@ class VLMResponseParser:
         tag_id = 0
 
         aggregated = VLMResponseParser._aggregate_results(analysis_results)
+
+        # Weather tag
+        if "weather" in aggregated:
+            weather = aggregated["weather"]
+            tag_data = {"text": []}
+
+            if "condition" in weather:
+                tag_data["text"].append(
+                    {"name": "condition", "val": weather["condition"]}
+                )
+            if "visibility" in weather:
+                tag_data["text"].append(
+                    {"name": "visibility", "val": weather["visibility"]}
+                )
+            if "time_of_day" in weather:
+                tag_data["text"].append(
+                    {"name": "time_of_day", "val": weather["time_of_day"]}
+                )
+
+            tag_data = {k: v for k, v in tag_data.items() if v}
+
+            if tag_data:
+                tags[str(tag_id)] = {
+                    "name": "weather_conditions",
+                    "type": "WeatherTag",
+                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
+                    "tag_data": tag_data,
+                }
+                tag_id += 1
+
+        # Road tag
+        if "road" in aggregated:
+            road = aggregated["road"]
+            tag_data = {"text": [], "num": []}
+
+            if "type" in road:
+                tag_data["text"].append({"name": "road_type", "val": road["type"]})
+            if "surface_condition" in road:
+                tag_data["text"].append(
+                    {"name": "surface_condition", "val": road["surface_condition"]}
+                )
+            if road.get("lane_count") is not None:
+                tag_data["num"].append(
+                    {"name": "lane_count", "val": int(road["lane_count"])}
+                )
+
+            tag_data = {k: v for k, v in tag_data.items() if v}
+
+            if tag_data:
+                tags[str(tag_id)] = {
+                    "name": "road_infrastructure",
+                    "type": "RoadTag",
+                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
+                    "tag_data": tag_data,
+                }
+                tag_id += 1
+
+        # Traffic tag
+        if "traffic" in aggregated:
+            traffic = aggregated["traffic"]
+            tag_data = {"text": [], "boolean": []}
+
+            if "density" in traffic:
+                tag_data["text"].append(
+                    {"name": "density", "val": traffic["density"]}
+                )
+            if "pedestrians_present" in traffic:
+                tag_data["boolean"].append(
+                    {"name": "pedestrians_present", "val": traffic["pedestrians_present"]}
+                )
+            if "cyclists_present" in traffic:
+                tag_data["boolean"].append(
+                    {"name": "cyclists_present", "val": traffic["cyclists_present"]}
+                )
+
+            tag_data = {k: v for k, v in tag_data.items() if v}
+
+            if tag_data:
+                tags[str(tag_id)] = {
+                    "name": "traffic_conditions",
+                    "type": "TrafficTag",
+                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
+                    "tag_data": tag_data,
+                }
+                tag_id += 1
+
+        # Risk tag
+        if "risk" in aggregated:
+            risk = aggregated["risk"]
+            tag_data = {"text": [], "vec": []}
+
+            if "level" in risk:
+                tag_data["text"].append({"name": "risk_level", "val": risk["level"]})
+            if "factors" in risk and risk["factors"]:
+                tag_data["vec"].append(
+                    {"name": "risk_factors", "val": risk["factors"]}
+                )
+
+            tag_data = {k: v for k, v in tag_data.items() if v}
+
+            if tag_data:
+                tags[str(tag_id)] = {
+                    "name": "risk_assessment",
+                    "type": "RiskTag",
+                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
+                    "tag_data": tag_data,
+                }
+                tag_id += 1
 
         # Scene type tag
         if "scene" in aggregated:
@@ -255,16 +487,19 @@ class VLMResponseParser:
 
             tag_data = {k: v for k, v in tag_data.items() if v}
 
-            tags[str(tag_id)] = {
-                "type": "SceneTypeTag",
-                "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                "tag_data": tag_data,
-            }
-            tag_id += 1
+            if tag_data:
+                tags[str(tag_id)] = {
+                    "name": "scene_analysis",
+                    "type": "SceneTypeTag",
+                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
+                    "tag_data": tag_data,
+                }
+                tag_id += 1
 
         # VLM analysis metadata tag
         avg_confidence = VLMResponseParser._average_confidence(analysis_results)
         tags[str(tag_id)] = {
+            "name": "vlm_analysis_metadata",
             "type": "VLMAnalysisTag",
             "ontology_uid": SCENARIO_ONTOLOGY_UID,
             "tag_data": {
