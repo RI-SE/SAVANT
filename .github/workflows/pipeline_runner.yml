@@ -43,6 +43,8 @@ jobs:
   edit_cd:
     needs: edit_ci
     if: ${{ inputs.run_edit_cd && inputs.run_edit_ci }}
+    permissions:
+      contents: write
     uses: ./.github/workflows/edit_cd.yml
     secrets: inherit
 
@@ -54,6 +56,8 @@ jobs:
   markit_cd:
     needs: markit_ci
     if: ${{ inputs.run_markit_cd && inputs.run_markit_ci }}
+    permissions:
+      contents: write
     uses: ./.github/workflows/markit_cd.yml
     secrets: inherit
 
@@ -65,5 +69,7 @@ jobs:
   trainit_cd:
     needs: trainit_ci
     if: ${{ inputs.run_trainit_cd && inputs.run_trainit_ci }}
+    permissions:
+      contents: write
     uses: ./.github/workflows/trainit_cd.yml
     secrets: inherit
