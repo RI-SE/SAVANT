@@ -28,12 +28,14 @@ markit = [
     "opencv-contrib-python>=4.5.0",
     "numpy",
     "pyyaml",
-    "pytest",
     "pydantic>=2.0",
     "rdflib",
     "dataprov @ git+https://github.com/RI-SE/dataprov.git",
     "PyQt6>=6.5.0",
     "matplotlib>=3.7.0",
+]
+markit-dev = [
+  "pytest"
 ]
 trainit = [
     "ultralytics",
@@ -45,9 +47,6 @@ trainit = [
 ]
 edit = [
     "pyqt6<=6.9.1",
-    "pytest>=8.4.1",
-    "pytest-mock>=3.14.1",
-    "pytest-cov>=7.0.0",
     "opencv-python>=4.10.0",
     "numpy>=1.26.0",
     "pydantic>=2.11.7",
@@ -57,6 +56,9 @@ edit = [
 edit-dev = [
     "flake8>=7.3.0",
     "black>=25.1.0",
+    "pytest>=8.4.1",
+    "pytest-mock>=3.14.1",
+    "pytest-cov>=7.0.0",
 ]
 
 
