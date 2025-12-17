@@ -28,6 +28,7 @@ markit = [
     "opencv-contrib-python>=4.5.0",
     "numpy",
     "pyyaml",
+    "pytest",
     "pydantic>=2.0",
     "rdflib",
     "dataprov @ git+https://github.com/RI-SE/dataprov.git",
