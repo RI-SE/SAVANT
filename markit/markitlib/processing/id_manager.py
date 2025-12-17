@@ -8,7 +8,7 @@ Provides sequential ID assignment starting from 0:
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -55,16 +55,17 @@ class ObjectIDManager:
         # Sort marker IDs and assign sequential IDs starting from 0
         sorted_ids = sorted(aruco_marker_ids)
         self._aruco_mapping = {
-            physical_id: seq_id
-            for seq_id, physical_id in enumerate(sorted_ids)
+            physical_id: seq_id for seq_id, physical_id in enumerate(sorted_ids)
         }
 
         # Dynamic IDs start after ArUco IDs
         self._next_dynamic_id = len(sorted_ids)
         self._aruco_finalized = True
 
-        logger.info(f"ArUco ID mapping initialized: {len(sorted_ids)} markers, "
-                    f"dynamic IDs start at {self._next_dynamic_id}")
+        logger.info(
+            f"ArUco ID mapping initialized: {len(sorted_ids)} markers, "
+            f"dynamic IDs start at {self._next_dynamic_id}"
+        )
 
         return self._aruco_mapping
 
@@ -88,17 +89,18 @@ class ObjectIDManager:
         sorted_ids = sorted(marker_ids)
         start_id = self._next_dynamic_id
         self._visual_marker_mapping = {
-            marker_id: start_id + seq_id
-            for seq_id, marker_id in enumerate(sorted_ids)
+            marker_id: start_id + seq_id for seq_id, marker_id in enumerate(sorted_ids)
         }
 
         # Dynamic IDs start after visual markers
         self._next_dynamic_id = start_id + len(sorted_ids)
         self._visual_markers_finalized = True
 
-        logger.info(f"Visual marker ID mapping initialized: {len(sorted_ids)} markers "
-                    f"(IDs {start_id} to {self._next_dynamic_id - 1}), "
-                    f"dynamic IDs start at {self._next_dynamic_id}")
+        logger.info(
+            f"Visual marker ID mapping initialized: {len(sorted_ids)} markers "
+            f"(IDs {start_id} to {self._next_dynamic_id - 1}), "
+            f"dynamic IDs start at {self._next_dynamic_id}"
+        )
 
         return self._visual_marker_mapping
 
@@ -112,9 +114,10 @@ class ObjectIDManager:
             Sequential object ID
         """
         if marker_id not in self._visual_marker_mapping:
-            logger.warning(f"Visual marker {marker_id} not in mapping, "
-                           "assigning dynamic ID")
-            return self.get_dynamic_id('visual_marker_unknown', marker_id)
+            logger.warning(
+                f"Visual marker {marker_id} not in mapping, " "assigning dynamic ID"
+            )
+            return self.get_dynamic_id("visual_marker_unknown", marker_id)
 
         return self._visual_marker_mapping[marker_id]
 
@@ -128,9 +131,11 @@ class ObjectIDManager:
             Sequential object ID (0 to N-1)
         """
         if physical_marker_id not in self._aruco_mapping:
-            logger.warning(f"ArUco marker {physical_marker_id} not in mapping, "
-                           "assigning dynamic ID")
-            return self.get_dynamic_id('aruco_unknown', physical_marker_id)
+            logger.warning(
+                f"ArUco marker {physical_marker_id} not in mapping, "
+                "assigning dynamic ID"
+            )
+            return self.get_dynamic_id("aruco_unknown", physical_marker_id)
 
         return self._aruco_mapping[physical_marker_id]
 

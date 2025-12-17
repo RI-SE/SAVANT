@@ -7,7 +7,11 @@ from .manifest_service import ManifestService, VerificationResult
 from .split_service import SplitService, SplitResult
 
 __all__ = [
-    'DatasetService', 'ProjectService', 'ConfigGenerator',
-    'ManifestService', 'VerificationResult',
-    'SplitService', 'SplitResult'
+    "DatasetService",
+    "ProjectService",
+    "ConfigGenerator",
+    "ManifestService",
+    "VerificationResult",
+    "SplitService",
+    "SplitResult",
 ]

@@ -7,9 +7,7 @@ Contains all configuration dataclasses, constants, and application configuration
 import argparse
 import logging
 import os
-import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 import numpy as np
@@ -21,17 +19,13 @@ from . import __version__
 
 class Constants:
     """Constants used throughout the application."""
+
     MP4V_FOURCC = "mp4v"
     SCHEMA_VERSION = "1.1"
     ANNOTATOR_NAME = f"SAVANT markit v{__version__}"
     # Fallback class map used when ontology file cannot be loaded
     # In normal operation, class_map is loaded dynamically from the ontology
-    DEFAULT_CLASS_MAP = {
-        0: "vehicle",
-        1: "car",
-        2: "truck",
-        3: "bus"
-    }
+    DEFAULT_CLASS_MAP = {0: "vehicle", 1: "car", 2: "truck", 3: "bus"}
 
 
 @dataclass
@@ -45,6 +39,7 @@ class DetectionResult:
     - positive x-axis is 0 radians, rotation increases counterclockwise
       (or clockwise in image coordinates where y-axis points down)
     """
+
     object_id: Optional[int]
     class_id: int
     confidence: float
@@ -59,6 +54,7 @@ class DetectionResult:
 @dataclass
 class OpticalFlowParams:
     """Parameters for optical flow detection."""
+
     motion_threshold: float = 0.5
     min_area: int = 200
     morph_kernel_size: int = 9
@@ -67,6 +63,7 @@ class OpticalFlowParams:
 @dataclass
 class ConflictResolutionConfig:
     """Configuration for detection conflict resolution using IoU."""
+
     iou_threshold: float = 0.3  # IoU threshold for conflict detection (0.0-1.0)
     yolo_precedence: bool = True  # YOLO takes precedence over optical flow
     enable_logging: bool = False  # Log conflicts for debugging
@@ -92,16 +89,20 @@ class MarkitConfig:
         self.ontology_uri = self._resolve_ontology_uri(args)
 
         # ArUco detection configuration
-        self.aruco_csv_path = args.aruco_csv if hasattr(args, 'aruco_csv') else None
-        self.aruco_dict = args.aruco_dict if hasattr(args, 'aruco_dict') else 'DICT_4X4_50'
+        self.aruco_csv_path = args.aruco_csv if hasattr(args, "aruco_csv") else None
+        self.aruco_dict = (
+            args.aruco_dict if hasattr(args, "aruco_dict") else "DICT_4X4_50"
+        )
         self.use_aruco = self.aruco_csv_path is not None
 
         # Visual markers configuration
-        self.visual_markers_csv_path = args.visual_markers if hasattr(args, 'visual_markers') else None
+        self.visual_markers_csv_path = (
+            args.visual_markers if hasattr(args, "visual_markers") else None
+        )
 
         # Load class map from ontology if provided, otherwise use default
         # Pass verbose flag for debug logging
-        verbose = args.verbose if hasattr(args, 'verbose') else False
+        verbose = args.verbose if hasattr(args, "verbose") else False
         self.class_map = self._load_class_map(verbose)
 
         # Get ArUco class ID from ontology (if ArUco detection enabled)
@@ -110,13 +111,12 @@ class MarkitConfig:
             self.aruco_class_id = self._get_aruco_class_id()
 
         # Detection method configuration
-        self.use_yolo = args.detection_method in ['yolo', 'both']
-        self.use_optical_flow = args.detection_method in ['optical_flow', 'both']
+        self.use_yolo = args.detection_method in ["yolo", "both"]
+        self.use_optical_flow = args.detection_method in ["optical_flow", "both"]
 
         # Optical flow parameters
         self.optical_flow_params = OpticalFlowParams(
-            motion_threshold=args.motion_threshold,
-            min_area=args.min_object_area
+            motion_threshold=args.motion_threshold, min_area=args.min_object_area
         )
 
         # IoU-based conflict resolution configuration
@@ -136,7 +136,7 @@ class MarkitConfig:
         self.static_mark = args.static_mark
 
         # Logging configuration
-        self.verbose = args.verbose if hasattr(args, 'verbose') else False
+        self.verbose = args.verbose if hasattr(args, "verbose") else False
 
         self.validate_config()
 
@@ -160,7 +160,9 @@ class MarkitConfig:
 
         # Validate IoU threshold
         if not (0.0 <= self.iou_threshold <= 1.0):
-            raise ValueError(f"IoU threshold must be between 0.0 and 1.0, got: {self.iou_threshold}")
+            raise ValueError(
+                f"IoU threshold must be between 0.0 and 1.0, got: {self.iou_threshold}"
+            )
 
     def _resolve_ontology_uri(self, args: argparse.Namespace) -> Optional[str]:
         """Resolve ontology URI from explicit argument or by extracting from file.
@@ -174,7 +176,7 @@ class MarkitConfig:
         logger = logging.getLogger(__name__)
 
         # Use explicit URI if provided
-        if hasattr(args, 'ontology_uri') and args.ontology_uri:
+        if hasattr(args, "ontology_uri") and args.ontology_uri:
             logger.info(f"Ontology URI: {args.ontology_uri} (from --ontology-uri)")
             return args.ontology_uri
 
@@ -182,10 +184,14 @@ class MarkitConfig:
         if self.ontology_path and os.path.exists(self.ontology_path):
             uri = extract_namespace_uri(self.ontology_path)
             if uri:
-                logger.info(f"Ontology URI: {uri} (extracted from {self.ontology_path})")
+                logger.info(
+                    f"Ontology URI: {uri} (extracted from {self.ontology_path})"
+                )
                 return uri
             else:
-                logger.warning(f"Could not extract namespace URI from {self.ontology_path}")
+                logger.warning(
+                    f"Could not extract namespace URI from {self.ontology_path}"
+                )
 
         return None
 
@@ -220,11 +226,15 @@ class MarkitConfig:
             class_map = create_class_map(self.ontology_path)
 
             if not class_map:
-                logger.warning(f"No classes with UIDs found in ontology: {self.ontology_path}")
+                logger.warning(
+                    f"No classes with UIDs found in ontology: {self.ontology_path}"
+                )
                 logger.info("Class map source: DEFAULT_CLASS_MAP (fallback)")
                 return Constants.DEFAULT_CLASS_MAP.copy()
 
-            logger.info(f"Class map source: {self.ontology_path} ({len(class_map)} classes)")
+            logger.info(
+                f"Class map source: {self.ontology_path} ({len(class_map)} classes)"
+            )
 
             # If verbose mode, log first 25 class mappings for debugging
             if verbose:
@@ -253,10 +263,16 @@ class MarkitConfig:
         # Search for MarkerAruco in class_map
         for class_id, class_name in self.class_map.items():
             if class_name == "Aruco" or class_name == "MarkerAruco":
-                logger.info(f"Found ArUco class in ontology: ID={class_id}, Name={class_name}")
+                logger.info(
+                    f"Found ArUco class in ontology: ID={class_id}, Name={class_name}"
+                )
                 return class_id
 
         # MarkerAruco not found - log error and raise exception
         logger.error("MarkerAruco class not found in ontology")
-        logger.error("Please ensure the ontology contains a 'MarkerAruco' class with label 'Aruco'")
-        raise ValueError("MarkerAruco class not found in ontology - ArUco detection cannot proceed")
+        logger.error(
+            "Please ensure the ontology contains a 'MarkerAruco' class with label 'Aruco'"
+        )
+        raise ValueError(
+            "MarkerAruco class not found in ontology - ArUco detection cannot proceed"
+        )

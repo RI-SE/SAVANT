@@ -21,7 +21,6 @@ import math
 import os
 from collections import deque
 from dataclasses import dataclass
-from math import isfinite
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 

@@ -4,7 +4,6 @@ utils - Utility functions for markit
 Contains helper functions for angle normalization and other common operations.
 """
 
-from typing import Tuple
 import numpy as np
 
 
@@ -60,8 +59,9 @@ def normalize_angle_to_2pi_range(angle: float) -> float:
     return float(result)
 
 
-def find_continuous_angle(new_angle: float, previous_angle: float,
-                          ambiguity_period: float = np.pi/2) -> float:
+def find_continuous_angle(
+    new_angle: float, previous_angle: float, ambiguity_period: float = np.pi / 2
+) -> float:
     """Find continuous rotation closest to previous angle.
 
     Used when converting from YOLO's ambiguous [0, π/2) format.

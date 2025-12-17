@@ -1,25 +1,27 @@
 """Config list widget for managing training configurations."""
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget,
-    QListWidgetItem, QPushButton, QGroupBox, QInputDialog,
-    QMessageBox
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QGroupBox,
+    QInputDialog,
+    QMessageBox,
 )
 from PyQt6.QtCore import Qt
 
 from ..states.app_state import AppState
 from ...controllers.config_controller import ConfigController
-from ...models.project import TrainingConfig
 
 
 class ConfigList(QWidget):
     """Widget for listing and managing training configurations."""
 
     def __init__(
-        self,
-        app_state: AppState,
-        config_controller: ConfigController,
-        parent=None
+        self, app_state: AppState, config_controller: ConfigController, parent=None
     ):
         super().__init__(parent)
 
@@ -117,13 +119,18 @@ class ConfigList(QWidget):
         for i in range(self.config_list.count()):
             item = self.config_list.item(i)
             config = item.data(Qt.ItemDataRole.UserRole)
-            if (config and self.app_state.current_config and
-                    config.name == self.app_state.current_config.name):
+            if (
+                config
+                and self.app_state.current_config
+                and config.name == self.app_state.current_config.name
+            ):
                 # Set italics + asterisk if dirty
                 font = item.font()
                 font.setItalic(self.app_state.config_dirty)
                 item.setFont(font)
-                display_name = f"{config.name}*" if self.app_state.config_dirty else config.name
+                display_name = (
+                    f"{config.name}*" if self.app_state.config_dirty else config.name
+                )
                 item.setText(display_name)
 
     def _on_item_clicked(self, item: QListWidgetItem):
@@ -140,9 +147,9 @@ class ConfigList(QWidget):
                     "Unsaved Changes",
                     f"Configuration '{self.app_state.current_config.name}' has unsaved changes.\n"
                     "Do you want to save before switching?",
-                    QMessageBox.StandardButton.Save |
-                    QMessageBox.StandardButton.Discard |
-                    QMessageBox.StandardButton.Cancel
+                    QMessageBox.StandardButton.Save
+                    | QMessageBox.StandardButton.Discard
+                    | QMessageBox.StandardButton.Cancel,
                 )
                 if reply == QMessageBox.StandardButton.Save:
                     self._save_current_config()
@@ -155,7 +162,7 @@ class ConfigList(QWidget):
     def _save_current_config(self):
         """Save the current config via the config editor."""
         window = self.window()
-        if hasattr(window, 'config_editor'):
+        if hasattr(window, "config_editor"):
             window.config_editor._on_save()
 
     def _on_item_double_clicked(self, item: QListWidgetItem):
@@ -163,15 +170,13 @@ class ConfigList(QWidget):
         self._on_item_clicked(item)
         # Find parent window and switch tab
         window = self.window()
-        if hasattr(window, 'tab_widget'):
+        if hasattr(window, "tab_widget"):
             window.tab_widget.setCurrentIndex(1)  # Config Editor tab
 
     def _on_new_config(self):
         """Handle new config button."""
         name, ok = QInputDialog.getText(
-            self,
-            "New Configuration",
-            "Configuration name:"
+            self, "New Configuration", "Configuration name:"
         )
         if ok and name.strip():
             # Check if any datasets are selected
@@ -181,7 +186,7 @@ class ConfigList(QWidget):
                     "No Datasets Selected",
                     "No datasets are currently selected. "
                     "Create configuration with no datasets?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 )
                 if reply == QMessageBox.StandardButton.No:
                     return
@@ -202,7 +207,7 @@ class ConfigList(QWidget):
             self,
             "Delete Configuration",
             f"Delete configuration '{config.name}'?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
             self.config_controller.delete_config(config.name)

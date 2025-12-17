@@ -3,7 +3,6 @@ Unit tests for configuration module - config parsing and ontology loading.
 """
 
 import argparse
-import os
 import pytest
 
 from markit.markitlib.config import (
@@ -11,7 +10,7 @@ from markit.markitlib.config import (
     DetectionResult,
     OpticalFlowParams,
     ConflictResolutionConfig,
-    MarkitConfig
+    MarkitConfig,
 )
 
 
@@ -56,7 +55,7 @@ class TestDetectionResult:
             oriented_bbox=sample_obb_bbox,
             center=(150.0, 125.0),
             angle=0.5,
-            source_engine="optical_flow"
+            source_engine="optical_flow",
         )
         assert detection.object_id is None
         assert detection.width is None
@@ -76,9 +75,7 @@ class TestOpticalFlowParams:
     def test_custom_values(self):
         """Test custom optical flow parameters."""
         params = OpticalFlowParams(
-            motion_threshold=0.7,
-            min_area=300,
-            morph_kernel_size=11
+            motion_threshold=0.7, min_area=300, morph_kernel_size=11
         )
         assert params.motion_threshold == 0.7
         assert params.min_area == 300
@@ -98,9 +95,7 @@ class TestConflictResolutionConfig:
     def test_custom_values(self):
         """Test custom conflict resolution config."""
         config = ConflictResolutionConfig(
-            iou_threshold=0.5,
-            yolo_precedence=False,
-            enable_logging=True
+            iou_threshold=0.5, yolo_precedence=False, enable_logging=True
         )
         assert config.iou_threshold == 0.5
         assert config.yolo_precedence is False
@@ -110,7 +105,9 @@ class TestConflictResolutionConfig:
 class TestMarkitConfig:
     """Tests for MarkitConfig class."""
 
-    def test_basic_config_creation(self, test_video_path, test_model_path, schema_path, ontology_path):
+    def test_basic_config_creation(
+        self, test_video_path, test_model_path, schema_path, ontology_path
+    ):
         """Test creating a basic configuration."""
         args = argparse.Namespace(
             weights=test_model_path,
@@ -135,7 +132,7 @@ class TestMarkitConfig:
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
-            verbose=False
+            verbose=False,
         )
         config = MarkitConfig(args)
 
@@ -145,7 +142,9 @@ class TestMarkitConfig:
         assert config.use_optical_flow is False
         assert config.use_aruco is False
 
-    def test_optical_flow_detection_method(self, test_video_path, schema_path, ontology_path):
+    def test_optical_flow_detection_method(
+        self, test_video_path, schema_path, ontology_path
+    ):
         """Test optical flow detection method configuration."""
         args = argparse.Namespace(
             weights="markit_yolo.pt",
@@ -170,7 +169,7 @@ class TestMarkitConfig:
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
-            verbose=False
+            verbose=False,
         )
         config = MarkitConfig(args)
 
@@ -179,7 +178,9 @@ class TestMarkitConfig:
         assert config.optical_flow_params.motion_threshold == 0.7
         assert config.optical_flow_params.min_area == 300
 
-    def test_both_detection_methods(self, test_video_path, test_model_path, schema_path, ontology_path):
+    def test_both_detection_methods(
+        self, test_video_path, test_model_path, schema_path, ontology_path
+    ):
         """Test using both YOLO and optical flow."""
         args = argparse.Namespace(
             weights=test_model_path,
@@ -204,7 +205,7 @@ class TestMarkitConfig:
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
-            verbose=False
+            verbose=False,
         )
         config = MarkitConfig(args)
 
@@ -214,7 +215,9 @@ class TestMarkitConfig:
         assert config.iou_threshold == 0.5
         assert config.verbose_conflicts is True
 
-    def test_housekeeping_enabled(self, test_video_path, test_model_path, schema_path, ontology_path):
+    def test_housekeeping_enabled(
+        self, test_video_path, test_model_path, schema_path, ontology_path
+    ):
         """Test housekeeping (postprocessing) configuration."""
         args = argparse.Namespace(
             weights=test_model_path,
@@ -239,7 +242,7 @@ class TestMarkitConfig:
             edge_distance=150,
             static_threshold=3,
             static_mark=True,
-            verbose=False
+            verbose=False,
         )
         config = MarkitConfig(args)
 
@@ -253,7 +256,9 @@ class TestMarkitConfig:
         assert config.static_threshold == 3
         assert config.static_mark is True
 
-    def test_validation_missing_video_file(self, test_model_path, schema_path, ontology_path):
+    def test_validation_missing_video_file(
+        self, test_model_path, schema_path, ontology_path
+    ):
         """Test validation fails when video file is missing."""
         args = argparse.Namespace(
             weights=test_model_path,
@@ -278,12 +283,14 @@ class TestMarkitConfig:
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
-            verbose=False
+            verbose=False,
         )
         with pytest.raises(FileNotFoundError, match="video.mp4"):
             MarkitConfig(args)
 
-    def test_validation_invalid_iou_threshold(self, test_video_path, test_model_path, schema_path, ontology_path):
+    def test_validation_invalid_iou_threshold(
+        self, test_video_path, test_model_path, schema_path, ontology_path
+    ):
         """Test validation fails with invalid IoU threshold."""
         args = argparse.Namespace(
             weights=test_model_path,
@@ -308,12 +315,14 @@ class TestMarkitConfig:
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
-            verbose=False
+            verbose=False,
         )
         with pytest.raises(ValueError, match="IoU threshold"):
             MarkitConfig(args)
 
-    def test_ontology_loading(self, test_video_path, test_model_path, schema_path, ontology_path):
+    def test_ontology_loading(
+        self, test_video_path, test_model_path, schema_path, ontology_path
+    ):
         """Test that ontology is loaded and class map is created."""
         args = argparse.Namespace(
             weights=test_model_path,
@@ -338,7 +347,7 @@ class TestMarkitConfig:
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
-            verbose=False
+            verbose=False,
         )
         config = MarkitConfig(args)
 
@@ -346,7 +355,9 @@ class TestMarkitConfig:
         assert isinstance(config.class_map, dict)
         assert len(config.class_map) > 0
 
-    def test_ontology_fallback_to_default(self, test_video_path, test_model_path, schema_path):
+    def test_ontology_fallback_to_default(
+        self, test_video_path, test_model_path, schema_path
+    ):
         """Test fallback to default class map when ontology is missing."""
         args = argparse.Namespace(
             weights=test_model_path,
@@ -371,7 +382,7 @@ class TestMarkitConfig:
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
-            verbose=False
+            verbose=False,
         )
         config = MarkitConfig(args)
 

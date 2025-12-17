@@ -3,8 +3,15 @@
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
-    QLineEdit, QTextEdit, QPushButton, QFileDialog, QMessageBox
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
+    QLineEdit,
+    QTextEdit,
+    QPushButton,
+    QFileDialog,
+    QMessageBox,
 )
 
 
@@ -80,20 +87,14 @@ class NewProjectDialog(QDialog):
 
     def _browse_folder(self):
         """Browse for project folder."""
-        folder = QFileDialog.getExistingDirectory(
-            self,
-            "Select Project Folder",
-            ""
-        )
+        folder = QFileDialog.getExistingDirectory(self, "Select Project Folder", "")
         if folder:
             self.folder_edit.setText(folder)
 
     def _browse_datasets(self):
         """Browse for datasets root."""
         folder = QFileDialog.getExistingDirectory(
-            self,
-            "Select Datasets Root Directory",
-            ""
+            self, "Select Datasets Root Directory", ""
         )
         if folder:
             self.datasets_edit.setText(folder)
@@ -115,17 +116,13 @@ class NewProjectDialog(QDialog):
 
         if not Path(folder).is_dir():
             QMessageBox.warning(
-                self,
-                "Validation Error",
-                f"Project folder doesn't exist: {folder}"
+                self, "Validation Error", f"Project folder doesn't exist: {folder}"
             )
             return
 
         if not datasets_root:
             QMessageBox.warning(
-                self,
-                "Validation Error",
-                "Datasets root directory is required."
+                self, "Validation Error", "Datasets root directory is required."
             )
             return
 
@@ -133,7 +130,7 @@ class NewProjectDialog(QDialog):
             QMessageBox.warning(
                 self,
                 "Validation Error",
-                f"Datasets root doesn't exist: {datasets_root}"
+                f"Datasets root doesn't exist: {datasets_root}",
             )
             return
 
@@ -144,7 +141,7 @@ class NewProjectDialog(QDialog):
                 self,
                 "Project Exists",
                 f"A project already exists in {folder}. Overwrite?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if reply == QMessageBox.StandardButton.No:
                 return
@@ -161,5 +158,5 @@ class NewProjectDialog(QDialog):
             self.name_edit.text().strip(),
             self.folder_edit.text().strip(),
             self.datasets_edit.text().strip(),
-            self.description_edit.toPlainText().strip()
+            self.description_edit.toPlainText().strip(),
         )

@@ -5,7 +5,7 @@ from typing import Optional
 
 from ..frontend.states.app_state import AppState
 from ..services.dataset_service import DatasetService
-from ..models.dataset import DatasetInfo, AggregatedStats
+from ..models.dataset import DatasetInfo
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +13,7 @@ logger = logging.getLogger(__name__)
 class DatasetController:
     """Controller for dataset browsing and analysis."""
 
-    def __init__(
-        self,
-        app_state: AppState,
-        dataset_service: DatasetService
-    ):
+    def __init__(self, app_state: AppState, dataset_service: DatasetService):
         self.app_state = app_state
         self.dataset_service = dataset_service
 
@@ -56,8 +52,7 @@ class DatasetController:
 
             # Get aggregated stats
             stats = self.dataset_service.analyze_datasets(
-                self.app_state.datasets_root,
-                self.app_state.selected_datasets
+                self.app_state.datasets_root, self.app_state.selected_datasets
             )
 
             if not stats.is_valid:
@@ -69,6 +64,7 @@ class DatasetController:
             for name in self.app_state.selected_datasets:
                 if not self.app_state.get_dataset_info(name):
                     from pathlib import Path
+
                     dataset_path = Path(self.app_state.datasets_root) / name
                     info = self.dataset_service.load_dataset_info(str(dataset_path))
                     self.app_state.set_dataset_info(name, info)
@@ -98,6 +94,7 @@ class DatasetController:
 
         try:
             from pathlib import Path
+
             dataset_path = Path(self.app_state.datasets_root) / name
             info = self.dataset_service.load_dataset_info(str(dataset_path))
             self.app_state.set_dataset_info(name, info)
@@ -107,7 +104,9 @@ class DatasetController:
             logger.error(f"Failed to load dataset info for {name}: {e}")
             return None
 
-    def validate_class_compatibility(self, dataset_names: list[str]) -> tuple[bool, str]:
+    def validate_class_compatibility(
+        self, dataset_names: list[str]
+    ) -> tuple[bool, str]:
         """Check if all specified datasets have compatible class mappings.
 
         Returns:

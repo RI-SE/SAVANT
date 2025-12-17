@@ -7,5 +7,5 @@ Contains OpenLabel data structure creation and management.
 from .handler import OpenLabelHandler
 
 __all__ = [
-    'OpenLabelHandler',
+    "OpenLabelHandler",
 ]

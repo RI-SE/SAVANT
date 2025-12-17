@@ -10,6 +10,7 @@ import pytest
 
 try:
     import jsonschema
+
     JSONSCHEMA_AVAILABLE = True
 except ImportError:
     JSONSCHEMA_AVAILABLE = False
@@ -30,14 +31,21 @@ class TestEndToEndPipeline:
     @pytest.fixture
     def temp_output_json(self):
         """Create temporary output JSON file path."""
-        fd, path = tempfile.mkstemp(suffix='.json')
+        fd, path = tempfile.mkstemp(suffix=".json")
         os.close(fd)
         yield path
         if os.path.exists(path):
             os.unlink(path)
 
     @pytest.fixture
-    def basic_args(self, test_video_path, test_model_path, schema_path, ontology_path, temp_output_json):
+    def basic_args(
+        self,
+        test_video_path,
+        test_model_path,
+        schema_path,
+        ontology_path,
+        temp_output_json,
+    ):
         """Create basic arguments for testing."""
         return argparse.Namespace(
             weights=test_model_path,
@@ -62,7 +70,7 @@ class TestEndToEndPipeline:
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
-            verbose=False
+            verbose=False,
         )
 
     def test_config_initialization(self, basic_args):
@@ -169,7 +177,7 @@ class TestEndToEndPipeline:
         assert os.path.exists(config.output_json_path)
 
         # Verify JSON is valid
-        with open(config.output_json_path, 'r') as f:
+        with open(config.output_json_path, "r") as f:
             output_data = json.load(f)
 
         assert "openlabel" in output_data
@@ -201,9 +209,7 @@ class TestEndToEndPipeline:
         # Create postprocessing pipeline
         postprocessing = PostprocessingPipeline()
         postprocessing.set_video_properties(
-            processor.frame_width,
-            processor.frame_height,
-            processor.fps
+            processor.frame_width, processor.frame_height, processor.fps
         )
         postprocessing.add_pass(GapDetectionPass())
         postprocessing.add_pass(AngleNormalizationPass())
@@ -220,7 +226,7 @@ class TestEndToEndPipeline:
         # Verify output
         assert os.path.exists(config.output_json_path)
 
-        with open(config.output_json_path, 'r') as f:
+        with open(config.output_json_path, "r") as f:
             output_data = json.load(f)
 
         assert "openlabel" in output_data
@@ -253,7 +259,7 @@ class TestEndToEndPipeline:
         processor.cleanup()
 
         # Load schema
-        with open(schema_path, 'r') as f:
+        with open(schema_path, "r") as f:
             schema = json.load(f)
 
         # Validate output against schema
@@ -307,7 +313,7 @@ class TestEndToEndPipeline:
         # Should still produce valid output
         assert os.path.exists(config.output_json_path)
 
-        with open(config.output_json_path, 'r') as f:
+        with open(config.output_json_path, "r") as f:
             output_data = json.load(f)
 
         assert "openlabel" in output_data

@@ -4,9 +4,21 @@ import logging
 from typing import Optional, Any
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
-    QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox,
-    QGroupBox, QScrollArea, QPushButton, QTextEdit, QMessageBox
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QSpinBox,
+    QDoubleSpinBox,
+    QComboBox,
+    QCheckBox,
+    QGroupBox,
+    QScrollArea,
+    QPushButton,
+    QTextEdit,
+    QMessageBox,
 )
 from PyQt6.QtCore import Qt
 
@@ -50,7 +62,7 @@ def _show_help_dialog(parent: QWidget, param_name: str) -> None:
     if help_info:
         msg = QMessageBox(parent)
         msg.setWindowTitle(f"Help: {help_info['title']}")
-        msg.setText(help_info['text'])
+        msg.setText(help_info["text"])
         msg.setIcon(QMessageBox.Icon.Information)
         msg.exec()
 
@@ -60,8 +72,8 @@ def _show_group_help_dialog(parent: QWidget, group_name: str) -> None:
     help_info = GROUP_HELP.get(group_name)
     if help_info:
         msg = QMessageBox(parent)
-        msg.setWindowTitle(help_info['title'])
-        msg.setText(help_info['text'])
+        msg.setWindowTitle(help_info["title"])
+        msg.setText(help_info["text"])
         msg.setIcon(QMessageBox.Icon.Information)
         msg.exec()
 
@@ -69,17 +81,14 @@ def _show_group_help_dialog(parent: QWidget, group_name: str) -> None:
 def _get_tooltip(param_name: str) -> str:
     """Get tooltip text for a parameter."""
     help_info = PARAMETER_HELP.get(param_name, {})
-    return help_info.get('tooltip', '')
+    return help_info.get("tooltip", "")
 
 
 class ConfigEditor(QWidget):
     """Widget for editing training configuration parameters."""
 
     def __init__(
-        self,
-        app_state: AppState,
-        config_controller: ConfigController,
-        parent=None
+        self, app_state: AppState, config_controller: ConfigController, parent=None
     ):
         super().__init__(parent)
 
@@ -140,8 +149,9 @@ class ConfigEditor(QWidget):
         self._add_spin_box(core_layout, "epochs", "Epochs:", 1, 1000, 50)
         self._add_spin_box(core_layout, "imgsz", "Image Size:", 32, 2048, 640)
         self._add_spin_box(core_layout, "batch", "Batch Size:", 1, 256, 30)
-        self._add_combo_box(core_layout, "device", "Device:",
-                           ["auto", "cuda", "mps", "cpu"])
+        self._add_combo_box(
+            core_layout, "device", "Device:", ["auto", "cuda", "mps", "cpu"]
+        )
         self._add_line_edit(core_layout, "project", "Project:", "runs/obb")
 
         scroll_layout.addWidget(core_group)
@@ -159,20 +169,40 @@ class ConfigEditor(QWidget):
         advanced_layout = QFormLayout()
         advanced_group_layout.addLayout(advanced_layout)
 
-        self._add_optional_double(advanced_layout, "lr0", "Initial LR:", 0.0001, 1.0, 0.01)
-        self._add_optional_double(advanced_layout, "lrf", "Final LR (fraction):", 0.0, 1.0, 0.01)
-        self._add_combo_box(advanced_layout, "optimizer", "Optimizer:",
-                           ["auto", "SGD", "Adam", "AdamW", "NAdam", "RAdam", "RMSProp"],
-                           optional=True)
-        self._add_optional_spin(advanced_layout, "warmup_epochs", "Warmup Epochs:", 0, 10, 3)
-        self._add_optional_double(advanced_layout, "warmup_momentum", "Warmup Momentum:", 0, 1, 0.8)
+        self._add_optional_double(
+            advanced_layout, "lr0", "Initial LR:", 0.0001, 1.0, 0.01
+        )
+        self._add_optional_double(
+            advanced_layout, "lrf", "Final LR (fraction):", 0.0, 1.0, 0.01
+        )
+        self._add_combo_box(
+            advanced_layout,
+            "optimizer",
+            "Optimizer:",
+            ["auto", "SGD", "Adam", "AdamW", "NAdam", "RAdam", "RMSProp"],
+            optional=True,
+        )
+        self._add_optional_spin(
+            advanced_layout, "warmup_epochs", "Warmup Epochs:", 0, 10, 3
+        )
+        self._add_optional_double(
+            advanced_layout, "warmup_momentum", "Warmup Momentum:", 0, 1, 0.8
+        )
         self._add_optional_spin(advanced_layout, "patience", "Patience:", 1, 500, 50)
-        self._add_optional_spin(advanced_layout, "save_period", "Save Period:", -1, 100, -1)
-        self._add_combo_box(advanced_layout, "cache", "Cache:",
-                           ["false", "true", "ram", "disk"],
-                           optional=True)
+        self._add_optional_spin(
+            advanced_layout, "save_period", "Save Period:", -1, 100, -1
+        )
+        self._add_combo_box(
+            advanced_layout,
+            "cache",
+            "Cache:",
+            ["false", "true", "ram", "disk"],
+            optional=True,
+        )
         self._add_optional_spin(advanced_layout, "workers", "Workers:", 0, 32, 8)
-        self._add_optional_spin(advanced_layout, "close_mosaic", "Close Mosaic:", 0, 100, 10)
+        self._add_optional_spin(
+            advanced_layout, "close_mosaic", "Close Mosaic:", 0, 100, 10
+        )
         self._add_optional_spin(advanced_layout, "freeze", "Freeze Layers:", 0, 100, 0)
 
         scroll_layout.addWidget(advanced_group)
@@ -217,8 +247,12 @@ class ConfigEditor(QWidget):
             self._preset_combo.addItem(preset_name)
             # Store description as tooltip
             idx = self._preset_combo.count() - 1
-            self._preset_combo.setItemData(idx, preset_info['description'], Qt.ItemDataRole.ToolTipRole)
-        self._preset_combo.setToolTip("Apply preset augmentation settings for common use cases")
+            self._preset_combo.setItemData(
+                idx, preset_info["description"], Qt.ItemDataRole.ToolTipRole
+            )
+        self._preset_combo.setToolTip(
+            "Apply preset augmentation settings for common use cases"
+        )
         self._preset_combo.currentTextChanged.connect(self._on_preset_changed)
         preset_layout.addWidget(self._preset_combo, stretch=1)
         aug_group_layout.addLayout(preset_layout)
@@ -233,11 +267,21 @@ class ConfigEditor(QWidget):
         self._add_optional_double(aug_layout, "translate", "Translation:", 0, 1, 0.1)
         self._add_optional_double(aug_layout, "scale", "Scale:", 0, 2, 0.5)
         self._add_optional_double(aug_layout, "shear", "Shear:", 0, 90, 0.0)
-        self._add_optional_double(aug_layout, "perspective", "Perspective:", 0, 0.01, 0.0, step=0.0001)
-        self._add_optional_double(aug_layout, "fliplr", "Horizontal Flip:", 0, 1, 0.5, step=0.1, decimals=1)
-        self._add_optional_double(aug_layout, "flipud", "Vertical Flip:", 0, 1, 0.0, step=0.1, decimals=1)
-        self._add_optional_double(aug_layout, "mosaic", "Mosaic:", 0, 1, 1.0, step=0.1, decimals=1)
-        self._add_optional_double(aug_layout, "mixup", "Mixup:", 0, 1, 0.0, step=0.1, decimals=1)
+        self._add_optional_double(
+            aug_layout, "perspective", "Perspective:", 0, 0.01, 0.0, step=0.0001
+        )
+        self._add_optional_double(
+            aug_layout, "fliplr", "Horizontal Flip:", 0, 1, 0.5, step=0.1, decimals=1
+        )
+        self._add_optional_double(
+            aug_layout, "flipud", "Vertical Flip:", 0, 1, 0.0, step=0.1, decimals=1
+        )
+        self._add_optional_double(
+            aug_layout, "mosaic", "Mosaic:", 0, 1, 1.0, step=0.1, decimals=1
+        )
+        self._add_optional_double(
+            aug_layout, "mixup", "Mixup:", 0, 1, 0.0, step=0.1, decimals=1
+        )
 
         scroll_layout.addWidget(aug_group)
 
@@ -262,11 +306,7 @@ class ConfigEditor(QWidget):
         layout.addLayout(btn_layout)
 
     def _add_line_edit(
-        self,
-        layout: QFormLayout,
-        name: str,
-        label: str,
-        default: str = ""
+        self, layout: QFormLayout, name: str, label: str, default: str = ""
     ):
         """Add a line edit field with info button."""
         container = QWidget()
@@ -292,7 +332,7 @@ class ConfigEditor(QWidget):
         label: str,
         min_val: int,
         max_val: int,
-        default: int
+        default: int,
     ):
         """Add a spin box field with info button."""
         container = QWidget()
@@ -318,7 +358,7 @@ class ConfigEditor(QWidget):
         name: str,
         label: str,
         options: list,
-        optional: bool = False
+        optional: bool = False,
     ):
         """Add a combo box field with info button."""
         container = QWidget()
@@ -328,7 +368,11 @@ class ConfigEditor(QWidget):
         widget = QComboBox()
         if optional:
             widget.addItem("(default)")
-        widget.addItems(options if not optional else options[1:] if options[0] == "auto" else options)
+        widget.addItems(
+            options
+            if not optional
+            else options[1:] if options[0] == "auto" else options
+        )
         widget.setToolTip(_get_tooltip(name))
         widget.currentIndexChanged.connect(self._on_value_changed)
         h_layout.addWidget(widget, stretch=1)
@@ -346,7 +390,7 @@ class ConfigEditor(QWidget):
         label: str,
         min_val: int,
         max_val: int,
-        default: int = 0
+        default: int = 0,
     ):
         """Add an optional spin box with checkbox and info button."""
         container = QWidget()
@@ -363,7 +407,9 @@ class ConfigEditor(QWidget):
         spin.setEnabled(False)
         spin.setToolTip(_get_tooltip(name))
         spin.valueChanged.connect(self._on_value_changed)
-        checkbox.stateChanged.connect(lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value))
+        checkbox.stateChanged.connect(
+            lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value)
+        )
         h_layout.addWidget(spin, stretch=1)
 
         info_btn = _create_info_button(self, name)
@@ -381,7 +427,7 @@ class ConfigEditor(QWidget):
         max_val: float,
         default: float = 0.0,
         step: float = 0.01,
-        decimals: int = 4
+        decimals: int = 4,
     ):
         """Add an optional double spin box with checkbox and info button."""
         container = QWidget()
@@ -400,7 +446,9 @@ class ConfigEditor(QWidget):
         spin.setEnabled(False)
         spin.setToolTip(_get_tooltip(name))
         spin.valueChanged.connect(self._on_value_changed)
-        checkbox.stateChanged.connect(lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value))
+        checkbox.stateChanged.connect(
+            lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value)
+        )
         h_layout.addWidget(spin, stretch=1)
 
         info_btn = _create_info_button(self, name)
@@ -706,7 +754,9 @@ class ConfigEditor(QWidget):
                     # Reload UI from saved config
                     self._on_config_changed(saved_config)
                     # Restore selected datasets from saved config
-                    self.app_state.selected_datasets = list(saved_config.selected_datasets)
+                    self.app_state.selected_datasets = list(
+                        saved_config.selected_datasets
+                    )
             self.app_state.config_dirty = False
 
     def _on_preset_changed(self, preset_name: str):
@@ -715,12 +765,12 @@ class ConfigEditor(QWidget):
             return
 
         preset = AUGMENTATION_PRESETS.get(preset_name)
-        if not preset or not preset.get('values'):
+        if not preset or not preset.get("values"):
             return  # "Custom" or empty preset
 
         # Apply preset values
         self._updating = True
-        for param_name, value in preset['values'].items():
+        for param_name, value in preset["values"].items():
             widget = self._widgets.get(param_name)
             if widget and isinstance(widget, tuple):
                 checkbox, spin = widget

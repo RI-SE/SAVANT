@@ -4,9 +4,16 @@ import logging
 from typing import Optional
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
-    QTableWidgetItem, QGroupBox, QScrollArea, QSplitter,
-    QSizePolicy
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QTableWidget,
+    QTableWidgetItem,
+    QGroupBox,
+    QScrollArea,
+    QSplitter,
+    QSizePolicy,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
@@ -14,6 +21,7 @@ from PyQt6.QtGui import QPixmap
 try:
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
     from matplotlib.figure import Figure
+
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
@@ -78,8 +86,7 @@ class AnalysisPanel(QWidget):
             self.figure = Figure(figsize=(5, 4), dpi=100)
             self.canvas = FigureCanvas(self.figure)
             self.canvas.setSizePolicy(
-                QSizePolicy.Policy.Expanding,
-                QSizePolicy.Policy.Expanding
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
             )
             chart_layout.addWidget(self.canvas)
         else:
@@ -133,7 +140,9 @@ class AnalysisPanel(QWidget):
         """Show placeholder when no data is available."""
         self.stats_table.setRowCount(1)
         self.stats_table.setItem(0, 0, QTableWidgetItem("No data"))
-        self.stats_table.setItem(0, 1, QTableWidgetItem("Select datasets and click Analyze"))
+        self.stats_table.setItem(
+            0, 1, QTableWidgetItem("Select datasets and click Analyze")
+        )
 
         self.class_table.setRowCount(0)
 
@@ -196,16 +205,16 @@ class AnalysisPanel(QWidget):
             counts.append(count)
 
         if not counts:
-            ax.text(0.5, 0.5, 'No data', ha='center', va='center')
+            ax.text(0.5, 0.5, "No data", ha="center", va="center")
             self.canvas.draw()
             return
 
         # Create bar chart
-        bars = ax.bar(range(len(class_names)), counts, color='steelblue')
+        bars = ax.bar(range(len(class_names)), counts, color="steelblue")
         ax.set_xticks(range(len(class_names)))
-        ax.set_xticklabels(class_names, rotation=45, ha='right', fontsize=8)
-        ax.set_ylabel('Count')
-        ax.set_title('Objects per Class')
+        ax.set_xticklabels(class_names, rotation=45, ha="right", fontsize=8)
+        ax.set_ylabel("Count")
+        ax.set_title("Objects per Class")
 
         # Add value labels on bars
         for bar, count in zip(bars, counts):
@@ -214,9 +223,9 @@ class AnalysisPanel(QWidget):
                     bar.get_x() + bar.get_width() / 2,
                     bar.get_height(),
                     str(count),
-                    ha='center',
-                    va='bottom',
-                    fontsize=7
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
                 )
 
         self.figure.tight_layout()
@@ -252,9 +261,10 @@ class AnalysisPanel(QWidget):
 
             # Scale to thumbnail size
             scaled = pixmap.scaled(
-                200, 150,
+                200,
+                150,
                 Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
+                Qt.TransformationMode.SmoothTransformation,
             )
 
             image_label = QLabel()

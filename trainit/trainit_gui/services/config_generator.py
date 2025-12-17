@@ -31,7 +31,7 @@ class ConfigGenerator:
         self,
         dataset_service: Optional[DatasetService] = None,
         manifest_service: Optional[ManifestService] = None,
-        split_service: Optional[SplitService] = None
+        split_service: Optional[SplitService] = None,
     ):
         self.dataset_service = dataset_service or DatasetService()
         self.manifest_service = manifest_service or ManifestService()
@@ -43,7 +43,7 @@ class ConfigGenerator:
         config: TrainingConfig,
         output_dir: str,
         copy_images: bool = False,
-        generate_manifest: bool = True
+        generate_manifest: bool = True,
     ) -> tuple[str, str, Optional[str]]:
         """Generate training configuration files for a config.
 
@@ -66,8 +66,7 @@ class ConfigGenerator:
 
         # Load and validate all selected datasets
         datasets = self._load_selected_datasets(
-            project.datasets_root,
-            config.selected_datasets
+            project.datasets_root, config.selected_datasets
         )
 
         # Validate class compatibility
@@ -92,14 +91,12 @@ class ConfigGenerator:
                 datasets=datasets,
                 config=config,
                 output_path=output_path,
-                copy_images=copy_images
+                copy_images=copy_images,
             )
         else:
             # Preserve source train/val structure
             file_mappings = self._generate_preserve_split(
-                datasets=datasets,
-                output_path=output_path,
-                copy_images=copy_images
+                datasets=datasets, output_path=output_path, copy_images=copy_images
             )
 
         # Generate the dataset YAML
@@ -110,15 +107,13 @@ class ConfigGenerator:
             output_dir=output_path,
             project=project,
             config=config,
-            split_method=split_method
+            split_method=split_method,
         )
 
         # Generate training params JSON
         json_path = output_path / f"{config.name}_params.json"
         self._generate_params_json(
-            config=config,
-            dataset_yaml_path=str(yaml_path),
-            output_path=json_path
+            config=config, dataset_yaml_path=str(yaml_path), output_path=json_path
         )
 
         # Generate manifest if requested
@@ -133,12 +128,10 @@ class ConfigGenerator:
                 split_ratio=config.split_ratio if config.split_enabled else None,
                 split_seed=config.split_seed if config.split_enabled else None,
                 split_method=split_method,
-                source_datasets=config.selected_datasets
+                source_datasets=config.selected_datasets,
             )
             manifest = self.manifest_service.generate_manifest(
-                output_dir=output_path,
-                info=manifest_info,
-                file_mappings=file_mappings
+                output_dir=output_path, info=manifest_info, file_mappings=file_mappings
             )
             self.manifest_service.save_manifest(manifest, manifest_file)
             manifest_path = str(manifest_file)
@@ -147,9 +140,7 @@ class ConfigGenerator:
         return str(yaml_path), str(json_path), manifest_path
 
     def _load_selected_datasets(
-        self,
-        datasets_root: str,
-        dataset_names: list[str]
+        self, datasets_root: str, dataset_names: list[str]
     ) -> list[DatasetInfo]:
         """Load DatasetInfo for all selected datasets."""
         root = Path(datasets_root)
@@ -182,10 +173,7 @@ class ConfigGenerator:
                 )
 
     def _generate_preserve_split(
-        self,
-        datasets: list[DatasetInfo],
-        output_path: Path,
-        copy_images: bool
+        self, datasets: list[DatasetInfo], output_path: Path, copy_images: bool
     ) -> list[tuple[Path, Path]]:
         """Generate files preserving source train/val structure.
 
@@ -209,32 +197,40 @@ class ConfigGenerator:
             prefix = ds.name + "_"
 
             # Link train images and labels
-            file_mappings.extend(self._link_files_with_tracking(
-                src_dir=ds_path / "images" / "train",
-                dst_dir=images_train_dir,
-                prefix=prefix,
-                copy=copy_images
-            ))
-            file_mappings.extend(self._link_files_with_tracking(
-                src_dir=ds_path / "labels" / "train",
-                dst_dir=labels_train_dir,
-                prefix=prefix,
-                copy=copy_images
-            ))
+            file_mappings.extend(
+                self._link_files_with_tracking(
+                    src_dir=ds_path / "images" / "train",
+                    dst_dir=images_train_dir,
+                    prefix=prefix,
+                    copy=copy_images,
+                )
+            )
+            file_mappings.extend(
+                self._link_files_with_tracking(
+                    src_dir=ds_path / "labels" / "train",
+                    dst_dir=labels_train_dir,
+                    prefix=prefix,
+                    copy=copy_images,
+                )
+            )
 
             # Link val images and labels
-            file_mappings.extend(self._link_files_with_tracking(
-                src_dir=ds_path / "images" / "val",
-                dst_dir=images_val_dir,
-                prefix=prefix,
-                copy=copy_images
-            ))
-            file_mappings.extend(self._link_files_with_tracking(
-                src_dir=ds_path / "labels" / "val",
-                dst_dir=labels_val_dir,
-                prefix=prefix,
-                copy=copy_images
-            ))
+            file_mappings.extend(
+                self._link_files_with_tracking(
+                    src_dir=ds_path / "images" / "val",
+                    dst_dir=images_val_dir,
+                    prefix=prefix,
+                    copy=copy_images,
+                )
+            )
+            file_mappings.extend(
+                self._link_files_with_tracking(
+                    src_dir=ds_path / "labels" / "val",
+                    dst_dir=labels_val_dir,
+                    prefix=prefix,
+                    copy=copy_images,
+                )
+            )
 
         return file_mappings
 
@@ -243,7 +239,7 @@ class ConfigGenerator:
         datasets: list[DatasetInfo],
         config: TrainingConfig,
         output_path: Path,
-        copy_images: bool
+        copy_images: bool,
     ) -> tuple[list[tuple[Path, Path]], str]:
         """Generate files with train/val re-mapping.
 
@@ -271,9 +267,7 @@ class ConfigGenerator:
         # Perform split
         just_files = [f for f, _ in all_files]
         split_result = self.split_service.split_files(
-            files=just_files,
-            train_ratio=config.split_ratio,
-            seed=config.split_seed
+            files=just_files, train_ratio=config.split_ratio, seed=config.split_seed
         )
 
         # Create file_to_dataset mapping
@@ -368,23 +362,26 @@ class ConfigGenerator:
         output_dir: Path,
         project: Project,
         config: TrainingConfig,
-        split_method: Optional[str]
+        split_method: Optional[str],
     ) -> None:
         """Generate the dataset YAML file."""
         first_ds = datasets[0]
 
         yaml_content = {
-            'path': str(output_dir.resolve()),
-            'train': 'images/train',
-            'val': 'images/val',
-            'nc': first_ds.num_classes,
-            'names': first_ds.class_names
+            "path": str(output_dir.resolve()),
+            "train": "images/train",
+            "val": "images/val",
+            "nc": first_ds.num_classes,
+            "names": first_ds.class_names,
         }
 
         # Add metadata as comments
         split_info = ""
         if config.split_enabled:
-            split_info = f"\n# Split: {config.split_ratio:.0%} train ({split_method}), seed={config.split_seed}"
+            split_info = (
+                f"\n# Split: {config.split_ratio:.0%} train ({split_method}), "
+                f"seed={config.split_seed}"
+            )
 
         header = f"""# Generated by trainit-gui
 # Project: {project.name}
@@ -393,18 +390,14 @@ class ConfigGenerator:
 # Source datasets: {', '.join(config.selected_datasets)}{split_info}
 
 """
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             f.write(header)
             yaml.dump(yaml_content, f, default_flow_style=False, sort_keys=False)
 
         logger.info(f"Generated dataset YAML: {output_path}")
 
     def _link_files_with_tracking(
-        self,
-        src_dir: Path,
-        dst_dir: Path,
-        prefix: str,
-        copy: bool = False
+        self, src_dir: Path, dst_dir: Path, prefix: str, copy: bool = False
     ) -> list[tuple[Path, Path]]:
         """Link or copy files from source to destination with prefix.
 
@@ -427,28 +420,23 @@ class ConfigGenerator:
         return mappings
 
     def _generate_params_json(
-        self,
-        config: TrainingConfig,
-        dataset_yaml_path: str,
-        output_path: Path
+        self, config: TrainingConfig, dataset_yaml_path: str, output_path: Path
     ) -> None:
         """Generate training parameters JSON file.
 
         This file can be used with train_yolo_obb.py --config option.
         """
         # Start with the data path
-        params = {
-            'data': dataset_yaml_path
-        }
+        params = {"data": dataset_yaml_path}
 
         # Add all non-default parameters from config
         params.update(config.get_non_default_params())
 
         # Add metadata
-        params['_generated_at'] = datetime.now().isoformat()
-        params['_config_name'] = config.name
+        params["_generated_at"] = datetime.now().isoformat()
+        params["_config_name"] = config.name
 
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(params, f, indent=2, ensure_ascii=False)
 
         logger.info(f"Generated params JSON: {output_path}")
@@ -458,7 +446,7 @@ class ConfigGenerator:
         project: Project,
         config: TrainingConfig,
         output_dir: str,
-        generate_manifest: bool = True
+        generate_manifest: bool = True,
     ) -> dict:
         """Preview what files would be generated without creating them.
 
@@ -470,8 +458,7 @@ class ConfigGenerator:
         # Load datasets for stats
         try:
             datasets = self._load_selected_datasets(
-                project.datasets_root,
-                config.selected_datasets
+                project.datasets_root, config.selected_datasets
             )
             self._validate_class_compatibility(datasets)
 
@@ -498,29 +485,26 @@ class ConfigGenerator:
                 estimated_val = total_val
 
             result = {
-                'valid': True,
-                'output_dir': str(output_path),
-                'dataset_yaml': str(output_path / f"{config.name}_dataset.yaml"),
-                'params_json': str(output_path / f"{config.name}_params.json"),
-                'total_train_images': estimated_train,
-                'total_val_images': estimated_val,
-                'total_objects': total_objects,
-                'num_classes': datasets[0].num_classes if datasets else 0,
-                'datasets': [ds.name for ds in datasets],
-                'split_enabled': config.split_enabled,
-                'split_ratio': config.split_ratio if config.split_enabled else None,
-                'split_seed': config.split_seed if config.split_enabled else None,
+                "valid": True,
+                "output_dir": str(output_path),
+                "dataset_yaml": str(output_path / f"{config.name}_dataset.yaml"),
+                "params_json": str(output_path / f"{config.name}_params.json"),
+                "total_train_images": estimated_train,
+                "total_val_images": estimated_val,
+                "total_objects": total_objects,
+                "num_classes": datasets[0].num_classes if datasets else 0,
+                "datasets": [ds.name for ds in datasets],
+                "split_enabled": config.split_enabled,
+                "split_ratio": config.split_ratio if config.split_enabled else None,
+                "split_seed": config.split_seed if config.split_enabled else None,
             }
 
             if generate_manifest:
-                result['manifest_json'] = str(
+                result["manifest_json"] = str(
                     output_path / f"{config.name}_manifest.json"
                 )
 
             return result
 
         except Exception as e:
-            return {
-                'valid': False,
-                'error': str(e)
-            }
+            return {"valid": False, "error": str(e)}

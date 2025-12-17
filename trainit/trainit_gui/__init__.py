@@ -8,4 +8,4 @@ Provides a visual interface for:
 - Generating training configuration files
 """
 
-__version__ = '1.0.0'
+__version__ = "1.0.0"

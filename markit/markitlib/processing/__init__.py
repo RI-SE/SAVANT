@@ -17,13 +17,13 @@ from .conflict_resolution import DetectionConflictResolver
 from .video_processor import VideoProcessor, FrameAnnotator
 
 __all__ = [
-    'BaseDetectionEngine',
-    'YOLOEngine',
-    'OpticalFlowEngine',
-    'ArUcoEngine',
-    'ArUcoGPSData',
-    'SimpleTracker',
-    'DetectionConflictResolver',
-    'VideoProcessor',
-    'FrameAnnotator',
+    "BaseDetectionEngine",
+    "YOLOEngine",
+    "OpticalFlowEngine",
+    "ArUcoEngine",
+    "ArUcoGPSData",
+    "SimpleTracker",
+    "DetectionConflictResolver",
+    "VideoProcessor",
+    "FrameAnnotator",
 ]

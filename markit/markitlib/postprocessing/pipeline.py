@@ -21,7 +21,9 @@ class PostprocessingPipeline:
         self.frame_height = None
         self.fps = None
 
-    def set_video_properties(self, frame_width: int, frame_height: int, fps: float) -> None:
+    def set_video_properties(
+        self, frame_width: int, frame_height: int, fps: float
+    ) -> None:
         """Set video properties for the pipeline.
 
         Args:
@@ -72,9 +74,11 @@ class PostprocessingPipeline:
 
             try:
                 if self.frame_width and self.frame_height and self.fps:
-                    pass_instance.set_video_properties(self.frame_width, self.frame_height, self.fps)
+                    pass_instance.set_video_properties(
+                        self.frame_width, self.frame_height, self.fps
+                    )
 
-                if hasattr(self, 'ontology_path') and self.ontology_path:
+                if hasattr(self, "ontology_path") and self.ontology_path:
                     pass_instance.set_ontology_path(self.ontology_path)
 
                 processed_data = pass_instance.process(processed_data)

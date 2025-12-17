@@ -22,5 +22,8 @@ jobs:
       - name: Sync dependencies
         run: uv sync --dev --group markit
 
+      - name: Lint
+        run: uv tool run flake8 markit/
+
       - name: Run tests
         run: uv run pytest markit/tests --maxfail=1 --disable-warnings -v

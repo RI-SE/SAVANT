@@ -14,7 +14,9 @@ class BBoxOverlapCalculator:
     """Optimized utility class for calculating IoU between oriented bounding boxes."""
 
     @staticmethod
-    def calculate_intersection_over_union(bbox1: np.ndarray, bbox2: np.ndarray) -> float:
+    def calculate_intersection_over_union(
+        bbox1: np.ndarray, bbox2: np.ndarray
+    ) -> float:
         """Calculate IoU between two oriented bounding boxes using OpenCV.
 
         Args:
@@ -37,7 +39,9 @@ class BBoxOverlapCalculator:
                 return 0.0
 
             # Find intersection using Sutherland-Hodgman clipping
-            intersection_points = BBoxOverlapCalculator._sutherland_hodgman_clip(pts1, pts2)
+            intersection_points = BBoxOverlapCalculator._sutherland_hodgman_clip(
+                pts1, pts2
+            )
 
             if len(intersection_points) < 3:
                 return 0.0  # No meaningful intersection
@@ -76,12 +80,18 @@ class BBoxOverlapCalculator:
         y = points[:, 1]
 
         # Shoelace formula
-        area = 0.5 * abs(sum(x[i] * y[(i + 1) % len(x)] - x[(i + 1) % len(x)] * y[i]
-                            for i in range(len(x))))
+        area = 0.5 * abs(
+            sum(
+                x[i] * y[(i + 1) % len(x)] - x[(i + 1) % len(x)] * y[i]
+                for i in range(len(x))
+            )
+        )
         return area
 
     @staticmethod
-    def _sutherland_hodgman_clip(subject_polygon: np.ndarray, clip_polygon: np.ndarray) -> np.ndarray:
+    def _sutherland_hodgman_clip(
+        subject_polygon: np.ndarray, clip_polygon: np.ndarray
+    ) -> np.ndarray:
         """Clip subject polygon against clip polygon using Sutherland-Hodgman algorithm.
 
         Args:
@@ -91,14 +101,18 @@ class BBoxOverlapCalculator:
         Returns:
             Intersection polygon vertices
         """
-        def _is_inside(point: np.ndarray, edge_start: np.ndarray, edge_end: np.ndarray) -> bool:
+
+        def _is_inside(
+            point: np.ndarray, edge_start: np.ndarray, edge_end: np.ndarray
+        ) -> bool:
             """Check if point is inside the edge (left side of directed edge)."""
             edge_vec = edge_end - edge_start
             point_vec = point - edge_start
             return (edge_vec[0] * point_vec[1] - edge_vec[1] * point_vec[0]) >= 0
 
-        def _intersection_point(p1: np.ndarray, p2: np.ndarray,
-                              edge_start: np.ndarray, edge_end: np.ndarray) -> np.ndarray:
+        def _intersection_point(
+            p1: np.ndarray, p2: np.ndarray, edge_start: np.ndarray, edge_end: np.ndarray
+        ) -> np.ndarray:
             """Find intersection point between line segment p1-p2 and edge."""
             d1 = edge_end - edge_start
             d2 = p2 - p1
@@ -136,7 +150,9 @@ class BBoxOverlapCalculator:
                     if _is_inside(e, edge_start, edge_end):
                         if not _is_inside(s, edge_start, edge_end):
                             # Entering the clipping area
-                            intersection = _intersection_point(s, e, edge_start, edge_end)
+                            intersection = _intersection_point(
+                                s, e, edge_start, edge_end
+                            )
                             output_list.append(intersection.tolist())
                         output_list.append(e.tolist())
                     elif _is_inside(s, edge_start, edge_end):
