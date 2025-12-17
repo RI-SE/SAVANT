@@ -1,6 +1,7 @@
 # tests/unit/services/test_video_reader.py
 
-import os
+from pathlib import Path
+
 import pytest
 import numpy as np
 from src.edit.services.video_reader import VideoReader
@@ -18,15 +19,15 @@ class SimpleProjectState:
 def test_video_path() -> str:
     """
     Fixture that points to a local test video file.
-    Adjust the path below to where your asset actually lives.
+    Uses path relative to this test file so it works from any directory.
     """
-    path = "edit/tests/assets/Kraklanda_short.mp4"
-    if not os.path.exists(path):
+    path = Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.mp4"
+    if not path.exists():
         raise FileNotFoundError(
             f"Expected test video not found at {path}. "
             "Please add one under tests/assets."
         )
-    return path
+    return str(path)
 
 
 @pytest.fixture(scope="function")
