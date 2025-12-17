@@ -27,6 +27,7 @@ jobs:
         run: uv sync --group edit
 
       - name: Include additional assets
+        shell: bash
         working-directory: ./edit/
         run: |
           if [ -d assets ]; then
