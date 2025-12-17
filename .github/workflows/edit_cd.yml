@@ -24,7 +24,7 @@ jobs:
 
       - name: Sync dependencies (prod only)
         working-directory: ./edit/
-        run: uv pip sync requirements.lock
+        run: uv sync --group edit
 
       - name: Build
         working-directory: ./edit/src/edit/
