@@ -42,7 +42,7 @@ trainit = [
     "numpy",
     "PyQt6>=6.5.0",
 ]
-savant-app = [
+edit = [
     "pyqt6<=6.9.1",
     "pytest>=8.4.1",
     "pytest-mock>=3.14.1",
@@ -53,7 +53,7 @@ savant-app = [
     "appdirs>=1.4.4",
     "rdflib>=7.2.1",
 ]
-savant-app-dev = [
+edit-dev = [
     "flake8>=7.3.0",
     "black>=25.1.0",
 ]
@@ -64,10 +64,10 @@ savant-app-dev = [
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["savant_common", "markit", "trainit", "utils", "savant_app/src/savant_app"]
+packages = ["savant_common", "markit", "trainit", "utils", "edit/src/edit"]
 
 [tool.pytest.ini_options]
-testpaths = ["markit/tests", "savant_app/tests"]
+testpaths = ["markit/tests", "edit/tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
@@ -81,4 +81,4 @@ extract-yolo-training = "trainit.extract_yolo_training:main"
 trainit-gui = "trainit.trainit_gui.main:main"
 remap-classes-to-ontology = "utils.remap_classes_to_ontology:main"
 print-ontology = "utils.print_ontology:main"
-savant-app = "savant_app.main:main"
+edit = "edit.main:main"
