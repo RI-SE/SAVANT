@@ -30,4 +30,4 @@ jobs:
 
       - name: Test
         working-directory: ./edit/
-        run: uv run pytest --maxfail=1 --disable-warnings -q
+        run: uv run test-edit
