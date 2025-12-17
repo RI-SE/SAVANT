@@ -20,7 +20,7 @@ def test_video_path() -> str:
     Fixture that points to a local test video file.
     Adjust the path below to where your asset actually lives.
     """
-    path = "tests/assets/Kraklanda_short.mp4"
+    path = "edit/tests/assets/Kraklanda_short.mp4"
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"Expected test video not found at {path}. "
