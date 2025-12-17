@@ -1,3 +1,4 @@
+from edit.frontend.utils.assets import asset_path
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtWidgets import (
@@ -9,8 +10,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from edit.frontend.utils.assets import asset_path
 
 
 class AboutDialog(QDialog):
@@ -66,7 +65,7 @@ class AboutDialog(QDialog):
         subtitle.setFont(fs)
 
         # Version
-        version = left_align(QLabel("Version 1.3.2"))
+        version = left_align(QLabel("Version 2.0.0"))
         version.setStyleSheet("color: #8c8c8c; font-size: 13px;")
 
         # Description
