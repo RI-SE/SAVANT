@@ -1,4 +1,4 @@
-name: CI
+name: Edit_CI
 
 on:
   pull_request:
