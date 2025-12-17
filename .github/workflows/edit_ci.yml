@@ -29,5 +29,4 @@ jobs:
           uv tool run flake8 .
 
       - name: Test
-        working-directory: ./edit/
         run: uv run test-edit
