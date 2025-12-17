@@ -21,7 +21,7 @@ jobs:
 
       - name: Sync dependencies
         working-directory: ./edit/
-        run: uv sync --group edit
+        run: uv sync --group edit-dev
 
       - name: Lint
         working-directory: ./edit
