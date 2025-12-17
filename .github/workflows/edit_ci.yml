@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+  workflow_call:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: '3.12'
+          enable-cache: true
+
+      - name: Sync dependencies
+        working-directory: ./edit/
+        run: uv pip sync requirements-dev.lock
+
+      - name: Lint
+        working-directory: ./edit
+        run: |
+          uv run flake8 .
+
+      - name: Test
+        working-directory: ./edit/
+        run: uv run pytest --maxfail=1 --disable-warnings -q
