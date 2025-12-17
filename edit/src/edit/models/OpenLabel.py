@@ -154,10 +154,9 @@ class RelationMetadata(BaseModel):
 
 
 class OntologyDetails(BaseModel):
-    """
-    Ontology details which are not yet in use, but are ready for when needed.
-    Refer to the following section in the readme:
-    https://github.com/fwrise/SAVANT/tree/main/Specification#savant-ontology
+    """Ontology details for specifying namespace and filtering.
+
+    Refer to: https://github.com/fwrise/SAVANT/tree/main/ontology
     """
 
     uri: str

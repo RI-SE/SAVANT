@@ -2081,6 +2081,21 @@ dev = [
 ]
 
 [package.dev-dependencies]
+all-apps = [
+    { name = "appdirs" },
+    { name = "dataprov" },
+    { name = "lap" },
+    { name = "matplotlib" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "opencv-contrib-python" },
+    { name = "opencv-python" },
+    { name = "pydantic" },
+    { name = "pyqt6" },
+    { name = "pyyaml" },
+    { name = "rdflib" },
+    { name = "ultralytics" },
+]
 dev = [
     { name = "black" },
     { name = "flake8" },
@@ -2129,6 +2144,24 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
+all-apps = [
+    { name = "appdirs", specifier = ">=1.4.4" },
+    { name = "dataprov", git = "https://github.com/RI-SE/dataprov.git" },
+    { name = "lap", specifier = ">=0.5.12" },
+    { name = "matplotlib", specifier = ">=3.7.0" },
+    { name = "numpy" },
+    { name = "numpy", specifier = ">=1.26.0" },
+    { name = "opencv-contrib-python", specifier = ">=4.5.0" },
+    { name = "opencv-python", specifier = ">=4.10.0" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "pyqt6", specifier = "<=6.9.1" },
+    { name = "pyqt6", specifier = ">=6.5.0" },
+    { name = "pyyaml" },
+    { name = "rdflib" },
+    { name = "rdflib", specifier = ">=7.2.1" },
+    { name = "ultralytics" },
+]
 dev = [
     { name = "black", specifier = ">=25.1.0" },
     { name = "flake8", specifier = ">=7.3.0" },
