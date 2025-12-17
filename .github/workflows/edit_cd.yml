@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_call:
 
 jobs:
   deploy:
@@ -15,40 +16,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Rye
-        uses: eifinger/setup-rye@v4
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@v3
         with:
+          python-version: '3.12'
           enable-cache: true
 
       - name: Sync dependencies (prod only)
-        working-directory: ./savant_app/
-        run: rye sync --no-lock --no-dev
+        working-directory: ./edit/
+        run: uv pip sync requirements.lock
 
       - name: Build
-        working-directory: ./savant_app/src/savant_app/
+        working-directory: ./edit/src/edit/
         run: |
-          rye add --dev pyinstaller
+          uv pip install pyinstaller
 
           # Set the --add-data separator and output name based on OS
           if [ "${{ runner.os }}" = "Windows" ]; then
             ADD_DATA="frontend/assets;assets"
-            OUTPUT="SAVANT-windows.exe"
+            OUTPUT="edit-windows.exe"
           #elif [ "${{ runner.os }}" = "macOS" ]; then
             #ADD_DATA="frontend/assets:assets"
-            #OUTPUT="SAVANT-macos"
+            #OUTPUT="edit-macos"
           else
             ADD_DATA="frontend/assets:assets"
-            OUTPUT="SAVANT-linux"
+            OUTPUT="edit-linux"
           fi
 
-          rye run pyinstaller --onefile --windowed --name "$OUTPUT" --add-data "$ADD_DATA" main.py
+          uv run pyinstaller --onefile --windowed --name "$OUTPUT" --add-data "$ADD_DATA" main.py
         shell: bash
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SAVANT-${{ matrix.os }}
-          path: ./savant_app/src/savant_app/dist/*
+          name: edit-${{ matrix.os }}
+          path: ./edit/src/edit/dist/*
 
   release:
     needs: deploy
@@ -60,19 +62,19 @@ jobs:
       - name: Download Ubuntu artifact
         uses: actions/download-artifact@v4
         with:
-          name: SAVANT-ubuntu-22.04
+          name: edit-ubuntu-22.04
           path: ./artifacts/ubuntu
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: SAVANT-windows-latest
+          name: edit-windows-latest
           path: ./artifacts/windows
 
       #- name: Download macOS artifact
       #  uses: actions/download-artifact@v4
       #  with:
-      #    name: SAVANT-macos-latest
+      #    name: edit-macos-latest
       #    path: ./artifacts/macos
 
       # Create GitHub Release with all artifacts

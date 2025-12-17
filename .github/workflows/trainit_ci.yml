@@ -1,0 +1,26 @@
+name: Trainit CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+  workflow_call:
+
+jobs:
+  trainit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: '3.12'
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --dev
+
+      - name: Verify trainit sources
+        run: uv run python -m compileall trainit
