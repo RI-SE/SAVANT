@@ -166,7 +166,7 @@ class ActionMetadata(BaseModel):
 class OntologyDetails(BaseModel):
     """Ontology details for specifying namespace and filtering.
 
-    Refer to: https://github.com/fwrise/SAVANT/tree/main/Specification#savant-ontology
+    Refer to: https://github.com/fwrise/SAVANT/tree/main/ontology
     """
 
     uri: str

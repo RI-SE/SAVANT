@@ -57,6 +57,11 @@ dev = [
     "pytest-mock>=3.14.1",
     "pytest-cov>=7.0.0",
 ]
+all-apps = [
+    {include-group = "markit"},
+    {include-group = "trainit"},
+    {include-group = "edit"},
+]
 
 
 
@@ -82,7 +87,7 @@ markit = "markit.run_markit:main"
 train-yolo-obb = "trainit.train_yolo_obb:main"
 split-train-val = "trainit.split_train_val:main"
 extract-yolo-training = "trainit.extract_yolo_training:main"
-trainit-gui = "trainit.trainit_gui.main:main"
+trainit = "trainit.trainit_gui.main:main"
 remap-classes-to-ontology = "utils.remap_classes_to_ontology:main"
 print-ontology = "utils.print_ontology:main"
 edit = "edit.main:main"
