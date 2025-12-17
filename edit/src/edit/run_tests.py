@@ -1,5 +1,7 @@
-import pytest
 import sys
+
+import pytest
+
 
 def main():
     # Construct the arguments for pytest
@@ -8,12 +10,13 @@ def main():
         "edit/tests",
         "--cov=edit",
         "--cov-report=term-missing",
-        "-v"  # verbose output
+        "-v",  # verbose output
     ]
     # Execute pytest with the arguments
     # Note: uv run --package <package_name> will ensure that the package is in the Python path
     # and its dependencies are available.
     sys.exit(pytest.main(args))
+
 
 if __name__ == "__main__":
     main()
