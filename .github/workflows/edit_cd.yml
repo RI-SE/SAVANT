@@ -1,0 +1,86 @@
+name: Edit_CD
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_call:
+
+jobs:
+  deploy:
+    strategy:
+      matrix:
+        #os: [ubuntu-22.04, windows-latest, macos-latest]
+        os: [ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: '3.12'
+          enable-cache: true
+
+      - name: Sync dependencies (prod only)
+        working-directory: ./edit/
+        run: uv sync --group edit
+
+      - name: Build
+        working-directory: ./edit/src/edit/
+        run: |
+          uv pip install pyinstaller
+
+          # Set the --add-data separator and output name based on OS
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ADD_DATA="frontend/assets;assets"
+            OUTPUT="edit-windows.exe"
+          #elif [ "${{ runner.os }}" = "macOS" ]; then
+            #ADD_DATA="frontend/assets:assets"
+            #OUTPUT="edit-macos"
+          else
+            ADD_DATA="frontend/assets:assets"
+            OUTPUT="edit-linux"
+          fi
+
+          uv run pyinstaller --onefile --windowed --name "$OUTPUT" --add-data "$ADD_DATA" main.py
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: edit-${{ matrix.os }}
+          path: ./edit/src/edit/dist/*
+
+  release:
+    needs: deploy
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      # Download artifacts from all OS builds
+      - name: Download Ubuntu artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: edit-ubuntu-22.04
+          path: ./artifacts/ubuntu
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: edit-windows-latest
+          path: ./artifacts/windows
+
+      #- name: Download macOS artifact
+      #  uses: actions/download-artifact@v4
+      #  with:
+      #    name: edit-macos-latest
+      #    path: ./artifacts/macos
+
+      # Create GitHub Release with all artifacts
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./artifacts/**/* 
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

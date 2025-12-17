@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "savant"
-version = "1.0.0"
+version = "2.0.0"
 description = "SAVANT - Semi-automated video annotation toolkit for UAV object detection"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,18 +12,7 @@ license = {text = "AGPL-3.0"}
 authors = [
     {name = "RISE Research Institutes of Sweden"},
 ]
-dependencies = [
-    "ultralytics",
-    "lap>=0.5.12",
-    "opencv-contrib-python>=4.5.0",
-    "numpy",
-    "pyyaml",
-    "pydantic>=2.0",
-    "rdflib",
-    "dataprov @ git+ssh://git@github.com/fwrise/dataprov.git",
-    "PyQt6>=6.5.0",
-    "matplotlib>=3.7.0",
-]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
@@ -33,20 +22,52 @@ dev = [
 ]
 
 [dependency-groups]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "jsonschema>=4.0.0",
+markit = [
+    "ultralytics",
+    "lap>=0.5.12",
+    "opencv-contrib-python>=4.5.0",
+    "numpy",
+    "pyyaml",
+    "pydantic>=2.0",
+    "rdflib",
+    "dataprov @ git+https://github.com/RI-SE/dataprov.git",
+    "PyQt6>=6.5.0",
+    "matplotlib>=3.7.0",
 ]
+trainit = [
+    "ultralytics",
+    "pyyaml",
+    "pydantic>=2.0",
+    "matplotlib>=3.7.0",
+    "numpy",
+    "PyQt6>=6.5.0",
+]
+edit = [
+    "pyqt6<=6.9.1",
+    "opencv-python>=4.10.0",
+    "numpy>=1.26.0",
+    "pydantic>=2.11.7",
+    "appdirs>=1.4.4",
+    "rdflib>=7.2.1",
+]
+dev = [
+    "flake8>=7.3.0",
+    "black>=25.1.0",
+    "pytest>=8.4.1",
+    "pytest-mock>=3.14.1",
+    "pytest-cov>=7.0.0",
+]
+
+
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["savant_common", "markit", "trainit", "utils"]
+packages = ["savant_common", "markit", "trainit", "utils", "edit/src/edit"]
 
 [tool.pytest.ini_options]
-testpaths = ["markit/tests"]
+testpaths = ["markit/tests", "edit/tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
@@ -60,3 +81,5 @@ extract-yolo-training = "trainit.extract_yolo_training:main"
 trainit-gui = "trainit.trainit_gui.main:main"
 remap-classes-to-ontology = "utils.remap_classes_to_ontology:main"
 print-ontology = "utils.print_ontology:main"
+edit = "edit.main:main"
+test-edit = "edit.run_tests:main" 
