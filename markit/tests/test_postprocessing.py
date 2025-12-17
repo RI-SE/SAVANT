@@ -17,18 +17,13 @@ def sample_openlabel_data():
     """Create sample OpenLabel data structure for testing."""
     return {
         "openlabel": {
-            "metadata": {
-                "schema_version": "0.1"
-            },
+            "metadata": {"schema_version": "0.1"},
             "streams": {
                 "camera1": {
                     "type": "camera",
                     "stream_properties": {
-                        "sync": {
-                            "frame_shift": 0,
-                            "frame_vf": [0, 100]
-                        }
-                    }
+                        "sync": {"frame_shift": 0, "frame_vf": [0, 100]}
+                    },
                 }
             },
             "frames": {
@@ -37,10 +32,7 @@ def sample_openlabel_data():
                         "obj_1": {
                             "object_data": {
                                 "rbbox": [
-                                    {
-                                        "name": "shape",
-                                        "val": [150, 125, 100, 50, 0.0]
-                                    }
+                                    {"name": "shape", "val": [150, 125, 100, 50, 0.0]}
                                 ]
                             }
                         }
@@ -51,22 +43,14 @@ def sample_openlabel_data():
                         "obj_1": {
                             "object_data": {
                                 "rbbox": [
-                                    {
-                                        "name": "shape",
-                                        "val": [155, 130, 100, 50, 0.0]
-                                    }
+                                    {"name": "shape", "val": [155, 130, 100, 50, 0.0]}
                                 ]
                             }
                         }
                     }
-                }
+                },
             },
-            "objects": {
-                "obj_1": {
-                    "name": "obj_1",
-                    "type": "car"
-                }
-            }
+            "objects": {"obj_1": {"name": "obj_1", "type": "car"}},
         }
     }
 

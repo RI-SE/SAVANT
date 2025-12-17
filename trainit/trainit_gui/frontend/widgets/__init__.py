@@ -7,9 +7,9 @@ from .analysis_panel import AnalysisPanel
 from .config_editor import ConfigEditor
 
 __all__ = [
-    'ProjectBrowser',
-    'DatasetSelector',
-    'ConfigList',
-    'AnalysisPanel',
-    'ConfigEditor'
+    "ProjectBrowser",
+    "DatasetSelector",
+    "ConfigList",
+    "AnalysisPanel",
+    "ConfigEditor",
 ]

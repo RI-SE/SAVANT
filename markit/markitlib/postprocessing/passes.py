@@ -13,7 +13,11 @@ import numpy as np
 
 from .base import PostprocessingPass
 from ..geometry import BBoxOverlapCalculator
-from ..utils import normalize_angle_to_pi, normalize_angle_to_2pi_range, rebase_angle_if_needed
+from ..utils import (
+    normalize_angle_to_pi,
+    normalize_angle_to_2pi_range,
+    rebase_angle_if_needed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,17 +62,19 @@ class GapDetectionPass(PostprocessingPass):
                 gap_size = next_frame - current_frame - 1
 
                 if gap_size > 0:
-                    gaps.append({
-                        'start_frame': current_frame,
-                        'end_frame': next_frame,
-                        'gap_size': gap_size
-                    })
+                    gaps.append(
+                        {
+                            "start_frame": current_frame,
+                            "end_frame": next_frame,
+                            "gap_size": gap_size,
+                        }
+                    )
 
             if gaps:
                 self.gaps_detected[obj_id] = {
-                    'frame_range': (frame_list_sorted[0], frame_list_sorted[-1]),
-                    'total_frames': len(frame_list_sorted),
-                    'gaps': gaps
+                    "frame_range": (frame_list_sorted[0], frame_list_sorted[-1]),
+                    "total_frames": len(frame_list_sorted),
+                    "gaps": gaps,
                 }
                 self.objects_with_gaps.add(obj_id)
 
@@ -90,12 +96,12 @@ class GapDetectionPass(PostprocessingPass):
         Returns:
             Dictionary with gap detection statistics
         """
-        total_gaps = sum(len(info['gaps']) for info in self.gaps_detected.values())
+        total_gaps = sum(len(info["gaps"]) for info in self.gaps_detected.values())
 
         return {
-            'objects_with_gaps': len(self.objects_with_gaps),
-            'total_gaps_detected': total_gaps,
-            'gap_details': self.gaps_detected
+            "objects_with_gaps": len(self.objects_with_gaps),
+            "total_gaps_detected": total_gaps,
+            "gap_details": self.gaps_detected,
         }
 
 
@@ -140,17 +146,19 @@ class GapFillingPass(PostprocessingPass):
 
                 if gap_size > 0:
                     self._fill_gap(
-                        openlabel_data,
-                        obj_id,
-                        frame_before,
-                        frame_after,
-                        gap_size
+                        openlabel_data, obj_id, frame_before, frame_after, gap_size
                     )
 
         return openlabel_data
 
-    def _fill_gap(self, openlabel_data: Dict[str, Any], obj_id: str,
-                  frame_before: int, frame_after: int, gap_size: int) -> None:
+    def _fill_gap(
+        self,
+        openlabel_data: Dict[str, Any],
+        obj_id: str,
+        frame_before: int,
+        frame_after: int,
+        gap_size: int,
+    ) -> None:
         """Fill a specific gap by interpolating object positions.
 
         Args:
@@ -190,20 +198,22 @@ class GapFillingPass(PostprocessingPass):
 
             frames[missing_frame_str]["objects"][obj_id] = {
                 "object_data": {
-                    "rbbox": [{
-                        "name": "shape",
-                        "val": [x_interpolated, y_interpolated, w_before, h_before, r_before]
-                    }],
-                    "vec": [
+                    "rbbox": [
                         {
-                            "name": "annotator",
-                            "val": ["markit_housekeeping(gap)"]
-                        },
-                        {
-                            "name": "confidence",
-                            "val": [0.6666]
+                            "name": "shape",
+                            "val": [
+                                x_interpolated,
+                                y_interpolated,
+                                w_before,
+                                h_before,
+                                r_before,
+                            ],
                         }
-                    ]
+                    ],
+                    "vec": [
+                        {"name": "annotator", "val": ["markit_housekeeping(gap)"]},
+                        {"name": "confidence", "val": [0.6666]},
+                    ],
                 }
             }
 
@@ -219,9 +229,9 @@ class GapFillingPass(PostprocessingPass):
             Dictionary with gap filling statistics
         """
         return {
-            'objects_processed': len(self.objects_processed),
-            'gaps_filled': self.gaps_filled,
-            'frames_added': self.frames_added
+            "objects_processed": len(self.objects_processed),
+            "gaps_filled": self.gaps_filled,
+            "frames_added": self.frames_added,
         }
 
 
@@ -279,12 +289,14 @@ class DuplicateRemovalPass(PostprocessingPass):
                     objects_to_delete.add(obj_to_delete)
 
                     frames_list = sorted(object_frame_map[obj_to_delete])
-                    self.deletion_details.append({
-                        'deleted_object': obj_to_delete,
-                        'kept_object': obj_to_keep,
-                        'frame_start': frames_list[0] if frames_list else None,
-                        'frame_end': frames_list[-1] if frames_list else None
-                    })
+                    self.deletion_details.append(
+                        {
+                            "deleted_object": obj_to_delete,
+                            "kept_object": obj_to_keep,
+                            "frame_start": frames_list[0] if frames_list else None,
+                            "frame_end": frames_list[-1] if frames_list else None,
+                        }
+                    )
 
         for obj_id in objects_to_delete:
             if obj_id in objects:
@@ -305,9 +317,13 @@ class DuplicateRemovalPass(PostprocessingPass):
 
         return openlabel_data
 
-    def _are_duplicates(self, obj_a: str, obj_b: str,
-                       object_frame_map: Dict[str, List[int]],
-                       frames: Dict[str, Any]) -> bool:
+    def _are_duplicates(
+        self,
+        obj_a: str,
+        obj_b: str,
+        object_frame_map: Dict[str, List[int]],
+        frames: Dict[str, Any],
+    ) -> bool:
         """Check if two objects are duplicates based on IOU thresholds.
 
         Args:
@@ -337,7 +353,9 @@ class DuplicateRemovalPass(PostprocessingPass):
             bbox_b = self._extract_bbox(frame_objects[obj_b])
 
             if bbox_a is not None and bbox_b is not None:
-                iou = self.iou_calculator.calculate_intersection_over_union(bbox_a, bbox_b)
+                iou = self.iou_calculator.calculate_intersection_over_union(
+                    bbox_a, bbox_b
+                )
                 ious.append(iou)
 
         if len(ious) == 0:
@@ -367,12 +385,7 @@ class DuplicateRemovalPass(PostprocessingPass):
             hw = w / 2
             hh = h / 2
 
-            corners = np.array([
-                [-hw, -hh],
-                [hw, -hh],
-                [hw, hh],
-                [-hw, hh]
-            ])
+            corners = np.array([[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]])
 
             rotation_matrix = np.array([[cos_r, -sin_r], [sin_r, cos_r]])
             rotated_corners = corners @ rotation_matrix.T
@@ -385,9 +398,13 @@ class DuplicateRemovalPass(PostprocessingPass):
             logger.debug(f"Failed to extract bbox: {e}")
             return None
 
-    def _choose_object_to_delete(self, obj_a: str, obj_b: str,
-                                 object_frame_map: Dict[str, List[int]],
-                                 frames: Dict[str, Any]) -> str:
+    def _choose_object_to_delete(
+        self,
+        obj_a: str,
+        obj_b: str,
+        object_frame_map: Dict[str, List[int]],
+        frames: Dict[str, Any],
+    ) -> str:
         """Choose which object to delete from a duplicate pair.
 
         Args:
@@ -410,9 +427,12 @@ class DuplicateRemovalPass(PostprocessingPass):
 
         return obj_a if conf_a < conf_b else obj_b
 
-    def _calculate_average_confidence(self, obj_id: str,
-                                     object_frame_map: Dict[str, List[int]],
-                                     frames: Dict[str, Any]) -> float:
+    def _calculate_average_confidence(
+        self,
+        obj_id: str,
+        object_frame_map: Dict[str, List[int]],
+        frames: Dict[str, Any],
+    ) -> float:
         """Calculate average confidence for an object across all its frames.
 
         Args:
@@ -451,9 +471,9 @@ class DuplicateRemovalPass(PostprocessingPass):
             Dictionary with duplicate removal statistics
         """
         return {
-            'objects_deleted': self.objects_deleted,
-            'duplicate_pairs_found': self.duplicate_pairs_found,
-            'frames_modified': self.frames_modified
+            "objects_deleted": self.objects_deleted,
+            "duplicate_pairs_found": self.duplicate_pairs_found,
+            "frames_modified": self.frames_modified,
         }
 
 
@@ -518,7 +538,7 @@ class FirstDetectionRefinementPass(PostprocessingPass):
             first_rbbox = frames_data[first_frame_idx]
 
             # Extract current position and dimensions
-            cx, cy = first_rbbox[0], first_rbbox[1]
+            _, _ = first_rbbox[0], first_rbbox[1]  # cx, cy - not used here
             w, h = first_rbbox[2], first_rbbox[3]
             base_angle = first_rbbox[4]
 
@@ -548,12 +568,16 @@ class FirstDetectionRefinementPass(PostprocessingPass):
                 # Update the first detection
                 first_rbbox[4] = refined_angle
 
-                logger.info(f"FirstDetection: obj {obj_id} base_angle={np.degrees(base_angle):.1f}° "
-                           f"→ refined={np.degrees(refined_angle):.1f}° (movement={np.degrees(movement_dir):.1f}°)")
+                logger.info(
+                    f"FirstDetection: obj {obj_id} base_angle={np.degrees(base_angle):.1f}° "
+                    f"→ refined={np.degrees(refined_angle):.1f}° (movement={np.degrees(movement_dir):.1f}°)"
+                )
                 self.objects_refined += 1
             else:
                 # No significant movement detected - keep base angle
-                logger.debug(f"FirstDetection: obj {obj_id} - no movement, keeping base angle")
+                logger.debug(
+                    f"FirstDetection: obj {obj_id} - no movement, keeping base angle"
+                )
                 self.objects_kept_base += 1
 
             # Mark as refined
@@ -561,8 +585,9 @@ class FirstDetectionRefinementPass(PostprocessingPass):
 
         return openlabel_data
 
-    def _calculate_movement_direction(self, obj_id_str: str, start_frame: int,
-                                     frames_data: Dict[int, List[float]]) -> Optional[float]:
+    def _calculate_movement_direction(
+        self, obj_id_str: str, start_frame: int, frames_data: Dict[int, List[float]]
+    ) -> Optional[float]:
         """Calculate movement direction by looking ahead several frames.
 
         Args:
@@ -577,7 +602,9 @@ class FirstDetectionRefinementPass(PostprocessingPass):
         start_idx_in_list = frame_indices.index(start_frame)
 
         # Look ahead up to lookahead_frames
-        lookahead_indices = frame_indices[start_idx_in_list + 1 : start_idx_in_list + 1 + self.lookahead_frames]
+        lookahead_indices = frame_indices[
+            start_idx_in_list + 1 : start_idx_in_list + 1 + self.lookahead_frames
+        ]
 
         if not lookahead_indices:
             return None
@@ -589,7 +616,10 @@ class FirstDetectionRefinementPass(PostprocessingPass):
         best_direction = None
 
         for future_frame in lookahead_indices:
-            future_cx, future_cy = frames_data[future_frame][0], frames_data[future_frame][1]
+            future_cx, future_cy = (
+                frames_data[future_frame][0],
+                frames_data[future_frame][1],
+            )
 
             delta_x = future_cx - start_cx
             delta_y = future_cy - start_cy
@@ -608,17 +638,21 @@ class FirstDetectionRefinementPass(PostprocessingPass):
             Dictionary with refinement statistics
         """
         return {
-            'objects_refined': self.objects_refined,
-            'objects_kept_base': self.objects_kept_base,
-            'total_processed': self.objects_refined + self.objects_kept_base
+            "objects_refined": self.objects_refined,
+            "objects_kept_base": self.objects_kept_base,
+            "total_processed": self.objects_refined + self.objects_kept_base,
         }
 
 
 class RotationAdjustmentPass(PostprocessingPass):
     """Adjust rotation values based on movement direction with improved temporal smoothing."""
 
-    def __init__(self, rotation_threshold: float = 0.1, min_movement_pixels: float = 5.0,
-                 temporal_smoothing: float = 0.3):
+    def __init__(
+        self,
+        rotation_threshold: float = 0.1,
+        min_movement_pixels: float = 5.0,
+        temporal_smoothing: float = 0.3,
+    ):
         """Initialize rotation adjustment pass.
 
         Args:
@@ -665,7 +699,7 @@ class RotationAdjustmentPass(PostprocessingPass):
 
             for i in range(len(frame_list_sorted)):
                 current_frame = frame_list_sorted[i]
-                is_last_frame = (i == len(frame_list_sorted) - 1)
+                is_last_frame = i == len(frame_list_sorted) - 1
 
                 if is_last_frame:
                     if last_valid_angle is not None:
@@ -675,7 +709,9 @@ class RotationAdjustmentPass(PostprocessingPass):
                         r_current = rbbox[4]
 
                         if abs(last_valid_angle - r_current) > self.rotation_threshold:
-                            self._apply_rotation_adjustment(frame_obj_data, last_valid_angle)
+                            self._apply_rotation_adjustment(
+                                frame_obj_data, last_valid_angle
+                            )
                             self.rotations_copied += 1
                     break
 
@@ -697,7 +733,9 @@ class RotationAdjustmentPass(PostprocessingPass):
                 else:
                     # Apply temporal smoothing with previous frame's smoothed angle
                     if previous_smoothed_angle is not None:
-                        r_new = self._apply_temporal_smoothing(previous_smoothed_angle, r_new)
+                        r_new = self._apply_temporal_smoothing(
+                            previous_smoothed_angle, r_new
+                        )
 
                     last_valid_angle = r_new
                     previous_smoothed_angle = r_new
@@ -710,7 +748,9 @@ class RotationAdjustmentPass(PostprocessingPass):
 
         return openlabel_data
 
-    def _apply_rotation_adjustment(self, frame_obj_data: Dict[str, Any], r_new: float) -> None:
+    def _apply_rotation_adjustment(
+        self, frame_obj_data: Dict[str, Any], r_new: float
+    ) -> None:
         """Apply rotation adjustment and update annotator/confidence.
 
         With the new semantic representation, width/height never swap.
@@ -741,16 +781,12 @@ class RotationAdjustmentPass(PostprocessingPass):
                 confidence_found = True
 
         if not annotator_found:
-            vec_list.insert(0, {
-                "name": "annotator",
-                "val": ["markit_housekeeping(rot)"]
-            })
+            vec_list.insert(
+                0, {"name": "annotator", "val": ["markit_housekeeping(rot)"]}
+            )
 
         if not confidence_found:
-            vec_list.append({
-                "name": "confidence",
-                "val": [0.8888]
-            })
+            vec_list.append({"name": "confidence", "val": [0.8888]})
 
     def _apply_temporal_smoothing(self, prev_angle: float, curr_angle: float) -> float:
         """Apply temporal smoothing between consecutive frames using exponential moving average.
@@ -776,9 +812,14 @@ class RotationAdjustmentPass(PostprocessingPass):
 
         return smoothed
 
-    def _calculate_smoothed_rotation(self, frames: Dict[str, Any], obj_id: str,
-                                     current_frame: int, frame_list_sorted: List[int],
-                                     current_idx: int) -> Optional[float]:
+    def _calculate_smoothed_rotation(
+        self,
+        frames: Dict[str, Any],
+        obj_id: str,
+        current_frame: int,
+        frame_list_sorted: List[int],
+        current_idx: int,
+    ) -> Optional[float]:
         """Calculate smoothed rotation using bidirectional weighted average with movement threshold.
 
         This improved version:
@@ -871,8 +912,12 @@ class RotationAdjustmentPass(PostprocessingPass):
         angles_unwrapped = np.unwrap(angles_array)
 
         # Circular averaging with normalized weights
-        weighted_sin = sum(np.sin(angle) * weight for angle, weight in zip(angles_unwrapped, weights))
-        weighted_cos = sum(np.cos(angle) * weight for angle, weight in zip(angles_unwrapped, weights))
+        weighted_sin = sum(
+            np.sin(angle) * weight for angle, weight in zip(angles_unwrapped, weights)
+        )
+        weighted_cos = sum(
+            np.cos(angle) * weight for angle, weight in zip(angles_unwrapped, weights)
+        )
         weight_sum = sum(weights)
 
         avg_sin = weighted_sin / weight_sum
@@ -906,10 +951,10 @@ class RotationAdjustmentPass(PostprocessingPass):
             Dictionary with rotation adjustment statistics
         """
         return {
-            'objects_processed': self.objects_processed,
-            'rotations_adjusted': self.rotations_adjusted,
-            'rotations_kept': self.rotations_kept,
-            'rotations_copied': self.rotations_copied
+            "objects_processed": self.objects_processed,
+            "rotations_adjusted": self.rotations_adjusted,
+            "rotations_kept": self.rotations_kept,
+            "rotations_copied": self.rotations_copied,
         }
 
 
@@ -934,7 +979,7 @@ class SuddenPass(PostprocessingPass):
         frames = openlabel_data.get("openlabel", {}).get("frames", {})
         objects = openlabel_data.get("openlabel", {}).get("objects", {})
 
-        if not hasattr(self, 'frame_width') or not hasattr(self, 'frame_height'):
+        if not hasattr(self, "frame_width") or not hasattr(self, "frame_height"):
             logger.warning("SuddenPass: Video properties not set, skipping")
             return openlabel_data
 
@@ -964,8 +1009,8 @@ class SuddenPass(PostprocessingPass):
                 if frame_idx == first_frame:
                     continue
 
-                is_first_appearance = (i == 0)
-                is_last_appearance = (i == len(frame_list_sorted) - 1)
+                is_first_appearance = i == 0
+                is_last_appearance = i == len(frame_list_sorted) - 1
 
                 frame_str = str(frame_idx)
                 frame_obj = frames[frame_str]["objects"][obj_id]
@@ -997,16 +1042,14 @@ class SuddenPass(PostprocessingPass):
                 vec_list = objects[obj_id]["object_data"]["vec"]
 
                 if sudden_appear_frames:
-                    vec_list.append({
-                        "name": "suddenappear",
-                        "val": sudden_appear_frames
-                    })
+                    vec_list.append(
+                        {"name": "suddenappear", "val": sudden_appear_frames}
+                    )
 
                 if sudden_disappear_frames:
-                    vec_list.append({
-                        "name": "suddendisappear",
-                        "val": sudden_disappear_frames
-                    })
+                    vec_list.append(
+                        {"name": "suddendisappear", "val": sudden_disappear_frames}
+                    )
 
         return openlabel_data
 
@@ -1041,9 +1084,9 @@ class SuddenPass(PostprocessingPass):
             Dictionary with sudden event statistics
         """
         return {
-            'objects_with_events': len(self.objects_with_events),
-            'sudden_appear_count': self.sudden_appear_count,
-            'sudden_disappear_count': self.sudden_disappear_count
+            "objects_with_events": len(self.objects_with_events),
+            "sudden_appear_count": self.sudden_appear_count,
+            "sudden_disappear_count": self.sudden_disappear_count,
         }
 
 
@@ -1090,10 +1133,7 @@ class FrameIntervalPass(PostprocessingPass):
             frame_end = frame_list[-1]
 
             obj_data["frame_intervals"] = [
-                {
-                    "frame_start": frame_start,
-                    "frame_end": frame_end
-                }
+                {"frame_start": frame_start, "frame_end": frame_end}
             ]
             self.intervals_added += 1
 
@@ -1106,16 +1146,16 @@ class FrameIntervalPass(PostprocessingPass):
             Dictionary with frame interval statistics
         """
         return {
-            'intervals_added': self.intervals_added,
-            'intervals_skipped_existing': self.intervals_skipped_existing,
-            'intervals_skipped_no_frames': self.intervals_skipped_no_frames
+            "intervals_added": self.intervals_added,
+            "intervals_skipped_existing": self.intervals_skipped_existing,
+            "intervals_skipped_no_frames": self.intervals_skipped_no_frames,
         }
 
 
 class StaticObjectRemovalPass(PostprocessingPass):
     """Remove DynamicObject instances that don't move beyond threshold.
-       NOTE: This pass will remove e.g. parked cars, pedestrians standing still, etc. If this
-       is not desired, do not use this pass or use --static-mark to mark instead of remove.
+    NOTE: This pass will remove e.g. parked cars, pedestrians standing still, etc. If this
+    is not desired, do not use this pass or use --static-mark to mark instead of remove.
     """
 
     def __init__(self, static_threshold: int = 20, mark_only: bool = False):
@@ -1144,7 +1184,7 @@ class StaticObjectRemovalPass(PostprocessingPass):
             Modified OpenLabel data with static DynamicObjects removed
         """
         # Check if ontology path is set
-        if not hasattr(self, 'ontology_path') or not self.ontology_path:
+        if not hasattr(self, "ontology_path") or not self.ontology_path:
             logger.warning("StaticObjectRemovalPass: Ontology path not set, skipping")
             return openlabel_data
 
@@ -1154,7 +1194,9 @@ class StaticObjectRemovalPass(PostprocessingPass):
 
         # Check if ontology file exists
         if not os.path.exists(self.ontology_path):
-            logger.warning(f"StaticObjectRemovalPass: Ontology file not found: {self.ontology_path}")
+            logger.warning(
+                f"StaticObjectRemovalPass: Ontology file not found: {self.ontology_path}"
+            )
             return openlabel_data
 
         frames = openlabel_data.get("openlabel", {}).get("frames", {})
@@ -1176,16 +1218,20 @@ class StaticObjectRemovalPass(PostprocessingPass):
 
             # Look up class in ontology
             try:
-                class_info = get_class_by_label(self.ontology_path, obj_type, case_sensitive=False)
+                class_info = get_class_by_label(
+                    self.ontology_path, obj_type, case_sensitive=False
+                )
 
                 # Skip if not found in ontology
                 if class_info is None:
-                    logger.debug(f"StaticObjectRemovalPass: Class '{obj_type}' not found in ontology, skipping object {obj_id}")
+                    logger.debug(
+                        f"StaticObjectRemovalPass: Class '{obj_type}' not found in ontology, skipping object {obj_id}"
+                    )
                     continue
 
                 # Check if top-level class is DynamicObject
-                top_level_class_name = class_info.get('top_level_class_name')
-                if top_level_class_name != 'DynamicObject':
+                top_level_class_name = class_info.get("top_level_class_name")
+                if top_level_class_name != "DynamicObject":
                     continue
 
                 # This is a DynamicObject, check movement
@@ -1215,7 +1261,9 @@ class StaticObjectRemovalPass(PostprocessingPass):
                         x_positions.append(x)
                         y_positions.append(y)
                     except (KeyError, IndexError, TypeError) as e:
-                        logger.debug(f"StaticObjectRemovalPass: Error extracting position for object {obj_id} in frame {frame_idx}: {e}")
+                        logger.debug(
+                            f"StaticObjectRemovalPass: Error extracting position for object {obj_id} in frame {frame_idx}: {e}"
+                        )
                         continue
 
                 # Check if we have position data
@@ -1227,48 +1275,57 @@ class StaticObjectRemovalPass(PostprocessingPass):
                 delta_y = max(y_positions) - min(y_positions)
 
                 # Check if both dimensions are below threshold
-                if delta_x <= self.static_threshold and delta_y <= self.static_threshold:
+                if (
+                    delta_x <= self.static_threshold
+                    and delta_y <= self.static_threshold
+                ):
                     objects_to_remove.append(obj_id)
 
                     # Store first frame for marking
                     first_frame = min(frame_list)
 
                     if self.mark_only:
-                        self.marking_details.append({
-                            'object_id': obj_id,
-                            'type': obj_type,
-                            'delta_x': delta_x,
-                            'delta_y': delta_y,
-                            'frame_count': len(frame_list),
-                            'first_frame': first_frame
-                        })
+                        self.marking_details.append(
+                            {
+                                "object_id": obj_id,
+                                "type": obj_type,
+                                "delta_x": delta_x,
+                                "delta_y": delta_y,
+                                "frame_count": len(frame_list),
+                                "first_frame": first_frame,
+                            }
+                        )
                         logger.info(
                             f"Marked static object {obj_id} (type: {obj_type}) - "
                             f"movement: dx={delta_x}px, dy={delta_y}px, frames={len(frame_list)}"
                         )
                     else:
-                        self.removal_details.append({
-                            'object_id': obj_id,
-                            'type': obj_type,
-                            'delta_x': delta_x,
-                            'delta_y': delta_y,
-                            'frame_count': len(frame_list)
-                        })
+                        self.removal_details.append(
+                            {
+                                "object_id": obj_id,
+                                "type": obj_type,
+                                "delta_x": delta_x,
+                                "delta_y": delta_y,
+                                "frame_count": len(frame_list),
+                            }
+                        )
                         logger.info(
                             f"Removed static object {obj_id} (type: {obj_type}) - "
                             f"movement: dx={delta_x}px, dy={delta_y}px, frames={len(frame_list)}"
                         )
 
             except Exception as e:
-                logger.warning(f"StaticObjectRemovalPass: Error processing object {obj_id}: {e}")
+                logger.warning(
+                    f"StaticObjectRemovalPass: Error processing object {obj_id}: {e}"
+                )
                 continue
 
         # Mark or remove objects
         if self.mark_only:
             # Mark objects by adding "staticdynamic" annotation
             for detail in self.marking_details:
-                obj_id = detail['object_id']
-                first_frame = detail['first_frame']
+                obj_id = detail["object_id"]
+                first_frame = detail["first_frame"]
 
                 if obj_id not in objects:
                     continue
@@ -1280,10 +1337,7 @@ class StaticObjectRemovalPass(PostprocessingPass):
                     objects[obj_id]["object_data"]["vec"] = []
 
                 vec_list = objects[obj_id]["object_data"]["vec"]
-                vec_list.append({
-                    "name": "staticdynamic",
-                    "val": [first_frame]
-                })
+                vec_list.append({"name": "staticdynamic", "val": [first_frame]})
 
                 self.objects_marked += 1
         else:
@@ -1311,14 +1365,14 @@ class StaticObjectRemovalPass(PostprocessingPass):
         """
         if self.mark_only:
             return {
-                'objects_checked': self.objects_checked,
-                'objects_marked': self.objects_marked
+                "objects_checked": self.objects_checked,
+                "objects_marked": self.objects_marked,
             }
         else:
             return {
-                'objects_checked': self.objects_checked,
-                'objects_removed': self.objects_removed,
-                'frames_modified': self.frames_modified
+                "objects_checked": self.objects_checked,
+                "objects_removed": self.objects_removed,
+                "frames_modified": self.frames_modified,
             }
 
 
@@ -1363,7 +1417,9 @@ class AngleNormalizationPass(PostprocessingPass):
                     rbbox[4] = normalized_rotation
                     self.angles_normalized += 1
 
-        logger.info(f"AngleNormalization: Normalized {self.angles_normalized} angles to [0, 2π) range")
+        logger.info(
+            f"AngleNormalization: Normalized {self.angles_normalized} angles to [0, 2π) range"
+        )
 
         return openlabel_data
 
@@ -1373,6 +1429,4 @@ class AngleNormalizationPass(PostprocessingPass):
         Returns:
             Dictionary with normalization statistics
         """
-        return {
-            'angles_normalized': self.angles_normalized
-        }
+        return {"angles_normalized": self.angles_normalized}

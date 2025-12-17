@@ -51,7 +51,7 @@ class ManifestService:
         resolved = file_path.resolve()
 
         sha256 = hashlib.sha256()
-        with open(resolved, 'rb') as f:
+        with open(resolved, "rb") as f:
             while chunk := f.read(self.BUFFER_SIZE):
                 sha256.update(chunk)
         return sha256.hexdigest()
@@ -60,7 +60,7 @@ class ManifestService:
         self,
         output_dir: Path,
         info: ManifestInfo,
-        file_mappings: list[tuple[Path, Path]]
+        file_mappings: list[tuple[Path, Path]],
     ) -> Manifest:
         """Generate manifest from file mappings.
 
@@ -82,7 +82,7 @@ class ManifestService:
                 entry = FileEntry(
                     relative_path=str(relative),
                     source_path=str(source_path.resolve()),
-                    sha256=sha256
+                    sha256=sha256,
                 )
                 manifest.files.append(entry)
             except Exception as e:
@@ -97,7 +97,7 @@ class ManifestService:
             manifest: Manifest to save
             output_path: Path to output JSON file
         """
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(manifest.to_dict(), f, indent=2)
         logger.info(f"Saved manifest to {output_path}")
 
@@ -111,7 +111,7 @@ class ManifestService:
             Manifest object or None if loading failed
         """
         try:
-            with open(manifest_path, 'r') as f:
+            with open(manifest_path, "r") as f:
                 data = json.load(f)
             return Manifest.from_dict(data)
         except Exception as e:
@@ -131,9 +131,7 @@ class ManifestService:
         """
         manifest = self.load_manifest(manifest_path)
         if not manifest:
-            return VerificationResult(
-                files_missing=["Failed to load manifest file"]
-            )
+            return VerificationResult(files_missing=["Failed to load manifest file"])
 
         result = VerificationResult(total_files=len(manifest.files))
 
@@ -155,8 +153,6 @@ class ManifestService:
                 else:
                     result.files_ok += 1
             except Exception as e:
-                result.files_missing.append(
-                    f"{entry.source_path}: error reading - {e}"
-                )
+                result.files_missing.append(f"{entry.source_path}: error reading - {e}")
 
         return result

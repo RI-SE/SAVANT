@@ -3,7 +3,6 @@
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 from ..models.project import Project, TrainingConfig
 
@@ -21,11 +20,7 @@ class ProjectService:
     PROJECT_FILE_NAME = "project.json"
 
     def create_project(
-        self,
-        name: str,
-        project_folder: str,
-        datasets_root: str,
-        description: str = ""
+        self, name: str, project_folder: str, datasets_root: str, description: str = ""
     ) -> Project:
         """Create a new project and save it.
 
@@ -51,9 +46,7 @@ class ProjectService:
             raise FileExistsError(f"Project already exists: {project_file}")
 
         project = Project(
-            name=name,
-            datasets_root=datasets_root,
-            description=description
+            name=name, datasets_root=datasets_root, description=description
         )
 
         self.save_project(project, str(project_file))
@@ -77,7 +70,7 @@ class ProjectService:
             raise FileNotFoundError(f"Project file not found: {project_file_path}")
 
         try:
-            with open(path, 'r') as f:
+            with open(path, "r") as f:
                 data = json.load(f)
             return Project.model_validate(data)
         except json.JSONDecodeError as e:
@@ -101,13 +94,8 @@ class ProjectService:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            with open(path, 'w') as f:
-                json.dump(
-                    project.model_dump(),
-                    f,
-                    indent=2,
-                    ensure_ascii=False
-                )
+            with open(path, "w") as f:
+                json.dump(project.model_dump(), f, indent=2, ensure_ascii=False)
             logger.info(f"Saved project to {path}")
         except Exception as e:
             logger.error(f"Failed to save project: {e}")
@@ -141,9 +129,7 @@ class ProjectService:
         return valid
 
     def add_config_to_project(
-        self,
-        project_file_path: str,
-        config: TrainingConfig
+        self, project_file_path: str, config: TrainingConfig
     ) -> Project:
         """Add a new configuration to an existing project.
 
@@ -167,9 +153,7 @@ class ProjectService:
         return project
 
     def update_config_in_project(
-        self,
-        project_file_path: str,
-        config: TrainingConfig
+        self, project_file_path: str, config: TrainingConfig
     ) -> Project:
         """Update an existing configuration in a project.
 
@@ -196,9 +180,7 @@ class ProjectService:
         return project
 
     def remove_config_from_project(
-        self,
-        project_file_path: str,
-        config_name: str
+        self, project_file_path: str, config_name: str
     ) -> Project:
         """Remove a configuration from a project.
 

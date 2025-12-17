@@ -21,15 +21,15 @@ from .passes import (
 from .pipeline import PostprocessingPipeline
 
 __all__ = [
-    'PostprocessingPass',
-    'GapDetectionPass',
-    'GapFillingPass',
-    'DuplicateRemovalPass',
-    'FirstDetectionRefinementPass',
-    'RotationAdjustmentPass',
-    'SuddenPass',
-    'FrameIntervalPass',
-    'StaticObjectRemovalPass',
-    'AngleNormalizationPass',
-    'PostprocessingPipeline',
+    "PostprocessingPass",
+    "GapDetectionPass",
+    "GapFillingPass",
+    "DuplicateRemovalPass",
+    "FirstDetectionRefinementPass",
+    "RotationAdjustmentPass",
+    "SuddenPass",
+    "FrameIntervalPass",
+    "StaticObjectRemovalPass",
+    "AngleNormalizationPass",
+    "PostprocessingPipeline",
 ]

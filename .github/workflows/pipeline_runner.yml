@@ -1,0 +1,75 @@
+name: SAVANT Pipeline Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_edit_ci:
+        description: Run edit CI checks
+        required: false
+        type: boolean
+        default: true
+      run_edit_cd:
+        description: Build release artifacts via the edit CD pipeline
+        required: false
+        type: boolean
+        default: false
+      run_markit_ci:
+        description: Run markit CI checks
+        required: false
+        type: boolean
+        default: true
+      run_markit_cd:
+        description: Build release artifacts via the markit CD pipeline
+        required: false
+        type: boolean
+        default: false
+      run_trainit_ci:
+        description: Run trainit CI checks
+        required: false
+        type: boolean
+        default: true
+      run_trainit_cd:
+        description: Build release artifacts via the trainit CD pipeline
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  edit_ci:
+    if: ${{ inputs.run_edit_ci }}
+    uses: ./.github/workflows/edit_ci.yml
+    secrets: inherit
+
+  edit_cd:
+    needs: edit_ci
+    if: ${{ inputs.run_edit_cd && inputs.run_edit_ci }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/edit_cd.yml
+    secrets: inherit
+
+  markit_ci:
+    if: ${{ inputs.run_markit_ci }}
+    uses: ./.github/workflows/markit_ci.yml
+    secrets: inherit
+
+  markit_cd:
+    needs: markit_ci
+    if: ${{ inputs.run_markit_cd && inputs.run_markit_ci }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/markit_cd.yml
+    secrets: inherit
+
+  trainit_ci:
+    if: ${{ inputs.run_trainit_ci }}
+    uses: ./.github/workflows/trainit_ci.yml
+    secrets: inherit
+
+  trainit_cd:
+    needs: trainit_ci
+    if: ${{ inputs.run_trainit_cd && inputs.run_trainit_ci }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/trainit_cd.yml
+    secrets: inherit

@@ -8,11 +8,16 @@ import csv
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import cv2
+
 import numpy as np
+
 from ultralytics import YOLO
+
+if TYPE_CHECKING:
+    from .id_manager import ObjectIDManager
 
 from ..config import DetectionResult, OpticalFlowParams
 
@@ -36,8 +41,13 @@ class BaseDetectionEngine(ABC):
 class YOLOEngine(BaseDetectionEngine):
     """YOLO-based detection engine."""
 
-    def __init__(self, weights_path: str, class_map: Optional[Dict[int, str]] = None, verbose: bool = False,
-                 id_manager: Optional['ObjectIDManager'] = None):
+    def __init__(
+        self,
+        weights_path: str,
+        class_map: Optional[Dict[int, str]] = None,
+        verbose: bool = False,
+        id_manager: Optional["ObjectIDManager"] = None,
+    ):
         """Initialize YOLO engine.
 
         Args:
@@ -76,19 +86,25 @@ class YOLOEngine(BaseDetectionEngine):
         Logs warnings if there are mismatches that could indicate using
         an old/wrong model trained with different class labels.
         """
-        if not self.class_map or not self.model or not hasattr(self.model, 'names'):
+        if not self.class_map or not self.model or not hasattr(self.model, "names"):
             return
 
         model_names = self.model.names  # Dict: {class_id: class_name}
 
         # Check number of classes
         num_model_classes = len(model_names)
-        num_ontology_classes = len([k for k in self.class_map.keys() if k < 100])  # Exclude high UIDs like ArUco
+        num_ontology_classes = len(
+            [k for k in self.class_map.keys() if k < 100]
+        )  # Exclude high UIDs like ArUco
 
         if num_model_classes != num_ontology_classes:
-            logger.warning(f"⚠️  Class count mismatch: YOLO model has {num_model_classes} classes, "
-                          f"ontology has {num_ontology_classes} classes (UID < 100)")
-            logger.warning("This may indicate using a model trained with different labels!")
+            logger.warning(
+                f"⚠️  Class count mismatch: YOLO model has {num_model_classes} classes, "
+                f"ontology has {num_ontology_classes} classes (UID < 100)"
+            )
+            logger.warning(
+                "This may indicate using a model trained with different labels!"
+            )
 
         # Compare class names for matching IDs
         mismatches = []
@@ -102,12 +118,20 @@ class YOLOEngine(BaseDetectionEngine):
                     mismatches.append((class_id, model_label, ontology_label))
 
         if mismatches:
-            logger.warning(f"⚠️  Found {len(mismatches)} class name mismatches between YOLO model and ontology:")
-            for class_id, model_label, ontology_label in mismatches[:10]:  # Show first 10
-                logger.warning(f"  Class {class_id}: model='{model_label}' vs ontology='{ontology_label}'")
+            logger.warning(
+                f"⚠️  Found {len(mismatches)} class name mismatches between YOLO model and ontology:"
+            )
+            for class_id, model_label, ontology_label in mismatches[
+                :10
+            ]:  # Show first 10
+                logger.warning(
+                    f"  Class {class_id}: model='{model_label}' vs ontology='{ontology_label}'"
+                )
             if len(mismatches) > 10:
                 logger.warning(f"  ... and {len(mismatches) - 10} more mismatches")
-            logger.warning("⚠️  This indicates the YOLO model was trained with different class labels!")
+            logger.warning(
+                "⚠️  This indicates the YOLO model was trained with different class labels!"
+            )
             logger.warning("⚠️  Detection results will have incorrect class labels!")
 
         # If verbose, log all model classes
@@ -115,8 +139,14 @@ class YOLOEngine(BaseDetectionEngine):
             logger.info(f"YOLO model classes ({len(model_names)} total):")
             for class_id in sorted(model_names.keys())[:25]:  # First 25
                 ontology_label = self.class_map.get(class_id, "N/A")
-                match = "✓" if model_names[class_id].lower() == ontology_label.lower() else "✗"
-                logger.info(f"  {match} Class {class_id:3d}: model='{model_names[class_id]:20s}' ontology='{ontology_label}'")
+                match = (
+                    "✓"
+                    if model_names[class_id].lower() == ontology_label.lower()
+                    else "✗"
+                )
+                logger.info(
+                    f"  {match} Class {class_id:3d}: model='{model_names[class_id]:20s}' ontology='{ontology_label}'"
+                )
             if len(model_names) > 25:
                 logger.info(f"  ... and {len(model_names) - 25} more classes")
 
@@ -136,12 +166,18 @@ class YOLOEngine(BaseDetectionEngine):
             for result in results:
                 if result.obb is not None and len(result.obb) > 0:
                     # Extract oriented bounding box data
-                    ids = result.obb.id.cpu().numpy() if result.obb.id is not None else [None] * len(result.obb)
+                    ids = (
+                        result.obb.id.cpu().numpy()
+                        if result.obb.id is not None
+                        else [None] * len(result.obb)
+                    )
                     classes = result.obb.cls.cpu().numpy()
                     obbs_xywhr = result.obb.xywhr.cpu().numpy()
                     obbs_conf = result.obb.conf.cpu().numpy()
 
-                    for obj_id, cls, xywhr, conf in zip(ids, classes, obbs_xywhr, obbs_conf):
+                    for obj_id, cls, xywhr, conf in zip(
+                        ids, classes, obbs_xywhr, obbs_conf
+                    ):
                         # Extract YOLO format
                         center_x, center_y, w_yolo, h_yolo, r_yolo = xywhr
 
@@ -158,12 +194,7 @@ class YOLOEngine(BaseDetectionEngine):
                         hh = h_sem / 2
 
                         # Corners with long axis along x in local coordinates
-                        corners = np.array([
-                            [-hw, -hh],
-                            [hw, -hh],
-                            [hw, hh],
-                            [-hw, hh]
-                        ])
+                        corners = np.array([[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]])
 
                         rotation_matrix = np.array([[cos_r, -sin_r], [sin_r, cos_r]])
                         rotated_corners = corners @ rotation_matrix.T
@@ -171,21 +202,27 @@ class YOLOEngine(BaseDetectionEngine):
 
                         # Remap YOLO native ID to sequential ID if ID manager available
                         if obj_id is not None and self.id_manager:
-                            remapped_id = self.id_manager.get_dynamic_id('yolo', int(obj_id))
+                            remapped_id = self.id_manager.get_dynamic_id(
+                                "yolo", int(obj_id)
+                            )
                         else:
                             remapped_id = int(obj_id) if obj_id is not None else None
 
-                        detection_results.append(DetectionResult(
-                            object_id=remapped_id,
-                            class_id=int(cls),
-                            confidence=float(conf),
-                            oriented_bbox=oriented_bbox,
-                            center=(float(center_x), float(center_y)),
-                            angle=float(continuous_angle),  # Continuous semantic angle
-                            source_engine='yolo',
-                            width=float(w_sem),   # Semantic long axis
-                            height=float(h_sem)   # Semantic short axis
-                        ))
+                        detection_results.append(
+                            DetectionResult(
+                                object_id=remapped_id,
+                                class_id=int(cls),
+                                confidence=float(conf),
+                                oriented_bbox=oriented_bbox,
+                                center=(float(center_x), float(center_y)),
+                                angle=float(
+                                    continuous_angle
+                                ),  # Continuous semantic angle
+                                source_engine="yolo",
+                                width=float(w_sem),  # Semantic long axis
+                                height=float(h_sem),  # Semantic short axis
+                            )
+                        )
 
             return detection_results
 
@@ -193,8 +230,9 @@ class YOLOEngine(BaseDetectionEngine):
             logger.error(f"Error processing frame with YOLO: {e}")
             return []
 
-    def _yolo_to_semantic(self, obj_id: Optional[int],
-                          w_yolo: float, h_yolo: float, r_yolo: float) -> Tuple[float, float, float]:
+    def _yolo_to_semantic(
+        self, obj_id: Optional[int], w_yolo: float, h_yolo: float, r_yolo: float
+    ) -> Tuple[float, float, float]:
         """Convert YOLO (w, h, angle) to semantic (w_sem, h_sem, continuous_angle).
 
         Handles YOLO's w/h swapping by adjusting angle instead of swapping dimensions.
@@ -222,25 +260,25 @@ class YOLOEngine(BaseDetectionEngine):
                 # YOLO's h is longer - make it our semantic width
                 w_sem = h_yolo
                 h_sem = w_yolo
-                base_angle = r_yolo + np.pi/2
+                base_angle = r_yolo + np.pi / 2
 
             continuous_angle = base_angle
 
             # Store tracking data if we have an ID
             if obj_id is not None:
                 self.object_tracking[obj_id] = {
-                    'w_sem': w_sem,
-                    'h_sem': h_sem,
-                    'angle': continuous_angle
+                    "w_sem": w_sem,
+                    "h_sem": h_sem,
+                    "angle": continuous_angle,
                 }
 
             return w_sem, h_sem, continuous_angle
 
         # Subsequent detection - maintain continuity
         prev_data = self.object_tracking[obj_id]
-        w_sem_prev = prev_data['w_sem']
-        h_sem_prev = prev_data['h_sem']
-        angle_prev = prev_data['angle']
+        w_sem_prev = prev_data["w_sem"]
+        h_sem_prev = prev_data["h_sem"]
+        angle_prev = prev_data["angle"]
 
         # Detect if YOLO swapped w and h by comparing with previous semantic dims
         # Use absolute difference to find best match
@@ -254,12 +292,12 @@ class YOLOEngine(BaseDetectionEngine):
             h_raw = h_yolo
         else:
             # Swap detected: YOLO's w → semantic h, adjust angle by π/2
-            base_angle = r_yolo + np.pi/2
+            base_angle = r_yolo + np.pi / 2
             w_raw = h_yolo
             h_raw = w_yolo
 
         # Apply continuity: find closest equivalent angle considering π/2 ambiguity
-        continuous_angle = find_continuous_angle(base_angle, angle_prev, np.pi/2)
+        continuous_angle = find_continuous_angle(base_angle, angle_prev, np.pi / 2)
         continuous_angle = rebase_angle_if_needed(continuous_angle)
 
         # Update semantic dimensions with smoothing (allows gradual aspect ratio changes)
@@ -269,9 +307,9 @@ class YOLOEngine(BaseDetectionEngine):
 
         # Update tracking
         self.object_tracking[obj_id] = {
-            'w_sem': w_sem,
-            'h_sem': h_sem,
-            'angle': continuous_angle
+            "w_sem": w_sem,
+            "h_sem": h_sem,
+            "angle": continuous_angle,
         }
 
         return w_sem, h_sem, continuous_angle
@@ -285,8 +323,9 @@ class YOLOEngine(BaseDetectionEngine):
 class SimpleTracker:
     """Simple object tracker for optical flow detections."""
 
-    def __init__(self, max_distance: float = 50.0,
-                 id_manager: Optional['ObjectIDManager'] = None):
+    def __init__(
+        self, max_distance: float = 50.0, id_manager: Optional["ObjectIDManager"] = None
+    ):
         self.max_distance = max_distance
         self.tracks = {}  # Maps remapped_id -> center position
         self.id_manager = id_manager
@@ -304,12 +343,14 @@ class SimpleTracker:
         Returns:
             Object ID (remapped if ID manager available)
         """
-        min_distance = float('inf')
+        min_distance = float("inf")
         best_track_id = None
 
         # Find closest existing track
         for track_id, track_center in self.tracks.items():
-            distance = np.sqrt((center[0] - track_center[0])**2 + (center[1] - track_center[1])**2)
+            distance = np.sqrt(
+                (center[0] - track_center[0]) ** 2 + (center[1] - track_center[1]) ** 2
+            )
             if distance < min_distance and distance < self.max_distance:
                 min_distance = distance
                 best_track_id = track_id
@@ -321,7 +362,9 @@ class SimpleTracker:
         else:
             # Create new track with remapped ID
             if self.id_manager:
-                new_id = self.id_manager.get_dynamic_id('optical_flow', self._next_local_id)
+                new_id = self.id_manager.get_dynamic_id(
+                    "optical_flow", self._next_local_id
+                )
                 self._next_local_id += 1
             else:
                 # Fallback: use legacy offset
@@ -335,8 +378,9 @@ class SimpleTracker:
 class OpticalFlowEngine(BaseDetectionEngine):
     """Optical flow + background subtraction detection engine."""
 
-    def __init__(self, params: OpticalFlowParams,
-                 id_manager: Optional['ObjectIDManager'] = None):
+    def __init__(
+        self, params: OpticalFlowParams, id_manager: Optional["ObjectIDManager"] = None
+    ):
         """Initialize optical flow engine.
 
         Args:
@@ -354,7 +398,9 @@ class OpticalFlowEngine(BaseDetectionEngine):
         if self.optical_flow_available:
             logger.info("Optical flow engine initialized with motion detection")
         else:
-            logger.warning("Optical flow not available - using background subtraction only")
+            logger.warning(
+                "Optical flow not available - using background subtraction only"
+            )
 
     def _check_optical_flow_availability(self) -> bool:
         """Check if optical flow functions are available in OpenCV.
@@ -367,9 +413,9 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
         # Try multiple optical flow methods in order of preference
         optical_flow_methods = [
-            ('calcOpticalFlowPyrFarneback', self._test_farneback),
-            ('calcOpticalFlowPyrLK', self._test_lucas_kanade),
-            ('optflow.calcOpticalFlowSF', self._test_simple_flow)
+            ("calcOpticalFlowPyrFarneback", self._test_farneback),
+            ("calcOpticalFlowPyrLK", self._test_lucas_kanade),
+            ("optflow.calcOpticalFlowSF", self._test_simple_flow),
         ]
 
         for method_name, test_func in optical_flow_methods:
@@ -388,39 +434,45 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
     def _test_farneback(self) -> bool:
         """Test Farneback optical flow method."""
-        if not hasattr(cv2, 'calcOpticalFlowPyrFarneback'):
+        if not hasattr(cv2, "calcOpticalFlowPyrFarneback"):
             return False
 
         dummy1 = np.zeros((10, 10), dtype=np.uint8)
         dummy2 = np.zeros((10, 10), dtype=np.uint8)
-        flow = cv2.calcOpticalFlowPyrFarneback(dummy1, dummy2, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+        flow = cv2.calcOpticalFlowPyrFarneback(
+            dummy1, dummy2, None, 0.5, 3, 15, 3, 5, 1.2, 0
+        )
         return flow is not None
 
     def _test_lucas_kanade(self) -> bool:
         """Test Lucas-Kanade optical flow method."""
-        if not hasattr(cv2, 'calcOpticalFlowPyrLK'):
+        if not hasattr(cv2, "calcOpticalFlowPyrLK"):
             return False
 
         dummy1 = np.zeros((10, 10), dtype=np.uint8)
         dummy2 = np.zeros((10, 10), dtype=np.uint8)
         # Need some points for LK
         points = np.array([[5.0, 5.0]], dtype=np.float32).reshape(-1, 1, 2)
-        new_points, status, error = cv2.calcOpticalFlowPyrLK(dummy1, dummy2, points, None)
+        new_points, status, error = cv2.calcOpticalFlowPyrLK(
+            dummy1, dummy2, points, None
+        )
         return new_points is not None
 
     def _test_simple_flow(self) -> bool:
         """Test SimpleFlow optical flow method (contrib module)."""
         try:
-            if hasattr(cv2, 'optflow') and hasattr(cv2.optflow, 'calcOpticalFlowSF'):
+            if hasattr(cv2, "optflow") and hasattr(cv2.optflow, "calcOpticalFlowSF"):
                 dummy1 = np.zeros((10, 10), dtype=np.uint8)
                 dummy2 = np.zeros((10, 10), dtype=np.uint8)
                 flow = cv2.optflow.calcOpticalFlowSF(dummy1, dummy2, 3, 2, 4)
                 return flow is not None
-        except:
+        except Exception:
             pass
         return False
 
-    def _calculate_optical_flow(self, prev_gray: np.ndarray, curr_gray: np.ndarray) -> Optional[np.ndarray]:
+    def _calculate_optical_flow(
+        self, prev_gray: np.ndarray, curr_gray: np.ndarray
+    ) -> Optional[np.ndarray]:
         """Calculate optical flow magnitude using the available method.
 
         Args:
@@ -431,18 +483,23 @@ class OpticalFlowEngine(BaseDetectionEngine):
             Magnitude array or None if calculation fails
         """
         try:
-            if self.optical_flow_method == 'calcOpticalFlowPyrFarneback':
+            if self.optical_flow_method == "calcOpticalFlowPyrFarneback":
                 flow = cv2.calcOpticalFlowPyrFarneback(
                     prev_gray, curr_gray, None, 0.5, 5, 21, 3, 7, 1.5, 0
                 )
                 magnitude, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
                 return magnitude
 
-            elif self.optical_flow_method == 'calcOpticalFlowPyrLK':
+            elif self.optical_flow_method == "calcOpticalFlowPyrLK":
                 # For Lucas-Kanade, we need feature points
                 # Use goodFeaturesToTrack to find points
-                points = cv2.goodFeaturesToTrack(prev_gray, maxCorners=100, qualityLevel=0.3,
-                                               minDistance=7, blockSize=7)
+                points = cv2.goodFeaturesToTrack(
+                    prev_gray,
+                    maxCorners=100,
+                    qualityLevel=0.3,
+                    minDistance=7,
+                    blockSize=7,
+                )
                 if points is not None and len(points) > 0:
                     new_points, status, error = cv2.calcOpticalFlowPyrLK(
                         prev_gray, curr_gray, points, None
@@ -460,8 +517,13 @@ class OpticalFlowEngine(BaseDetectionEngine):
                         displacements = np.linalg.norm(new_pts - old_pts, axis=1)
 
                         # Map displacements to image
-                        for i, (pt, disp) in enumerate(zip(old_pts.astype(int), displacements)):
-                            if 0 <= pt[1] < magnitude.shape[0] and 0 <= pt[0] < magnitude.shape[1]:
+                        for i, (pt, disp) in enumerate(
+                            zip(old_pts.astype(int), displacements)
+                        ):
+                            if (
+                                0 <= pt[1] < magnitude.shape[0]
+                                and 0 <= pt[0] < magnitude.shape[1]
+                            ):
                                 magnitude[pt[1], pt[0]] = disp
 
                         # Dilate to spread motion information
@@ -472,13 +534,15 @@ class OpticalFlowEngine(BaseDetectionEngine):
                 else:
                     return np.zeros_like(prev_gray, dtype=np.float32)
 
-            elif self.optical_flow_method == 'optflow.calcOpticalFlowSF':
+            elif self.optical_flow_method == "optflow.calcOpticalFlowSF":
                 flow = cv2.optflow.calcOpticalFlowSF(prev_gray, curr_gray, 3, 2, 4)
                 magnitude, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
                 return magnitude
 
             else:
-                logger.warning(f"Unknown optical flow method: {self.optical_flow_method}")
+                logger.warning(
+                    f"Unknown optical flow method: {self.optical_flow_method}"
+                )
                 return None
 
         except Exception as e:
@@ -509,9 +573,15 @@ class OpticalFlowEngine(BaseDetectionEngine):
                 try:
                     magnitude = self._calculate_optical_flow(self.prev_gray, gray)
                     if magnitude is not None:
-                        motion_mask = (magnitude > self.params.motion_threshold).astype(np.uint8) * 255
-                        dilate_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-                        motion_mask = cv2.dilate(motion_mask, dilate_kernel, iterations=1)
+                        motion_mask = (magnitude > self.params.motion_threshold).astype(
+                            np.uint8
+                        ) * 255
+                        dilate_kernel = cv2.getStructuringElement(
+                            cv2.MORPH_ELLIPSE, (5, 5)
+                        )
+                        motion_mask = cv2.dilate(
+                            motion_mask, dilate_kernel, iterations=1
+                        )
                     else:
                         self.optical_flow_available = False
                 except Exception as e:
@@ -525,12 +595,16 @@ class OpticalFlowEngine(BaseDetectionEngine):
                 combined_mask = fg_mask
 
             # 4. Clean up and find contours
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
-                                             (self.params.morph_kernel_size, self.params.morph_kernel_size))
+            kernel = cv2.getStructuringElement(
+                cv2.MORPH_ELLIPSE,
+                (self.params.morph_kernel_size, self.params.morph_kernel_size),
+            )
             combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
             combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
 
-            contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(
+                combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
 
             # 5. Generate oriented bounding boxes
             for contour in contours:
@@ -548,22 +622,26 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
                     # Calculate confidence based on contour area (normalized)
                     area = cv2.contourArea(contour)
-                    confidence = min(0.9, max(0.3, area / 10000.0))  # Simple area-based confidence
+                    confidence = min(
+                        0.9, max(0.3, area / 10000.0)
+                    )  # Simple area-based confidence
 
                     # Convert angle from degrees to radians (cv2.minAreaRect returns degrees)
                     angle_rad = np.radians(angle)
 
-                    results.append(DetectionResult(
-                        object_id=obj_id,
-                        class_id=0,  # Generic "moving object" class
-                        confidence=confidence,
-                        oriented_bbox=box.astype(np.float32),
-                        center=(center_x, center_y),
-                        angle=angle_rad,
-                        source_engine='optical_flow',
-                        width=float(width),
-                        height=float(height)
-                    ))
+                    results.append(
+                        DetectionResult(
+                            object_id=obj_id,
+                            class_id=0,  # Generic "moving object" class
+                            confidence=confidence,
+                            oriented_bbox=box.astype(np.float32),
+                            center=(center_x, center_y),
+                            angle=angle_rad,
+                            source_engine="optical_flow",
+                            width=float(width),
+                            height=float(height),
+                        )
+                    )
 
             self.prev_gray = gray.copy()
             return results
@@ -609,19 +687,19 @@ class ArUcoGPSData:
             Base name (e.g., 'Zurich' from 'Zurich_markers.csv')
         """
         filename = self.csv_path.stem  # Get filename without extension
-        parts = filename.split('_')
+        parts = filename.split("_")
         return parts[0] if parts else filename
 
     def _load_csv(self) -> None:
         """Load and parse CSV file."""
         try:
-            with open(self.csv_path, 'r') as f:
+            with open(self.csv_path, "r") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    point_name = row.get('point_name', '').strip()
+                    point_name = row.get("point_name", "").strip()
 
                     # Parse point_name: aruco_24a -> ID=24, corner='a'
-                    if not point_name.startswith('aruco_'):
+                    if not point_name.startswith("aruco_"):
                         continue
 
                     # Extract ID and corner
@@ -631,8 +709,10 @@ class ArUcoGPSData:
 
                     # Corner is last character (a, b, c, d)
                     corner = suffix[-1].lower()
-                    if corner not in ['a', 'b', 'c', 'd']:
-                        logger.warning(f"Invalid corner '{corner}' in point_name: {point_name}")
+                    if corner not in ["a", "b", "c", "d"]:
+                        logger.warning(
+                            f"Invalid corner '{corner}' in point_name: {point_name}"
+                        )
                         continue
 
                     # ID is everything before the corner
@@ -644,9 +724,9 @@ class ArUcoGPSData:
 
                     # Extract GPS coordinates
                     try:
-                        lat = float(row.get('latitude', 0))
-                        lon = float(row.get('longitude', 0))
-                        alt = float(row.get('altitude', 0))
+                        lat = float(row.get("latitude", 0))
+                        lon = float(row.get("longitude", 0))
+                        alt = float(row.get("altitude", 0))
                     except (ValueError, TypeError):
                         logger.warning(f"Invalid GPS coordinates for {point_name}")
                         continue
@@ -656,12 +736,14 @@ class ArUcoGPSData:
                         self.gps_data[aruco_id] = {}
 
                     self.gps_data[aruco_id][corner] = {
-                        'lat': lat,
-                        'lon': lon,
-                        'alt': alt
+                        "lat": lat,
+                        "lon": lon,
+                        "alt": alt,
                     }
 
-            logger.info(f"Loaded GPS data for {len(self.gps_data)} ArUco markers from {self.csv_path}")
+            logger.info(
+                f"Loaded GPS data for {len(self.gps_data)} ArUco markers from {self.csv_path}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to load ArUco GPS CSV: {e}")
@@ -722,8 +804,12 @@ class VisualMarkerGPSData:
             a = bottom-left, b = top-left, c = top-right, d = bottom-right
         """
         self.csv_path = Path(csv_path)
-        self.gps_data = {}  # {marker_id: {corner: {'lat': ..., 'lon': ..., 'description': ...}}}
-        self.marker_names = {}  # {marker_id: description} e.g., {1: 'lamppost', 3: 'feature'}
+        self.gps_data = (
+            {}
+        )  # {marker_id: {corner: {'lat': ..., 'lon': ..., 'description': ...}}}
+        self.marker_names = (
+            {}
+        )  # {marker_id: description} e.g., {1: 'lamppost', 3: 'feature'}
         self.base_name = self._extract_base_name()
         self.csv_name = self.csv_path.stem  # Full filename without extension
         self._load_csv()
@@ -735,23 +821,24 @@ class VisualMarkerGPSData:
             Base name (e.g., 'SaroRound' from 'SaroRound_coords_visualmarkers.csv')
         """
         filename = self.csv_path.stem  # Get filename without extension
-        parts = filename.split('_')
+        parts = filename.split("_")
         return parts[0] if parts else filename
 
     def _load_csv(self) -> None:
         """Load and parse CSV file."""
         import re
+
         try:
-            with open(self.csv_path, 'r') as f:
+            with open(self.csv_path, "r") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    point_name = row.get('point_name', '').strip()
+                    point_name = row.get("point_name", "").strip()
                     if not point_name:
                         continue
 
                     # Parse point_name: lamppost_1a -> description='lamppost', ID=1, corner='a'
                     # Pattern: <description>_<ID><corner>
-                    match = re.match(r'^(.+)_(\d+)([abcd])$', point_name, re.IGNORECASE)
+                    match = re.match(r"^(.+)_(\d+)([abcd])$", point_name, re.IGNORECASE)
                     if not match:
                         logger.debug(f"Skipping non-visual-marker entry: {point_name}")
                         continue
@@ -762,9 +849,9 @@ class VisualMarkerGPSData:
 
                     # Extract GPS coordinates
                     try:
-                        lat = float(row.get('latitude', 0))
-                        lon = float(row.get('longitude', 0))
-                        alt = float(row.get('altitude', 0))
+                        lat = float(row.get("latitude", 0))
+                        lon = float(row.get("longitude", 0))
+                        alt = float(row.get("altitude", 0))
                     except (ValueError, TypeError):
                         logger.warning(f"Invalid GPS coordinates for {point_name}")
                         continue
@@ -775,12 +862,14 @@ class VisualMarkerGPSData:
                         self.marker_names[marker_id] = description
 
                     self.gps_data[marker_id][corner] = {
-                        'lat': lat,
-                        'lon': lon,
-                        'alt': alt
+                        "lat": lat,
+                        "lon": lon,
+                        "alt": alt,
                     }
 
-            logger.info(f"Loaded GPS data for {len(self.gps_data)} visual markers from {self.csv_path}")
+            logger.info(
+                f"Loaded GPS data for {len(self.gps_data)} visual markers from {self.csv_path}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to load visual marker GPS CSV: {e}")
@@ -807,7 +896,7 @@ class VisualMarkerGPSData:
         Returns:
             Object name in format: "description_ID" (e.g., "lamppost_1")
         """
-        description = self.marker_names.get(marker_id, 'marker')
+        description = self.marker_names.get(marker_id, "marker")
         return f"{description}_{marker_id}"
 
     def get_marker_ids(self) -> List[int]:
@@ -822,8 +911,13 @@ class VisualMarkerGPSData:
 class ArUcoEngine(BaseDetectionEngine):
     """ArUco marker detection engine with GPS position integration."""
 
-    def __init__(self, csv_path: str, class_id: int, aruco_dict_name: str = 'DICT_4X4_50',
-                 id_manager: Optional['ObjectIDManager'] = None):
+    def __init__(
+        self,
+        csv_path: str,
+        class_id: int,
+        aruco_dict_name: str = "DICT_4X4_50",
+        id_manager: Optional["ObjectIDManager"] = None,
+    ):
         """Initialize ArUco detection engine.
 
         Args:
@@ -890,7 +984,9 @@ class ArUcoEngine(BaseDetectionEngine):
                     gps_data = self.gps_data.get_gps_data(aruco_id)
 
                     if not gps_data:
-                        logger.warning(f"ArUco marker {aruco_id} detected but not found in GPS CSV")
+                        logger.warning(
+                            f"ArUco marker {aruco_id} detected but not found in GPS CSV"
+                        )
 
                     # Calculate center point
                     center_x = float(np.mean(marker_corners[:, 0]))
@@ -904,10 +1000,12 @@ class ArUcoEngine(BaseDetectionEngine):
 
                     # Calculate rotation angle from corner positions
                     # Use vector from bottom-left to bottom-right corner
-                    angle = float(np.arctan2(
-                        marker_corners[1, 1] - marker_corners[0, 1],
-                        marker_corners[1, 0] - marker_corners[0, 0]
-                    ))
+                    angle = float(
+                        np.arctan2(
+                            marker_corners[1, 1] - marker_corners[0, 1],
+                            marker_corners[1, 0] - marker_corners[0, 0],
+                        )
+                    )
 
                     # Calculate confidence based on corner detection quality
                     # Use perimeter consistency as quality metric
@@ -921,7 +1019,9 @@ class ArUcoEngine(BaseDetectionEngine):
                     avg_length = np.mean(edge_lengths)
                     length_variance = np.var(edge_lengths)
                     # Normalize variance to 0-1 range and invert (lower variance = higher confidence)
-                    confidence = float(max(0.5, min(1.0, 1.0 - (length_variance / (avg_length ** 2)))))
+                    confidence = float(
+                        max(0.5, min(1.0, 1.0 - (length_variance / (avg_length**2))))
+                    )
 
                     # Create detection result with GPS data attached
                     detection = DetectionResult(
@@ -931,7 +1031,7 @@ class ArUcoEngine(BaseDetectionEngine):
                         oriented_bbox=marker_corners.astype(np.float32),
                         center=(center_x, center_y),
                         angle=angle,
-                        source_engine='aruco'
+                        source_engine="aruco",
                     )
 
                     # Attach GPS data and ArUco ID for OpenLabel export

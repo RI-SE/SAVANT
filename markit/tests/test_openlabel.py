@@ -10,6 +10,7 @@ import numpy as np
 
 try:
     import jsonschema
+
     JSONSCHEMA_AVAILABLE = True
 except ImportError:
     JSONSCHEMA_AVAILABLE = False
@@ -74,17 +75,14 @@ class TestOpenLabelHandler:
             object_id=1,
             class_id=1,
             confidence=0.9,
-            oriented_bbox=np.array([
-                [110.0, 110.0],
-                [210.0, 110.0],
-                [210.0, 160.0],
-                [110.0, 160.0]
-            ]),
+            oriented_bbox=np.array(
+                [[110.0, 110.0], [210.0, 110.0], [210.0, 160.0], [110.0, 160.0]]
+            ),
             center=(160.0, 135.0),
             angle=0.1,
             source_engine="yolo",
             width=100.0,
-            height=50.0
+            height=50.0,
         )
 
         # Add second frame
@@ -102,7 +100,7 @@ class TestOpenLabelHandler:
         handler.add_frame_objects(0, [sample_detection], sample_class_map)
 
         # Save to temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
 
         try:
@@ -111,7 +109,7 @@ class TestOpenLabelHandler:
             # Verify file exists and is valid JSON
             assert os.path.exists(temp_path)
 
-            with open(temp_path, 'r') as f:
+            with open(temp_path, "r") as f:
                 loaded_data = json.load(f)
 
             assert "openlabel" in loaded_data
@@ -129,14 +127,16 @@ class TestOpenLabelHandler:
         handler.add_frame_objects(0, [sample_detection], sample_class_map)
 
         # Load schema
-        with open(schema_path, 'r') as f:
+        with open(schema_path, "r") as f:
             schema = json.load(f)
 
         # Validate generated data against schema
         try:
             jsonschema.validate(handler.openlabel_data, schema)
         except jsonschema.ValidationError as e:
-            pytest.fail(f"Generated OpenLabel JSON does not validate against schema: {e}")
+            pytest.fail(
+                f"Generated OpenLabel JSON does not validate against schema: {e}"
+            )
 
     def test_multiple_objects_in_frame(self, schema_path, sample_class_map):
         """Test adding multiple objects to a single frame."""
@@ -148,34 +148,28 @@ class TestOpenLabelHandler:
             object_id=1,
             class_id=1,
             confidence=0.95,
-            oriented_bbox=np.array([
-                [100.0, 100.0],
-                [200.0, 100.0],
-                [200.0, 150.0],
-                [100.0, 150.0]
-            ]),
+            oriented_bbox=np.array(
+                [[100.0, 100.0], [200.0, 100.0], [200.0, 150.0], [100.0, 150.0]]
+            ),
             center=(150.0, 125.0),
             angle=0.0,
             source_engine="yolo",
             width=100.0,
-            height=50.0
+            height=50.0,
         )
 
         detection2 = DetectionResult(
             object_id=2,
             class_id=2,
             confidence=0.88,
-            oriented_bbox=np.array([
-                [300.0, 200.0],
-                [400.0, 200.0],
-                [400.0, 250.0],
-                [300.0, 250.0]
-            ]),
+            oriented_bbox=np.array(
+                [[300.0, 200.0], [400.0, 200.0], [400.0, 250.0], [300.0, 250.0]]
+            ),
             center=(350.0, 225.0),
             angle=0.0,
             source_engine="yolo",
             width=100.0,
-            height=50.0
+            height=50.0,
         )
 
         # Add both detections to frame 0
@@ -210,30 +204,28 @@ class TestOpenLabelHandler:
             object_id=np.int64(1),
             class_id=np.int32(1),
             confidence=np.float32(0.95),
-            oriented_bbox=np.array([
-                [100.0, 100.0],
-                [200.0, 100.0],
-                [200.0, 150.0],
-                [100.0, 150.0]
-            ], dtype=np.float32),
+            oriented_bbox=np.array(
+                [[100.0, 100.0], [200.0, 100.0], [200.0, 150.0], [100.0, 150.0]],
+                dtype=np.float32,
+            ),
             center=(np.float64(150.0), np.float64(125.0)),
             angle=np.float64(0.0),
             source_engine="yolo",
             width=np.float32(100.0),
-            height=np.float32(50.0)
+            height=np.float32(50.0),
         )
 
         handler.add_frame_objects(0, [detection], sample_class_map)
 
         # Save to temporary file to ensure encoding works
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
 
         try:
             handler.save_to_file(temp_path)
 
             # Should successfully save and load
-            with open(temp_path, 'r') as f:
+            with open(temp_path, "r") as f:
                 loaded_data = json.load(f)
 
             assert "openlabel" in loaded_data

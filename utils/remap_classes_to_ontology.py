@@ -12,7 +12,6 @@ Usage:
 """
 
 import argparse
-import os
 import sys
 import yaml
 from pathlib import Path

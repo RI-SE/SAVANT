@@ -3,10 +3,22 @@
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
-    QLineEdit, QPushButton, QFileDialog, QMessageBox, QGroupBox,
-    QCheckBox, QTextEdit, QDoubleSpinBox, QSpinBox, QWidget,
-    QScrollArea
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QFileDialog,
+    QMessageBox,
+    QGroupBox,
+    QCheckBox,
+    QTextEdit,
+    QDoubleSpinBox,
+    QSpinBox,
+    QWidget,
+    QScrollArea,
 )
 from PyQt6.QtCore import Qt
 
@@ -18,10 +30,7 @@ class GenerateDialog(QDialog):
     """Dialog for generating training files."""
 
     def __init__(
-        self,
-        app_state: AppState,
-        config_controller: ConfigController,
-        parent=None
+        self, app_state: AppState, config_controller: ConfigController, parent=None
     ):
         super().__init__(parent)
 
@@ -47,7 +56,7 @@ class GenerateDialog(QDialog):
             info_layout.addRow("Config Name:", QLabel(config.name))
             info_layout.addRow(
                 "Selected Datasets:",
-                QLabel(", ".join(config.selected_datasets) or "None")
+                QLabel(", ".join(config.selected_datasets) or "None"),
             )
 
         layout.addWidget(info_group)
@@ -121,7 +130,9 @@ class GenerateDialog(QDialog):
         self.split_ratio_spin.setRange(0.5, 0.99)
         self.split_ratio_spin.setSingleStep(0.05)
         self.split_ratio_spin.setValue(default_ratio)
-        self.split_ratio_spin.setToolTip("Fraction of data for training (e.g., 0.9 = 90% train)")
+        self.split_ratio_spin.setToolTip(
+            "Fraction of data for training (e.g., 0.9 = 90% train)"
+        )
         self.split_ratio_spin.valueChanged.connect(self._update_preview)
         split_params_layout.addRow("Train Ratio:", self.split_ratio_spin)
 
@@ -222,9 +233,7 @@ class GenerateDialog(QDialog):
     def _browse_output(self):
         """Browse for output directory."""
         folder = QFileDialog.getExistingDirectory(
-            self,
-            "Select Output Directory",
-            self.output_dir_edit.text() or ""
+            self, "Select Output Directory", self.output_dir_edit.text() or ""
         )
         if folder:
             self.output_dir_edit.setText(folder)
@@ -234,7 +243,7 @@ class GenerateDialog(QDialog):
         enabled = state == 2  # Qt.CheckState.Checked
         self.split_params_widget.setEnabled(enabled)
         # Guard against being called before UI is fully set up
-        if hasattr(self, 'preview_text'):
+        if hasattr(self, "preview_text"):
             self._update_preview()
 
     def _on_val_pool_select_all(self):
@@ -261,11 +270,10 @@ class GenerateDialog(QDialog):
 
         generate_manifest = self.generate_manifest_cb.isChecked()
         preview = self.config_controller.preview_generation(
-            output_dir,
-            generate_manifest=generate_manifest
+            output_dir, generate_manifest=generate_manifest
         )
 
-        if not preview.get('valid', False):
+        if not preview.get("valid", False):
             self.preview_text.setText(f"Error: {preview.get('error', 'Unknown error')}")
             self.generate_btn.setEnabled(False)
             return
@@ -274,11 +282,11 @@ class GenerateDialog(QDialog):
             f"  - {Path(preview['dataset_yaml']).name}",
             f"  - {Path(preview['params_json']).name}",
         ]
-        if generate_manifest and 'manifest_json' in preview:
+        if generate_manifest and "manifest_json" in preview:
             files_list.append(f"  - {Path(preview['manifest_json']).name}")
 
         split_info = ""
-        if preview.get('split_enabled'):
+        if preview.get("split_enabled"):
             split_info = f"\n  - Split: {preview['split_ratio']:.0%} train, seed={preview['split_seed']}"
 
         text = f"""Output Directory: {preview['output_dir']}
@@ -317,9 +325,7 @@ Summary:
 
         if not output_dir:
             QMessageBox.warning(
-                self,
-                "Validation Error",
-                "Output directory is required."
+                self, "Validation Error", "Output directory is required."
             )
             return
 
@@ -330,9 +336,7 @@ Summary:
                 output_path.mkdir(parents=True)
             except Exception as e:
                 QMessageBox.warning(
-                    self,
-                    "Error",
-                    f"Failed to create output directory: {e}"
+                    self, "Error", f"Failed to create output directory: {e}"
                 )
                 return
 
@@ -344,7 +348,7 @@ Summary:
         result = self.config_controller.generate_files(
             output_dir=output_dir,
             copy_images=self.copy_images_cb.isChecked(),
-            generate_manifest=generate_manifest
+            generate_manifest=generate_manifest,
         )
 
         if result[0]:  # success
@@ -362,7 +366,7 @@ Summary:
                 f"Params JSON: {json_path}\n"
                 f"{manifest_msg}\n"
                 f"To train, run:\n"
-                f"train-yolo-obb --config {json_path}"
+                f"train-yolo-obb --config {json_path}",
             )
             self.accept()
         else:

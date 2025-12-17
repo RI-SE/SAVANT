@@ -4,9 +4,18 @@ import logging
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
-    QMenuBar, QMenu, QStatusBar, QFileDialog, QMessageBox,
-    QTabWidget, QLabel, QDialog, QDialogButtonBox
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QSplitter,
+    QStatusBar,
+    QFileDialog,
+    QMessageBox,
+    QTabWidget,
+    QLabel,
+    QDialog,
+    QDialogButtonBox,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QKeySequence, QPixmap
@@ -39,7 +48,7 @@ class MainWindow(QMainWindow):
         project_controller: ProjectController,
         dataset_controller: DatasetController,
         config_controller: ConfigController,
-        parent=None
+        parent=None,
     ):
         super().__init__(parent)
 
@@ -89,24 +98,15 @@ class MainWindow(QMainWindow):
         layout.setSpacing(8)
 
         # Project info (compact - just name and root path)
-        self.project_browser = ProjectBrowser(
-            self.app_state,
-            self.project_controller
-        )
+        self.project_browser = ProjectBrowser(self.app_state, self.project_controller)
         layout.addWidget(self.project_browser)
 
         # Dataset selector (gets most space)
-        self.dataset_selector = DatasetSelector(
-            self.app_state,
-            self.dataset_controller
-        )
+        self.dataset_selector = DatasetSelector(self.app_state, self.dataset_controller)
         layout.addWidget(self.dataset_selector, stretch=2)
 
         # Config list
-        self.config_list = ConfigList(
-            self.app_state,
-            self.config_controller
-        )
+        self.config_list = ConfigList(self.app_state, self.config_controller)
         layout.addWidget(self.config_list, stretch=1)
 
         return panel
@@ -126,10 +126,7 @@ class MainWindow(QMainWindow):
         self.tab_widget.addTab(self.analysis_panel, "Analysis")
 
         # Config Editor tab
-        self.config_editor = ConfigEditor(
-            self.app_state,
-            self.config_controller
-        )
+        self.config_editor = ConfigEditor(self.app_state, self.config_controller)
         self.tab_widget.addTab(self.config_editor, "Configuration")
 
         return panel
@@ -239,16 +236,13 @@ class MainWindow(QMainWindow):
                 name=name,
                 project_folder=folder,
                 datasets_root=datasets_root,
-                description=description
+                description=description,
             )
 
     def _on_open_project(self):
         """Handle open project action."""
         file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open Project",
-            "",
-            "Project files (project.json);;All files (*)"
+            self, "Open Project", "", "Project files (project.json);;All files (*)"
         )
         if file_path:
             self.project_controller.open_project(file_path)
@@ -263,15 +257,11 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "No Configuration",
-                "Please select or create a training configuration first."
+                "Please select or create a training configuration first.",
             )
             return
 
-        dialog = GenerateDialog(
-            self.app_state,
-            self.config_controller,
-            self
-        )
+        dialog = GenerateDialog(self.app_state, self.config_controller, self)
         dialog.exec()
 
     def _on_refresh_datasets(self):
@@ -281,9 +271,7 @@ class MainWindow(QMainWindow):
     def _on_change_datasets_root(self):
         """Handle change datasets root action."""
         folder = QFileDialog.getExistingDirectory(
-            self,
-            "Select Datasets Root Directory",
-            self.app_state.datasets_root or ""
+            self, "Select Datasets Root Directory", self.app_state.datasets_root or ""
         )
         if folder:
             self.project_controller.set_datasets_root(folder)
@@ -292,18 +280,13 @@ class MainWindow(QMainWindow):
         """Handle change project defaults action."""
         if not self.app_state.project:
             QMessageBox.warning(
-                self,
-                "No Project",
-                "Please open or create a project first."
+                self, "No Project", "Please open or create a project first."
             )
             return
 
         from .dialogs.project_defaults_dialog import ProjectDefaultsDialog
 
-        dialog = ProjectDefaultsDialog(
-            self.app_state.project.default_config,
-            self
-        )
+        dialog = ProjectDefaultsDialog(self.app_state.project.default_config, self)
         if dialog.exec():
             self.app_state.project.default_config = dialog.get_defaults()
             self.project_controller.save_project()
@@ -320,11 +303,15 @@ class MainWindow(QMainWindow):
 
         # Logo on the left
         logo_label = QLabel()
-        logo_path = Path(__file__).parent.parent.parent.parent / "docs" / "savant_logo_sq.png"
+        logo_path = (
+            Path(__file__).parent.parent.parent.parent / "docs" / "savant_logo_sq.png"
+        )
         if logo_path.exists():
             pixmap = QPixmap(str(logo_path))
             # Scale to reasonable size
-            scaled = pixmap.scaledToHeight(150, Qt.TransformationMode.SmoothTransformation)
+            scaled = pixmap.scaledToHeight(
+                150, Qt.TransformationMode.SmoothTransformation
+            )
             logo_label.setPixmap(scaled)
         layout.addWidget(logo_label)
 
@@ -365,9 +352,9 @@ class MainWindow(QMainWindow):
                 self,
                 "Unsaved Changes",
                 "There are unsaved changes. Save before closing?",
-                QMessageBox.StandardButton.Save |
-                QMessageBox.StandardButton.Discard |
-                QMessageBox.StandardButton.Cancel
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel,
             )
 
             if reply == QMessageBox.StandardButton.Save:

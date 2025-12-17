@@ -3,11 +3,19 @@
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
-    QLineEdit, QPushButton, QFileDialog, QMessageBox, QGroupBox,
-    QTextEdit, QProgressBar
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QFileDialog,
+    QMessageBox,
+    QGroupBox,
+    QTextEdit,
+    QProgressBar,
 )
-from PyQt6.QtCore import Qt
 
 from ...services.manifest_service import ManifestService, VerificationResult
 
@@ -98,10 +106,7 @@ class VerifyManifestDialog(QDialog):
     def _browse_file(self):
         """Browse for manifest file."""
         file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Manifest File",
-            "",
-            "JSON Files (*.json);;All Files (*)"
+            self, "Select Manifest File", "", "JSON Files (*.json);;All Files (*)"
         )
         if file_path:
             self.file_edit.setText(file_path)
@@ -109,18 +114,14 @@ class VerifyManifestDialog(QDialog):
     def _on_file_changed(self, text):
         """Handle file path change."""
         path = Path(text.strip())
-        self.verify_btn.setEnabled(path.exists() and path.suffix == '.json')
+        self.verify_btn.setEnabled(path.exists() and path.suffix == ".json")
 
     def _on_verify(self):
         """Handle verify button click."""
         manifest_path = Path(self.file_edit.text().strip())
 
         if not manifest_path.exists():
-            QMessageBox.warning(
-                self,
-                "Error",
-                "Manifest file not found."
-            )
+            QMessageBox.warning(self, "Error", "Manifest file not found.")
             return
 
         # Show progress
@@ -133,11 +134,7 @@ class VerifyManifestDialog(QDialog):
             result = self.manifest_service.verify_manifest(manifest_path)
             self._show_results(result)
         except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Error",
-                f"Verification failed: {e}"
-            )
+            QMessageBox.critical(self, "Error", f"Verification failed: {e}")
         finally:
             self.progress_bar.setVisible(False)
             self.verify_btn.setEnabled(True)

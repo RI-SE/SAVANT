@@ -2,10 +2,7 @@
 
 from pathlib import Path
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel
-)
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 
 from ..states.app_state import AppState
 from ...controllers.project_controller import ProjectController
@@ -15,10 +12,7 @@ class ProjectBrowser(QWidget):
     """Compact widget showing current project info."""
 
     def __init__(
-        self,
-        app_state: AppState,
-        project_controller: ProjectController,
-        parent=None
+        self, app_state: AppState, project_controller: ProjectController, parent=None
     ):
         super().__init__(parent)
 

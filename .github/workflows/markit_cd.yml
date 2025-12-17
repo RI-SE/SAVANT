@@ -1,0 +1,58 @@
+name: Markit CD
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "markit-v*"
+  workflow_call:
+  
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Markit packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --group markit
+
+      - name: Build Markit distributions
+        run: |
+          rm -rf dist
+          uv build --package markit
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: markit-dist
+          path: dist/*
+
+  release:
+    name: Create GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: markit-dist
+          path: ./artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

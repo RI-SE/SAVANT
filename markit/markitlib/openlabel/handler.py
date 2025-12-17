@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class NumpyEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles NumPy data types and rounds floats to 4 decimals."""
+
     def default(self, obj):
         if isinstance(obj, (np.integer, np.int32, np.int64)):
             return int(obj)
@@ -32,11 +33,12 @@ class NumpyEncoder(json.JSONEncoder):
     def encode(self, obj):
         """Override encode to round all Python floats to 4 decimals."""
         if isinstance(obj, float):
-            return format(round(obj, 4), '.4f').rstrip('0').rstrip('.')
+            return format(round(obj, 4), ".4f").rstrip("0").rstrip(".")
         return super().encode(obj)
 
     def iterencode(self, obj, _one_shot=False):
         """Override iterencode to round floats in nested structures."""
+
         def round_floats(o):
             if isinstance(o, float):
                 return round(o, 4)
@@ -64,7 +66,9 @@ class OpenLabelHandler:
         self.openlabel_data = {}
         self.debug_data = {}  # Separate structure for debug info (verbose mode only)
         self._debug_frame_count = 0
-        self._class_translation_count = 0  # Counter for verbose class translation logging
+        self._class_translation_count = (
+            0  # Counter for verbose class translation logging
+        )
         self.initialize_from_schema()
 
     def initialize_from_schema(self) -> None:
@@ -78,7 +82,7 @@ class OpenLabelHandler:
 
     def _create_empty_from_schema(self, schema_path: str) -> Dict[str, Any]:
         """Create empty OpenLabel structure based on schema."""
-        with open(schema_path, 'r') as f:
+        with open(schema_path, "r") as f:
             schema = json.load(f)
 
         def build_empty(schema: Dict[str, Any]) -> Any:
@@ -109,13 +113,16 @@ class OpenLabelHandler:
         metadata = {
             "name": f"SAVANT Markit {__version__} Analysis",
             "annotator": Constants.ANNOTATOR_NAME,
-            "comment": f"Multi-engine object detection and tracking analysis of {os.path.basename(video_path)}",
+            "comment": f"Multi-engine object detection and tracking of {os.path.basename(video_path)}",
             "tags": ["object_detection", "tracking", "yolo", "optical_flow", "savant"],
             "schema_version": Constants.SCHEMA_VERSION,
-            "tagged_file": os.path.basename(video_path)
+            "tagged_file": os.path.basename(video_path),
         }
 
-        if "openlabel" in self.openlabel_data and "metadata" in self.openlabel_data["openlabel"]:
+        if (
+            "openlabel" in self.openlabel_data
+            and "metadata" in self.openlabel_data["openlabel"]
+        ):
             self.openlabel_data["openlabel"]["metadata"].update(metadata)
 
         logger.info("Metadata added to OpenLabel structure")
@@ -127,14 +134,23 @@ class OpenLabelHandler:
             ontology_uri: The ontology namespace URI to use
         """
         if ontology_uri:
-            if "openlabel" in self.openlabel_data and "ontologies" in self.openlabel_data["openlabel"]:
+            if (
+                "openlabel" in self.openlabel_data
+                and "ontologies" in self.openlabel_data["openlabel"]
+            ):
                 self.openlabel_data["openlabel"]["ontologies"]["0"] = ontology_uri
                 logger.info(f"Ontology set: {ontology_uri}")
             else:
-                logger.warning("Could not set ontology: openlabel.ontologies not found in structure")
+                logger.warning(
+                    "Could not set ontology: openlabel.ontologies not found in structure"
+                )
 
-    def add_aruco_objects(self, gps_data: Dict[int, Dict], csv_name: str,
-                          id_mapping: Optional[Dict[int, int]] = None) -> None:
+    def add_aruco_objects(
+        self,
+        gps_data: Dict[int, Dict],
+        csv_name: str,
+        id_mapping: Optional[Dict[int, int]] = None,
+    ) -> None:
         """Pre-populate all ArUco markers from GPS data.
 
         Adds all markers from the CSV file to objects, even if not detected in video.
@@ -159,16 +175,12 @@ class OpenLabelHandler:
             for corner in sorted(corners.keys()):
                 corner_data = corners[corner]
                 corner_ids.append(f"{aruco_id}{corner}")
-                latitudes.append(str(corner_data['lat']))
-                longitudes.append(str(corner_data['lon']))
-                altitudes.append(str(corner_data.get('alt', 0)))
+                latitudes.append(str(corner_data["lat"]))
+                longitudes.append(str(corner_data["lon"]))
+                altitudes.append(str(corner_data.get("alt", 0)))
 
             # Build object with GPS data at object level
-            aruco_object = {
-                "name": object_name,
-                "type": "ArUco",
-                "ontology_uid": "0"
-            }
+            aruco_object = {"name": object_name, "type": "ArUco", "ontology_uid": "0"}
 
             # Add object_data.vec with GPS coordinates
             if corner_ids:
@@ -178,7 +190,7 @@ class OpenLabelHandler:
                         {"name": "long", "val": longitudes},
                         {"name": "lat", "val": latitudes},
                         {"name": "alt", "val": altitudes},
-                        {"name": "description", "val": csv_name}
+                        {"name": "description", "val": csv_name},
                     ]
                 }
 
@@ -186,10 +198,13 @@ class OpenLabelHandler:
 
         logger.info(f"Pre-populated {len(gps_data)} ArUco markers from GPS data")
 
-    def add_visual_marker_objects(self, gps_data: Dict[int, Dict],
-                                   marker_names: Dict[int, str],
-                                   id_mapping: Dict[int, int],
-                                   csv_name: str) -> None:
+    def add_visual_marker_objects(
+        self,
+        gps_data: Dict[int, Dict],
+        marker_names: Dict[int, str],
+        id_mapping: Dict[int, int],
+        csv_name: str,
+    ) -> None:
         """Pre-populate visual markers from GPS data.
 
         Adds all visual markers to objects list. These are reference points like
@@ -204,7 +219,7 @@ class OpenLabelHandler:
         """
         for marker_id, corners in gps_data.items():
             obj_id_str = str(id_mapping[marker_id])
-            marker_type = marker_names.get(marker_id, 'marker')
+            marker_type = marker_names.get(marker_id, "marker")
             object_name = f"{marker_type}_{marker_id}"
 
             # Build GPS vectors from all corners
@@ -212,15 +227,15 @@ class OpenLabelHandler:
             for corner in sorted(corners.keys()):
                 corner_data = corners[corner]
                 corner_ids.append(f"{marker_id}{corner}")
-                latitudes.append(str(corner_data['lat']))
-                longitudes.append(str(corner_data['lon']))
-                altitudes.append(str(corner_data.get('alt', 0)))
+                latitudes.append(str(corner_data["lat"]))
+                longitudes.append(str(corner_data["lon"]))
+                altitudes.append(str(corner_data.get("alt", 0)))
 
             # Build object with GPS data at object level
             marker_object = {
                 "name": object_name,
                 "type": "VisualMarker",
-                "ontology_uid": "0"
+                "ontology_uid": "0",
             }
 
             # Add object_data.vec with GPS coordinates
@@ -231,7 +246,7 @@ class OpenLabelHandler:
                         {"name": "long", "val": longitudes},
                         {"name": "lat", "val": latitudes},
                         {"name": "alt", "val": altitudes},
-                        {"name": "description", "val": csv_name}
+                        {"name": "description", "val": csv_name},
                     ]
                 }
 
@@ -239,8 +254,12 @@ class OpenLabelHandler:
 
         logger.info(f"Pre-populated {len(gps_data)} visual markers from GPS data")
 
-    def add_frame_objects(self, frame_idx: int, detection_results: List[DetectionResult],
-                         class_map: Dict[int, str]) -> None:
+    def add_frame_objects(
+        self,
+        frame_idx: int,
+        detection_results: List[DetectionResult],
+        class_map: Dict[int, str],
+    ) -> None:
         """Add detected objects for a frame to OpenLabel structure (matching markit.py format).
 
         Args:
@@ -259,25 +278,31 @@ class OpenLabelHandler:
                 obj_id_str = str(detection.object_id)
                 seen_object = True
 
-                # Convert detection data to OpenLabel-style xywhr format [center_x, center_y, width, height, rotation]
+                # Convert detection data to OpenLabel-style xywhr [center_x, center_y, w, h, rotation]
                 xywhr_formatted = self._detection_to_xywhr(detection, frame_idx)
 
                 # Map source engine to annotator name
                 annotator_map = {
-                    'yolo': 'markit_yolo',
-                    'optical_flow': 'markit_oflow',
-                    'aruco': 'markit_aruco'
+                    "yolo": "markit_yolo",
+                    "optical_flow": "markit_oflow",
+                    "aruco": "markit_aruco",
                 }
-                annotator_name = annotator_map.get(detection.source_engine, f"markit_{detection.source_engine}")
+                annotator_name = annotator_map.get(
+                    detection.source_engine, f"markit_{detection.source_engine}"
+                )
 
                 # Check if this is an ArUco marker with GPS data
-                is_aruco = hasattr(detection, 'aruco_id') and hasattr(detection, 'gps_data')
+                is_aruco = hasattr(detection, "aruco_id") and hasattr(
+                    detection, "gps_data"
+                )
 
                 # Add new object to global objects list if not seen before
                 if obj_id_str not in self.openlabel_data["openlabel"]["objects"]:
                     if is_aruco:
                         # ArUco marker - use special naming and type with GPS at object level
-                        object_name = getattr(detection, 'aruco_name', f"ArUco_{detection.aruco_id}")
+                        object_name = getattr(
+                            detection, "aruco_name", f"ArUco_{detection.aruco_id}"
+                        )
                         gps_data = detection.gps_data
                         aruco_id = detection.aruco_id
 
@@ -286,17 +311,17 @@ class OpenLabelHandler:
                         for corner in sorted(gps_data.keys()):
                             corner_data = gps_data[corner]
                             corner_ids.append(f"{aruco_id}{corner}")
-                            latitudes.append(str(corner_data['lat']))
-                            longitudes.append(str(corner_data['lon']))
-                            altitudes.append(str(corner_data.get('alt', 0)))
+                            latitudes.append(str(corner_data["lat"]))
+                            longitudes.append(str(corner_data["lon"]))
+                            altitudes.append(str(corner_data.get("alt", 0)))
 
-                        description = object_name.split('_')[0]
+                        description = object_name.split("_")[0]
 
                         # Build object with GPS data at object level (not per-frame)
                         aruco_object = {
                             "name": object_name,
                             "type": "ArUco",
-                            "ontology_uid": "0"
+                            "ontology_uid": "0",
                         }
 
                         # Add object_data.vec with GPS coordinates if available
@@ -307,41 +332,45 @@ class OpenLabelHandler:
                                     {"name": "long", "val": longitudes},
                                     {"name": "lat", "val": latitudes},
                                     {"name": "alt", "val": altitudes},
-                                    {"name": "description", "val": description}
+                                    {"name": "description", "val": description},
                                 ]
                             }
 
-                        self.openlabel_data["openlabel"]["objects"][obj_id_str] = aruco_object
+                        self.openlabel_data["openlabel"]["objects"][
+                            obj_id_str
+                        ] = aruco_object
                     else:
                         # Regular detection - translate YOLO class ID to ontology label
-                        class_label = class_map.get(detection.class_id, str(detection.class_id))
+                        class_label = class_map.get(
+                            detection.class_id, str(detection.class_id)
+                        )
 
                         # Verbose logging for first 25 class translations
                         if self.verbose and self._class_translation_count < 25:
-                            logger.info(f"Class translation: YOLO class_id={detection.class_id} → "
-                                       f"ontology_label='{class_label}' (source={detection.source_engine})")
+                            logger.info(
+                                f"Class translation: YOLO class_id={detection.class_id} → "
+                                f"ontology_label='{class_label}' (source={detection.source_engine})"
+                            )
                             self._class_translation_count += 1
 
                         self.openlabel_data["openlabel"]["objects"][obj_id_str] = {
                             "name": f"Object-{obj_id_str}",
                             "type": class_label,
-                            "ontology_uid": "0"
+                            "ontology_uid": "0",
                         }
 
                 # Build vec data based on detection type
                 vec_data = [
-                    {
-                        "name": "annotator",
-                        "val": [annotator_name]
-                    },
-                    {
-                        "name": "confidence",
-                        "val": [float(detection.confidence)]
-                    }
+                    {"name": "annotator", "val": [annotator_name]},
+                    {"name": "confidence", "val": [float(detection.confidence)]},
                 ]
 
                 # If verbose, store original YOLO dimensions in separate debug structure
-                if self.verbose and detection.width is not None and detection.height is not None:
+                if (
+                    self.verbose
+                    and detection.width is not None
+                    and detection.height is not None
+                ):
                     # Ensure frame exists in debug_data
                     if frame_idx not in self.debug_data:
                         self.debug_data[frame_idx] = {}
@@ -353,7 +382,7 @@ class OpenLabelHandler:
                             float(detection.center[1]),
                             float(detection.width),
                             float(detection.height),
-                            float(detection.angle)
+                            float(detection.angle),
                         ]
                     }
 
@@ -362,11 +391,8 @@ class OpenLabelHandler:
                 # Regular objects: full vec data
                 frame_objects[obj_id_str] = {
                     "object_data": {
-                        "rbbox": [{
-                            "name": "shape",
-                            "val": xywhr_formatted
-                        }],
-                        "vec": vec_data
+                        "rbbox": [{"name": "shape", "val": xywhr_formatted}],
+                        "vec": vec_data,
                     }
                 }
 
@@ -402,10 +428,12 @@ class OpenLabelHandler:
 
             # Verbose logging for angle analysis (first 1000 detections)
             if self.verbose and self._debug_frame_count < 1000:
-                logger.info(f"Frame {frame_idx}: obj={detection.object_id}, "
-                           f"internal_angle={rotation:.4f}rad ({np.degrees(rotation):.1f}°) → "
-                           f"output={rotation_output:.4f}rad ({np.degrees(rotation_output):.1f}°), "
-                           f"w={width:.1f}px, h={height:.1f}px, source={detection.source_engine}")
+                logger.info(
+                    f"Frame {frame_idx}: obj={detection.object_id}, "
+                    f"internal_angle={rotation:.4f}rad ({np.degrees(rotation):.1f}°) → "
+                    f"output={rotation_output:.4f}rad ({np.degrees(rotation_output):.1f}°), "
+                    f"w={width:.1f}px, h={height:.1f}px, source={detection.source_engine}"
+                )
                 self._debug_frame_count += 1
 
             # Format for OpenLabel: [center_x, center_y, width, height, rotation]
@@ -414,7 +442,7 @@ class OpenLabelHandler:
                 int(center_y),
                 int(width),
                 int(height),
-                round(rotation_output, 4)
+                round(rotation_output, 4),
             ]
 
             return xywhr_formatted
@@ -432,7 +460,9 @@ class OpenLabelHandler:
         try:
             # Sort the main objects dictionary numerically by key (matching original)
             objects = self.openlabel_data["openlabel"]["objects"]
-            sorted_objects = dict(sorted(objects.items(), key=lambda item: int(item[0])))
+            sorted_objects = dict(
+                sorted(objects.items(), key=lambda item: int(item[0]))
+            )
             self.openlabel_data["openlabel"]["objects"] = sorted_objects
         except Exception as e:
             logger.error(f"Error sorting objects: {e}")
@@ -488,7 +518,7 @@ class OpenLabelHandler:
         try:
             self.sort_objects()
 
-            with open(output_path, 'w') as f:
+            with open(output_path, "w") as f:
                 json.dump(self.openlabel_data, f, indent=2, cls=NumpyEncoder)
 
             logger.info(f"OpenLabel data saved to: {output_path}")

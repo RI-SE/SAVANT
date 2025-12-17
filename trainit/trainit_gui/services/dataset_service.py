@@ -1,7 +1,6 @@
 """Service for scanning and analyzing training datasets."""
 
 import logging
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -27,7 +26,7 @@ class DatasetService:
     """
 
     DATASET_YAML_NAME = "dataset.yaml"
-    IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
+    IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
     def scan_directory(self, root_path: str) -> list[str]:
         """Scan a directory for valid dataset folders.
@@ -79,8 +78,8 @@ class DatasetService:
                 info.error_message = "Failed to parse dataset.yaml"
                 return info
 
-            info.num_classes = yaml_data.get('nc', 0)
-            names = yaml_data.get('names', {})
+            info.num_classes = yaml_data.get("nc", 0)
+            names = yaml_data.get("names", {})
             # Handle both dict and list formats
             if isinstance(names, list):
                 info.class_names = {i: n for i, n in enumerate(names)}
@@ -110,9 +109,7 @@ class DatasetService:
         return info
 
     def analyze_datasets(
-        self,
-        root_path: str,
-        dataset_names: list[str]
+        self, root_path: str, dataset_names: list[str]
     ) -> AggregatedStats:
         """Analyze multiple datasets and return aggregated statistics.
 
@@ -134,7 +131,7 @@ class DatasetService:
             else:
                 return AggregatedStats(
                     is_valid=False,
-                    error_message=f"Invalid dataset '{name}': {info.error_message}"
+                    error_message=f"Invalid dataset '{name}': {info.error_message}",
                 )
 
         return AggregatedStats.from_datasets(datasets)
@@ -142,7 +139,7 @@ class DatasetService:
     def _parse_yaml(self, yaml_path: Path) -> Optional[dict]:
         """Parse a YAML file safely."""
         try:
-            with open(yaml_path, 'r') as f:
+            with open(yaml_path, "r") as f:
                 return yaml.safe_load(f)
         except Exception as e:
             logger.error(f"Failed to parse {yaml_path}: {e}")
@@ -170,11 +167,11 @@ class DatasetService:
             return distribution
 
         for label_file in labels_dir.iterdir():
-            if label_file.suffix.lower() != '.txt':
+            if label_file.suffix.lower() != ".txt":
                 continue
 
             try:
-                with open(label_file, 'r') as f:
+                with open(label_file, "r") as f:
                     for line in f:
                         line = line.strip()
                         if not line:
@@ -183,7 +180,9 @@ class DatasetService:
                         if parts:
                             try:
                                 class_id = int(parts[0])
-                                distribution[class_id] = distribution.get(class_id, 0) + 1
+                                distribution[class_id] = (
+                                    distribution.get(class_id, 0) + 1
+                                )
                             except ValueError:
                                 continue
             except Exception as e:

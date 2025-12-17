@@ -1,0 +1,61 @@
+name: Trainit CD
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "trainit-v*"
+  workflow_call:
+  
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Trainit packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --group trainit
+
+      - name: Verify Trainit sources
+        run: uv run python -m compileall trainit
+
+      - name: Build Trainit distributions
+        run: |
+          rm -rf dist
+          uv build --package trainit
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trainit-dist
+          path: dist/*
+
+  release:
+    name: Create GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: trainit-dist
+          path: ./artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

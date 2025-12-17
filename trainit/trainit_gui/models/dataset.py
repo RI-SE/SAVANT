@@ -59,12 +59,12 @@ class DatasetInfo:
             ClassInfo(
                 class_id=cid,
                 name=self.class_names.get(cid, f"class_{cid}"),
-                count=self.class_distribution.get(cid, 0)
+                count=self.class_distribution.get(cid, 0),
             )
             for cid in sorted(self.class_names.keys())
         ]
 
-    def has_matching_classes(self, other: 'DatasetInfo') -> bool:
+    def has_matching_classes(self, other: "DatasetInfo") -> bool:
         """Check if this dataset has identical class mapping to another.
 
         Required for combining datasets in training.
@@ -115,7 +115,7 @@ class AggregatedStats:
     error_message: str = ""
 
     @classmethod
-    def from_datasets(cls, datasets: list[DatasetInfo]) -> 'AggregatedStats':
+    def from_datasets(cls, datasets: list[DatasetInfo]) -> "AggregatedStats":
         """Create aggregated stats from a list of datasets.
 
         All datasets must have matching class mappings.
@@ -130,7 +130,7 @@ class AggregatedStats:
                 return cls(
                     is_valid=False,
                     error_message=f"Class mismatch: '{first.name}' and '{ds.name}' "
-                                  f"have different class definitions"
+                    f"have different class definitions",
                 )
 
         # Aggregate stats
@@ -138,7 +138,7 @@ class AggregatedStats:
             dataset_names=[ds.name for ds in datasets],
             num_classes=first.num_classes,
             class_names=dict(first.class_names),
-            is_valid=True
+            is_valid=True,
         )
 
         for ds in datasets:

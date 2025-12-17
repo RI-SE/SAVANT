@@ -67,7 +67,7 @@ from ultralytics import __version__ as ultralytics_version
 
 # Import from markitlib package
 from markit.markitlib import MarkitConfig, __version__
-from markit.markitlib.processing import VideoProcessor, FrameAnnotator
+from markit.markitlib.processing import VideoProcessor
 from markit.markitlib.openlabel import OpenLabelHandler
 from markit.markitlib.outputvideo import render_output_video
 from markit.markitlib.postprocessing import (
@@ -84,7 +84,9 @@ from markit.markitlib.postprocessing import (
 )
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -95,7 +97,7 @@ def parse_arguments() -> argparse.Namespace:
         Parsed arguments namespace
     """
     parser = argparse.ArgumentParser(
-        description='Advanced markit tool with multi-engine detection and IoU-based conflict resolution',
+        description="Advanced markit tool with multi-engine detection and IoU-based conflict resolution",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -119,86 +121,185 @@ Examples:
 
   # Both engines without conflict resolution
   python markit.py --detection-method both --weights model.pt --input video.mp4 --output_json output.json --disable-conflict-resolution
-        """
+        """,
     )
 
-    parser.add_argument('--version', action='version', version=f'SAVANT markit v{__version__}')
+    parser.add_argument(
+        "--version", action="version", version=f"SAVANT markit v{__version__}"
+    )
 
     # Required arguments
-    required = parser.add_argument_group('Required Arguments')
-    required.add_argument('--input', required=True, help='Path to input video file')
-    required.add_argument('--output_json', required=True, help='Path to output OpenLabel JSON file')
+    required = parser.add_argument_group("Required Arguments")
+    required.add_argument("--input", required=True, help="Path to input video file")
+    required.add_argument(
+        "--output_json", required=True, help="Path to output OpenLabel JSON file"
+    )
 
     # Optional arguments (paths/files)
-    optional = parser.add_argument_group('Optional Arguments')
-    optional.add_argument('--weights', default='markit_yolo.pt',
-                          help='Path to YOLO weights file (.pt) (default: markit_yolo.pt)')
-    optional.add_argument('--schema', default='../schema/savant_openlabel_subset.schema.json',
-                          help='Path to OpenLabel JSON schema file (default: ../schema/savant_openlabel_subset.schema.json)')
-    optional.add_argument('--ontology', default='../ontology/savant.ttl',
-                          help='Path to SAVANT ontology file for class mapping (default: ../ontology/savant.ttl)')
-    optional.add_argument('--ontology-uri', dest='ontology_uri',
-                          help='Ontology URI for OpenLabel output (default: extracted from ontology file)')
-    optional.add_argument('--output_video', help='Path to output annotated video file')
-    optional.add_argument('--aruco-csv', dest='aruco_csv',
-                          help='Path to CSV file with ArUco marker GPS positions (enables ArUco detection)')
-    optional.add_argument('--visual-markers', dest='visual_markers',
-                          help='Path to CSV file with visual marker GPS positions (same format as ArUco CSV)')
-    optional.add_argument('--provenance',
-                          help='Path to provenance chain file (will be created if not exists)')
+    optional = parser.add_argument_group("Optional Arguments")
+    optional.add_argument(
+        "--weights",
+        default="markit_yolo.pt",
+        help="Path to YOLO weights file (.pt) (default: markit_yolo.pt)",
+    )
+    optional.add_argument(
+        "--schema",
+        default="../schema/savant_openlabel_subset.schema.json",
+        help="Path to OpenLabel JSON schema file (default: ../schema/savant_openlabel_subset.schema.json)",
+    )
+    optional.add_argument(
+        "--ontology",
+        default="../ontology/savant.ttl",
+        help="Path to SAVANT ontology file for class mapping (default: ../ontology/savant.ttl)",
+    )
+    optional.add_argument(
+        "--ontology-uri",
+        dest="ontology_uri",
+        help="Ontology URI for OpenLabel output (default: extracted from ontology file)",
+    )
+    optional.add_argument("--output_video", help="Path to output annotated video file")
+    optional.add_argument(
+        "--aruco-csv",
+        dest="aruco_csv",
+        help="Path to CSV file with ArUco marker GPS positions (enables ArUco detection)",
+    )
+    optional.add_argument(
+        "--visual-markers",
+        dest="visual_markers",
+        help="Path to CSV file with visual marker GPS positions (same format as ArUco CSV)",
+    )
+    optional.add_argument(
+        "--provenance",
+        help="Path to provenance chain file (will be created if not exists)",
+    )
 
     # Detection configuration
-    detection = parser.add_argument_group('Detection Configuration')
-    detection.add_argument('--detection-method',
-                           choices=['yolo', 'optical_flow', 'both'],
-                           default='yolo',
-                           help='Detection method(s) to use (default: yolo)')
-    detection.add_argument('--motion-threshold', type=float, default=0.5,
-                           help='Optical flow motion threshold (default: 0.5)')
-    detection.add_argument('--min-object-area', type=int, default=200,
-                           help='Minimum object area for optical flow detection (default: 200)')
-    detection.add_argument('--aruco-dict', dest='aruco_dict', default='DICT_4X4_50',
-                           choices=['DICT_4X4_50', 'DICT_4X4_100', 'DICT_4X4_250', 'DICT_4X4_1000',
-                                    'DICT_5X5_50', 'DICT_5X5_100', 'DICT_5X5_250', 'DICT_5X5_1000',
-                                    'DICT_6X6_50', 'DICT_6X6_100', 'DICT_6X6_250', 'DICT_6X6_1000',
-                                    'DICT_7X7_50', 'DICT_7X7_100', 'DICT_7X7_250', 'DICT_7X7_1000',
-                                    'DICT_ARUCO_ORIGINAL'],
-                           help='ArUco dictionary type (default: DICT_4X4_50)')
+    detection = parser.add_argument_group("Detection Configuration")
+    detection.add_argument(
+        "--detection-method",
+        choices=["yolo", "optical_flow", "both"],
+        default="yolo",
+        help="Detection method(s) to use (default: yolo)",
+    )
+    detection.add_argument(
+        "--motion-threshold",
+        type=float,
+        default=0.5,
+        help="Optical flow motion threshold (default: 0.5)",
+    )
+    detection.add_argument(
+        "--min-object-area",
+        type=int,
+        default=200,
+        help="Minimum object area for optical flow detection (default: 200)",
+    )
+    detection.add_argument(
+        "--aruco-dict",
+        dest="aruco_dict",
+        default="DICT_4X4_50",
+        choices=[
+            "DICT_4X4_50",
+            "DICT_4X4_100",
+            "DICT_4X4_250",
+            "DICT_4X4_1000",
+            "DICT_5X5_50",
+            "DICT_5X5_100",
+            "DICT_5X5_250",
+            "DICT_5X5_1000",
+            "DICT_6X6_50",
+            "DICT_6X6_100",
+            "DICT_6X6_250",
+            "DICT_6X6_1000",
+            "DICT_7X7_50",
+            "DICT_7X7_100",
+            "DICT_7X7_250",
+            "DICT_7X7_1000",
+            "DICT_ARUCO_ORIGINAL",
+        ],
+        help="ArUco dictionary type (default: DICT_4X4_50)",
+    )
 
     # Conflict resolution
-    conflict = parser.add_argument_group('Conflict Resolution')
-    conflict.add_argument('--iou-threshold', type=float, default=0.3,
-                          help='IoU threshold for conflict resolution (default: 0.3)')
-    conflict.add_argument('--verbose-conflicts', action='store_true',
-                          help='Enable verbose conflict resolution logging')
-    conflict.add_argument('--disable-conflict-resolution', action='store_true',
-                          help='Disable conflict resolution (keep all detections)')
+    conflict = parser.add_argument_group("Conflict Resolution")
+    conflict.add_argument(
+        "--iou-threshold",
+        type=float,
+        default=0.3,
+        help="IoU threshold for conflict resolution (default: 0.3)",
+    )
+    conflict.add_argument(
+        "--verbose-conflicts",
+        action="store_true",
+        help="Enable verbose conflict resolution logging",
+    )
+    conflict.add_argument(
+        "--disable-conflict-resolution",
+        action="store_true",
+        help="Disable conflict resolution (keep all detections)",
+    )
 
     # Postprocessing (Housekeeping)
-    postproc = parser.add_argument_group('Postprocessing (Housekeeping)')
-    postproc.add_argument('--housekeeping', action='store_true',
-                          help='Enable postprocessing passes (gap detection and filling)')
-    postproc.add_argument('--duplicate-avg-iou', type=float, default=0.7,
-                          help='Average IOU threshold for duplicate detection (default: 0.7)')
-    postproc.add_argument('--duplicate-min-iou', type=float, default=0.3,
-                          help='Minimum IOU threshold for duplicate detection (default: 0.3)')
-    postproc.add_argument('--rotation-threshold', type=float, default=0.1,
-                          help='Rotation angle threshold in radians for adjustment (default: 0.1)')
-    postproc.add_argument('--min-movement-pixels', type=float, default=5.0,
-                          help='Minimum movement in pixels for rotation calculation (default: 5.0)')
-    postproc.add_argument('--temporal-smoothing', type=float, default=0.3,
-                          help='Temporal smoothing factor for rotation (0-1, higher = more smoothing, default: 0.3)')
-    postproc.add_argument('--edge-distance', type=int, default=200,
-                          help='Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)')
-    postproc.add_argument('--static-threshold', type=int, default=20,
-                          help='Movement threshold in pixels for static object removal (default: 20, negative value disables)')
-    postproc.add_argument('--static-mark', action='store_true',
-                          help='Mark static objects instead of removing them (adds "staticdynamic" annotation)')
+    postproc = parser.add_argument_group("Postprocessing (Housekeeping)")
+    postproc.add_argument(
+        "--housekeeping",
+        action="store_true",
+        help="Enable postprocessing passes (gap detection and filling)",
+    )
+    postproc.add_argument(
+        "--duplicate-avg-iou",
+        type=float,
+        default=0.7,
+        help="Average IOU threshold for duplicate detection (default: 0.7)",
+    )
+    postproc.add_argument(
+        "--duplicate-min-iou",
+        type=float,
+        default=0.3,
+        help="Minimum IOU threshold for duplicate detection (default: 0.3)",
+    )
+    postproc.add_argument(
+        "--rotation-threshold",
+        type=float,
+        default=0.1,
+        help="Rotation angle threshold in radians for adjustment (default: 0.1)",
+    )
+    postproc.add_argument(
+        "--min-movement-pixels",
+        type=float,
+        default=5.0,
+        help="Minimum movement in pixels for rotation calculation (default: 5.0)",
+    )
+    postproc.add_argument(
+        "--temporal-smoothing",
+        type=float,
+        default=0.3,
+        help="Temporal smoothing factor for rotation (0-1, higher = more smoothing, default: 0.3)",
+    )
+    postproc.add_argument(
+        "--edge-distance",
+        type=int,
+        default=200,
+        help="Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)",
+    )
+    postproc.add_argument(
+        "--static-threshold",
+        type=int,
+        default=20,
+        help="Movement threshold in pixels for static object removal (default: 20, negative value disables)",
+    )
+    postproc.add_argument(
+        "--static-mark",
+        action="store_true",
+        help='Mark static objects instead of removing them (adds "staticdynamic" annotation)',
+    )
 
     # Logging and debug
-    logging_group = parser.add_argument_group('Logging and Debug')
-    logging_group.add_argument('--verbose', action='store_true',
-                               help='Enable verbose output with detailed angle and detection logging')
+    logging_group = parser.add_argument_group("Logging and Debug")
+    logging_group.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output with detailed angle and detection logging",
+    )
 
     # VLM Analysis Configuration
     vlm_group = parser.add_argument_group('VLM Scene Analysis')
@@ -241,7 +342,7 @@ def build_arguments_string(args: argparse.Namespace) -> str:
         f"--schema {args.schema}",
         f"--ontology {args.ontology}",
     ]
-    if args.detection_method in ['yolo', 'both']:
+    if args.detection_method in ["yolo", "both"]:
         parts.append(f"--weights {args.weights}")
     if args.housekeeping:
         parts.append("--housekeeping")
@@ -259,16 +360,19 @@ def build_arguments_string(args: argparse.Namespace) -> str:
     if args.aruco_csv:
         parts.append(f"--aruco-csv {args.aruco_csv}")
         parts.append(f"--aruco-dict {args.aruco_dict}")
-    if args.detection_method in ['optical_flow', 'both']:
+    if args.detection_method in ["optical_flow", "both"]:
         parts.append(f"--motion-threshold {args.motion_threshold}")
         parts.append(f"--min-object-area {args.min_object_area}")
-    if args.detection_method == 'both' and not args.disable_conflict_resolution:
+    if args.detection_method == "both" and not args.disable_conflict_resolution:
         parts.append(f"--iou-threshold {args.iou_threshold}")
     return " ".join(parts)
 
 
-def process_video(video_processor: VideoProcessor, openlabel_handler: OpenLabelHandler,
-                 config: MarkitConfig) -> None:
+def process_video(
+    video_processor: VideoProcessor,
+    openlabel_handler: OpenLabelHandler,
+    config: MarkitConfig,
+) -> None:
     """Main video processing loop with multi-engine support.
 
     Args:
@@ -291,7 +395,9 @@ def process_video(video_processor: VideoProcessor, openlabel_handler: OpenLabelH
             detection_results = video_processor.process_frame(frame)
 
             # Add to OpenLabel structure
-            openlabel_handler.add_frame_objects(frame_idx, detection_results, config.class_map)
+            openlabel_handler.add_frame_objects(
+                frame_idx, detection_results, config.class_map
+            )
 
             frame_idx += 1
             total_frames += 1
@@ -310,8 +416,11 @@ def process_video(video_processor: VideoProcessor, openlabel_handler: OpenLabelH
     logger.info(f"Detection statistics: {stats}")
 
 
-def cleanup(video_processor: VideoProcessor, openlabel_handler: OpenLabelHandler,
-           config: MarkitConfig) -> None:
+def cleanup(
+    video_processor: VideoProcessor,
+    openlabel_handler: OpenLabelHandler,
+    config: MarkitConfig,
+) -> None:
     """Cleanup and finalization.
 
     Args:
@@ -343,26 +452,33 @@ def main():
         start_time = None
         if args.provenance:
             from datetime import datetime, timezone
+
             start_time = datetime.now(timezone.utc)
 
         # Determine which engines will be used (before config to log first)
         engines = []
-        if args.detection_method in ['yolo', 'both']:
+        if args.detection_method in ["yolo", "both"]:
             engines.append("YOLO")
-        if args.detection_method in ['optical_flow', 'both']:
+        if args.detection_method in ["optical_flow", "both"]:
             engines.append("OpticalFlow")
         if args.aruco_csv:
             engines.append("ArUco")
 
         # Log startup message first
-        logger.info(f"SAVANT markit v{__version__} starting with engines: {', '.join(engines)}")
-        logger.info(f"Library versions: OpenCV {cv2.__version__}, NumPy {np.__version__}, Ultralytics {ultralytics_version}")
+        logger.info(
+            f"SAVANT markit v{__version__} starting with engines: {', '.join(engines)}"
+        )
+        logger.info(
+            f"Library versions: OpenCV {cv2.__version__}, NumPy {np.__version__}, Ultralytics {ultralytics_version}"
+        )
 
         # Create configuration
         config = MarkitConfig(args)
 
         if config.enable_conflict_resolution and len(engines) > 1:
-            logger.info(f"Conflict resolution enabled with IoU threshold: {config.iou_threshold:.2f}")
+            logger.info(
+                f"Conflict resolution enabled with IoU threshold: {config.iou_threshold:.2f}"
+            )
 
         # Initialize components
         video_processor = VideoProcessor(config)
@@ -388,7 +504,7 @@ def main():
                 visual_marker_data.gps_data,
                 visual_marker_data.marker_names,
                 vm_id_mapping,
-                visual_marker_data.csv_name
+                visual_marker_data.csv_name,
             )
 
         # Process video
@@ -401,7 +517,7 @@ def main():
             postprocessing_pipeline.set_video_properties(
                 video_processor.frame_width,
                 video_processor.frame_height,
-                video_processor.fps
+                video_processor.fps,
             )
             postprocessing_pipeline.set_ontology_path(config.ontology_path)
             postprocessing_pipeline.add_pass(GapDetectionPass())
@@ -409,21 +525,20 @@ def main():
             postprocessing_pipeline.add_pass(
                 DuplicateRemovalPass(
                     avg_iou_threshold=config.duplicate_avg_iou,
-                    min_iou_threshold=config.duplicate_min_iou
+                    min_iou_threshold=config.duplicate_min_iou,
                 )
             )
             if config.static_threshold >= 0:
                 postprocessing_pipeline.add_pass(
                     StaticObjectRemovalPass(
                         static_threshold=config.static_threshold,
-                        mark_only=config.static_mark
+                        mark_only=config.static_mark,
                     )
                 )
             # MANDATORY: Refine initial detection angles using lookahead
             postprocessing_pipeline.add_pass(
                 FirstDetectionRefinementPass(
-                    lookahead_frames=5,
-                    min_movement_pixels=5.0
+                    lookahead_frames=5, min_movement_pixels=5.0
                 )
             )
             # OPTIONAL: Further refine rotation using movement direction
@@ -431,10 +546,12 @@ def main():
                 RotationAdjustmentPass(
                     rotation_threshold=config.rotation_threshold,
                     min_movement_pixels=config.min_movement_pixels,
-                    temporal_smoothing=config.temporal_smoothing
+                    temporal_smoothing=config.temporal_smoothing,
                 )
             )
-            postprocessing_pipeline.add_pass(SuddenPass(edge_distance=config.edge_distance))
+            postprocessing_pipeline.add_pass(
+                SuddenPass(edge_distance=config.edge_distance)
+            )
             postprocessing_pipeline.add_pass(FrameIntervalPass())
             # MANDATORY FINAL PASS: Normalize all angles to [0, 2π) for OpenLabel output
             postprocessing_pipeline.add_pass(AngleNormalizationPass())
@@ -480,7 +597,9 @@ def main():
 
         # Render output video from postprocessed data (if requested)
         if config.output_video_path:
-            render_output_video(config, openlabel_handler.openlabel_data, openlabel_handler.debug_data)
+            render_output_video(
+                config, openlabel_handler.openlabel_data, openlabel_handler.debug_data
+            )
 
         # Cleanup and save results
         cleanup(video_processor, openlabel_handler, config)
@@ -496,7 +615,7 @@ def main():
                 args.provenance,
                 entity_id="savant_markit_output",
                 initial_source=args.input,
-                description="SAVANT markit video processing"
+                description="SAVANT markit video processing",
             )
 
             # Build arguments string
@@ -513,7 +632,7 @@ def main():
             input_formats.append("TTL")
 
             # Add weights if YOLO detection used
-            if args.detection_method in ['yolo', 'both']:
+            if args.detection_method in ["yolo", "both"]:
                 inputs.append(args.weights)
                 input_formats.append("PT")
 
@@ -542,7 +661,7 @@ def main():
                 arguments=arguments,
                 capture_agent=True,
                 agent_type="automated",
-                capture_environment=True
+                capture_environment=True,
             )
 
             chain.save(args.provenance)
