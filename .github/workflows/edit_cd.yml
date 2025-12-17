@@ -26,14 +26,6 @@ jobs:
         working-directory: ./edit/
         run: uv sync --group edit
 
-      - name: Include additional assets
-        shell: bash
-        working-directory: ./edit/
-        run: |
-          if [ -d assets ]; then
-            mkdir -p src/edit/frontend/assets
-            cp -R assets/. src/edit/frontend/assets/
-          fi
 
       - name: Build
         working-directory: ./edit/src/edit/

@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Optional
 
+from edit.frontend.utils.assets import ASSETS_DIR
+
 from edit.frontend.exceptions import (
     InvalidActionIntervalOffsetError,
     InvalidFrameHistoryCountError,
@@ -264,9 +266,8 @@ def get_enabled_tag_frames() -> dict[str, list[int]]:
 def get_default_ontology_path() -> Optional[Path]:
     """Return the packaged ontology path if available."""
 
-    base = Path(__file__).resolve().parent.parent / "assets"
     for filename in _DEFAULT_ONTOLOGY_FILES:
-        candidate = base / filename
+        candidate = ASSETS_DIR / filename
         if candidate.is_file():
             return candidate
     return None
