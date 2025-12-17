@@ -235,12 +235,14 @@ def apply_project_settings(config: ProjectConfig | None) -> None:
             set_threshold_ranges(
                 warning_range=warning_range,
                 error_range=error_range,
-                show_warnings=bool(show_warnings)
-                if show_warnings is not None
-                else get_show_warnings(),
-                show_errors=bool(show_errors)
-                if show_errors is not None
-                else get_show_errors(),
+                show_warnings=(
+                    bool(show_warnings)
+                    if show_warnings is not None
+                    else get_show_warnings()
+                ),
+                show_errors=(
+                    bool(show_errors) if show_errors is not None else get_show_errors()
+                ),
             )
     except InvalidWarningErrorRange:
         pass

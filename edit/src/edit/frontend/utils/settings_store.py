@@ -50,9 +50,7 @@ def set_action_interval_offset(value: int) -> None:
     global _action_interval_offset
     interval = int(value)
     if interval < 0:
-        raise InvalidActionIntervalOffsetError(
-            "Action interval offset must be >= 0."
-        )
+        raise InvalidActionIntervalOffsetError("Action interval offset must be >= 0.")
     _action_interval_offset = interval
 
 
@@ -185,9 +183,7 @@ def set_frame_history_count(value: int) -> None:
     global _frame_history_count
     count = int(value)
     if count < 1:
-        raise InvalidFrameHistoryCountError(
-            "Frame history must be at least 1 frame."
-        )
+        raise InvalidFrameHistoryCountError("Frame history must be at least 1 frame.")
     _frame_history_count = count
 
 

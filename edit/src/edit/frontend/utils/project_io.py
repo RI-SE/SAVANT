@@ -373,9 +373,7 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
     if hasattr(main_window, "set_default_zoom"):
         main_window.set_default_zoom(get_zoom_rate(), apply=True)
     if hasattr(main_window, "sidebar_state"):
-        main_window.sidebar_state.historic_obj_frame_count = (
-            get_frame_history_count()
-        )
+        main_window.sidebar_state.historic_obj_frame_count = get_frame_history_count()
 
     resolved_name = (project_name or contents.directory.name).strip()
     if resolved_name:

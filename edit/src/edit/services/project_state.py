@@ -1,15 +1,14 @@
 """Class representing and managing the complete state of an annotation project."""
 
 import json
+from dataclasses import dataclass
+from typing import Dict, List, Literal, Tuple
+
 from edit.models.OpenLabel import OpenLabel
 from edit.utils import read_json
-from .exceptions import (
-    OpenLabelFileNotValid,
-    OverlayIndexError,
-)
 from pydantic import ValidationError
-from typing import Dict, List, Tuple, Literal
-from dataclasses import dataclass
+
+from .exceptions import OpenLabelFileNotValid, OverlayIndexError
 from .types import VideoMetadata
 
 
@@ -420,7 +419,10 @@ class ProjectState:
                     )
                 elif start_frame > end_frame:
                     errs.append(
-                        f"Action '{key}' interval #{interval_index + 1} has start {start_frame} > end {end_frame}"
+                        f"""
+                        Action '{key}' interval #{interval_index + 1} has
+                        start {start_frame} > end {end_frame}
+                        """
                     )
         if errs:
             raise ValueError("Invalid frame tags:\n- " + "\n- ".join(errs))
