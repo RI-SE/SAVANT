@@ -35,16 +35,18 @@ jobs:
           # Set the --add-data separator and output name based on OS
           if [ "${{ runner.os }}" = "Windows" ]; then
             ADD_DATA="frontend/assets;assets"
+            PYPROJECT_DATA="../../../pyproject.toml;pyproject.toml"
             OUTPUT="edit-windows.exe"
           #elif [ "${{ runner.os }}" = "macOS" ]; then
             #ADD_DATA="frontend/assets:assets"
             #OUTPUT="edit-macos"
           else
             ADD_DATA="frontend/assets:assets"
+            PYPROJECT_DATA="../../../pyproject.toml:pyproject.toml"
             OUTPUT="edit-linux"
           fi
 
-          uv run pyinstaller --onefile --windowed --name "$OUTPUT" --add-data "$ADD_DATA" main.py
+          uv run pyinstaller --onefile --windowed --name "$OUTPUT" --add-data "$ADD_DATA" --add-data "$PYPROJECT_DATA" main.py
         shell: bash
 
       - name: Upload artifact
