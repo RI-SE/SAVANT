@@ -1,4 +1,5 @@
 from edit.frontend.utils.assets import asset_path
+from edit.version import get_version
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtWidgets import (
@@ -15,7 +16,7 @@ from PyQt6.QtWidgets import (
 class AboutDialog(QDialog):
     def __init__(self, theme: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("About SAVANT")
+        self.setWindowTitle("About SAVANT Edit")
         self.setModal(True)
         self.resize(720, 300)
 
@@ -51,7 +52,7 @@ class AboutDialog(QDialog):
             return label
 
         # Title
-        title = left_align(QLabel("SAVANT"))
+        title = left_align(QLabel("SAVANT Edit"))
         ft = QFont()
         ft.setPointSize(26)
         ft.setBold(True)
@@ -65,7 +66,7 @@ class AboutDialog(QDialog):
         subtitle.setFont(fs)
 
         # Version
-        version = left_align(QLabel("Version 2.0.0"))
+        version = left_align(QLabel(f"Version {get_version()}"))
         version.setStyleSheet("color: #8c8c8c; font-size: 13px;")
 
         # Description
