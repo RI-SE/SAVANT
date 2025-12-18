@@ -61,4 +61,3 @@ def _read_version_from_pyproject(pyproject_path: Path) -> Optional[str]:
     if match:
         return match.group(1)
     return None
-
