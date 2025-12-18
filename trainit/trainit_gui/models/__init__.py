@@ -5,7 +5,12 @@ from .dataset import DatasetInfo, ClassInfo
 from .manifest import Manifest, ManifestInfo, FileEntry
 
 __all__ = [
-    'Project', 'TrainingConfig', 'ProjectDefaults',
-    'DatasetInfo', 'ClassInfo',
-    'Manifest', 'ManifestInfo', 'FileEntry'
+    "Project",
+    "TrainingConfig",
+    "ProjectDefaults",
+    "DatasetInfo",
+    "ClassInfo",
+    "Manifest",
+    "ManifestInfo",
+    "FileEntry",
 ]

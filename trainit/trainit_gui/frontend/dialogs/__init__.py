@@ -6,6 +6,8 @@ from .project_defaults_dialog import ProjectDefaultsDialog
 from .verify_manifest_dialog import VerifyManifestDialog
 
 __all__ = [
-    'NewProjectDialog', 'GenerateDialog', 'ProjectDefaultsDialog',
-    'VerifyManifestDialog'
+    "NewProjectDialog",
+    "GenerateDialog",
+    "ProjectDefaultsDialog",
+    "VerifyManifestDialog",
 ]

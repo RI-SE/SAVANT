@@ -17,7 +17,9 @@ from .processing import FrameAnnotator
 logger = logging.getLogger(__name__)
 
 
-def _xywhr_to_bbox_points(cx: float, cy: float, w: float, h: float, r: float) -> np.ndarray:
+def _xywhr_to_bbox_points(
+    cx: float, cy: float, w: float, h: float, r: float
+) -> np.ndarray:
     """Convert xywhr to oriented bbox corner points.
 
     Args:
@@ -52,7 +54,9 @@ def _class_name_to_id(class_name: str, class_map: Dict[int, str]) -> int:
     return 0  # Default
 
 
-def _draw_raw_yolo_boxes(frame: np.ndarray, frame_idx: int, debug_data: Dict) -> np.ndarray:
+def _draw_raw_yolo_boxes(
+    frame: np.ndarray, frame_idx: int, debug_data: Dict
+) -> np.ndarray:
     """Draw original YOLO boxes (before OpenLabel conversion) in red for debugging.
 
     Args:
@@ -87,8 +91,16 @@ def _draw_raw_yolo_boxes(frame: np.ndarray, frame_idx: int, debug_data: Dict) ->
                 # Add label "RAW YOLO"
                 label = f"RAW:{obj_id}"
                 label_pos = (int(cx) - 30, int(cy) - 10)
-                cv2.putText(annotated_frame, label, label_pos, cv2.FONT_HERSHEY_SIMPLEX,
-                           0.4, red, 1, cv2.LINE_AA)
+                cv2.putText(
+                    annotated_frame,
+                    label,
+                    label_pos,
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.4,
+                    red,
+                    1,
+                    cv2.LINE_AA,
+                )
 
         except Exception as e:
             logger.debug(f"Error drawing raw YOLO box for object {obj_id}: {e}")
@@ -96,7 +108,9 @@ def _draw_raw_yolo_boxes(frame: np.ndarray, frame_idx: int, debug_data: Dict) ->
     return annotated_frame
 
 
-def _openlabel_to_detections(frame_data: Dict, objects_data: Dict, class_map: Dict[int, str]) -> List[DetectionResult]:
+def _openlabel_to_detections(
+    frame_data: Dict, objects_data: Dict, class_map: Dict[int, str]
+) -> List[DetectionResult]:
     """Convert OpenLabel frame data back to DetectionResult objects for annotation.
 
     Args:
@@ -165,7 +179,9 @@ def _openlabel_to_detections(frame_data: Dict, objects_data: Dict, class_map: Di
             class_id = _class_name_to_id(class_name, class_map)
 
             # Reconstruct oriented bbox from xywhr
-            oriented_bbox = _xywhr_to_bbox_points(center_x, center_y, width, height, rotation)
+            oriented_bbox = _xywhr_to_bbox_points(
+                center_x, center_y, width, height, rotation
+            )
 
             # Create DetectionResult
             detection = DetectionResult(
@@ -175,7 +191,7 @@ def _openlabel_to_detections(frame_data: Dict, objects_data: Dict, class_map: Di
                 center=np.array([center_x, center_y]),
                 angle=rotation,
                 source_engine=source_engine,
-                object_id=int(obj_id)
+                object_id=int(obj_id),
             )
             detection_results.append(detection)
 
@@ -185,7 +201,9 @@ def _openlabel_to_detections(frame_data: Dict, objects_data: Dict, class_map: Di
     return detection_results
 
 
-def render_output_video(config: MarkitConfig, openlabel_data: Dict, debug_data: Dict = None) -> None:
+def render_output_video(
+    config: MarkitConfig, openlabel_data: Dict, debug_data: Dict = None
+) -> None:
     """Render annotated video from final postprocessed OpenLabel data.
 
     Args:
@@ -201,7 +219,9 @@ def render_output_video(config: MarkitConfig, openlabel_data: Dict, debug_data: 
 
     logger.info("Rendering output video from postprocessed data...")
     if config.verbose:
-        logger.info("Verbose mode: Drawing both original YOLO boxes (red) and OpenLabel boxes (green/other colors)")
+        logger.info(
+            "Verbose mode: Drawing YOLO boxes (red) and OpenLabel boxes (green/colors)"
+        )
 
     # Open input video
     cap = cv2.VideoCapture(config.video_path)
@@ -216,7 +236,9 @@ def render_output_video(config: MarkitConfig, openlabel_data: Dict, debug_data: 
 
     # Setup video writer
     fourcc = cv2.VideoWriter_fourcc(*Constants.MP4V_FOURCC)
-    out = cv2.VideoWriter(config.output_video_path, fourcc, fps, (frame_width, frame_height))
+    out = cv2.VideoWriter(
+        config.output_video_path, fourcc, fps, (frame_width, frame_height)
+    )
 
     frame_idx = 0
     frames_data = openlabel_data.get("openlabel", {}).get("frames", {})
@@ -234,15 +256,17 @@ def render_output_video(config: MarkitConfig, openlabel_data: Dict, debug_data: 
                 # If verbose, draw original YOLO boxes first (in red)
                 annotated_frame = frame.copy()
                 if config.verbose:
-                    annotated_frame = _draw_raw_yolo_boxes(annotated_frame, frame_idx, debug_data)
+                    annotated_frame = _draw_raw_yolo_boxes(
+                        annotated_frame, frame_idx, debug_data
+                    )
 
                 # Then draw OpenLabel boxes on top (via standard annotator)
                 detection_results = _openlabel_to_detections(
-                    frames_data[frame_str],
-                    objects_data,
-                    config.class_map
+                    frames_data[frame_str], objects_data, config.class_map
                 )
-                annotated_frame = FrameAnnotator.annotate_frame(annotated_frame, detection_results, config.class_map)
+                annotated_frame = FrameAnnotator.annotate_frame(
+                    annotated_frame, detection_results, config.class_map
+                )
                 out.write(annotated_frame)
             else:
                 out.write(frame)  # No detections, write original frame

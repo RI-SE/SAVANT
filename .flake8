@@ -1,3 +1,5 @@
 [flake8]
 exclude = .venv,.git,__pycache__,build,dist
-max-line-length = 110
+max-line-length = 140
+# Ignore continuation line indentation style - existing code follows different patterns
+extend-ignore = E127,E128,E203

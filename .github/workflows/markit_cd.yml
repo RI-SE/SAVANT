@@ -5,7 +5,8 @@ on:
   push:
     tags:
       - "markit-v*"
-
+  workflow_call:
+  
 permissions:
   contents: read
 

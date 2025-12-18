@@ -14,7 +14,6 @@ Example:
 
 import sys
 import argparse
-from pathlib import Path
 
 from savant_common.ontology import read_ontology_classes
 

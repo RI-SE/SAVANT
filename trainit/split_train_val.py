@@ -54,8 +54,13 @@ import random
 class DatasetSplitter:
     """Handles splitting train/val datasets by sequence."""
 
-    def __init__(self, dataset_path: Path, train_ratio: float = 0.9,
-                 seed: int = 42, verbose: bool = False):
+    def __init__(
+        self,
+        dataset_path: Path,
+        train_ratio: float = 0.9,
+        seed: int = 42,
+        verbose: bool = False,
+    ):
         """Initialize dataset splitter.
 
         Args:
@@ -106,7 +111,7 @@ class DatasetSplitter:
         """
         # Assuming format: M####_#####.jpg or similar
         # Extract the part before the first underscore
-        return filename.split('_')[0]
+        return filename.split("_")[0]
 
     def group_images_by_sequence(self) -> dict:
         """Group all train images by their sequence ID.
@@ -117,7 +122,7 @@ class DatasetSplitter:
         sequences = defaultdict(list)
 
         for img_path in sorted(self.train_images_dir.glob("*.*")):
-            if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
+            if img_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
                 seq_id = self.extract_sequence_id(img_path.name)
                 sequences[seq_id].append(img_path)
 
@@ -132,7 +137,7 @@ class DatasetSplitter:
         Returns:
             Path to corresponding label file
         """
-        label_name = image_path.stem + '.txt'
+        label_name = image_path.stem + ".txt"
         return self.train_labels_dir / label_name
 
     def create_val_directories(self):
@@ -152,7 +157,9 @@ class DatasetSplitter:
         if not self.validate_directories():
             return {}
 
-        print(f"\nSplitting dataset with {self.train_ratio:.1%} train / {self.val_ratio:.1%} val")
+        print(
+            f"\nSplitting dataset with {self.train_ratio:.1%} train / {self.val_ratio:.1%} val"
+        )
         print(f"Dataset path: {self.dataset_path}")
         print(f"Random seed: {self.seed}")
 
@@ -174,14 +181,14 @@ class DatasetSplitter:
 
         # Split each sequence
         stats = {
-            'sequences': len(sequences),
-            'total_images': 0,
-            'train_images': 0,
-            'val_images': 0,
-            'moved_images': 0,
-            'moved_labels': 0,
-            'missing_labels': 0,
-            'sequence_details': {}
+            "sequences": len(sequences),
+            "total_images": 0,
+            "train_images": 0,
+            "val_images": 0,
+            "moved_images": 0,
+            "moved_labels": 0,
+            "missing_labels": 0,
+            "sequence_details": {},
         }
 
         print(f"\n{'Dry run - ' if dry_run else ''}Splitting sequences:")
@@ -191,9 +198,9 @@ class DatasetSplitter:
             num_val = int(num_images * self.val_ratio)
             num_train = num_images - num_val
 
-            stats['total_images'] += num_images
-            stats['train_images'] += num_train
-            stats['val_images'] += num_val
+            stats["total_images"] += num_images
+            stats["train_images"] += num_train
+            stats["val_images"] += num_val
 
             # Randomly select images for validation
             val_images = random.sample(images, num_val)
@@ -227,19 +234,21 @@ class DatasetSplitter:
                     moved_images += 1
                     moved_labels += 1
 
-            stats['moved_images'] += moved_images
-            stats['moved_labels'] += moved_labels
-            stats['missing_labels'] += missing_labels
+            stats["moved_images"] += moved_images
+            stats["moved_labels"] += moved_labels
+            stats["missing_labels"] += missing_labels
 
-            stats['sequence_details'][seq_id] = {
-                'total': num_images,
-                'train': num_train,
-                'val': num_val,
-                'moved': moved_images
+            stats["sequence_details"][seq_id] = {
+                "total": num_images,
+                "train": num_train,
+                "val": num_val,
+                "moved": moved_images,
             }
 
-            print(f"  {seq_id}: {num_train} train / {num_val} val "
-                  f"({moved_images} {'would be ' if dry_run else ''}moved)")
+            print(
+                f"  {seq_id}: {num_train} train / {num_val} val "
+                f"({moved_images} {'would be ' if dry_run else ''}moved)"
+            )
 
         return stats
 
@@ -256,22 +265,20 @@ class DatasetSplitter:
             print("Error: Validation directories not found")
             return {}
 
-        print(f"\n{'Dry run - ' if dry_run else ''}Restoring validation data to training...")
+        print(
+            f"\n{'Dry run - ' if dry_run else ''}Restoring validation data to training..."
+        )
 
-        stats = {
-            'restored_images': 0,
-            'restored_labels': 0,
-            'missing_labels': 0
-        }
+        stats = {"restored_images": 0, "restored_labels": 0, "missing_labels": 0}
 
         # Restore images
         for img_path in self.val_images_dir.glob("*.*"):
-            if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
-                label_name = img_path.stem + '.txt'
+            if img_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
+                label_name = img_path.stem + ".txt"
                 label_path = self.val_labels_dir / label_name
 
                 if not label_path.exists():
-                    stats['missing_labels'] += 1
+                    stats["missing_labels"] += 1
                     if self.verbose:
                         print(f"  Warning: Label not found for {img_path.name}")
                     continue
@@ -280,19 +287,23 @@ class DatasetSplitter:
                     # Move image back to train
                     dest_img = self.train_images_dir / img_path.name
                     shutil.move(str(img_path), str(dest_img))
-                    stats['restored_images'] += 1
+                    stats["restored_images"] += 1
 
                     # Move label back to train
                     dest_label = self.train_labels_dir / label_name
                     shutil.move(str(label_path), str(dest_label))
-                    stats['restored_labels'] += 1
+                    stats["restored_labels"] += 1
                 else:
-                    stats['restored_images'] += 1
-                    stats['restored_labels'] += 1
+                    stats["restored_images"] += 1
+                    stats["restored_labels"] += 1
 
-        print(f"  Images: {stats['restored_images']} {'would be ' if dry_run else ''}restored")
-        print(f"  Labels: {stats['restored_labels']} {'would be ' if dry_run else ''}restored")
-        if stats['missing_labels'] > 0:
+        print(
+            f"  Images: {stats['restored_images']} {'would be ' if dry_run else ''}restored"
+        )
+        print(
+            f"  Labels: {stats['restored_labels']} {'would be ' if dry_run else ''}restored"
+        )
+        if stats["missing_labels"] > 0:
             print(f"  Missing labels: {stats['missing_labels']}")
 
         return stats
@@ -309,21 +320,21 @@ class DatasetSplitter:
         print(f"\n{'Dry run - ' if dry_run else ''}Checking for orphaned images...")
 
         stats = {
-            'train_orphans': 0,
-            'val_orphans': 0,
-            'total_orphans': 0,
-            'orphan_files': []
+            "train_orphans": 0,
+            "val_orphans": 0,
+            "total_orphans": 0,
+            "orphan_files": [],
         }
 
         # Check train directory
         if self.train_images_dir.exists():
-            print(f"Checking train images directory...")
+            print("Checking train images directory...")
             for img_path in self.train_images_dir.glob("*.*"):
-                if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
+                if img_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
                     label_path = self.get_label_path(img_path)
                     if not label_path.exists():
-                        stats['train_orphans'] += 1
-                        stats['orphan_files'].append(str(img_path))
+                        stats["train_orphans"] += 1
+                        stats["orphan_files"].append(str(img_path))
 
                         if self.verbose:
                             print(f"  Orphan: {img_path.name}")
@@ -333,15 +344,15 @@ class DatasetSplitter:
 
         # Check val directory
         if self.val_images_dir.exists():
-            print(f"Checking val images directory...")
+            print("Checking val images directory...")
             for img_path in self.val_images_dir.glob("*.*"):
-                if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
-                    label_name = img_path.stem + '.txt'
+                if img_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
+                    label_name = img_path.stem + ".txt"
                     label_path = self.val_labels_dir / label_name
 
                     if not label_path.exists():
-                        stats['val_orphans'] += 1
-                        stats['orphan_files'].append(str(img_path))
+                        stats["val_orphans"] += 1
+                        stats["orphan_files"].append(str(img_path))
 
                         if self.verbose:
                             print(f"  Orphan: {img_path.name}")
@@ -349,7 +360,7 @@ class DatasetSplitter:
                         if not dry_run:
                             img_path.unlink()
 
-        stats['total_orphans'] = stats['train_orphans'] + stats['val_orphans']
+        stats["total_orphans"] = stats["train_orphans"] + stats["val_orphans"]
 
         return stats
 
@@ -363,14 +374,14 @@ class DatasetSplitter:
         if not stats:
             return
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("ORPHAN REMOVAL SUMMARY")
-        print("="*60)
+        print("=" * 60)
 
         action = "found" if dry_run else "removed"
 
-        if stats['total_orphans'] == 0:
-            print(f"No orphaned images found!")
+        if stats["total_orphans"] == 0:
+            print("No orphaned images found!")
         else:
             print(f"Train orphans {action}: {stats['train_orphans']}")
             print(f"Val orphans {action}: {stats['val_orphans']}")
@@ -379,7 +390,7 @@ class DatasetSplitter:
             if dry_run:
                 print("\nRun without --dry-run to actually remove these files")
 
-        print("="*60)
+        print("=" * 60)
 
     def print_statistics(self, stats: dict):
         """Print split statistics.
@@ -390,42 +401,65 @@ class DatasetSplitter:
         if not stats:
             return
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("SPLIT SUMMARY")
-        print("="*60)
+        print("=" * 60)
         print(f"Total sequences: {stats['sequences']}")
         print(f"Total images: {stats['total_images']}")
-        print(f"Train images: {stats['train_images']} ({stats['train_images']/stats['total_images']:.1%})")
-        print(f"Val images: {stats['val_images']} ({stats['val_images']/stats['total_images']:.1%})")
+        print(
+            f"Train images: {stats['train_images']} ({stats['train_images']/stats['total_images']:.1%})"
+        )
+        print(
+            f"Val images: {stats['val_images']} ({stats['val_images']/stats['total_images']:.1%})"
+        )
         print(f"Moved images: {stats['moved_images']}")
         print(f"Moved labels: {stats['moved_labels']}")
-        if stats['missing_labels'] > 0:
+        if stats["missing_labels"] > 0:
             print(f"Missing labels: {stats['missing_labels']} (skipped)")
-        print("="*60)
+        print("=" * 60)
 
 
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description='Split train dataset into train/val by sampling from each sequence',
+        description="Split train dataset into train/val by sampling from each sequence",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
 
-    parser.add_argument('--train-ratio', type=float, default=0.9,
-                       help='Ratio of data to keep in train (default: 0.9 for 90/10 split)')
-    parser.add_argument('--dataset-path', type=str, required=True,
-                       help='Path to dataset root directory')
-    parser.add_argument('--seed', type=int, default=42,
-                       help='Random seed for reproducibility (default: 42)')
-    parser.add_argument('--dry-run', action='store_true',
-                       help='Show what would be moved without actually moving')
-    parser.add_argument('--restore', action='store_true',
-                       help='Restore val data back to train (undo split)')
-    parser.add_argument('--remove-orphans', action='store_true',
-                       help='Remove images without corresponding label files')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                       help='Show verbose output')
+    parser.add_argument(
+        "--train-ratio",
+        type=float,
+        default=0.9,
+        help="Ratio of data to keep in train (default: 0.9 for 90/10 split)",
+    )
+    parser.add_argument(
+        "--dataset-path", type=str, required=True, help="Path to dataset root directory"
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility (default: 42)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be moved without actually moving",
+    )
+    parser.add_argument(
+        "--restore",
+        action="store_true",
+        help="Restore val data back to train (undo split)",
+    )
+    parser.add_argument(
+        "--remove-orphans",
+        action="store_true",
+        help="Remove images without corresponding label files",
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Show verbose output"
+    )
 
     return parser.parse_args()
 
@@ -450,7 +484,7 @@ def main():
         dataset_path=dataset_path,
         train_ratio=args.train_ratio,
         seed=args.seed,
-        verbose=args.verbose
+        verbose=args.verbose,
     )
 
     try:
@@ -488,9 +522,10 @@ def main():
         print(f"Error: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

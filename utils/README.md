@@ -32,13 +32,13 @@ Reads a SAVANT ontology file (.ttl) and displays the classes in various formats.
 
 ```bash
 # Basic usage - list all classes
-print-ontology ../Specification/savant_ontology_1.3.0.ttl
+print-ontology ../ontology/savant.ttl
 
 # Show detailed information including parent classes
-print-ontology ../Specification/savant_ontology_1.3.0.ttl --detailed
+print-ontology ../ontology/savant.ttl --detailed
 
 # Filter by top-level category
-print-ontology ../Specification/savant_ontology_1.3.0.ttl --top-level DynamicObject
+print-ontology ../ontology/savant.ttl --top-level DynamicObject
 ```
 
 **Arguments:**
@@ -51,10 +51,10 @@ print-ontology ../Specification/savant_ontology_1.3.0.ttl --top-level DynamicObj
 
 ```bash
 # List all vehicle classes
-print-ontology ../Specification/savant_ontology_1.3.0.ttl --top-level RoadUserVehicle
+print-ontology ../ontology/savant.ttl --top-level RoadUserVehicle
 
 # Get detailed view of all classes
-print-ontology ../Specification/savant_ontology_1.3.0.ttl -d
+print-ontology ../ontology/savant.ttl -d
 ```
 
 **Output:**
@@ -83,27 +83,27 @@ Remaps YOLO class IDs in dataset label files and YAML configuration to match SAV
 # Preview changes without modifying files (recommended first step)
 remap-classes-to-ontology \
     --yaml dataset.yaml \
-    --ontology ../Specification/savant_ontology_1.3.0.ttl \
+    --ontology ../ontology/savant.ttl \
     --labels-dir datasets/labels \
     --dry-run
 
 # Execute remapping (updates both labels and YAML)
 remap-classes-to-ontology \
     --yaml dataset.yaml \
-    --ontology ../Specification/savant_ontology_1.3.0.ttl \
+    --ontology ../ontology/savant.ttl \
     --labels-dir datasets/labels
 
 # Only update label files
 remap-classes-to-ontology \
     --yaml dataset.yaml \
-    --ontology ../Specification/savant_ontology_1.3.0.ttl \
+    --ontology ../ontology/savant.ttl \
     --labels-dir datasets/labels \
     --labels-only
 
 # Only update dataset YAML
 remap-classes-to-ontology \
     --yaml dataset.yaml \
-    --ontology ../Specification/savant_ontology_1.3.0.ttl \
+    --ontology ../ontology/savant.ttl \
     --labels-dir datasets/labels \
     --yaml-only
 ```
@@ -129,19 +129,19 @@ remap-classes-to-ontology \
 
 ```bash
 # Step 1: Inspect the ontology
-print-ontology ../Specification/savant_ontology_1.3.0.ttl --detailed
+print-ontology ../ontology/savant.ttl --detailed
 
 # Step 2: Preview the remapping (check for any issues)
 remap-classes-to-ontology \
     --yaml UAV.yaml \
-    --ontology ../Specification/savant_ontology_1.3.0.ttl \
+    --ontology ../ontology/savant.ttl \
     --labels-dir datasets/UAV_yolo_obb/labels \
     --dry-run
 
 # Step 3: If everything looks good, execute
 remap-classes-to-ontology \
     --yaml UAV.yaml \
-    --ontology ../Specification/savant_ontology_1.3.0.ttl \
+    --ontology ../ontology/savant.ttl \
     --labels-dir datasets/UAV_yolo_obb/labels
 ```
 
@@ -152,7 +152,7 @@ remap-classes-to-ontology \
 SAVANT Ontology Class Remapper
 ================================================================================
 Loading YAML from UAV.yaml...
-Loading ontology from ../Specification/savant_ontology_1.3.0.ttl...
+Loading ontology from ../ontology/savant.ttl...
 Creating class mapping...
 
 Class ID Mapping:
@@ -171,11 +171,11 @@ You can run these scripts directly with uv without activating the virtual enviro
 
 ```bash
 # From repository root
-uv run print-ontology ../Specification/savant_ontology_1.3.0.ttl
+uv run print-ontology ../ontology/savant.ttl
 
 uv run remap-classes-to-ontology \
     --yaml dataset.yaml \
-    --ontology ../Specification/savant_ontology_1.3.0.ttl \
+    --ontology ../ontology/savant.ttl \
     --labels-dir datasets/labels
 ```
 
@@ -185,13 +185,13 @@ uv run remap-classes-to-ontology \
 
 ```bash
 # See all classes
-print-ontology ../Specification/savant_ontology_1.3.0.ttl
+print-ontology ../ontology/savant.ttl
 
 # See detailed information
-print-ontology ../Specification/savant_ontology_1.3.0.ttl --detailed
+print-ontology ../ontology/savant.ttl --detailed
 
 # Find all vehicle classes
-print-ontology ../Specification/savant_ontology_1.3.0.ttl --top-level RoadUserVehicle
+print-ontology ../ontology/savant.ttl --top-level RoadUserVehicle
 ```
 
 ### Converting a Dataset to SAVANT UIDs
@@ -200,14 +200,14 @@ print-ontology ../Specification/savant_ontology_1.3.0.ttl --top-level RoadUserVe
 # Always start with dry-run to preview changes
 remap-classes-to-ontology \
     --yaml my_dataset.yaml \
-    --ontology ../Specification/savant_ontology_1.3.0.ttl \
+    --ontology ../ontology/savant.ttl \
     --labels-dir datasets/my_dataset/labels \
     --dry-run
 
 # If preview looks correct, execute
 remap-classes-to-ontology \
     --yaml my_dataset.yaml \
-    --ontology ../Specification/savant_ontology_1.3.0.ttl \
+    --ontology ../ontology/savant.ttl \
     --labels-dir datasets/my_dataset/labels
 ```
 

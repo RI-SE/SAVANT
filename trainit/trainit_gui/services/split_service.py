@@ -26,7 +26,7 @@ class SplitService:
     Tries stratified splitting by sequence when possible, falls back to random.
     """
 
-    IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
+    IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
     def extract_sequence_id(self, filename: str) -> str:
         """Extract sequence ID from filename.
@@ -40,15 +40,13 @@ class SplitService:
             Sequence ID (part before first underscore, or whole stem if no underscore)
         """
         stem = Path(filename).stem
-        parts = stem.split('_')
+        parts = stem.split("_")
         if len(parts) >= 2:
             return parts[0]
         return stem
 
     def collect_files_from_dataset(
-        self,
-        dataset_path: Path,
-        include_val: bool
+        self, dataset_path: Path, include_val: bool
     ) -> list[Path]:
         """Collect all image files from a dataset.
 
@@ -80,15 +78,13 @@ class SplitService:
     def _list_images(self, directory: Path) -> list[Path]:
         """List all image files in directory."""
         return [
-            f for f in directory.iterdir()
+            f
+            for f in directory.iterdir()
             if f.is_file() and f.suffix.lower() in self.IMAGE_EXTENSIONS
         ]
 
     def split_files(
-        self,
-        files: list[Path],
-        train_ratio: float,
-        seed: int
+        self, files: list[Path], train_ratio: float, seed: int
     ) -> SplitResult:
         """Split files into train/val sets.
 
@@ -129,10 +125,7 @@ class SplitService:
         return dict(sequences)
 
     def _stratified_split(
-        self,
-        sequences: dict[str, list[Path]],
-        train_ratio: float,
-        seed: int
+        self, sequences: dict[str, list[Path]], train_ratio: float, seed: int
     ) -> SplitResult:
         """Split maintaining representation from each sequence.
 
@@ -165,14 +158,11 @@ class SplitService:
             train_files=train_files,
             val_files=val_files,
             method="stratified",
-            sequences_found=len(sequences)
+            sequences_found=len(sequences),
         )
 
     def _random_split(
-        self,
-        files: list[Path],
-        train_ratio: float,
-        seed: int
+        self, files: list[Path], train_ratio: float, seed: int
     ) -> SplitResult:
         """Pure random split when stratification is not applicable."""
         random.seed(seed)
@@ -191,5 +181,5 @@ class SplitService:
             train_files=shuffled[:n_train],
             val_files=shuffled[n_train:],
             method="random",
-            sequences_found=1
+            sequences_found=1,
         )

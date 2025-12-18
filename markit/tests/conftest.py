@@ -2,7 +2,6 @@
 Pytest configuration and shared fixtures for markit tests.
 """
 
-import sys
 from pathlib import Path
 
 import pytest
@@ -32,7 +31,11 @@ def test_model_path(test_fixtures_dir):
 @pytest.fixture
 def schema_path():
     """Path to OpenLabel JSON schema."""
-    return str(Path(__file__).parent.parent.parent / "schema" / "savant_openlabel_subset.schema.json")
+    return str(
+        Path(__file__).parent.parent.parent
+        / "schema"
+        / "savant_openlabel_subset.schema.json"
+    )
 
 
 @pytest.fixture
@@ -44,23 +47,13 @@ def ontology_path():
 @pytest.fixture
 def sample_class_map():
     """Sample class map for testing."""
-    return {
-        0: "vehicle",
-        1: "car",
-        2: "truck",
-        3: "bus"
-    }
+    return {0: "vehicle", 1: "car", 2: "truck", 3: "bus"}
 
 
 @pytest.fixture
 def sample_detection():
     """Create a sample detection result for testing."""
-    bbox = np.array([
-        [100.0, 100.0],
-        [200.0, 100.0],
-        [200.0, 150.0],
-        [100.0, 150.0]
-    ])
+    bbox = np.array([[100.0, 100.0], [200.0, 100.0], [200.0, 150.0], [100.0, 150.0]])
     return DetectionResult(
         object_id=1,
         class_id=1,
@@ -70,19 +63,14 @@ def sample_detection():
         angle=0.0,
         source_engine="yolo",
         width=100.0,
-        height=50.0
+        height=50.0,
     )
 
 
 @pytest.fixture
 def sample_obb_bbox():
     """Create a sample oriented bounding box."""
-    return np.array([
-        [100.0, 100.0],
-        [200.0, 100.0],
-        [200.0, 150.0],
-        [100.0, 150.0]
-    ])
+    return np.array([[100.0, 100.0], [200.0, 100.0], [200.0, 150.0], [100.0, 150.0]])
 
 
 @pytest.fixture
@@ -101,18 +89,10 @@ def sample_rotated_bbox():
     hh = height / 2
 
     # Calculate corners relative to center, then rotate
-    corners = np.array([
-        [-hw, -hh],
-        [hw, -hh],
-        [hw, hh],
-        [-hw, hh]
-    ])
+    corners = np.array([[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]])
 
     # Apply rotation
-    rotation_matrix = np.array([
-        [cos_a, -sin_a],
-        [sin_a, cos_a]
-    ])
+    rotation_matrix = np.array([[cos_a, -sin_a], [sin_a, cos_a]])
 
     rotated_corners = corners @ rotation_matrix.T
 

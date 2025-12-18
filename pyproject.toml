@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "savant"
-version = "2.0.0"
+version = "2.0.1"
 description = "SAVANT - Semi-automated video annotation toolkit for UAV object detection"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -57,6 +57,11 @@ dev = [
     "pytest-mock>=3.14.1",
     "pytest-cov>=7.0.0",
 ]
+all-apps = [
+    {include-group = "markit"},
+    {include-group = "trainit"},
+    {include-group = "edit"},
+]
 
 
 
@@ -67,18 +72,22 @@ allow-direct-references = true
 packages = ["savant_common", "markit", "trainit", "utils", "edit/src/edit"]
 
 [tool.pytest.ini_options]
-testpaths = ["markit/tests", "edit/tests"]
+testpaths = ["markit/tests", "edit/tests", "trainit/tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-addopts = "-v --cov=markitlib --cov-report=term-missing"
+addopts = "-v"
+markers = [
+    "unit: marks tests as unit tests",
+    "integration: marks tests as integration tests",
+]
 
 [project.scripts]
-markit = "markit.markit:main"
+markit = "markit.run_markit:main"
 train-yolo-obb = "trainit.train_yolo_obb:main"
 split-train-val = "trainit.split_train_val:main"
 extract-yolo-training = "trainit.extract_yolo_training:main"
-trainit-gui = "trainit.trainit_gui.main:main"
+trainit = "trainit.trainit_gui.main:main"
 remap-classes-to-ontology = "utils.remap_classes_to_ontology:main"
 print-ontology = "utils.print_ontology:main"
 edit = "edit.main:main"

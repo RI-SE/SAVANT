@@ -1,13 +1,25 @@
 """Dialog for editing project default configuration parameters."""
 
 import logging
-from typing import Optional, Any
+from typing import Optional
 
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
-    QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox,
-    QGroupBox, QScrollArea, QPushButton, QDialogButtonBox, QWidget,
-    QMessageBox
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QSpinBox,
+    QDoubleSpinBox,
+    QComboBox,
+    QCheckBox,
+    QGroupBox,
+    QScrollArea,
+    QPushButton,
+    QDialogButtonBox,
+    QWidget,
+    QMessageBox,
 )
 from PyQt6.QtCore import Qt
 
@@ -49,7 +61,7 @@ def _show_help_dialog(parent: QWidget, param_name: str) -> None:
     if help_info:
         msg = QMessageBox(parent)
         msg.setWindowTitle(f"Help: {help_info['title']}")
-        msg.setText(help_info['text'])
+        msg.setText(help_info["text"])
         msg.setIcon(QMessageBox.Icon.Information)
         msg.exec()
 
@@ -59,8 +71,8 @@ def _show_group_help_dialog(parent: QWidget, group_name: str) -> None:
     help_info = GROUP_HELP.get(group_name)
     if help_info:
         msg = QMessageBox(parent)
-        msg.setWindowTitle(help_info['title'])
-        msg.setText(help_info['text'])
+        msg.setWindowTitle(help_info["title"])
+        msg.setText(help_info["text"])
         msg.setIcon(QMessageBox.Icon.Information)
         msg.exec()
 
@@ -68,7 +80,7 @@ def _show_group_help_dialog(parent: QWidget, group_name: str) -> None:
 def _get_tooltip(param_name: str) -> str:
     """Get tooltip text for a parameter."""
     help_info = PARAMETER_HELP.get(param_name, {})
-    return help_info.get('tooltip', '')
+    return help_info.get("tooltip", "")
 
 
 class ProjectDefaultsDialog(QDialog):
@@ -123,8 +135,9 @@ class ProjectDefaultsDialog(QDialog):
         self._add_optional_spin(core_layout, "epochs", "Epochs:", 1, 1000, 50)
         self._add_optional_spin(core_layout, "imgsz", "Image Size:", 32, 2048, 640)
         self._add_optional_spin(core_layout, "batch", "Batch Size:", 1, 256, 30)
-        self._add_optional_combo(core_layout, "device", "Device:",
-                                 ["auto", "cuda", "mps", "cpu"])
+        self._add_optional_combo(
+            core_layout, "device", "Device:", ["auto", "cuda", "mps", "cpu"]
+        )
         self._add_optional_line(core_layout, "project", "Project:", "runs/obb")
 
         scroll_layout.addWidget(core_group)
@@ -141,18 +154,33 @@ class ProjectDefaultsDialog(QDialog):
         advanced_inner.addLayout(advanced_layout)
         advanced_group.setLayout(advanced_inner)
 
-        self._add_optional_double(advanced_layout, "lr0", "Initial LR:", 0.0001, 1.0, 0.01)
+        self._add_optional_double(
+            advanced_layout, "lr0", "Initial LR:", 0.0001, 1.0, 0.01
+        )
         self._add_optional_double(advanced_layout, "lrf", "Final LR:", 0.0, 1.0, 0.01)
-        self._add_optional_combo(advanced_layout, "optimizer", "Optimizer:",
-                                 ["auto", "SGD", "Adam", "AdamW", "NAdam", "RAdam", "RMSProp"])
-        self._add_optional_double(advanced_layout, "warmup_epochs", "Warmup Epochs:", 0, 10, 3.0)
-        self._add_optional_double(advanced_layout, "warmup_momentum", "Warmup Momentum:", 0, 1, 0.8)
+        self._add_optional_combo(
+            advanced_layout,
+            "optimizer",
+            "Optimizer:",
+            ["auto", "SGD", "Adam", "AdamW", "NAdam", "RAdam", "RMSProp"],
+        )
+        self._add_optional_double(
+            advanced_layout, "warmup_epochs", "Warmup Epochs:", 0, 10, 3.0
+        )
+        self._add_optional_double(
+            advanced_layout, "warmup_momentum", "Warmup Momentum:", 0, 1, 0.8
+        )
         self._add_optional_spin(advanced_layout, "patience", "Patience:", 1, 500, 50)
-        self._add_optional_spin(advanced_layout, "save_period", "Save Period:", -1, 100, -1)
-        self._add_optional_combo(advanced_layout, "cache", "Cache:",
-                                 ["false", "true", "ram", "disk"])
+        self._add_optional_spin(
+            advanced_layout, "save_period", "Save Period:", -1, 100, -1
+        )
+        self._add_optional_combo(
+            advanced_layout, "cache", "Cache:", ["false", "true", "ram", "disk"]
+        )
         self._add_optional_spin(advanced_layout, "workers", "Workers:", 0, 32, 8)
-        self._add_optional_spin(advanced_layout, "close_mosaic", "Close Mosaic:", 0, 100, 10)
+        self._add_optional_spin(
+            advanced_layout, "close_mosaic", "Close Mosaic:", 0, 100, 10
+        )
         self._add_optional_spin(advanced_layout, "freeze", "Freeze Layers:", 0, 100, 0)
 
         scroll_layout.addWidget(advanced_group)
@@ -194,7 +222,9 @@ class ProjectDefaultsDialog(QDialog):
         self._add_optional_double(aug_layout, "translate", "Translation:", 0, 1, 0.1)
         self._add_optional_double(aug_layout, "scale", "Scale:", 0, 2, 0.5)
         self._add_optional_double(aug_layout, "shear", "Shear:", 0, 90, 0.0)
-        self._add_optional_double(aug_layout, "perspective", "Perspective:", 0, 0.01, 0.0)
+        self._add_optional_double(
+            aug_layout, "perspective", "Perspective:", 0, 0.01, 0.0
+        )
         self._add_optional_double(aug_layout, "fliplr", "Horizontal Flip:", 0, 1, 0.5)
         self._add_optional_double(aug_layout, "flipud", "Vertical Flip:", 0, 1, 0.0)
         self._add_optional_double(aug_layout, "mosaic", "Mosaic:", 0, 1, 1.0)
@@ -214,7 +244,9 @@ class ProjectDefaultsDialog(QDialog):
         split_inner.addLayout(split_layout)
         split_group.setLayout(split_inner)
 
-        self._add_optional_double(split_layout, "split_ratio", "Train Ratio:", 0.5, 0.99, 0.9)
+        self._add_optional_double(
+            split_layout, "split_ratio", "Train Ratio:", 0.5, 0.99, 0.9
+        )
         self._add_optional_spin(split_layout, "split_seed", "Seed:", 0, 999999, 42)
 
         scroll_layout.addWidget(split_group)
@@ -225,8 +257,7 @@ class ProjectDefaultsDialog(QDialog):
 
         # Dialog buttons
         button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok |
-            QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -239,11 +270,7 @@ class ProjectDefaultsDialog(QDialog):
         layout.addWidget(button_box)
 
     def _add_optional_line(
-        self,
-        layout: QFormLayout,
-        name: str,
-        label: str,
-        default: str
+        self, layout: QFormLayout, name: str, label: str, default: str
     ):
         """Add an optional line edit with checkbox."""
         container = QWidget()
@@ -257,7 +284,9 @@ class ProjectDefaultsDialog(QDialog):
         edit.setText(default)
         edit.setEnabled(False)
         edit.setToolTip(_get_tooltip(name))
-        checkbox.stateChanged.connect(lambda state: edit.setEnabled(state == Qt.CheckState.Checked.value))
+        checkbox.stateChanged.connect(
+            lambda state: edit.setEnabled(state == Qt.CheckState.Checked.value)
+        )
         h_layout.addWidget(edit, stretch=1)
 
         info_btn = _create_info_button(self, name)
@@ -273,7 +302,7 @@ class ProjectDefaultsDialog(QDialog):
         label: str,
         min_val: int,
         max_val: int,
-        default: int
+        default: int,
     ):
         """Add an optional spin box with checkbox."""
         container = QWidget()
@@ -287,8 +316,12 @@ class ProjectDefaultsDialog(QDialog):
         spin.setRange(min_val, max_val)
         spin.setValue(default)
         spin.setEnabled(False)
-        spin.setToolTip(_get_tooltip(name) or f"Range: {min_val}-{max_val}, Default: {default}")
-        checkbox.stateChanged.connect(lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value))
+        spin.setToolTip(
+            _get_tooltip(name) or f"Range: {min_val}-{max_val}, Default: {default}"
+        )
+        checkbox.stateChanged.connect(
+            lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value)
+        )
         h_layout.addWidget(spin, stretch=1)
 
         info_btn = _create_info_button(self, name)
@@ -304,7 +337,7 @@ class ProjectDefaultsDialog(QDialog):
         label: str,
         min_val: float,
         max_val: float,
-        default: float
+        default: float,
     ):
         """Add an optional double spin box with checkbox."""
         container = QWidget()
@@ -320,8 +353,12 @@ class ProjectDefaultsDialog(QDialog):
         spin.setSingleStep(0.01)
         spin.setValue(default)
         spin.setEnabled(False)
-        spin.setToolTip(_get_tooltip(name) or f"Range: {min_val}-{max_val}, Default: {default}")
-        checkbox.stateChanged.connect(lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value))
+        spin.setToolTip(
+            _get_tooltip(name) or f"Range: {min_val}-{max_val}, Default: {default}"
+        )
+        checkbox.stateChanged.connect(
+            lambda state: spin.setEnabled(state == Qt.CheckState.Checked.value)
+        )
         h_layout.addWidget(spin, stretch=1)
 
         info_btn = _create_info_button(self, name)
@@ -331,11 +368,7 @@ class ProjectDefaultsDialog(QDialog):
         self._widgets[name] = (checkbox, spin)
 
     def _add_optional_combo(
-        self,
-        layout: QFormLayout,
-        name: str,
-        label: str,
-        options: list
+        self, layout: QFormLayout, name: str, label: str, options: list
     ):
         """Add an optional combo box with checkbox."""
         container = QWidget()
@@ -349,7 +382,9 @@ class ProjectDefaultsDialog(QDialog):
         combo.addItems(options)
         combo.setEnabled(False)
         combo.setToolTip(_get_tooltip(name))
-        checkbox.stateChanged.connect(lambda state: combo.setEnabled(state == Qt.CheckState.Checked.value))
+        checkbox.stateChanged.connect(
+            lambda state: combo.setEnabled(state == Qt.CheckState.Checked.value)
+        )
         h_layout.addWidget(combo, stretch=1)
 
         info_btn = _create_info_button(self, name)

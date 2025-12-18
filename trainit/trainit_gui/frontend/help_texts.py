@@ -22,7 +22,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - yolo11x-obb (extra-large) - Best accuracy, slowest\n\n"
             "Larger models need more GPU memory and train slower."
         ),
-        "tooltip": "YOLO model variant (n/s/m/l/x)"
+        "tooltip": "YOLO model variant (n/s/m/l/x)",
     },
     "epochs": {
         "title": "Epochs",
@@ -33,7 +33,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Use 'patience' parameter for early stopping to prevent\n"
             "overfitting and save time."
         ),
-        "tooltip": "Range: 1-1000, Default: 50"
+        "tooltip": "Range: 1-1000, Default: 50",
     },
     "imgsz": {
         "title": "Image Size",
@@ -46,7 +46,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Larger sizes improve accuracy for small objects but\n"
             "require more GPU memory: memory ~ batch x imgsz^2"
         ),
-        "tooltip": "Range: 32-2048, Default: 640"
+        "tooltip": "Range: 32-2048, Default: 640",
     },
     "batch": {
         "title": "Batch Size",
@@ -60,7 +60,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "proportionally higher learning rate.\n\n"
             "Use batch=-1 for automatic sizing (60% GPU utilization)."
         ),
-        "tooltip": "Range: 1-256, Default: 30"
+        "tooltip": "Range: 1-256, Default: 30",
     },
     "device": {
         "title": "Device",
@@ -72,7 +72,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - mps: Apple Silicon GPU\n"
             "  - cpu: CPU only (slowest)"
         ),
-        "tooltip": "auto/cuda/mps/cpu"
+        "tooltip": "auto/cuda/mps/cpu",
     },
     "project": {
         "title": "Project Directory",
@@ -83,9 +83,8 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - weights/last.pt: Final model weights\n"
             "  - Training metrics and plots"
         ),
-        "tooltip": "Default: runs/obb"
+        "tooltip": "Default: runs/obb",
     },
-
     # Advanced Training Parameters
     "lr0": {
         "title": "Initial Learning Rate",
@@ -99,7 +98,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Higher values = faster learning but may be unstable.\n"
             "Lower values = slower but more stable convergence."
         ),
-        "tooltip": "Range: 0.0001-1.0, Default: 0.01"
+        "tooltip": "Range: 0.0001-1.0, Default: 0.01",
     },
     "lrf": {
         "title": "Final Learning Rate",
@@ -111,7 +110,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Lower values (0.001) give slower decay for\n"
             "fine-grained learning at the end."
         ),
-        "tooltip": "Range: 0.0-1.0, Default: 0.01"
+        "tooltip": "Range: 0.0-1.0, Default: 0.01",
     },
     "optimizer": {
         "title": "Optimizer",
@@ -124,7 +123,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - AdamW: Adam with weight decay, prevents overfitting\n"
             "  - NAdam/RAdam: Adam variants with momentum improvements"
         ),
-        "tooltip": "Default: auto"
+        "tooltip": "Default: auto",
     },
     "warmup_epochs": {
         "title": "Warmup Epochs",
@@ -135,7 +134,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Increase to 5+ for large datasets or if training\n"
             "is unstable at the start."
         ),
-        "tooltip": "Range: 0-10, Default: 3.0"
+        "tooltip": "Range: 0-10, Default: 3.0",
     },
     "warmup_momentum": {
         "title": "Warmup Momentum",
@@ -144,7 +143,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Ramps up from this value to 0.937 (training momentum)\n"
             "during the warmup epochs."
         ),
-        "tooltip": "Range: 0-1, Default: 0.8"
+        "tooltip": "Range: 0-1, Default: 0.8",
     },
     "patience": {
         "title": "Early Stopping Patience",
@@ -155,7 +154,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - Quick experiments: 10-20 epochs\n"
             "  - Production training: 30-50 epochs"
         ),
-        "tooltip": "Range: 1-500, Default: 50"
+        "tooltip": "Range: 1-500, Default: 50",
     },
     "save_period": {
         "title": "Save Period",
@@ -165,7 +164,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Set to 5-10 for long training runs to enable recovery\n"
             "from crashes."
         ),
-        "tooltip": "Range: -1 to 100, Default: -1"
+        "tooltip": "Range: -1 to 100, Default: -1",
     },
     "cache": {
         "title": "Image Caching",
@@ -178,7 +177,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "RAM caching can significantly speed up training\n"
             "if you have sufficient memory."
         ),
-        "tooltip": "false/true/ram/disk"
+        "tooltip": "false/true/ram/disk",
     },
     "workers": {
         "title": "Data Loading Workers",
@@ -187,7 +186,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "More workers = faster data loading if CPU permits.\n"
             "Set to 0 for debugging (single-threaded)."
         ),
-        "tooltip": "Range: 0-32, Default: 8"
+        "tooltip": "Range: 0-32, Default: 8",
     },
     "close_mosaic": {
         "title": "Close Mosaic",
@@ -200,7 +199,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Increase if model performs well on augmented data\n"
             "but poorly on real images."
         ),
-        "tooltip": "Range: 0-100, Default: 10"
+        "tooltip": "Range: 0-100, Default: 10",
     },
     "freeze": {
         "title": "Freeze Layers",
@@ -213,9 +212,8 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - Large datasets: no freezing (train all layers)\n\n"
             "Combine with lower learning rate (0.001) when freezing."
         ),
-        "tooltip": "Range: 0-100, Default: 0"
+        "tooltip": "Range: 0-100, Default: 0",
     },
-
     # Loss Weights
     "box": {
         "title": "Box Loss Weight",
@@ -226,7 +224,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Increase to 10+ if bounding boxes are inaccurate.\n"
             "OBB default (7.5) is higher than regular detection."
         ),
-        "tooltip": "Range: 0.1-20, Default: 7.5"
+        "tooltip": "Range: 0.1-20, Default: 7.5",
     },
     "cls": {
         "title": "Classification Loss Weight",
@@ -236,7 +234,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Increase if class predictions are poor.\n"
             "Decrease if focusing primarily on localization."
         ),
-        "tooltip": "Range: 0.1-5, Default: 0.5"
+        "tooltip": "Range: 0.1-5, Default: 0.5",
     },
     "dfl": {
         "title": "Distribution Focal Loss Weight",
@@ -246,9 +244,8 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "distribution over possible box coordinates.\n\n"
             "Higher values emphasize precise localization."
         ),
-        "tooltip": "Range: 0.1-5, Default: 1.5"
+        "tooltip": "Range: 0.1-5, Default: 1.5",
     },
-
     # Augmentation Parameters
     "hsv_h": {
         "title": "HSV Hue Augmentation",
@@ -257,7 +254,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Adds color diversity to training images.\n"
             "Helps model generalize across different lighting."
         ),
-        "tooltip": "Range: 0-1, Default: 0.015"
+        "tooltip": "Range: 0-1, Default: 0.015",
     },
     "hsv_s": {
         "title": "HSV Saturation Augmentation",
@@ -266,7 +263,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Varies color intensity in training images.\n"
             "Helps handle washed-out or oversaturated images."
         ),
-        "tooltip": "Range: 0-1, Default: 0.7"
+        "tooltip": "Range: 0-1, Default: 0.7",
     },
     "hsv_v": {
         "title": "HSV Value Augmentation",
@@ -275,7 +272,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Simulates different lighting conditions.\n"
             "Helps model work in bright and dark environments."
         ),
-        "tooltip": "Range: 0-1, Default: 0.4"
+        "tooltip": "Range: 0-1, Default: 0.4",
     },
     "degrees": {
         "title": "Rotation Augmentation",
@@ -288,7 +285,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "    Natural camera tilt only.\n\n"
             "Critical for OBB since it captures object orientation."
         ),
-        "tooltip": "Range: 0-180, Default: 0.0"
+        "tooltip": "Range: 0-180, Default: 0.0",
     },
     "translate": {
         "title": "Translation Augmentation",
@@ -298,7 +295,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Helps detect partially visible objects at edges.\n\n"
             "0.1 = up to 10% shift in each direction."
         ),
-        "tooltip": "Range: 0-1, Default: 0.1"
+        "tooltip": "Range: 0-1, Default: 0.1",
     },
     "scale": {
         "title": "Scale Augmentation",
@@ -310,7 +307,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - UAV imagery: 0.5-0.8 (altitude varies)\n"
             "  - Ground imagery: 0.3-0.5"
         ),
-        "tooltip": "Range: 0-2, Default: 0.5"
+        "tooltip": "Range: 0-2, Default: 0.5",
     },
     "shear": {
         "title": "Shear Augmentation",
@@ -321,7 +318,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - Ground imagery: 2-5 degrees\n"
             "  - Aerial oblique: 5-15 degrees"
         ),
-        "tooltip": "Range: 0-90, Default: 0.0"
+        "tooltip": "Range: 0-90, Default: 0.0",
     },
     "perspective": {
         "title": "Perspective Augmentation",
@@ -332,7 +329,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - Aerial with tilt variation: 0.0001-0.0003\n"
             "  - Nadir (straight down): 0 (no distortion needed)"
         ),
-        "tooltip": "Range: 0-0.01, Default: 0.0"
+        "tooltip": "Range: 0-0.01, Default: 0.0",
     },
     "fliplr": {
         "title": "Horizontal Flip",
@@ -342,7 +339,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Disable (0.0) only for asymmetric objects like\n"
             "text or directional signs."
         ),
-        "tooltip": "Range: 0-1, Default: 0.5"
+        "tooltip": "Range: 0-1, Default: 0.5",
     },
     "flipud": {
         "title": "Vertical Flip",
@@ -353,7 +350,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - Ground photography: 0.0 (sky shouldn't be below)\n"
             "  - Aerial oblique: 0.0 (horizon orientation matters)"
         ),
-        "tooltip": "Range: 0-1, Default: 0.0"
+        "tooltip": "Range: 0-1, Default: 0.0",
     },
     "mosaic": {
         "title": "Mosaic Augmentation",
@@ -365,7 +362,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "Increases effective batch size and context diversity.\n"
             "Disable (0.0) for very specific, consistent scenes."
         ),
-        "tooltip": "Range: 0-1, Default: 1.0"
+        "tooltip": "Range: 0-1, Default: 1.0",
     },
     "mixup": {
         "title": "Mixup Augmentation",
@@ -377,9 +374,8 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - Large datasets: 0.1-0.3\n"
             "  - Small datasets: 0.0 (may hurt performance)"
         ),
-        "tooltip": "Range: 0-1, Default: 0.0"
+        "tooltip": "Range: 0-1, Default: 0.0",
     },
-
     # Train/Val Split Parameters
     "split_enabled": {
         "title": "Enable Train/Val Split",
@@ -392,7 +388,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "(extracts prefix before underscore from filenames).\n"
             "Falls back to random split if sequences aren't detected."
         ),
-        "tooltip": "Enable train/val re-splitting"
+        "tooltip": "Enable train/val re-splitting",
     },
     "split_ratio": {
         "title": "Train Ratio",
@@ -404,7 +400,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "  - Medium datasets: 0.85-0.9\n"
             "  - Large datasets (>5000 images): 0.9-0.95"
         ),
-        "tooltip": "Range: 0.5-0.99, Default: 0.9"
+        "tooltip": "Range: 0.5-0.99, Default: 0.9",
     },
     "split_seed": {
         "title": "Random Seed",
@@ -414,7 +410,7 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
             "useful for reproducible experiments.\n\n"
             "Change the seed to get a different random split."
         ),
-        "tooltip": "Range: 0-999999, Default: 42"
+        "tooltip": "Range: 0-999999, Default: 42",
     },
 }
 
@@ -428,7 +424,7 @@ GROUP_HELP: Dict[str, Dict[str, str]] = {
             "training duration, image resolution, and hardware usage.\n\n"
             "Start with defaults and adjust based on your dataset size\n"
             "and available GPU memory."
-        )
+        ),
     },
     "advanced": {
         "title": "Advanced Training Parameters",
@@ -440,7 +436,7 @@ GROUP_HELP: Dict[str, Dict[str, str]] = {
             "  - Training is unstable (reduce lr0, increase warmup)\n"
             "  - Training is too slow (enable caching, add workers)\n"
             "  - Model overfits (use freezing, lower patience)"
-        )
+        ),
     },
     "loss": {
         "title": "Loss Weights",
@@ -452,7 +448,7 @@ GROUP_HELP: Dict[str, Dict[str, str]] = {
             "  - Boxes are inaccurate: increase 'box'\n"
             "  - Classes are wrong: increase 'cls'\n"
             "  - Boxes are imprecise: increase 'dfl'"
-        )
+        ),
     },
     "augmentation": {
         "title": "Augmentation Parameters",
@@ -465,7 +461,7 @@ GROUP_HELP: Dict[str, Dict[str, str]] = {
             "  - flipud: Set to 0.5 for nadir, 0 for oblique\n"
             "  - scale: 0.5-0.8 for altitude variation\n\n"
             "Use the 'Preset' dropdown for recommended settings."
-        )
+        ),
     },
     "split": {
         "title": "Train/Val Split Defaults",
@@ -475,7 +471,7 @@ GROUP_HELP: Dict[str, Dict[str, str]] = {
             "the 'Generate Training Files' dialog.\n\n"
             "Train Ratio: Fraction of data for training (e.g. 0.9).\n"
             "Seed: Random seed for reproducible splits."
-        )
+        ),
     },
 }
 
@@ -483,7 +479,7 @@ GROUP_HELP: Dict[str, Dict[str, str]] = {
 AUGMENTATION_PRESETS: Dict[str, Dict[str, Any]] = {
     "Custom": {
         "description": "Custom settings (no changes)",
-        "values": {}  # Empty = no changes
+        "values": {},  # Empty = no changes
     },
     "Aerial - Nadir": {
         "description": "Straight-down aerial view (drone, satellite)",
@@ -494,7 +490,7 @@ AUGMENTATION_PRESETS: Dict[str, Dict[str, Any]] = {
             "scale": 0.7,
             "perspective": 0.0,
             "shear": 0.0,
-        }
+        },
     },
     "Aerial - Oblique": {
         "description": "Angled aerial view with visible horizon",
@@ -505,7 +501,7 @@ AUGMENTATION_PRESETS: Dict[str, Dict[str, Any]] = {
             "scale": 0.6,
             "perspective": 0.0002,
             "shear": 5.0,
-        }
+        },
     },
     "Ground-Level": {
         "description": "Standard ground photography",
@@ -516,6 +512,6 @@ AUGMENTATION_PRESETS: Dict[str, Dict[str, Any]] = {
             "scale": 0.4,
             "perspective": 0.0001,
             "shear": 0.0,
-        }
+        },
     },
 }

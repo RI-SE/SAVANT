@@ -7,7 +7,6 @@ Entry point for the application.
 
 import logging
 import sys
-from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import Qt
@@ -18,8 +17,8 @@ def setup_logging(verbose: bool = False) -> None:
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%H:%M:%S",
     )
 
 
@@ -28,22 +27,22 @@ def check_dependencies() -> bool:
     missing = []
 
     try:
-        import PyQt6
+        import PyQt6  # noqa: F401
     except ImportError:
         missing.append("PyQt6")
 
     try:
-        import matplotlib
+        import matplotlib  # noqa: F401
     except ImportError:
         missing.append("matplotlib")
 
     try:
-        import yaml
+        import yaml  # noqa: F401
     except ImportError:
         missing.append("pyyaml")
 
     try:
-        import pydantic
+        import pydantic  # noqa: F401
     except ImportError:
         missing.append("pydantic")
 
@@ -61,10 +60,7 @@ def exception_hook(exc_type, exc_value, exc_traceback):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
 
-    logging.error(
-        "Uncaught exception",
-        exc_info=(exc_type, exc_value, exc_traceback)
-    )
+    logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
     # Show error dialog if app is running
     app = QApplication.instance()
@@ -73,7 +69,7 @@ def exception_hook(exc_type, exc_value, exc_traceback):
             None,
             "Error",
             f"An unexpected error occurred:\n\n{exc_value}\n\n"
-            "See the console for details."
+            "See the console for details.",
         )
 
 
@@ -122,16 +118,15 @@ def main():
     project_controller = ProjectController(
         app_state=app_state,
         project_service=project_service,
-        dataset_service=dataset_service
+        dataset_service=dataset_service,
     )
     dataset_controller = DatasetController(
-        app_state=app_state,
-        dataset_service=dataset_service
+        app_state=app_state, dataset_service=dataset_service
     )
     config_controller = ConfigController(
         app_state=app_state,
         project_service=project_service,
-        config_generator=config_generator
+        config_generator=config_generator,
     )
 
     # Create and show main window
@@ -139,7 +134,7 @@ def main():
         app_state=app_state,
         project_controller=project_controller,
         dataset_controller=dataset_controller,
-        config_controller=config_controller
+        config_controller=config_controller,
     )
     window.show()
 

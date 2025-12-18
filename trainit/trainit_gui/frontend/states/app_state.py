@@ -1,6 +1,5 @@
 """Application state management with Qt signals."""
 
-from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import QObject, pyqtSignal

@@ -11,7 +11,9 @@ from typing import Any, Dict
 class PostprocessingPass(ABC):
     """Abstract base class for postprocessing passes."""
 
-    def set_video_properties(self, frame_width: int, frame_height: int, fps: float) -> None:
+    def set_video_properties(
+        self, frame_width: int, frame_height: int, fps: float
+    ) -> None:
         """Set video properties for passes that need them.
 
         Args:

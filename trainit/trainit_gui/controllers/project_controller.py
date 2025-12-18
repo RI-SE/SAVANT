@@ -2,12 +2,10 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from ..frontend.states.app_state import AppState
 from ..services.project_service import ProjectService
 from ..services.dataset_service import DatasetService
-from ..models.project import Project, TrainingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -19,18 +17,14 @@ class ProjectController:
         self,
         app_state: AppState,
         project_service: ProjectService,
-        dataset_service: DatasetService
+        dataset_service: DatasetService,
     ):
         self.app_state = app_state
         self.project_service = project_service
         self.dataset_service = dataset_service
 
     def create_project(
-        self,
-        name: str,
-        project_folder: str,
-        datasets_root: str,
-        description: str = ""
+        self, name: str, project_folder: str, datasets_root: str, description: str = ""
     ) -> bool:
         """Create a new project.
 
@@ -42,20 +36,21 @@ class ProjectController:
                 name=name,
                 project_folder=project_folder,
                 datasets_root=datasets_root,
-                description=description
+                description=description,
             )
 
             # Scan for available datasets
             available = self.dataset_service.scan_directory(datasets_root)
             project.available_datasets = available
             self.project_service.save_project(
-                project,
-                self.project_service.get_project_file_path(project_folder)
+                project, self.project_service.get_project_file_path(project_folder)
             )
 
             # Update app state
             self.app_state.project = project
-            self.app_state.project_path = self.project_service.get_project_file_path(project_folder)
+            self.app_state.project_path = self.project_service.get_project_file_path(
+                project_folder
+            )
             self.app_state.datasets_root = datasets_root
             self.app_state.available_datasets = available
             self.app_state.selected_datasets = []
@@ -122,8 +117,7 @@ class ProjectController:
 
         try:
             self.project_service.save_project(
-                self.app_state.project,
-                self.app_state.project_path
+                self.app_state.project, self.app_state.project_path
             )
             self.app_state.status_message.emit("Project saved")
             logger.info(f"Saved project to {self.app_state.project_path}")
@@ -149,7 +143,9 @@ class ProjectController:
             return False
 
         try:
-            available = self.dataset_service.scan_directory(self.app_state.datasets_root)
+            available = self.dataset_service.scan_directory(
+                self.app_state.datasets_root
+            )
             self.app_state.available_datasets = available
 
             if self.app_state.project:

@@ -26,12 +26,12 @@ import random
 import shutil
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import cv2
 import yaml
 
-from savant_common import read_ontology_classes, get_class_by_label
+from savant_common import read_ontology_classes
 from savant_common.openlabel import OpenLabel, load_openlabel
 from trainit import __version__
 
@@ -40,11 +40,13 @@ logger = logging.getLogger(__name__)
 
 class ValidationError(Exception):
     """Raised when input validation fails."""
+
     pass
 
 
 class ExtractionError(Exception):
     """Raised when frame extraction fails."""
+
     pass
 
 
@@ -57,7 +59,9 @@ class ExtractionConfig:
         """Initialize and validate configuration from CLI arguments."""
         self.input_path = Path(args.input)
         self.output_path = Path(args.output)
-        self.ontology_path = Path(args.ontology) if args.ontology else self.DEFAULT_ONTOLOGY
+        self.ontology_path = (
+            Path(args.ontology) if args.ontology else self.DEFAULT_ONTOLOGY
+        )
         self.video_name: Optional[str] = args.video
         self.openlabel_name: Optional[str] = args.openlabel
         self.interval_seconds: Optional[float] = args.interval_seconds
@@ -94,11 +98,15 @@ class ExtractionConfig:
         # Validate train ratio
         if self.train_ratio is not None:
             if not (0.0 < self.train_ratio < 1.0):
-                raise ValidationError(f"Train ratio must be between 0 and 1: {self.train_ratio}")
+                raise ValidationError(
+                    f"Train ratio must be between 0 and 1: {self.train_ratio}"
+                )
 
         # Validate interval arguments (mutually exclusive)
         if self.interval_seconds is not None and self.interval_frames is not None:
-            raise ValidationError("Cannot specify both --interval-seconds and --interval-frames")
+            raise ValidationError(
+                "Cannot specify both --interval-seconds and --interval-frames"
+            )
 
         # Default to 5 seconds if neither specified
         if self.interval_seconds is None and self.interval_frames is None:
@@ -129,7 +137,7 @@ class ExtractionConfig:
             # Multiple videos, need --video argument
             video_names = [v.name for v in video_files]
             raise ValidationError(
-                f"Multiple video files found. Use --video to specify:\n  "
+                "Multiple video files found. Use --video to specify:\n  "
                 + "\n  ".join(video_names)
             )
 
@@ -139,7 +147,9 @@ class ExtractionConfig:
             # User specified OpenLabel file (skip tagged_file check)
             openlabel_path = self.input_path / self.openlabel_name
             if not openlabel_path.exists():
-                raise ValidationError(f"Specified OpenLabel file not found: {openlabel_path}")
+                raise ValidationError(
+                    f"Specified OpenLabel file not found: {openlabel_path}"
+                )
 
             # Validate it's a valid OpenLabel file
             try:
@@ -156,13 +166,15 @@ class ExtractionConfig:
 
         for json_file in json_files:
             try:
-                with open(json_file, 'r') as f:
+                with open(json_file, "r") as f:
                     data = json.load(f)
 
                 if "openlabel" not in data:
                     continue
 
-                tagged_file = data.get("openlabel", {}).get("metadata", {}).get("tagged_file")
+                tagged_file = (
+                    data.get("openlabel", {}).get("metadata", {}).get("tagged_file")
+                )
                 if tagged_file == video_filename:
                     self.openlabel_path = json_file
                     return
@@ -224,15 +236,19 @@ class YOLODatasetExtractor:
         self.frame_width = int(self.video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.frame_height = int(self.video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        logger.info(f"Video: {self.frame_width}x{self.frame_height}, "
-                    f"{self.fps:.2f} fps, {self.frame_count} frames")
+        logger.info(
+            f"Video: {self.frame_width}x{self.frame_height}, "
+            f"{self.fps:.2f} fps, {self.frame_count} frames"
+        )
 
     def _calculate_frame_indices(self) -> None:
         """Calculate which frame indices to extract."""
         if self.config.interval_seconds is not None:
             frame_interval = max(1, int(self.fps * self.config.interval_seconds))
-            logger.info(f"Extracting every {self.config.interval_seconds}s "
-                        f"(~{frame_interval} frames)")
+            logger.info(
+                f"Extracting every {self.config.interval_seconds}s "
+                f"(~{frame_interval} frames)"
+            )
         else:
             frame_interval = self.config.interval_frames
             logger.info(f"Extracting every {frame_interval} frames")
@@ -250,8 +266,8 @@ class YOLODatasetExtractor:
         # Build UID -> label mapping from ontology and find consecutive UIDs
         all_uids = {}  # uid -> label
         for ont_class in self.ontology_classes:
-            uid = ont_class.get('uid')
-            label = ont_class.get('label')
+            uid = ont_class.get("uid")
+            label = ont_class.get("label")
             if uid is not None and label is not None:
                 all_uids[uid] = label
 
@@ -263,17 +279,23 @@ class YOLODatasetExtractor:
             uid += 1
 
         if not consecutive_uids:
-            raise ExtractionError("No consecutive UIDs starting from 0 found in ontology.")
+            raise ExtractionError(
+                "No consecutive UIDs starting from 0 found in ontology."
+            )
 
         max_consecutive_uid = max(consecutive_uids)
-        logger.info(f"Ontology has {len(all_uids)} classes with UIDs, "
-                    f"using consecutive UIDs 0-{max_consecutive_uid} ({len(consecutive_uids)} classes)")
+        logger.info(
+            f"Ontology has {len(all_uids)} classes with UIDs, "
+            f"using consecutive UIDs 0-{max_consecutive_uid} ({len(consecutive_uids)} classes)"
+        )
 
         # Log any non-consecutive UIDs that will be excluded
         non_consecutive = sorted(set(all_uids.keys()) - consecutive_uids)
         if non_consecutive:
-            logger.info(f"Excluding {len(non_consecutive)} non-consecutive UIDs: "
-                        f"{non_consecutive[:10]}{'...' if len(non_consecutive) > 10 else ''}")
+            logger.info(
+                f"Excluding {len(non_consecutive)} non-consecutive UIDs: "
+                f"{non_consecutive[:10]}{'...' if len(non_consecutive) > 10 else ''}"
+            )
 
         # Build class_names with ALL consecutive UIDs (for YAML)
         for uid in sorted(consecutive_uids):
@@ -305,13 +327,19 @@ class YOLODatasetExtractor:
                 matched_count += 1
             else:
                 skipped_types.append(obj_type)
-                logger.warning(f"Object type '{obj_type}' not in consecutive UID range - will be skipped")
+                logger.warning(
+                    f"Object type '{obj_type}' not in consecutive UID range - will be skipped"
+                )
 
         if not self.class_map:
-            raise ExtractionError("No object types matched consecutive ontology UIDs. Cannot create dataset.")
+            raise ExtractionError(
+                "No object types matched consecutive ontology UIDs. Cannot create dataset."
+            )
 
-        logger.info(f"Class mapping: {matched_count} types matched consecutive UIDs, "
-                    f"{len(skipped_types)} skipped")
+        logger.info(
+            f"Class mapping: {matched_count} types matched consecutive UIDs, "
+            f"{len(skipped_types)} skipped"
+        )
         for obj_type, uid in sorted(self.class_map.items(), key=lambda x: x[1]):
             logger.debug(f"  {obj_type} -> UID {uid}")
 
@@ -364,8 +392,13 @@ class YOLODatasetExtractor:
 
                 # Convert to YOLO OBB format (normalized 4 corners)
                 corners = self._bbox_to_corners(
-                    x_center, y_center, width, height, rotation,
-                    self.frame_width, self.frame_height
+                    x_center,
+                    y_center,
+                    width,
+                    height,
+                    rotation,
+                    self.frame_width,
+                    self.frame_height,
                 )
 
                 if corners is not None:
@@ -375,12 +408,14 @@ class YOLODatasetExtractor:
 
             # Save label file (even if empty)
             label_path = labels_dir / f"{frame_name}.txt"
-            with open(label_path, 'w') as f:
+            with open(label_path, "w") as f:
                 f.write("\n".join(label_lines))
 
             extracted += 1
 
-        logger.info(f"Extracted {extracted} frames, skipped {skipped_annotations} annotations")
+        logger.info(
+            f"Extracted {extracted} frames, skipped {skipped_annotations} annotations"
+        )
 
     def _bbox_to_corners(
         self,
@@ -390,7 +425,7 @@ class YOLODatasetExtractor:
         height: float,
         rotation: float,
         img_width: int,
-        img_height: int
+        img_height: int,
     ) -> Optional[List[float]]:
         """Convert center/size/rotation bbox to normalized corner points.
 
@@ -413,9 +448,9 @@ class YOLODatasetExtractor:
             # Order: top-left, top-right, bottom-right, bottom-left
             corners_local = [
                 (-hw, -hh),  # top-left
-                (hw, -hh),   # top-right
-                (hw, hh),    # bottom-right
-                (-hw, hh),   # bottom-left
+                (hw, -hh),  # top-right
+                (hw, hh),  # bottom-right
+                (-hw, hh),  # bottom-left
             ]
 
             # Rotation matrix components
@@ -521,7 +556,7 @@ class YOLODatasetExtractor:
             "names": self.class_names,
         }
 
-        with open(yaml_path, 'w') as f:
+        with open(yaml_path, "w") as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
         logger.info(f"YAML config saved: {yaml_path}")
@@ -529,7 +564,9 @@ class YOLODatasetExtractor:
     def _print_summary(self) -> None:
         """Print extraction summary."""
         print("\n" + "=" * 60)
-        print(f"EXTRACTION COMPLETE (SAVANT trainit - extract_yolo_training v{__version__})")
+        print(
+            f"EXTRACTION COMPLETE (SAVANT trainit - extract_yolo_training v{__version__})"
+        )
         print("=" * 60)
         print(f"Output:     {self.config.output_path}")
         print(f"Classes:    {len(self.class_names)}")
@@ -545,8 +582,8 @@ def setup_logging(verbose: bool = False) -> None:
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[logging.StreamHandler()]
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler()],
     )
 
 
@@ -568,87 +605,81 @@ Examples:
 
   # Specify video and OpenLabel files explicitly
   extract-yolo-training -i folder -o out --video clip.mp4 --openlabel annotations.json
-"""
+""",
     )
 
     parser.add_argument(
-        '--version',
-        action='version',
-        version=f'%(prog)s {__version__}'
+        "--version", action="version", version=f"%(prog)s {__version__}"
     )
 
     # Core arguments
-    core = parser.add_argument_group('Core Arguments')
+    core = parser.add_argument_group("Core Arguments")
     core.add_argument(
-        '-i', '--input',
+        "-i",
+        "--input",
         type=str,
         required=True,
-        help='Input folder containing video (.mp4) and OpenLabel JSON'
+        help="Input folder containing video (.mp4) and OpenLabel JSON",
     )
     core.add_argument(
-        '-o', '--output',
-        type=str,
-        required=True,
-        help='Output folder for YOLO dataset'
+        "-o", "--output", type=str, required=True, help="Output folder for YOLO dataset"
     )
     core.add_argument(
-        '--ontology',
+        "--ontology",
         type=str,
         default=None,
-        help='Path to SAVANT ontology (.ttl) file (default: ontology/savant.ttl)'
+        help="Path to SAVANT ontology (.ttl) file (default: ontology/savant.ttl)",
     )
 
     # File selection
-    files = parser.add_argument_group('File Selection')
+    files = parser.add_argument_group("File Selection")
     files.add_argument(
-        '--video',
+        "--video",
         type=str,
         default=None,
-        help='Video filename (required if multiple .mp4 files in folder)'
+        help="Video filename (required if multiple .mp4 files in folder)",
     )
     files.add_argument(
-        '--openlabel',
+        "--openlabel",
         type=str,
         default=None,
-        help='Force specific OpenLabel JSON file (skips tagged_file check)'
+        help="Force specific OpenLabel JSON file (skips tagged_file check)",
     )
 
     # Frame extraction
-    extraction = parser.add_argument_group('Frame Extraction')
+    extraction = parser.add_argument_group("Frame Extraction")
     extraction.add_argument(
-        '--interval-seconds',
+        "--interval-seconds",
         type=float,
         default=None,
-        help='Extract every N seconds (default: 5.0)'
+        help="Extract every N seconds (default: 5.0)",
     )
     extraction.add_argument(
-        '--interval-frames',
+        "--interval-frames",
         type=int,
         default=None,
-        help='Extract every N frames (mutually exclusive with --interval-seconds)'
+        help="Extract every N frames (mutually exclusive with --interval-seconds)",
     )
 
     # Dataset options
-    dataset = parser.add_argument_group('Dataset Options')
+    dataset = parser.add_argument_group("Dataset Options")
     dataset.add_argument(
-        '--train-ratio',
+        "--train-ratio",
         type=float,
         default=None,
-        help='Train/val split ratio (e.g., 0.9 for 90%% train). If not set, all goes to train.'
+        help="Train/val split ratio (e.g., 0.9 for 90%% train). If not set, all goes to train.",
     )
     dataset.add_argument(
-        '--seed',
+        "--seed",
         type=int,
         default=42,
-        help='Random seed for train/val split (default: 42)'
+        help="Random seed for train/val split (default: 42)",
     )
 
     # Output options
-    output = parser.add_argument_group('Output Options')
+    output = parser.add_argument_group("Output Options")
     output.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        help='Enable verbose logging'
+        "-v", "--verbose", action="store_true", help="Enable verbose logging"
     )
 
     return parser.parse_args()
@@ -682,5 +713,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -5,7 +5,8 @@ on:
   push:
     tags:
       - "trainit-v*"
-
+  workflow_call:
+  
 permissions:
   contents: read
 

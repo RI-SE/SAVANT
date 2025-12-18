@@ -1,8 +1,14 @@
 """Dataset selector widget with checkable list."""
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget,
-    QListWidgetItem, QPushButton, QGroupBox
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QGroupBox,
 )
 from PyQt6.QtCore import Qt
 
@@ -14,10 +20,7 @@ class DatasetSelector(QWidget):
     """Widget for selecting datasets from the available list."""
 
     def __init__(
-        self,
-        app_state: AppState,
-        dataset_controller: DatasetController,
-        parent=None
+        self, app_state: AppState, dataset_controller: DatasetController, parent=None
     ):
         super().__init__(parent)
 
@@ -118,8 +121,7 @@ class DatasetSelector(QWidget):
     def _on_select_all(self):
         """Select all datasets."""
         all_names = [
-            self.dataset_list.item(i).text()
-            for i in range(self.dataset_list.count())
+            self.dataset_list.item(i).text() for i in range(self.dataset_list.count())
         ]
         self.dataset_controller.select_datasets(all_names)
         if self.app_state.current_config:
@@ -138,7 +140,8 @@ class DatasetSelector(QWidget):
     def _update_selection_label(self):
         """Update the selection count label."""
         count = sum(
-            1 for i in range(self.dataset_list.count())
+            1
+            for i in range(self.dataset_list.count())
             if self.dataset_list.item(i).checkState() == Qt.CheckState.Checked
         )
         self.selection_label.setText(f"{count} datasets selected")

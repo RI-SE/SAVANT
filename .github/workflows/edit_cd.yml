@@ -26,6 +26,7 @@ jobs:
         working-directory: ./edit/
         run: uv sync --group edit
 
+
       - name: Build
         working-directory: ./edit/src/edit/
         run: |

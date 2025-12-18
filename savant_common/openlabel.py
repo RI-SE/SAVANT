@@ -21,7 +21,6 @@ import math
 import os
 from collections import deque
 from dataclasses import dataclass
-from math import isfinite
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
@@ -167,7 +166,7 @@ class ActionMetadata(BaseModel):
 class OntologyDetails(BaseModel):
     """Ontology details for specifying namespace and filtering.
 
-    Refer to: https://github.com/fwrise/SAVANT/tree/main/Specification#savant-ontology
+    Refer to: https://github.com/fwrise/SAVANT/tree/main/ontology
     """
 
     uri: str

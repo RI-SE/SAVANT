@@ -1077,6 +1077,11 @@ class Sidebar(QWidget):
         self._details_name_edit.blockSignals(True)
         self._details_name_edit.setText(meta.get("name", "") or "")
         self._details_name_edit.blockSignals(False)
+
+        # Populate type combo if empty (deferred from startup)
+        if self._details_type_combo.count() == 0:
+            self._populate_bbox_type_combo_grouped(self._details_type_combo)
+
         desired_type_lc = (meta.get("type", "") or "").lower()
         self._details_type_combo.blockSignals(True)
         try:
@@ -1198,7 +1203,7 @@ class Sidebar(QWidget):
         if not self._editing_object_id:
             return
         chosen = (text or "").strip()
-        if not chosen:
+        if not chosen or chosen.startswith("—"):
             return
 
         self.annotation_controller.update_object_type(self._editing_object_id, chosen)
