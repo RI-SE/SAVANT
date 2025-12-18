@@ -6,9 +6,110 @@ This guide is for developers who want to contribute to, maintain, or extend the 
 
 ## 1. Architecture Overview
 
-The Savant App is built on a clean, layered architecture designed for maintainability and separation of concerns.
 
-![Architecture Diagram](./Doc_images/Architecture.png)
+
+The Savant App is built on a clean, layered architecture designed for maintainability and separation of concerns. It follows a pattern similar to Model-View-Controller, with a clear distinction between data, business logic, and the user interface.
+
+
+
+
+```mermaid
+
+graph TD
+
+    subgraph Data Layer
+
+        A1[JSON Files]
+
+    end
+
+
+
+    subgraph Service Layer (Model)
+
+        B1[ProjectState Service]
+
+        B2[Pydantic OpenLabel Models]
+
+        A1 -- Loads/Saves --> B1
+
+        B1 -- Manages --> B2
+
+    end
+
+
+
+    subgraph Controller Layer
+
+        C1[Annotation Controller]
+
+        C2[Project State Controller]
+
+        C3[Video Controller]
+
+        B1 -- Exposed via --> C2
+
+    end
+
+
+
+    subgraph Frontend (View)
+
+        D1[MainWindow (PyQt6)]
+
+        D2[Widgets]
+
+        D3[UI Ops Files (_ops.py)]
+
+        D4[Undo/Redo System]
+
+        D5[Gateways]
+
+
+
+        D1 -- Contains --> D2
+
+        D1 -- Contains --> D4
+
+        D3 -- Creates --> D4
+
+        D4 -- Uses --> D5
+
+    end
+
+    
+
+    subgraph User
+
+        E1[User Interaction]
+
+    end
+
+
+
+    E1 -- Interacts with --> D2
+
+    D2 -- Triggers --> D3
+
+    D5 -- Talks to --> C1
+
+    D5 -- Talks to --> C2
+
+    D5 -- Talks to --> C3
+
+
+
+    C1 -- Modifies --> B1
+
+    C2 -- Reads from --> B1
+
+    C3 -- Controls --> D1
+
+
+
+```
+
+
 
 1.  **Frontend (PyQt6)**: Manages the user interface, including widgets, menus, playback controls, and the annotation overlay. Located under `edit/src/edit/frontend`.
 2.  **Controllers**: Translate UI events (like button clicks) into actions for the business logic layer. These act as a bridge between the UI and the services.
@@ -16,7 +117,7 @@ The Savant App is built on a clean, layered architecture designed for maintainab
 4.  **Models**: Pydantic models that define the data structures, primarily for the SAVANT OpenLabel format. This ensures data consistency and provides a clear schema.
 5.  **Data**: The persisted data layer, consisting of SAVANT OpenLabel JSON files.
 
-![Data Communication Diagram](./Doc_images/DataCommunication.png)
+
 
 Data flows from the JSON files into the Pydantic models, which are managed by the services. The controllers orchestrate calls to the services, and the frontend presents the data to the user.
 
@@ -81,12 +182,27 @@ edit/
 
 ---
 
-## 4. Service Layer Responsibilities
+## 4. Architectural Components
 
--   **AnnotationService**: Handles CRUD operations for bounding boxes, frame tags, relationships, and other metadata. It enforces business rules and raises domain-specific exceptions.
--   **ProjectState**: Manages the application's in-memory state, including loading, saving, and providing access to the OpenLabel data.
--   **VideoReader**: A wrapper around OpenCV's `VideoCapture` that provides a consistent interface for reading video frames and metadata.
--   **InterpolationService**: A stateless helper for performing linear interpolation of bounding box attributes between keyframes.
+-   **Controllers**: This layer is responsible for handling user interactions with the frontend. It acts as a bridge between the UI and the application's core logic, translating UI events (like button clicks) into specific actions. It ensures that user input is processed correctly and that the appropriate services are called to handle the request.
+
+-   **Services**: This layer contains the core business logic of the application. It encapsulates the primary functionalities, such as managing annotations, handling video processing, and managing the application's state. The services are designed to be independent of the UI, which allows for easier testing and maintenance.
+
+-   **Models**: The models define the data structures used throughout the application, primarily for handling data in the SAVANT OpenLabel format. By using Pydantic models, we ensure data consistency, validation, and a clear schema. This layer is crucial for maintaining data integrity as it flows through the application.
+
+    > **Note:** Relationships in the data model are stored as individual entries. For instance, if car A tows both car B and car C, these would be two separate relationship entries rather than a single entry with an array of towed cars.
+
+-   **Frontend**: The frontend is built with PyQt6 and is responsible for everything the user sees and interacts with. It is designed to be modular and maintainable, with a clear separation of concerns between different parts of the UI. The main components of the frontend are:
+    -   **main_window.py**: This is the entry point for the UI. It initializes the main application window and brings together all the different UI components, such as the menu, video display, and sidebar.
+    -   **widgets**: This directory contains all the custom UI elements used in the application. These are reusable components like the video display, playback controls, seek bar, and the sidebar, which encapsulates a significant portion of the application's interactivity.
+    -   **states**: This directory manages the state of the UI. It holds data related to the frontend's current status, such as the selected theme, visibility of certain elements, and other UI-specific configurations.
+    -   **utils**: This directory contains utility functions and helpers for the frontend. These can include anything from handling user input and managing settings to performing rendering operations. It is a collection of tools that support the functionality of the widgets and the main window.
+        -   **ops files**: Within the `utils` directory, you'll find files with an `_ops.py` suffix, such as `annotation_ops.py` and `confidence_ops.py`. These files play a crucial role in connecting the UI to the application's core logic. They act as a dedicated layer for handling specific UI operations, encapsulating the logic required to translate user interactions into calls to the appropriate backend services. For example, `annotation_ops.py` manages everything related to creating, modifying, and deleting annotations, while `confidence_ops.py` handles the display of confidence scores. This separation of concerns helps to keep the UI components clean and focused on presentation, while the `ops` files manage the orchestration of complex UI-driven workflows.
+        -   **undo**: A significant part of the application's robustness comes from its undo/redo functionality, located in the `utils/undo` directory. This system is built on the Command pattern and consists of several key components:
+            -   **manager.py**: The `UndoRedoManager` is the core of the system. It maintains two stacks: one for commands that can be undone and one for commands that can be redone.
+            -   **commands.py**: This file defines the `UndoableCommand` protocol and a set of concrete command classes. Each class represents a specific user action, such as creating a bounding box or deleting a frame tag, and contains the logic to both `do` and `undo` that action.
+            -   **gateways.py**: To keep the commands decoupled from the application's controllers, we use a gateway pattern. This file defines gateway protocols that the commands use to interact with the application's data and services. It also contains concrete gateway implementations that adapt the application's controllers to these protocols.
+            -   **snapshots.py**: These are simple data classes that capture the state of an object at a specific moment. Commands use these snapshots to save the state of the application before they make a change, so they can restore it during an `undo` operation.
 
 ---
 
