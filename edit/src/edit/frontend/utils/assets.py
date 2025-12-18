@@ -17,5 +17,6 @@ def asset_path(*parts: str) -> str:
 def icon(name: str):
     """Load an icon from /frontend/assets, fallback to empty icon."""
     from PyQt6.QtGui import QIcon  # Lazy import to avoid headless CI failures
+
     p = ASSETS_DIR / name
     return QIcon(str(p)) if p.exists() else QIcon()

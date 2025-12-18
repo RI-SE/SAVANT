@@ -5,18 +5,26 @@
 # from PyQt6.QtCore import Qt, pyqtSignal
 
 from edit.frontend.theme.forms import style_checkbox
-from edit.frontend.utils.settings_store import (  # get_ontology_path,  # manual ontology picker; set_ontology_path,  # Manual ontology picker
-    get_action_interval_offset, get_error_range, get_movement_sensitivity,
-    get_ontology_namespace, get_rotation_sensitivity, get_show_errors,
-    get_show_warnings, get_warning_range, get_zoom_rate,
-    set_action_interval_offset, set_movement_sensitivity,
-    set_ontology_namespace, set_rotation_sensitivity)
+# get_ontology_path,  # manual ontology picker; set_ontology_path,  # Manual ontology picker
+from edit.frontend.utils.settings_store import (get_action_interval_offset,
+                                                get_error_range,
+                                                get_movement_sensitivity,
+                                                get_ontology_namespace,
+                                                get_rotation_sensitivity,
+                                                get_show_errors,
+                                                get_show_warnings,
+                                                get_warning_range,
+                                                get_zoom_rate,
+                                                set_action_interval_offset,
+                                                set_movement_sensitivity,
+                                                set_ontology_namespace,
+                                                set_rotation_sensitivity)
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (  # QFileDialog,  # Manual ontology picker
-    QAbstractItemView, QCheckBox, QColorDialog, QDialog, QDialogButtonBox,
-    QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-    QMenu, QMessageBox, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem,
-    QToolButton, QVBoxLayout, QWidget, QWidgetAction)
+    QCheckBox, QColorDialog, QDialog, QDialogButtonBox, QDoubleSpinBox,
+    QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox,
+    QPushButton, QSpinBox, QTableWidgetItem, QToolButton, QVBoxLayout, QWidget,
+    QWidgetAction)
 
 
 class SettingsDialog(QDialog):
@@ -95,42 +103,42 @@ class SettingsDialog(QDialog):
         form.addRow(general_group)
 
         # Annotators group
-        #annotators_group = QGroupBox("Annotators", self)
-        #annotators_form = QFormLayout(annotators_group)
+        # annotators_group = QGroupBox("Annotators", self)
+        # annotators_form = QFormLayout(annotators_group)
 
-        #self.annotator_table = QTableWidget(0, 3, self)
-        #self.annotator_table.setHorizontalHeaderLabels(["Name", "Enabled", "Colour"])
-        #self.annotator_table.horizontalHeader().setStretchLastSection(True)
-        #self.annotator_table.verticalHeader().setVisible(False)
-        #self.annotator_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        #self.annotator_table.setSelectionMode(
+        # self.annotator_table = QTableWidget(0, 3, self)
+        # self.annotator_table.setHorizontalHeaderLabels(["Name", "Enabled", "Colour"])
+        # self.annotator_table.horizontalHeader().setStretchLastSection(True)
+        # self.annotator_table.verticalHeader().setVisible(False)
+        # self.annotator_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        # self.annotator_table.setSelectionMode(
         #    QAbstractItemView.SelectionMode.NoSelection
-        #)
-        #self.annotator_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        # )
+        # self.annotator_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        #self._annotator = [
+        # self._annotator = [
         #    {"name": "Chris", "enabled": True, "colour": "#ff6666"},
         #    {"name": "Younis", "enabled": False, "colour": "#3aa3ff"},
         #    {"name": "Fredrik", "enabled": False, "colour": "#63ff5e"},
         #    {"name": "Thanh", "enabled": False, "colour": "#fff347"},
-        #]
+        # ]
 
-        #annotators_form.addRow(self.annotator_table)
-        #form.addRow(annotators_group)
+        # annotators_form.addRow(self.annotator_table)
+        # form.addRow(annotators_group)
 
-        #self.annotator_table.clearContents()
-        #self.annotator_table.setRowCount(0)
-        #for p in self._annotator:
+        # self.annotator_table.clearContents()
+        # self.annotator_table.setRowCount(0)
+        # for p in self._annotator:
         #    self._add_annotator_row(p)
-        #self.annotator_table.resizeRowsToContents()
-        #header_height = self.annotator_table.horizontalHeader().height()
-        #rows_height = sum(
+        # self.annotator_table.resizeRowsToContents()
+        # header_height = self.annotator_table.horizontalHeader().height()
+        # rows_height = sum(
         #    self.annotator_table.rowHeight(row)
         #    for row in range(self.annotator_table.rowCount())
-        #)
-        #frame_height = 2 * self.annotator_table.frameWidth()
-        #total_height = header_height + rows_height + frame_height
-        #self.annotator_table.setFixedHeight(total_height)
+        # )
+        # frame_height = 2 * self.annotator_table.frameWidth()
+        # total_height = header_height + rows_height + frame_height
+        # self.annotator_table.setFixedHeight(total_height)
 
         # Annotations & Ontology group
         ontology_group = QGroupBox("Annotations && Ontology", self)
