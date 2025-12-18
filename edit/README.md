@@ -133,3 +133,9 @@ Saving a project gives you the option to store the session’s configuration in 
 With these essentials you can install Savant Edit, open a project, review annotations, and keep everything in sync without needing to know the internal code layout.
 
 ---
+
+## 7. For developers
+
+For more information on contributing to Savant Edit, refer to the [Developer guide](DEV_README.md).
+
+---
