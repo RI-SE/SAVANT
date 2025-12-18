@@ -19,11 +19,11 @@ From the root of the SAVANT repository, run:
 ```bash
 git clone git@github.com:fwrise/SAVANT.git
 cd SAVANT
-uv sync --all-groups
+uv sync --dev --all-groups
 ```
 Alternatively, to install only the dependencies for the `edit` application, you can run:
 ```bash
-uv sync --group edit
+uv sync --dev --group edit
 ```
 
 ### 1.3 Running the Application
