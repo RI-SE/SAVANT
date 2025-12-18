@@ -5,26 +5,45 @@
 # from PyQt6.QtCore import Qt, pyqtSignal
 
 from edit.frontend.theme.forms import style_checkbox
+
 # get_ontology_path,  # manual ontology picker; set_ontology_path,  # Manual ontology picker
-from edit.frontend.utils.settings_store import (get_action_interval_offset,
-                                                get_error_range,
-                                                get_movement_sensitivity,
-                                                get_ontology_namespace,
-                                                get_rotation_sensitivity,
-                                                get_show_errors,
-                                                get_show_warnings,
-                                                get_warning_range,
-                                                get_zoom_rate,
-                                                set_action_interval_offset,
-                                                set_movement_sensitivity,
-                                                set_ontology_namespace,
-                                                set_rotation_sensitivity)
+from edit.frontend.utils.settings_store import (
+    get_action_interval_offset,
+    get_error_range,
+    get_movement_sensitivity,
+    get_ontology_namespace,
+    get_rotation_sensitivity,
+    get_show_errors,
+    get_show_warnings,
+    get_warning_range,
+    get_zoom_rate,
+    set_action_interval_offset,
+    set_movement_sensitivity,
+    set_ontology_namespace,
+    set_rotation_sensitivity,
+)
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (  # QFileDialog,  # Manual ontology picker
-    QCheckBox, QColorDialog, QDialog, QDialogButtonBox, QDoubleSpinBox,
-    QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox,
-    QPushButton, QSpinBox, QTableWidgetItem, QToolButton, QVBoxLayout, QWidget,
-    QWidgetAction)
+    QCheckBox,
+    QColorDialog,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QTableWidgetItem,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+    QWidgetAction,
+)
 
 
 class SettingsDialog(QDialog):
@@ -313,22 +332,22 @@ class SettingsDialog(QDialog):
         self.annotator_table.setCellWidget(row, 2, btn)
 
     def values(self) -> dict:
-        annotators = []
-        rows = self.annotator_table.rowCount()
-        for r in range(rows):
-            name = self.annotator_table.item(r, 0).text()
-            enabled_widget = self.annotator_table.cellWidget(r, 1)
-            checkbox = None
-            if isinstance(enabled_widget, QCheckBox):
-                checkbox = enabled_widget
-            elif enabled_widget is not None:
-                checkbox = enabled_widget.property("checkbox")
-                if checkbox is None:
-                    checkbox = enabled_widget.findChild(QCheckBox)
-            enabled = checkbox.isChecked() if isinstance(checkbox, QCheckBox) else False
-            color_btn = self.annotator_table.cellWidget(r, 2)
-            color_hex = color_btn.text()
-            annotators.append({"name": name, "enabled": enabled, "color": color_hex})
+        # annotators = []
+        # rows = self.annotator_table.rowCount()
+        # for r in range(rows):
+        #    name = self.annotator_table.item(r, 0).text()
+        #    enabled_widget = self.annotator_table.cellWidget(r, 1)
+        #    checkbox = None
+        #    if isinstance(enabled_widget, QCheckBox):
+        #    checkbox = enabled_widget
+        # elif enabled_widget is not None:
+        #        checkbox = enabled_widget.property("checkbox")
+        #        if checkbox is None:
+        #            checkbox = enabled_widget.findChild(QCheckBox)
+        #    enabled = checkbox.isChecked() if isinstance(checkbox, QCheckBox) else False
+        # color_btn = self.annotator_table.cellWidget(r, 2)
+        #    color_hex = color_btn.text()
+        #    annotators.append({"name": name, "enabled": enabled, "color": color_hex})
 
         tag_options = {
             "frame": dict(self._frame_tag_states),
@@ -350,7 +369,7 @@ class SettingsDialog(QDialog):
             ),
             "show_warnings": bool(self.warning_toggle_cb.isChecked()),
             "show_errors": bool(self.error_toggle_cb.isChecked()),
-            "Annotators": annotators,
+            # "Annotators": annotators,
             "tag_options": tag_options,
         }
 
