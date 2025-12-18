@@ -98,6 +98,7 @@ class RelationshipSnapshot:
     subject: str
     type: str
     object: str
+    ontology_uid: str
 
 
 @dataclass(frozen=True)

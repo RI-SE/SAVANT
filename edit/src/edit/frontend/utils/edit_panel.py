@@ -63,7 +63,9 @@ def create_collapsible_object_details(
     type_combo = QComboBox(content)
     type_combo.setEditable(False)
     type_combo.setMinimumWidth(0)
-    type_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+    type_combo.setSizeAdjustPolicy(
+        QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+    )
 
     form.addRow("ID:", id_label)
     form.addRow("Name:", name_edit)
