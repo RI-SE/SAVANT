@@ -857,6 +857,7 @@ class AnnotationService:
             "subject": deleted_relation["metadata"].rdf_subjects[0].uid,
             "type": deleted_relation["metadata"].type,
             "object": deleted_relation["metadata"].rdf_objects[0].uid,
+            "ontology_uid": deleted_relation["metadata"].ontology_uid,
         }
 
     def _calculate_relation_frame_interval(

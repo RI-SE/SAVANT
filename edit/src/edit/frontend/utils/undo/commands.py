@@ -480,7 +480,7 @@ class CreateObjectRelationshipCommand:
     def undo(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
         if self._snapshot is not None:
-            gateway.delete_object_relationship(self._snapshot.relationship_id)
+            gateway.delete_relationship(self._snapshot.relationship_id)
 
 
 @dataclass
@@ -505,6 +505,7 @@ class DeleteRelationshipCommand:
         gateway.restore_relationship(
             relation_id=self._snapshot.id,
             relationship_type=self._snapshot.type,
+            ontology_uid=self._snapshot.ontology_uid,
             subject_object_id=self._snapshot.subject,
             object_object_id=self._snapshot.object,
         )
