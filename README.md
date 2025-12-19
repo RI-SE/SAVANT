@@ -1,10 +1,13 @@
-[![CD](https://github.com/fwrise/SAVANT/actions/workflows/cd.yml/badge.svg)](https://github.com/fwrise/SAVANT/actions/workflows/cd.yml)
-[![CI](https://github.com/fwrise/SAVANT/actions/workflows/ci.yml/badge.svg)](https://github.com/fwrise/SAVANT/actions/workflows/ci.yml)
-
-
 ![SAVANT logo](./docs/savant_logo.png)
 
 # SAVANT - Semi-automated video annotation toolkit
+
+[![Markit CI](https://github.com/RI-SE/SAVANT/actions/workflows/markit_ci.yml/badge.svg)](https://github.com/RI-SE/SAVANT/actions/workflows/markit_ci.yml)
+[![Edit CI](https://github.com/RI-SE/SAVANT/actions/workflows/edit_ci.yml/badge.svg)](https://github.com/RI-SE/SAVANT/actions/workflows/edit_ci.yml)
+[![Trainit CI](https://github.com/RI-SE/SAVANT/actions/workflows/trainit_ci.yml/badge.svg)](https://github.com/RI-SE/SAVANT/actions/workflows/trainit_ci.yml)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
 A toolkit for 2D-annotation of video with rotated bounding boxes and object tagging.
 - *markit* - automated annotation (supports YOLO for object detection and classification optical flow for object detection, and AruCo detection for geotags)
 - *edit* - manual annotation or corrections of pre-annotated video, and annotation quality assurance
@@ -21,7 +24,7 @@ The initial use-case is aerial video annotation of traffic, supported by the use
 Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone git@github.com:fwrise/SAVANT.git
+git clone git@github.com:RI-SE/SAVANT.git
 cd SAVANT
 uv sync
 ```

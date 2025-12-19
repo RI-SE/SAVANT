@@ -45,7 +45,7 @@ These tools are installed as part of the SAVANT package:
 uv sync --dev
 
 # The tools are available as CLI commands
-trainit-gui              # Launch the GUI application
+trainit              # Launch the GUI application
 extract-yolo-training --help
 train-yolo-obb --help
 split-train-val --help

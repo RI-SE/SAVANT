@@ -12,13 +12,17 @@ Savant Edit is the desktop reviewer/annotator that lets you inspect OpenLabel da
    ```
 2. **Clone the repository and install the Edit dependencies**:
    ```bash
-   git clone git@github.com:fwrise/SAVANT.git
+   git clone git@github.com:RI-SE/SAVANT.git
    cd SAVANT/edit
    uv sync --group edit --group dev
    ```
    The `edit` dependency group installs the PyQt6, OpenCV, numpy, rdflib, and appdirs packages that the GUI uses, while `dev` adds the optional tooling (flake8, black, pytest).
 3. **Launch the application** from the package source directory so Python can import `edit`:
    ```bash
+   # The tool is available as CLI commands
+   edit
+   
+   # Or start from the edit folder
    cd /path/to/SAVANT/edit/src
    uv run python -m edit.main
    ```

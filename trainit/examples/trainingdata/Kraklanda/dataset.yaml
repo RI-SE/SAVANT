@@ -1,4 +1,4 @@
-path: /home/fredrik/fwrise/SAVANT/trainit/examples/Kraklanda
+path: .
 train: images/train
 val: images/train
 nc: 25

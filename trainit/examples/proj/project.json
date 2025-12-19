@@ -2,7 +2,7 @@
   "name": "Example training project",
   "version": "1.0",
   "description": "Example project for trainit-gui",
-  "datasets_root": "/home/fredrik/fwrise/SAVANT/trainit/examples/trainingdata",
+  "datasets_root": "../trainingdata",
   "available_datasets": [
     "Kraklanda",
     "Saro"

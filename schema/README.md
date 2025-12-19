@@ -43,7 +43,7 @@ References to ontology definitions. Each ontology has a unique UID.
 
 ```json
 "ontologies": {
-    "0": "https://github.com/RI-SE/SAVANT/ontology/savant_ontology_1.3.1.ttl"
+    "0": "https://ri-se.github.io/SAVANT/ontology/1.3.1.ttl"
 }
 ```
 

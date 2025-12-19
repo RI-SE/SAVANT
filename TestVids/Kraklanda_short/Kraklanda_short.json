@@ -3,7 +3,7 @@
     "metadata": {
       "schema_version": "1.0",
       "tagged_file": "Kraklanda_short.mp4",
-      "annotator": "SAVANT Markit 2.0.1",
+      "annotator": "SAVANT Markit 2.0.2",
       "name": "SAVANT Markit 2.0.0 Analysis",
       "comment": "Multi-engine object detection and tracking analysis of Kraklanda_short.mp4",
       "tags": [
