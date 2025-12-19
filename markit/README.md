@@ -180,7 +180,7 @@ Markit exports detections in OpenLabel (subset) JSON format, including informati
     "metadata": {
       "schema_version": "1.1",
       "tagged_file": "Saro_roundabout.mp4",
-      "annotator": "SAVANT Markit 2.0.1",
+      "annotator": "SAVANT Markit 2.0.2",
       "name": "SAVANT Markit 2.0.0 Analysis",
       "comment": "Multi-engine object detection and tracking analysis of Saro_roundabout.mp4",
       "tags": [
