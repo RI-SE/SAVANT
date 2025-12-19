@@ -6,7 +6,7 @@
       "annotator": "SAVANT Markit v0.1"
     },
     "ontologies": {
-      "0": "https://savant.ri.se/savant_ontology_1.0.0.ttl"
+      "0": "https://ri-se.github.io/SAVANT/ontology/savant.ttl"
     },
     "objects": {
       "1": {

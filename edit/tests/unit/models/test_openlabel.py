@@ -26,7 +26,7 @@ class TestOpenLabel:
                     "tagged_file": "filename.mp4",
                     "annotator": "SAVANT autoanno v0.1",
                 },
-                "ontologies": {"0": "https://savant.ri.se/savant_ontology_1.0.0.ttl"},
+                "ontologies": {"0": "https://ri-se.github.io/SAVANT/ontology/savant.ttl"},
                 "objects": {
                     "0": {
                         "name": "Car-0",

@@ -21,7 +21,7 @@ def read_ontology_classes(ttl_path):
     g = Graph()
     g.parse(ttl_path, format="turtle")
 
-    SAVANT = Namespace("http://github.com/RI-SE/SAVANT/ontology#")
+    SAVANT = Namespace("https://ri-se.github.io/SAVANT/ontology/savant#")
 
     def extract_class_name(uri_str):
         """Extract the class name from a URI (part after #)."""
@@ -58,7 +58,7 @@ def read_ontology_classes(ttl_path):
 
         # If parent is outside SAVANT namespace, current class is top-level
         parent_str = str(parent)
-        if not parent_str.startswith("http://github.com/RI-SE/SAVANT/ontology#"):
+        if not parent_str.startswith("https://ri-se.github.io/SAVANT/ontology/savant#"):
             return str(class_uri), extract_class_name(str(class_uri))
 
         # Otherwise, recurse up the chain
@@ -231,9 +231,9 @@ def extract_namespace_uri(ttl_path: str) -> Optional[str]:
         The namespace URI string if found, None otherwise.
 
     Example:
-        # For a file with "@prefix : <http://github.com/RI-SE/SAVANT/ontology#> ."
+        # For a file with "@prefix : <https://ri-se.github.io/SAVANT/ontology/savant#> ."
         uri = extract_namespace_uri("savant_ontology_1.3.1.ttl")
-        # Returns: "http://github.com/RI-SE/SAVANT/ontology#"
+        # Returns: "https://ri-se.github.io/SAVANT/ontology/savant#"
     """
     with open(ttl_path, 'r') as f:
         for line in f:

@@ -15,7 +15,7 @@ from edit.frontend.exceptions import (
 
 _ontology_path: Optional[Path] = None
 _action_interval_offset: int = 50
-_default_ontology_namespace = "http://github.com/RI-SE/SAVANT/ontology#"
+_default_ontology_namespace = "https://ri-se.github.io/SAVANT/ontology/savant#"
 _ontology_namespace: str = _default_ontology_namespace
 _warning_range: tuple[float, float] = (0.4, 0.6)
 _error_range: tuple[float, float] = (0.0, 0.4)
