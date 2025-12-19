@@ -17,7 +17,7 @@ This document covers everything you need to run the Savant desktop annotator (`e
    ```
 2. Clone the repository and enter the Savant edit directory:
    ```bash
-   git clone git@github.com:fwrise/SAVANT.git
+   git clone git@github.com:RI-SE/SAVANT.git
    cd SAVANT/edit
    ```
 3. Install dependencies (PyQt6, OpenCV, Pydantic, etc.) via uv:

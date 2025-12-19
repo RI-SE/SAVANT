@@ -72,7 +72,14 @@ class ProjectService:
         try:
             with open(path, "r") as f:
                 data = json.load(f)
-            return Project.model_validate(data)
+            project = Project.model_validate(data)
+
+            # Resolve relative datasets_root relative to project file location
+            datasets_root = Path(project.datasets_root)
+            if not datasets_root.is_absolute():
+                project.datasets_root = str((path.parent / datasets_root).resolve())
+
+            return project
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in project file: {e}")
         except Exception as e:

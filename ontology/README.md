@@ -168,6 +168,6 @@ SAVANT is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
 
 ## References
 
-- [SAVANT Repository](https://github.com/fwrise/SAVANT)
+- [SAVANT Repository](https://github.com/RI-SE/SAVANT)
 - [OpenLABEL Specification](https://www.asam.net/standards/detail/openlabel/)
 - [Ultralytics YOLO](https://docs.ultralytics.com/)

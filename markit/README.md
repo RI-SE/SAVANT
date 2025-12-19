@@ -34,7 +34,7 @@ Markit is part of the SAVANT repository. Install from the repository root:
 
 ```bash
 # Clone and install with uv (recommended)
-git clone git@github.com:fwrise/SAVANT.git
+git clone git@github.com:RI-SE/SAVANT.git
 cd SAVANT
 uv sync
 

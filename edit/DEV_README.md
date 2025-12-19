@@ -17,7 +17,7 @@ Clone the repository and install the dependencies. The `edit` application and it
 
 From the root of the SAVANT repository, run:
 ```bash
-git clone git@github.com:fwrise/SAVANT.git
+git clone git@github.com:RI-SE/SAVANT.git
 cd SAVANT
 uv sync --dev --all-groups
 ```
