@@ -2,6 +2,7 @@
 response_parser - Parse VLM responses into structured data for OpenLABEL
 
 Provides parsing of VLM text responses and conversion to OpenLABEL tags.
+Schema aligned with BSI PAS-1883 ODD taxonomy.
 """
 
 import json
@@ -68,7 +69,7 @@ class VLMResponseParser:
             return None
 
         # Validate expected structure (at least some keys should be present)
-        expected_keys = ["weather", "road", "traffic", "scene"]
+        expected_keys = ["weather", "road", "traffic", "junction", "structures"]
         found_keys = [key for key in expected_keys if key in data]
 
         if len(found_keys) < 2:
@@ -118,16 +119,17 @@ class VLMResponseParser:
         weather_tracker = {"current": None, "start": None, "data": None}
         road_tracker = {"current": None, "start": None, "data": None}
         traffic_tracker = {"current": None, "start": None, "data": None}
-        risk_tracker = {"current": None, "start": None, "data": None}
+        junction_tracker = {"current": None, "start": None, "data": None}
+        structures_tracker = {"current": None, "start": None, "data": None}
 
         prev_frame = video_start
 
         for result in sorted_results:
             frame_idx = result.get("_frame_idx", 0)
 
-            # Weather tracking - key on condition
+            # Weather tracking - key on precipitation
             weather = result.get("weather", {})
-            weather_key = weather.get("condition")
+            weather_key = weather.get("precipitation")
             if weather_key != weather_tracker["current"]:
                 if weather_tracker["current"] is not None:
                     # Close previous weather segment
@@ -146,9 +148,9 @@ class VLMResponseParser:
                     "data": weather,
                 }
 
-            # Road tracking - key on type + surface_condition
+            # Road tracking - key on drivable_area_type + surface_condition
             road = result.get("road", {})
-            road_key = (road.get("type"), road.get("surface_condition"))
+            road_key = (road.get("drivable_area_type"), road.get("surface_condition"))
             if road_key != road_tracker["current"]:
                 if road_tracker["current"] is not None:
                     contexts[str(context_id)] = (
@@ -180,20 +182,47 @@ class VLMResponseParser:
                     "data": traffic,
                 }
 
-            # Risk tracking - key on level
-            risk = result.get("risk", {})
-            risk_key = risk.get("level")
-            if risk_key != risk_tracker["current"]:
-                if risk_tracker["current"] is not None:
+            # Junction tracking - key on type
+            junction = result.get("junction", {})
+            junction_key = junction.get("type")
+            if junction_key != junction_tracker["current"]:
+                if junction_tracker["current"] is not None:
                     contexts[str(context_id)] = (
-                        VLMResponseParser._create_risk_context(
-                            risk_tracker["data"],
-                            risk_tracker["start"],
+                        VLMResponseParser._create_junction_context(
+                            junction_tracker["data"],
+                            junction_tracker["start"],
                             prev_frame,
                         )
                     )
                     context_id += 1
-                risk_tracker = {"current": risk_key, "start": frame_idx, "data": risk}
+                junction_tracker = {
+                    "current": junction_key,
+                    "start": frame_idx,
+                    "data": junction,
+                }
+
+            # Structures tracking - key on tuple of boolean flags
+            structures = result.get("structures", {})
+            structures_key = (
+                structures.get("bridge"),
+                structures.get("tunnel"),
+                structures.get("toll_plaza"),
+            )
+            if structures_key != structures_tracker["current"]:
+                if structures_tracker["current"] is not None:
+                    contexts[str(context_id)] = (
+                        VLMResponseParser._create_structures_context(
+                            structures_tracker["data"],
+                            structures_tracker["start"],
+                            prev_frame,
+                        )
+                    )
+                    context_id += 1
+                structures_tracker = {
+                    "current": structures_key,
+                    "start": frame_idx,
+                    "data": structures,
+                }
 
             prev_frame = frame_idx
 
@@ -224,10 +253,18 @@ class VLMResponseParser:
             )
             context_id += 1
 
-        if risk_tracker["current"] is not None:
-            contexts[str(context_id)] = VLMResponseParser._create_risk_context(
-                risk_tracker["data"],
-                risk_tracker["start"],
+        if junction_tracker["current"] is not None:
+            contexts[str(context_id)] = VLMResponseParser._create_junction_context(
+                junction_tracker["data"],
+                junction_tracker["start"],
+                final_frame,
+            )
+            context_id += 1
+
+        if structures_tracker["current"] is not None:
+            contexts[str(context_id)] = VLMResponseParser._create_structures_context(
+                structures_tracker["data"],
+                structures_tracker["start"],
                 final_frame,
             )
             context_id += 1
@@ -239,19 +276,35 @@ class VLMResponseParser:
         weather: Dict[str, Any], frame_start: int, frame_end: int
     ) -> Dict[str, Any]:
         """Create a weather context for a frame interval."""
-        context_data = {"text": []}
+        context_data = {"text": [], "num": []}
 
-        if weather.get("condition"):
+        if weather.get("precipitation"):
             context_data["text"].append(
-                {"name": "condition", "val": weather["condition"]}
+                {"name": "precipitation", "val": weather["precipitation"]}
             )
-        if weather.get("visibility"):
+        if weather.get("precipitation_intensity"):
             context_data["text"].append(
-                {"name": "visibility", "val": weather["visibility"]}
+                {"name": "precipitation_intensity", "val": weather["precipitation_intensity"]}
+            )
+        if weather.get("particulates"):
+            context_data["text"].append(
+                {"name": "particulates", "val": weather["particulates"]}
             )
         if weather.get("time_of_day"):
             context_data["text"].append(
                 {"name": "time_of_day", "val": weather["time_of_day"]}
+            )
+        if weather.get("sun_position"):
+            context_data["text"].append(
+                {"name": "sun_position", "val": weather["sun_position"]}
+            )
+        if weather.get("cloud_cover"):
+            context_data["text"].append(
+                {"name": "cloud_cover", "val": weather["cloud_cover"]}
+            )
+        if weather.get("visibility_km") is not None:
+            context_data["num"].append(
+                {"name": "visibility_km", "val": float(weather["visibility_km"])}
             )
 
         context_data = {k: v for k, v in context_data.items() if v}
@@ -269,17 +322,43 @@ class VLMResponseParser:
         road: Dict[str, Any], frame_start: int, frame_end: int
     ) -> Dict[str, Any]:
         """Create a road context for a frame interval."""
-        context_data = {"text": [], "num": []}
+        context_data = {"text": [], "num": [], "boolean": []}
 
-        if road.get("type"):
-            context_data["text"].append({"name": "road_type", "val": road["type"]})
+        if road.get("drivable_area_type"):
+            context_data["text"].append(
+                {"name": "drivable_area_type", "val": road["drivable_area_type"]}
+            )
+        if road.get("geometry_horizontal"):
+            context_data["text"].append(
+                {"name": "geometry_horizontal", "val": road["geometry_horizontal"]}
+            )
+        if road.get("geometry_longitudinal"):
+            context_data["text"].append(
+                {"name": "geometry_longitudinal", "val": road["geometry_longitudinal"]}
+            )
+        if road.get("surface_type"):
+            context_data["text"].append(
+                {"name": "surface_type", "val": road["surface_type"]}
+            )
         if road.get("surface_condition"):
             context_data["text"].append(
                 {"name": "surface_condition", "val": road["surface_condition"]}
             )
+        if road.get("surface_quality"):
+            context_data["text"].append(
+                {"name": "surface_quality", "val": road["surface_quality"]}
+            )
         if road.get("lane_count") is not None:
             context_data["num"].append(
                 {"name": "lane_count", "val": int(road["lane_count"])}
+            )
+        if "divided" in road:
+            context_data["boolean"].append(
+                {"name": "divided", "val": road["divided"]}
+            )
+        if "lane_markings_visible" in road:
+            context_data["boolean"].append(
+                {"name": "lane_markings_visible", "val": road["lane_markings_visible"]}
             )
 
         context_data = {k: v for k, v in context_data.items() if v}
@@ -301,6 +380,12 @@ class VLMResponseParser:
 
         if traffic.get("density"):
             context_data["text"].append({"name": "density", "val": traffic["density"]})
+        if traffic.get("flow"):
+            context_data["text"].append({"name": "flow", "val": traffic["flow"]})
+        if traffic.get("temporary_structures"):
+            context_data["text"].append(
+                {"name": "temporary_structures", "val": traffic["temporary_structures"]}
+            )
         if "pedestrians_present" in traffic:
             context_data["boolean"].append(
                 {"name": "pedestrians_present", "val": traffic["pedestrians_present"]}
@@ -308,6 +393,10 @@ class VLMResponseParser:
         if "cyclists_present" in traffic:
             context_data["boolean"].append(
                 {"name": "cyclists_present", "val": traffic["cyclists_present"]}
+            )
+        if "special_vehicles_present" in traffic:
+            context_data["boolean"].append(
+                {"name": "special_vehicles_present", "val": traffic["special_vehicles_present"]}
             )
 
         context_data = {k: v for k, v in context_data.items() if v}
@@ -321,22 +410,78 @@ class VLMResponseParser:
         }
 
     @staticmethod
-    def _create_risk_context(
-        risk: Dict[str, Any], frame_start: int, frame_end: int
+    def _create_junction_context(
+        junction: Dict[str, Any], frame_start: int, frame_end: int
     ) -> Dict[str, Any]:
-        """Create a risk context for a frame interval."""
-        context_data = {"text": [], "vec": []}
+        """Create a junction context for a frame interval."""
+        context_data = {"text": [], "boolean": []}
 
-        if risk.get("level"):
-            context_data["text"].append({"name": "risk_level", "val": risk["level"]})
-        if risk.get("factors"):
-            context_data["vec"].append({"name": "risk_factors", "val": risk["factors"]})
+        if junction.get("type"):
+            context_data["text"].append({"name": "junction_type", "val": junction["type"]})
+        if junction.get("roundabout_type"):
+            context_data["text"].append(
+                {"name": "roundabout_type", "val": junction["roundabout_type"]}
+            )
+        if "present" in junction:
+            context_data["boolean"].append(
+                {"name": "junction_present", "val": junction["present"]}
+            )
+        if "signalized" in junction:
+            context_data["boolean"].append(
+                {"name": "signalized", "val": junction["signalized"]}
+            )
+        if "pedestrian_crossing" in junction:
+            context_data["boolean"].append(
+                {"name": "pedestrian_crossing", "val": junction["pedestrian_crossing"]}
+            )
+        if "rail_crossing" in junction:
+            context_data["boolean"].append(
+                {"name": "rail_crossing", "val": junction["rail_crossing"]}
+            )
 
         context_data = {k: v for k, v in context_data.items() if v}
 
         return {
-            "name": "risk_assessment",
-            "type": "RiskContext",
+            "name": "junction_info",
+            "type": "JunctionContext",
+            "ontology_uid": SCENARIO_ONTOLOGY_UID,
+            "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
+            "context_data": context_data,
+        }
+
+    @staticmethod
+    def _create_structures_context(
+        structures: Dict[str, Any], frame_start: int, frame_end: int
+    ) -> Dict[str, Any]:
+        """Create a structures context for a frame interval."""
+        context_data = {"text": [], "boolean": []}
+
+        if structures.get("street_lighting"):
+            context_data["text"].append(
+                {"name": "street_lighting", "val": structures["street_lighting"]}
+            )
+        if "bridge" in structures:
+            context_data["boolean"].append(
+                {"name": "bridge", "val": structures["bridge"]}
+            )
+        if "tunnel" in structures:
+            context_data["boolean"].append(
+                {"name": "tunnel", "val": structures["tunnel"]}
+            )
+        if "toll_plaza" in structures:
+            context_data["boolean"].append(
+                {"name": "toll_plaza", "val": structures["toll_plaza"]}
+            )
+        if "barriers_present" in structures:
+            context_data["boolean"].append(
+                {"name": "barriers_present", "val": structures["barriers_present"]}
+            )
+
+        context_data = {k: v for k, v in context_data.items() if v}
+
+        return {
+            "name": "structures_info",
+            "type": "StructuresContext",
             "ontology_uid": SCENARIO_ONTOLOGY_UID,
             "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
             "context_data": context_data,
@@ -368,19 +513,35 @@ class VLMResponseParser:
         # Weather tag
         if "weather" in aggregated:
             weather = aggregated["weather"]
-            tag_data = {"text": []}
+            tag_data = {"text": [], "num": []}
 
-            if "condition" in weather:
+            if "precipitation" in weather:
                 tag_data["text"].append(
-                    {"name": "condition", "val": weather["condition"]}
+                    {"name": "precipitation", "val": weather["precipitation"]}
                 )
-            if "visibility" in weather:
+            if "precipitation_intensity" in weather:
                 tag_data["text"].append(
-                    {"name": "visibility", "val": weather["visibility"]}
+                    {"name": "precipitation_intensity", "val": weather["precipitation_intensity"]}
+                )
+            if "particulates" in weather:
+                tag_data["text"].append(
+                    {"name": "particulates", "val": weather["particulates"]}
                 )
             if "time_of_day" in weather:
                 tag_data["text"].append(
                     {"name": "time_of_day", "val": weather["time_of_day"]}
+                )
+            if "sun_position" in weather:
+                tag_data["text"].append(
+                    {"name": "sun_position", "val": weather["sun_position"]}
+                )
+            if "cloud_cover" in weather:
+                tag_data["text"].append(
+                    {"name": "cloud_cover", "val": weather["cloud_cover"]}
+                )
+            if weather.get("visibility_km") is not None:
+                tag_data["num"].append(
+                    {"name": "visibility_km", "val": float(weather["visibility_km"])}
                 )
 
             tag_data = {k: v for k, v in tag_data.items() if v}
@@ -397,17 +558,43 @@ class VLMResponseParser:
         # Road tag
         if "road" in aggregated:
             road = aggregated["road"]
-            tag_data = {"text": [], "num": []}
+            tag_data = {"text": [], "num": [], "boolean": []}
 
-            if "type" in road:
-                tag_data["text"].append({"name": "road_type", "val": road["type"]})
+            if "drivable_area_type" in road:
+                tag_data["text"].append(
+                    {"name": "drivable_area_type", "val": road["drivable_area_type"]}
+                )
+            if "geometry_horizontal" in road:
+                tag_data["text"].append(
+                    {"name": "geometry_horizontal", "val": road["geometry_horizontal"]}
+                )
+            if "geometry_longitudinal" in road:
+                tag_data["text"].append(
+                    {"name": "geometry_longitudinal", "val": road["geometry_longitudinal"]}
+                )
+            if "surface_type" in road:
+                tag_data["text"].append(
+                    {"name": "surface_type", "val": road["surface_type"]}
+                )
             if "surface_condition" in road:
                 tag_data["text"].append(
                     {"name": "surface_condition", "val": road["surface_condition"]}
                 )
+            if "surface_quality" in road:
+                tag_data["text"].append(
+                    {"name": "surface_quality", "val": road["surface_quality"]}
+                )
             if road.get("lane_count") is not None:
                 tag_data["num"].append(
                     {"name": "lane_count", "val": int(road["lane_count"])}
+                )
+            if "divided" in road:
+                tag_data["boolean"].append(
+                    {"name": "divided", "val": road["divided"]}
+                )
+            if "lane_markings_visible" in road:
+                tag_data["boolean"].append(
+                    {"name": "lane_markings_visible", "val": road["lane_markings_visible"]}
                 )
 
             tag_data = {k: v for k, v in tag_data.items() if v}
@@ -430,6 +617,14 @@ class VLMResponseParser:
                 tag_data["text"].append(
                     {"name": "density", "val": traffic["density"]}
                 )
+            if "flow" in traffic:
+                tag_data["text"].append(
+                    {"name": "flow", "val": traffic["flow"]}
+                )
+            if "temporary_structures" in traffic:
+                tag_data["text"].append(
+                    {"name": "temporary_structures", "val": traffic["temporary_structures"]}
+                )
             if "pedestrians_present" in traffic:
                 tag_data["boolean"].append(
                     {"name": "pedestrians_present", "val": traffic["pedestrians_present"]}
@@ -437,6 +632,10 @@ class VLMResponseParser:
             if "cyclists_present" in traffic:
                 tag_data["boolean"].append(
                     {"name": "cyclists_present", "val": traffic["cyclists_present"]}
+                )
+            if "special_vehicles_present" in traffic:
+                tag_data["boolean"].append(
+                    {"name": "special_vehicles_present", "val": traffic["special_vehicles_present"]}
                 )
 
             tag_data = {k: v for k, v in tag_data.items() if v}
@@ -450,51 +649,96 @@ class VLMResponseParser:
                 }
                 tag_id += 1
 
-        # Risk tag
-        if "risk" in aggregated:
-            risk = aggregated["risk"]
-            tag_data = {"text": [], "vec": []}
+        # Junction tag
+        if "junction" in aggregated:
+            junction = aggregated["junction"]
+            tag_data = {"text": [], "boolean": []}
 
-            if "level" in risk:
-                tag_data["text"].append({"name": "risk_level", "val": risk["level"]})
-            if "factors" in risk and risk["factors"]:
-                tag_data["vec"].append(
-                    {"name": "risk_factors", "val": risk["factors"]}
-                )
-
-            tag_data = {k: v for k, v in tag_data.items() if v}
-
-            if tag_data:
-                tags[str(tag_id)] = {
-                    "name": "risk_assessment",
-                    "type": "RiskTag",
-                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                    "tag_data": tag_data,
-                }
-                tag_id += 1
-
-        # Scene type tag
-        if "scene" in aggregated:
-            scene = aggregated["scene"]
-            tag_data = {"text": []}
-
-            if "type" in scene:
-                tag_data["text"].append({"name": "scene_type", "val": scene["type"]})
-            if "description" in scene:
+            if "type" in junction:
                 tag_data["text"].append(
-                    {"name": "description", "val": scene["description"]}
+                    {"name": "junction_type", "val": junction["type"]}
+                )
+            if "roundabout_type" in junction:
+                tag_data["text"].append(
+                    {"name": "roundabout_type", "val": junction["roundabout_type"]}
+                )
+            if "present" in junction:
+                tag_data["boolean"].append(
+                    {"name": "junction_present", "val": junction["present"]}
+                )
+            if "signalized" in junction:
+                tag_data["boolean"].append(
+                    {"name": "signalized", "val": junction["signalized"]}
+                )
+            if "pedestrian_crossing" in junction:
+                tag_data["boolean"].append(
+                    {"name": "pedestrian_crossing", "val": junction["pedestrian_crossing"]}
+                )
+            if "rail_crossing" in junction:
+                tag_data["boolean"].append(
+                    {"name": "rail_crossing", "val": junction["rail_crossing"]}
                 )
 
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
                 tags[str(tag_id)] = {
-                    "name": "scene_analysis",
-                    "type": "SceneTypeTag",
+                    "name": "junction_info",
+                    "type": "JunctionTag",
                     "ontology_uid": SCENARIO_ONTOLOGY_UID,
                     "tag_data": tag_data,
                 }
                 tag_id += 1
+
+        # Structures tag
+        if "structures" in aggregated:
+            structures = aggregated["structures"]
+            tag_data = {"text": [], "boolean": []}
+
+            if "street_lighting" in structures:
+                tag_data["text"].append(
+                    {"name": "street_lighting", "val": structures["street_lighting"]}
+                )
+            if "bridge" in structures:
+                tag_data["boolean"].append(
+                    {"name": "bridge", "val": structures["bridge"]}
+                )
+            if "tunnel" in structures:
+                tag_data["boolean"].append(
+                    {"name": "tunnel", "val": structures["tunnel"]}
+                )
+            if "toll_plaza" in structures:
+                tag_data["boolean"].append(
+                    {"name": "toll_plaza", "val": structures["toll_plaza"]}
+                )
+            if "barriers_present" in structures:
+                tag_data["boolean"].append(
+                    {"name": "barriers_present", "val": structures["barriers_present"]}
+                )
+
+            tag_data = {k: v for k, v in tag_data.items() if v}
+
+            if tag_data:
+                tags[str(tag_id)] = {
+                    "name": "structures_info",
+                    "type": "StructuresTag",
+                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
+                    "tag_data": tag_data,
+                }
+                tag_id += 1
+
+        # Notes tag (if any frames had unusual observations)
+        notes = [r.get("notes") for r in analysis_results if r.get("notes")]
+        if notes:
+            tags[str(tag_id)] = {
+                "name": "scene_notes",
+                "type": "NotesTag",
+                "ontology_uid": SCENARIO_ONTOLOGY_UID,
+                "tag_data": {
+                    "vec": [{"name": "notes", "val": notes}],
+                },
+            }
+            tag_id += 1
 
         # VLM analysis metadata tag
         avg_confidence = VLMResponseParser._average_confidence(analysis_results)
@@ -536,10 +780,13 @@ class VLMResponseParser:
 
         # Aggregate weather using majority voting
         weather_values = {
-            "condition": [],
-            "visibility": [],
+            "precipitation": [],
+            "precipitation_intensity": [],
+            "particulates": [],
+            "visibility_km": [],
             "time_of_day": [],
-            "confidence": [],
+            "sun_position": [],
+            "cloud_cover": [],
         }
         for r in results:
             weather = r.get("weather", {})
@@ -551,14 +798,25 @@ class VLMResponseParser:
             aggregated["weather"] = {}
             for key, values in weather_values.items():
                 if values:
-                    if key == "confidence":
+                    if key == "visibility_km":
+                        # Average for numeric
                         aggregated["weather"][key] = sum(values) / len(values)
                     else:
                         # Majority voting for categorical
                         aggregated["weather"][key] = max(set(values), key=values.count)
 
         # Aggregate road
-        road_values = {"type": [], "surface_condition": [], "lane_count": []}
+        road_values = {
+            "drivable_area_type": [],
+            "geometry_horizontal": [],
+            "geometry_longitudinal": [],
+            "divided": [],
+            "surface_type": [],
+            "surface_condition": [],
+            "surface_quality": [],
+            "lane_count": [],
+            "lane_markings_visible": [],
+        }
         for r in results:
             road = r.get("road", {})
             for key in road_values:
@@ -572,14 +830,20 @@ class VLMResponseParser:
                     if key == "lane_count":
                         # Average for numeric, round to int
                         aggregated["road"][key] = round(sum(values) / len(values))
+                    elif key in ("divided", "lane_markings_visible"):
+                        # Majority for booleans
+                        aggregated["road"][key] = sum(values) > len(values) / 2
                     else:
                         aggregated["road"][key] = max(set(values), key=values.count)
 
         # Aggregate traffic
         traffic_values = {
             "density": [],
+            "flow": [],
             "pedestrians_present": [],
             "cyclists_present": [],
+            "special_vehicles_present": [],
+            "temporary_structures": [],
         }
         for r in results:
             traffic = r.get("traffic", {})
@@ -591,57 +855,60 @@ class VLMResponseParser:
             aggregated["traffic"] = {}
             for key, values in traffic_values.items():
                 if values:
-                    if key in ("pedestrians_present", "cyclists_present"):
+                    if key in ("pedestrians_present", "cyclists_present", "special_vehicles_present"):
                         # Any True wins for presence detection
                         aggregated["traffic"][key] = any(values)
                     else:
                         aggregated["traffic"][key] = max(set(values), key=values.count)
 
-        # Aggregate risk
-        risk_values = {"level": [], "factors": []}
+        # Aggregate junction
+        junction_values = {
+            "present": [],
+            "type": [],
+            "roundabout_type": [],
+            "signalized": [],
+            "pedestrian_crossing": [],
+            "rail_crossing": [],
+        }
         for r in results:
-            risk = r.get("risk", {})
-            if "level" in risk:
-                risk_values["level"].append(risk["level"])
-            if "factors" in risk:
-                risk_values["factors"].extend(risk["factors"])
+            junction = r.get("junction", {})
+            for key in junction_values:
+                if key in junction and junction[key] is not None:
+                    junction_values[key].append(junction[key])
 
-        if any(risk_values.values()):
-            aggregated["risk"] = {}
-            if risk_values["level"]:
-                # Use highest risk level (most conservative)
-                risk_order = ["low", "medium", "high", "critical"]
-                aggregated["risk"]["level"] = max(
-                    risk_values["level"],
-                    key=lambda x: risk_order.index(x) if x in risk_order else -1,
-                )
-            if risk_values["factors"]:
-                # Deduplicate and take most common factors
-                factor_counts = {}
-                for f in risk_values["factors"]:
-                    factor_counts[f] = factor_counts.get(f, 0) + 1
-                aggregated["risk"]["factors"] = sorted(
-                    factor_counts.keys(), key=lambda x: -factor_counts[x]
-                )[:5]  # Top 5 factors
+        if any(junction_values.values()):
+            aggregated["junction"] = {}
+            for key, values in junction_values.items():
+                if values:
+                    if key in ("present", "signalized", "pedestrian_crossing", "rail_crossing"):
+                        # Any True wins for presence detection
+                        aggregated["junction"][key] = any(values)
+                    else:
+                        aggregated["junction"][key] = max(set(values), key=values.count)
 
-        # Aggregate scene (use most common scene type, combine descriptions)
-        scene_values = {"type": [], "description": []}
+        # Aggregate structures
+        structures_values = {
+            "bridge": [],
+            "tunnel": [],
+            "toll_plaza": [],
+            "barriers_present": [],
+            "street_lighting": [],
+        }
         for r in results:
-            scene = r.get("scene", {})
-            if "type" in scene:
-                scene_values["type"].append(scene["type"])
-            if "description" in scene:
-                scene_values["description"].append(scene["description"])
+            structures = r.get("structures", {})
+            for key in structures_values:
+                if key in structures and structures[key] is not None:
+                    structures_values[key].append(structures[key])
 
-        if any(scene_values.values()):
-            aggregated["scene"] = {}
-            if scene_values["type"]:
-                aggregated["scene"]["type"] = max(
-                    set(scene_values["type"]), key=scene_values["type"].count
-                )
-            if scene_values["description"]:
-                # Use the most common description or first one
-                aggregated["scene"]["description"] = scene_values["description"][0]
+        if any(structures_values.values()):
+            aggregated["structures"] = {}
+            for key, values in structures_values.items():
+                if values:
+                    if key in ("bridge", "tunnel", "toll_plaza", "barriers_present"):
+                        # Any True wins for presence detection
+                        aggregated["structures"][key] = any(values)
+                    else:
+                        aggregated["structures"][key] = max(set(values), key=values.count)
 
         # Copy through confidence
         confidences = [r.get("confidence") for r in results if "confidence" in r]
@@ -664,8 +931,5 @@ class VLMResponseParser:
         for r in results:
             if "confidence" in r and r["confidence"] is not None:
                 confidences.append(float(r["confidence"]))
-            # Also check nested confidence in weather
-            if "weather" in r and "confidence" in r["weather"]:
-                confidences.append(float(r["weather"]["confidence"]))
 
         return sum(confidences) / len(confidences) if confidences else 0.0
