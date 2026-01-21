@@ -37,6 +37,8 @@ class VLMConfig:
         sampling_strategy: How to select frames for analysis
         sample_interval: Frame interval for uniform sampling
         max_samples: Maximum number of frames to analyze
+        max_resolution: Maximum image height in pixels (None = no resize)
+        request_delay: Delay between VLM requests in seconds
         prompts_file: Path to custom prompts JSON file (optional)
     """
 
@@ -54,6 +56,10 @@ class VLMConfig:
     sample_interval: int = 30
     max_samples: int = 20
 
+    # Image processing
+    max_resolution: Optional[int] = None  # Max height in pixels (e.g., 1080 for 1080p)
+    request_delay: float = 0.0  # Delay between requests in seconds
+
     # Prompt configuration
     prompts_file: Optional[str] = None
 
@@ -65,3 +71,7 @@ class VLMConfig:
             raise ValueError("max_samples must be >= 1")
         if self.timeout < 1:
             raise ValueError("timeout must be >= 1")
+        if self.max_resolution is not None and self.max_resolution < 100:
+            raise ValueError("max_resolution must be >= 100 pixels")
+        if self.request_delay < 0:
+            raise ValueError("request_delay must be >= 0")

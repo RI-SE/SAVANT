@@ -54,6 +54,8 @@ VLM Scene Analysis:
     --vlm-max-frames     Maximum frames to analyze with VLM (default: 20)
     --vlm-timeout        VLM request timeout in seconds (default: 120)
     --vlm-prompts        Path to custom prompts JSON file
+    --vlm-max-resolution Max frame height in pixels (e.g., 1080). Reduces VRAM usage.
+    --vlm-delay          Delay between VLM requests in seconds (default: 0)
 
 Logging and Debug:
     --verbose            Enable verbose output with detailed angle and detection logging
@@ -334,6 +336,10 @@ Examples:
                            help='VLM request timeout in seconds (default: 120)')
     vlm_group.add_argument('--vlm-prompts',
                            help='Path to custom prompts JSON file (optional)')
+    vlm_group.add_argument('--vlm-max-resolution', type=int, default=None,
+                           help='Max frame height in pixels for VLM (e.g., 1080). Reduces VRAM usage.')
+    vlm_group.add_argument('--vlm-delay', type=float, default=0.0,
+                           help='Delay between VLM requests in seconds (default: 0)')
 
     return parser.parse_args()
 
@@ -589,6 +595,8 @@ def main():
                 sampling_strategy=SamplingStrategy(args.vlm_sampling),
                 sample_interval=args.vlm_interval,
                 max_samples=args.vlm_max_frames,
+                max_resolution=args.vlm_max_resolution,
+                request_delay=args.vlm_delay,
                 prompts_file=args.vlm_prompts,
             )
 

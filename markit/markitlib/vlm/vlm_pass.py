@@ -7,9 +7,11 @@ and adds scenario tagging contexts and tags to the OpenLABEL structure.
 
 import base64
 import logging
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
+import numpy as np
 
 from ..postprocessing.base import PostprocessingPass
 from .config import VLMConfig, SamplingStrategy
@@ -167,6 +169,30 @@ class VLMAnalysisPass(PostprocessingPass):
 
         return openlabel_data
 
+    def _resize_frame(self, frame: np.ndarray) -> Tuple[np.ndarray, bool]:
+        """Resize frame if it exceeds max_resolution.
+
+        Args:
+            frame: Input frame (BGR format)
+
+        Returns:
+            Tuple of (possibly resized frame, was_resized)
+        """
+        if self.config.max_resolution is None:
+            return frame, False
+
+        height, width = frame.shape[:2]
+        if height <= self.config.max_resolution:
+            return frame, False
+
+        # Calculate new dimensions maintaining aspect ratio
+        scale = self.config.max_resolution / height
+        new_width = int(width * scale)
+        new_height = self.config.max_resolution
+
+        resized = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+        return resized, True
+
     def _analyze_frames(self, frame_indices: List[int]) -> List[Dict[str, Any]]:
         """Analyze selected frames with VLM.
 
@@ -185,7 +211,11 @@ class VLMAnalysisPass(PostprocessingPass):
 
         user_prompt = self.prompt_loader.get_user_prompt("comprehensive")
 
-        for frame_idx in frame_indices:
+        # Log resize setting once
+        if self.config.max_resolution:
+            logger.info(f"Resizing frames to max height {self.config.max_resolution}px")
+
+        for i, frame_idx in enumerate(frame_indices):
             self.frames_analyzed += 1
 
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
@@ -195,6 +225,9 @@ class VLMAnalysisPass(PostprocessingPass):
                 logger.warning(f"Failed to read frame {frame_idx}")
                 self.failed_analyses += 1
                 continue
+
+            # Resize if configured
+            frame, was_resized = self._resize_frame(frame)
 
             # Encode frame as base64 JPEG
             encode_params = [cv2.IMWRITE_JPEG_QUALITY, 85]
@@ -219,6 +252,10 @@ class VLMAnalysisPass(PostprocessingPass):
             except Exception as e:
                 self.failed_analyses += 1
                 logger.error(f"Frame {frame_idx}: VLM error - {e}")
+
+            # Delay between requests if configured (skip after last frame)
+            if self.config.request_delay > 0 and i < len(frame_indices) - 1:
+                time.sleep(self.config.request_delay)
 
         cap.release()
         return analysis_results

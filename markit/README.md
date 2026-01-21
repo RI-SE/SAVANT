@@ -221,6 +221,23 @@ markit --input video.mp4 --output_json output.json \
        --vlm-max-frames 10      # Analyze at most 10 frames
 ```
 
+Reduce VRAM usage by downscaling frames:
+
+```bash
+markit --input video.mp4 --output_json output.json \
+       --vlm \
+       --vlm-max-resolution 1080   # Resize 4K frames to 1080p before VLM analysis
+```
+
+Add delay between requests (useful for memory-constrained servers):
+
+```bash
+markit --input video.mp4 --output_json output.json \
+       --vlm \
+       --vlm-max-resolution 720 \
+       --vlm-delay 0.5             # Wait 0.5s between requests
+```
+
 ### VLM Configuration Options
 
 | Argument | Default | Description |
@@ -234,6 +251,8 @@ markit --input video.mp4 --output_json output.json \
 | `--vlm-max-frames` | `20` | Maximum number of frames to analyze |
 | `--vlm-timeout` | `120` | Request timeout in seconds |
 | `--vlm-prompts` | - | Path to custom prompts JSON file |
+| `--vlm-max-resolution` | - | Max frame height in pixels (e.g., 1080). Reduces VRAM usage |
+| `--vlm-delay` | `0` | Delay between VLM requests in seconds |
 
 ### Output
 
@@ -526,6 +545,8 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--vlm-max-frames` | `20` | Maximum frames to analyze |
 | `--vlm-timeout` | `120` | Request timeout (seconds) |
 | `--vlm-prompts` | - | Custom prompts JSON file |
+| `--vlm-max-resolution` | - | Max frame height (pixels) |
+| `--vlm-delay` | `0` | Delay between requests (seconds) |
 
 ### Logging
 
