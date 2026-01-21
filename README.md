@@ -9,7 +9,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 A toolkit for 2D-annotation of video with rotated bounding boxes and object tagging.
-- *markit* - automated annotation (supports YOLO for object detection and classification optical flow for object detection, and AruCo detection for geotags)
+- *markit* - automated annotation (supports YOLO for object detection and classification, optical flow for motion detection, ArUco detection for geotags, and VLM-based scene analysis for scenario tagging)
 - *edit* - manual annotation or corrections of pre-annotated video, and annotation quality assurance
 - *trainit* - managing datasets and training object detection models
 
@@ -36,6 +36,7 @@ uv sync
 | [markit/](markit/) | Automated video annotation ([README](markit/README.md)) |
 | [edit/](edit/) | Desktop application for manual label editing and quality assurance ([README](edit/README.md)) |
 | [trainit/](trainit/) | YOLO training and dataset tools ([README](trainit/README.md)) |
+| [savant_common/](savant_common/) | Shared library for OpenLabel I/O and ontology parsing ([README](savant_common/README.md)) |
 | [utils/](utils/) | CLI utilities ([README](utils/README.md)) |
 | [ontology/](ontology/) | SAVANT ontology definition ([README](ontology/README.md)) |
 | [schema/](schema/) | Supported ASAM OpenLabel subset JSON schema ([README](schema/README.md)) |

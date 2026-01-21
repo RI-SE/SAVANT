@@ -3,8 +3,8 @@
 run_markit
 
 Advanced command-line tool for running multi-engine object detection (YOLO + Optical Flow)
-with IoU-based conflict resolution. Exports results in OpenLabel JSON format with SAVANT
-ontology integration and optionally as annotated video.
+with IoU-based conflict resolution and optional VLM scene analysis. Exports results in
+OpenLabel JSON format with SAVANT ontology integration and optionally as annotated video.
 
 Usage:
     run_markit --input INPUT_VIDEO --output_json OUTPUT_JSON [OPTIONS]
@@ -16,7 +16,7 @@ Required Arguments:
 Optional Arguments:
     --weights            Path to YOLO weights file (.pt) - required if using YOLO detection (default: markit_yolo.pt)
     --schema             Path to OpenLabel JSON schema file (default: ../schema/savant_openlabel_subset.schema.json)
-    --ontology           Path to SAVANT ontology file for class mapping (default: ../ontology/savant_ontology_1.3.1.ttl)
+    --ontology           Path to SAVANT ontology file for class mapping (default: ../ontology/savant.ttl)
     --ontology-uri       Ontology URI for OpenLabel output (default: extracted from ontology file)
     --output_video       Path to output annotated video file (optional)
     --aruco-csv          Path to CSV file with ArUco marker GPS positions (enables ArUco detection)
@@ -44,6 +44,17 @@ Postprocessing (Housekeeping):
     --static-threshold   Movement threshold in pixels for static object removal (default: 20, negative disables)
     --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
 
+VLM Scene Analysis:
+    --vlm                Enable VLM-based scene analysis for scenario tagging
+    --vlm-model          VLM model name on the vLLM server (default: llama-3.2-11b-vision-instruct)
+    --vlm-url            vLLM API base URL (default: http://localhost:8000)
+    --vlm-api-key        API key for vLLM server (if required)
+    --vlm-sampling       Frame sampling strategy: uniform, scene_change, keyframes (default: uniform)
+    --vlm-interval       Frame interval for uniform sampling (default: 30)
+    --vlm-max-frames     Maximum frames to analyze with VLM (default: 20)
+    --vlm-timeout        VLM request timeout in seconds (default: 120)
+    --vlm-prompts        Path to custom prompts JSON file
+
 Logging and Debug:
     --verbose            Enable verbose output with detailed angle and detection logging
 
@@ -51,6 +62,7 @@ Features:
     - YOLO OBB (Oriented Bounding Box) detection with tracking
     - Background subtraction + optical flow detection
     - IoU-based conflict resolution with YOLO precedence
+    - VLM scene analysis for automatic scenario tagging (BSI PAS-1883 ODD taxonomy)
     - OpenLabel JSON export with SAVANT ontology integration
     - Dynamic class mapping from ontology (41 classes)
     - Configurable postprocessing pipeline for data quality improvement

@@ -9,6 +9,7 @@ Markit is a command-line tool for detecting and tracking objects using oriented 
 ## Features
 
 - **Multi-Engine Detection** - YOLO OBB, optical flow, and ArUco marker detection
+- **VLM Scene Analysis** - Automatic scenario tagging using Vision Language Models (BSI PAS-1883 ODD taxonomy)
 - **Conflict Resolution** - IoU-based merging when engines detect the same object
 - **Oriented Bounding Boxes** - Proper rotation handling with continuous angle tracking
 - **OpenLabel Export** - Schema-validated JSON output
@@ -22,6 +23,7 @@ Markit is a command-line tool for detecting and tracking objects using oriented 
 - [Quick Start](#quick-start)
 - [Detection Engines](#detection-engines)
 - [Postprocessing](#postprocessing)
+- [VLM Scene Analysis](#vlm-scene-analysis)
 - [Output Format](#output-format)
 - [ArUco Markers](#aruco-markers)
 - [Configuration Reference](#configuration-reference)
@@ -167,6 +169,121 @@ markit --input video.mp4 --output_json output.json --housekeeping \
        --static-threshold 20 \
        --static-mark  # Mark instead of remove
 ```
+
+## VLM Scene Analysis
+
+Markit can analyze video frames using a Vision Language Model (VLM) to automatically tag scenarios with environmental metadata. The analysis follows the BSI PAS-1883 Operational Design Domain (ODD) taxonomy.
+
+### Features
+
+- **Weather conditions** - precipitation, visibility, time of day, cloud cover
+- **Road infrastructure** - road type, surface condition, lane count, geometry
+- **Traffic conditions** - density, flow, presence of pedestrians/cyclists
+- **Junction information** - type, signalization, crossings
+- **Structures** - bridges, tunnels, barriers, street lighting
+
+### Prerequisites
+
+VLM analysis requires a running vLLM server with a vision-capable model:
+
+```bash
+# Example: Start vLLM with Qwen3-VL
+vllm serve Qwen/Qwen3-VL-30B-A3B-Instruct-FP8 \
+    --max-model-len 8192 \
+    --gpu-memory-utilization 0.9
+```
+
+Any OpenAI-compatible vision model API can be used. The server must be accessible at the configured URL.
+
+### Usage
+
+Enable VLM analysis with the `--vlm` flag:
+
+```bash
+markit --input video.mp4 --output_json output.json --vlm
+```
+
+With custom model and server:
+
+```bash
+markit --input video.mp4 --output_json output.json \
+       --vlm \
+       --vlm-model "Qwen/Qwen3-VL-30B-A3B-Instruct-FP8" \
+       --vlm-url "http://localhost:8000"
+```
+
+Control frame sampling:
+
+```bash
+markit --input video.mp4 --output_json output.json \
+       --vlm \
+       --vlm-interval 60 \      # Analyze every 60th frame
+       --vlm-max-frames 10      # Analyze at most 10 frames
+```
+
+### VLM Configuration Options
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--vlm` | false | Enable VLM scene analysis |
+| `--vlm-model` | `llama-3.2-11b-vision-instruct` | Model name on the vLLM server |
+| `--vlm-url` | `http://localhost:8000` | vLLM API base URL |
+| `--vlm-api-key` | - | API key for authentication (if required) |
+| `--vlm-sampling` | `uniform` | Sampling strategy: `uniform`, `scene_change`, `keyframes` |
+| `--vlm-interval` | `30` | Frame interval for uniform sampling |
+| `--vlm-max-frames` | `20` | Maximum number of frames to analyze |
+| `--vlm-timeout` | `120` | Request timeout in seconds |
+| `--vlm-prompts` | - | Path to custom prompts JSON file |
+
+### Output
+
+VLM analysis adds two sections to the OpenLabel output:
+
+**Contexts** - Time-bounded scene conditions with frame intervals:
+
+```json
+"contexts": {
+  "0": {
+    "name": "weather_conditions",
+    "type": "WeatherContext",
+    "frame_intervals": [{"frame_start": 0, "frame_end": 299}],
+    "context_data": {
+      "text": [
+        {"name": "precipitation", "val": "none"},
+        {"name": "time_of_day", "val": "day"}
+      ]
+    }
+  }
+}
+```
+
+**Tags** - Scenario-level metadata (aggregated across all analyzed frames):
+
+```json
+"tags": {
+  "0": {
+    "name": "weather_conditions",
+    "type": "WeatherTag",
+    "tag_data": {
+      "text": [
+        {"name": "precipitation", "val": "none"},
+        {"name": "time_of_day", "val": "day"}
+      ]
+    }
+  }
+}
+```
+
+### Custom Prompts
+
+Override the default prompts by providing a JSON file:
+
+```bash
+markit --input video.mp4 --output_json output.json \
+       --vlm --vlm-prompts custom_prompts.json
+```
+
+See `markit/markitlib/vlm/prompts/default_prompts.json` for the expected format. The file must contain a `comprehensive` prompt with `system`, `user_template`, and optionally `response_schema` keys.
 
 ## Output Format
 
@@ -395,6 +512,20 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--edge-distance` | `200` | Edge distance for sudden detection (pixels) |
 | `--static-threshold` | `20` | Static object movement threshold (pixels) |
 | `--static-mark` | false | Mark static objects instead of removing |
+
+### VLM Scene Analysis
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--vlm` | false | Enable VLM scene analysis |
+| `--vlm-model` | `llama-3.2-11b-vision-instruct` | Model name on the vLLM server |
+| `--vlm-url` | `http://localhost:8000` | vLLM API base URL |
+| `--vlm-api-key` | - | API key for authentication |
+| `--vlm-sampling` | `uniform` | Frame sampling strategy |
+| `--vlm-interval` | `30` | Frame interval for uniform sampling |
+| `--vlm-max-frames` | `20` | Maximum frames to analyze |
+| `--vlm-timeout` | `120` | Request timeout (seconds) |
+| `--vlm-prompts` | - | Custom prompts JSON file |
 
 ### Logging
 
