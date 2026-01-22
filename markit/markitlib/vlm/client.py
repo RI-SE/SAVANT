@@ -99,7 +99,7 @@ class VLLMClient(VLMClient):
                     ],
                 }
             ],
-            "max_tokens": 1000,
+            "max_tokens": 4096,
             "temperature": 0.1,  # Low temperature for consistent structured output
         }
 
