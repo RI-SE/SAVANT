@@ -238,6 +238,16 @@ markit --input video.mp4 --output_json output.json \
        --vlm-delay 0.5             # Wait 0.5s between requests
 ```
 
+Request rationale explanations for weather classifications:
+
+```bash
+markit --input video.mp4 --output_json output.json \
+       --vlm \
+       --vlm-rationale             # Include rationale for weather fields
+```
+
+With `--vlm-rationale`, the VLM provides brief explanations for weather classifications (e.g., "White particles visible throughout frame suggest active snowfall"). This increases token usage but improves explainability and helps identify classification errors. Rationales are stored as `*_rationale` fields in the weather tag.
+
 ### VLM Configuration Options
 
 | Argument | Default | Description |
@@ -253,6 +263,7 @@ markit --input video.mp4 --output_json output.json \
 | `--vlm-prompts` | - | Path to custom prompts JSON file |
 | `--vlm-max-resolution` | - | Max frame height in pixels (e.g., 1080). Reduces VRAM usage |
 | `--vlm-delay` | `0` | Delay between VLM requests in seconds |
+| `--vlm-rationale` | `false` | Request rationale explanations for weather fields |
 
 ### Output
 
@@ -559,6 +570,7 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--vlm-prompts` | - | Custom prompts JSON file |
 | `--vlm-max-resolution` | - | Max frame height (pixels) |
 | `--vlm-delay` | `0` | Delay between requests (seconds) |
+| `--vlm-rationale` | `false` | Request rationale explanations for weather fields |
 
 ### Logging
 

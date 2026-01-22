@@ -305,6 +305,28 @@ class VLMResponseParser:
                 {"name": "visibility_km", "val": float(weather["visibility_km"])}
             )
 
+        # Rationale fields (if present)
+        if weather.get("precipitation_rationale"):
+            context_data["text"].append(
+                {"name": "precipitation_rationale", "val": weather["precipitation_rationale"]}
+            )
+        if weather.get("precipitation_intensity_rationale"):
+            context_data["text"].append(
+                {"name": "precipitation_intensity_rationale", "val": weather["precipitation_intensity_rationale"]}
+            )
+        if weather.get("particulates_rationale"):
+            context_data["text"].append(
+                {"name": "particulates_rationale", "val": weather["particulates_rationale"]}
+            )
+        if weather.get("time_of_day_rationale"):
+            context_data["text"].append(
+                {"name": "time_of_day_rationale", "val": weather["time_of_day_rationale"]}
+            )
+        if weather.get("cloud_cover_rationale"):
+            context_data["text"].append(
+                {"name": "cloud_cover_rationale", "val": weather["cloud_cover_rationale"]}
+            )
+
         context_data = {k: v for k, v in context_data.items() if v}
 
         return {
@@ -431,6 +453,28 @@ class VLMResponseParser:
             if weather.get("visibility_km") is not None:
                 tag_data["num"].append(
                     {"name": "visibility_km", "val": float(weather["visibility_km"])}
+                )
+
+            # Rationale fields (if present)
+            if weather.get("precipitation_rationale"):
+                tag_data["text"].append(
+                    {"name": "precipitation_rationale", "val": weather["precipitation_rationale"]}
+                )
+            if weather.get("precipitation_intensity_rationale"):
+                tag_data["text"].append(
+                    {"name": "precipitation_intensity_rationale", "val": weather["precipitation_intensity_rationale"]}
+                )
+            if weather.get("particulates_rationale"):
+                tag_data["text"].append(
+                    {"name": "particulates_rationale", "val": weather["particulates_rationale"]}
+                )
+            if weather.get("time_of_day_rationale"):
+                tag_data["text"].append(
+                    {"name": "time_of_day_rationale", "val": weather["time_of_day_rationale"]}
+                )
+            if weather.get("cloud_cover_rationale"):
+                tag_data["text"].append(
+                    {"name": "cloud_cover_rationale", "val": weather["cloud_cover_rationale"]}
                 )
 
             tag_data = {k: v for k, v in tag_data.items() if v}
@@ -684,6 +728,14 @@ class VLMResponseParser:
             "sun_position": [],
             "cloud_cover": [],
         }
+        # Rationale fields - use first non-empty value (not majority voting)
+        weather_rationale_fields = [
+            "precipitation_rationale",
+            "precipitation_intensity_rationale",
+            "particulates_rationale",
+            "time_of_day_rationale",
+            "cloud_cover_rationale",
+        ]
         for r in results:
             weather = r.get("weather", {})
             for key in weather_values:
@@ -700,6 +752,14 @@ class VLMResponseParser:
                     else:
                         # Majority voting for categorical
                         aggregated["weather"][key] = max(set(values), key=values.count)
+
+            # Rationale fields: use first non-empty value (rationales don't aggregate well)
+            for rationale_field in weather_rationale_fields:
+                for r in results:
+                    rationale = r.get("weather", {}).get(rationale_field)
+                    if rationale:
+                        aggregated["weather"][rationale_field] = rationale
+                        break
 
         # Aggregate road
         road_values = {

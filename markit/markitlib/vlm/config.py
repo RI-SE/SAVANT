@@ -63,6 +63,9 @@ class VLMConfig:
     # Prompt configuration
     prompts_file: Optional[str] = None
 
+    # Rationale generation
+    rationale_enabled: bool = False  # Request VLM to explain weather field choices
+
     def __post_init__(self):
         """Validate configuration after initialization."""
         if self.sample_interval < 1:

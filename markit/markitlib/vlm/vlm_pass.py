@@ -84,9 +84,16 @@ class VLMAnalysisPass(PostprocessingPass):
 
         # Load prompts
         self.prompt_loader = load_prompts(self.config.prompts_file)
+
+        # Select prompt based on rationale flag
+        self.prompt_name = (
+            "comprehensive_with_rationale"
+            if self.config.rationale_enabled
+            else "comprehensive"
+        )
         logger.info(
             f"VLM analysis starting with {self.config.provider.value} "
-            f"model: {self.config.model_name}"
+            f"model: {self.config.model_name} (prompt: {self.prompt_name})"
         )
 
         # Select frames to analyze
@@ -209,7 +216,7 @@ class VLMAnalysisPass(PostprocessingPass):
             logger.error(f"Could not open video: {self.video_path}")
             return analysis_results
 
-        user_prompt = self.prompt_loader.get_user_prompt("comprehensive")
+        user_prompt = self.prompt_loader.get_user_prompt(self.prompt_name)
 
         # Log resize setting once
         if self.config.max_resolution:

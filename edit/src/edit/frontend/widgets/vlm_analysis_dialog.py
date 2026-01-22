@@ -197,7 +197,12 @@ class VLMAnalysisDialog(QDialog):
         for item in data.get("text", []):
             name = item.get("name", "")
             val = item.get("val") or ""
-            layout.addWidget(QLabel(f"  {name}: {val}"))
+            label = QLabel(f"  {name}: {val}")
+            # Style rationale fields differently (italic, smaller)
+            if name.endswith("_rationale"):
+                label.setStyleSheet("font-style: italic; color: #666; font-size: 11px;")
+                label.setWordWrap(True)
+            layout.addWidget(label)
 
         for item in data.get("num", []):
             val = item.get("val", 0)

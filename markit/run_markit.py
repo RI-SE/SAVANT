@@ -56,6 +56,7 @@ VLM Scene Analysis:
     --vlm-prompts        Path to custom prompts JSON file
     --vlm-max-resolution Max frame height in pixels (e.g., 1080). Reduces VRAM usage.
     --vlm-delay          Delay between VLM requests in seconds (default: 0)
+    --vlm-rationale      Request rationale explanations for weather fields (increases token usage)
 
 Logging and Debug:
     --verbose            Enable verbose output with detailed angle and detection logging
@@ -340,6 +341,8 @@ Examples:
                            help='Max frame height in pixels for VLM (e.g., 1080). Reduces VRAM usage.')
     vlm_group.add_argument('--vlm-delay', type=float, default=0.0,
                            help='Delay between VLM requests in seconds (default: 0)')
+    vlm_group.add_argument('--vlm-rationale', action='store_true',
+                           help='Request rationale explanations for weather fields (increases token usage)')
 
     return parser.parse_args()
 
@@ -598,6 +601,7 @@ def main():
                 max_resolution=args.vlm_max_resolution,
                 request_delay=args.vlm_delay,
                 prompts_file=args.vlm_prompts,
+                rationale_enabled=args.vlm_rationale,
             )
 
             vlm_pass = VLMAnalysisPass(vlm_config)

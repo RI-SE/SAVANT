@@ -75,6 +75,85 @@
       }
     }
   },
+  "comprehensive_with_rationale": {
+    "system": "You are an expert scene analyst for the SAVANT autonomous driving dataset annotation system. You analyze aerial drone footage of traffic scenarios to provide structured environmental metadata following the BSI PAS-1883 Operational Design Domain (ODD) taxonomy.\n\nThe footage is primarily from Nordic/European road environments with right-hand traffic.\n\nKey principles:\n- Images are captured from drone perspective (overhead or oblique angle)\n- Be conservative: use \"unknown\" when uncertain rather than guessing\n- Use ONLY the exact enum values provided - no variations\n- Focus on factors relevant to autonomous vehicle perception and safety\n- Assess conditions as they would affect a vehicle driving in the scene\n- For weather fields, provide brief rationale explaining the visual evidence for your classification",
+    "user_template": "Analyze this drone footage image comprehensively.\n\nFor weather fields, include a brief rationale (1-2 sentences) explaining the visual evidence that led to your classification.\n\nRespond ONLY with a valid JSON object in this exact format (no additional text):\n{\n  \"weather\": {\n    \"precipitation\": \"none|rain|snow|unknown\",\n    \"precipitation_rationale\": \"Brief explanation of visual evidence\",\n    \"precipitation_intensity\": \"none|light|moderate|heavy|unknown\",\n    \"precipitation_intensity_rationale\": \"Brief explanation of visual evidence\",\n    \"particulates\": \"none|fog|mist|haze|dust|smoke|unknown\",\n    \"particulates_rationale\": \"Brief explanation of visual evidence\",\n    \"visibility_km\": null,\n    \"time_of_day\": \"day|night|dawn|dusk\",\n    \"time_of_day_rationale\": \"Brief explanation of visual evidence\",\n    \"sun_position\": \"front|left|right|behind|overcast|not_applicable\",\n    \"cloud_cover\": \"clear|partly_cloudy|overcast|unknown\",\n    \"cloud_cover_rationale\": \"Brief explanation of visual evidence\"\n  },\n  \"road\": {\n    \"drivable_area_type\": \"motorway|motorway_atm|radial|distributor|minor|slip_road|parking|shared_space|unknown\",\n    \"geometry_horizontal\": \"straight|curved|unknown\",\n    \"geometry_longitudinal\": \"level|upslope|downslope|unknown\",\n    \"divided\": true,\n    \"surface_type\": \"asphalt|concrete|segmented|loose|unknown\",\n    \"surface_condition\": \"dry|wet|icy|snow_covered|flooded|unknown\",\n    \"surface_quality\": \"good|cracks|potholes|ruts|unknown\",\n    \"lane_count\": null,\n    \"lane_markings_visible\": true\n  },\n  \"junction\": {\n    \"present\": false,\n    \"type\": \"none|t_junction|y_junction|crossroads|roundabout|grade_separated|unknown\",\n    \"roundabout_type\": \"normal|compact|mini|double|large|not_applicable\",\n    \"signalized\": false,\n    \"pedestrian_crossing\": false,\n    \"rail_crossing\": false\n  },\n  \"traffic\": {\n    \"density\": \"empty|sparse|moderate|dense|congested\",\n    \"flow\": \"free_flow|stable|unstable|forced|unknown\",\n    \"pedestrians_present\": false,\n    \"cyclists_present\": false,\n    \"special_vehicles_present\": false,\n    \"temporary_structures\": \"none|construction|roadworks|refuse_collection|unknown\"\n  },\n  \"structures\": {\n    \"bridge\": false,\n    \"tunnel\": false,\n    \"toll_plaza\": false,\n    \"barriers_present\": false,\n    \"street_lighting\": \"none|present|unknown\"\n  },\n  \"notes\": null,\n  \"confidence\": 0.0\n}\n\n--- EXAMPLES ---\n\nExample 1 - Clear day, urban intersection:\n[Description: Drone view of city intersection with traffic lights, crosswalks, moderate traffic]\n{\n  \"weather\": {\"precipitation\": \"none\", \"precipitation_rationale\": \"Road surface appears dry with no visible water droplets or streaks\", \"precipitation_intensity\": \"none\", \"precipitation_intensity_rationale\": \"No precipitation detected\", \"particulates\": \"none\", \"particulates_rationale\": \"Distant objects are sharp and clearly visible indicating clean air\", \"visibility_km\": 10, \"time_of_day\": \"day\", \"time_of_day_rationale\": \"Bright ambient lighting with distinct shadows indicates daytime\", \"sun_position\": \"behind\", \"cloud_cover\": \"clear\", \"cloud_cover_rationale\": \"Visible sky area shows uniform blue color with no cloud formations\"},\n  \"road\": {\"drivable_area_type\": \"distributor\", \"geometry_horizontal\": \"straight\", \"geometry_longitudinal\": \"level\", \"divided\": true, \"surface_type\": \"asphalt\", \"surface_condition\": \"dry\", \"surface_quality\": \"good\", \"lane_count\": 4, \"lane_markings_visible\": true},\n  \"junction\": {\"present\": true, \"type\": \"crossroads\", \"roundabout_type\": \"not_applicable\", \"signalized\": true, \"pedestrian_crossing\": true, \"rail_crossing\": false},\n  \"traffic\": {\"density\": \"moderate\", \"flow\": \"stable\", \"pedestrians_present\": true, \"cyclists_present\": false, \"special_vehicles_present\": false, \"temporary_structures\": \"none\"},\n  \"structures\": {\"bridge\": false, \"tunnel\": false, \"toll_plaza\": false, \"barriers_present\": false, \"street_lighting\": \"present\"},\n  \"notes\": null,\n  \"confidence\": 0.9\n}\n\nExample 2 - Snowy conditions:\n[Description: Drone view of road with snow on ground and active snowfall]\n{\n  \"weather\": {\"precipitation\": \"snow\", \"precipitation_rationale\": \"White particles visible throughout frame and snow accumulation on road edges\", \"precipitation_intensity\": \"moderate\", \"precipitation_intensity_rationale\": \"Visible snowflakes in multiple areas but road surface still partially visible\", \"particulates\": \"none\", \"particulates_rationale\": \"Reduced visibility is from snow rather than fog or haze\", \"visibility_km\": 1, \"time_of_day\": \"day\", \"time_of_day_rationale\": \"Diffuse bright lighting consistent with overcast daytime conditions\", \"sun_position\": \"overcast\", \"cloud_cover\": \"overcast\", \"cloud_cover_rationale\": \"Uniform grey sky with no visible sun or blue sky\"},\n  \"road\": {\"drivable_area_type\": \"distributor\", \"geometry_horizontal\": \"straight\", \"geometry_longitudinal\": \"level\", \"divided\": false, \"surface_type\": \"asphalt\", \"surface_condition\": \"snow_covered\", \"surface_quality\": \"unknown\", \"lane_count\": 2, \"lane_markings_visible\": false},\n  \"junction\": {\"present\": false, \"type\": \"none\", \"roundabout_type\": \"not_applicable\", \"signalized\": false, \"pedestrian_crossing\": false, \"rail_crossing\": false},\n  \"traffic\": {\"density\": \"sparse\", \"flow\": \"stable\", \"pedestrians_present\": false, \"cyclists_present\": false, \"special_vehicles_present\": false, \"temporary_structures\": \"none\"},\n  \"structures\": {\"bridge\": false, \"tunnel\": false, \"toll_plaza\": false, \"barriers_present\": false, \"street_lighting\": \"present\"},\n  \"notes\": null,\n  \"confidence\": 0.8\n}\n\n--- HANDLING UNCERTAINTY ---\n\n- If visibility is unclear, estimate conservatively (lower km values)\n- If you cannot determine lane count, set to null\n- If precipitation type is mixed (rain/snow), use the dominant type\n- If image quality is poor (blur, overexposure), set confidence < 0.5 and use \"unknown\" for uncertain fields\n- For dawn/dusk: if sun is visible above horizon = dawn/dusk, otherwise = day/night\n- For roundabout_type: standard size = \"normal\", very small = \"mini\", multiple rings = \"double\"\n- Sun position is relative to the apparent travel direction of vehicles in the scene\n- Use \"notes\" field for unusual observations that don't fit the schema\n- Rationale should describe specific visual evidence (colors, textures, patterns) not just restate the classification\n\n--- CONFIDENCE SCORING ---\n\n- 0.9-1.0: Clear image, all features clearly visible, high certainty\n- 0.7-0.9: Good visibility, minor ambiguity in 1-2 fields\n- 0.5-0.7: Some fields uncertain due to image quality/angle/occlusion\n- Below 0.5: Poor quality - significant uncertainty, many fields may be \"unknown\"\n\nReplace placeholder values with your analysis. Set numeric fields to integers or null if unclear. Set confidence between 0.0 and 1.0.",
+    "response_schema": {
+      "type": "object",
+      "required": ["weather", "road", "junction", "traffic", "structures", "confidence"],
+      "properties": {
+        "weather": {
+          "type": "object",
+          "required": ["precipitation", "time_of_day"],
+          "properties": {
+            "precipitation": {"type": "string", "enum": ["none", "rain", "snow", "unknown"]},
+            "precipitation_rationale": {"type": ["string", "null"]},
+            "precipitation_intensity": {"type": "string", "enum": ["none", "light", "moderate", "heavy", "unknown"]},
+            "precipitation_intensity_rationale": {"type": ["string", "null"]},
+            "particulates": {"type": "string", "enum": ["none", "fog", "mist", "haze", "dust", "smoke", "unknown"]},
+            "particulates_rationale": {"type": ["string", "null"]},
+            "visibility_km": {"type": ["number", "null"]},
+            "time_of_day": {"type": "string", "enum": ["day", "night", "dawn", "dusk"]},
+            "time_of_day_rationale": {"type": ["string", "null"]},
+            "sun_position": {"type": "string", "enum": ["front", "left", "right", "behind", "overcast", "not_applicable"]},
+            "cloud_cover": {"type": "string", "enum": ["clear", "partly_cloudy", "overcast", "unknown"]},
+            "cloud_cover_rationale": {"type": ["string", "null"]}
+          }
+        },
+        "road": {
+          "type": "object",
+          "required": ["drivable_area_type", "surface_condition"],
+          "properties": {
+            "drivable_area_type": {"type": "string", "enum": ["motorway", "motorway_atm", "radial", "distributor", "minor", "slip_road", "parking", "shared_space", "unknown"]},
+            "geometry_horizontal": {"type": "string", "enum": ["straight", "curved", "unknown"]},
+            "geometry_longitudinal": {"type": "string", "enum": ["level", "upslope", "downslope", "unknown"]},
+            "divided": {"type": "boolean"},
+            "surface_type": {"type": "string", "enum": ["asphalt", "concrete", "segmented", "loose", "unknown"]},
+            "surface_condition": {"type": "string", "enum": ["dry", "wet", "icy", "snow_covered", "flooded", "unknown"]},
+            "surface_quality": {"type": "string", "enum": ["good", "cracks", "potholes", "ruts", "unknown"]},
+            "lane_count": {"type": ["integer", "null"]},
+            "lane_markings_visible": {"type": "boolean"}
+          }
+        },
+        "junction": {
+          "type": "object",
+          "required": ["present", "type"],
+          "properties": {
+            "present": {"type": "boolean"},
+            "type": {"type": "string", "enum": ["none", "t_junction", "y_junction", "crossroads", "roundabout", "grade_separated", "unknown"]},
+            "roundabout_type": {"type": "string", "enum": ["normal", "compact", "mini", "double", "large", "not_applicable"]},
+            "signalized": {"type": "boolean"},
+            "pedestrian_crossing": {"type": "boolean"},
+            "rail_crossing": {"type": "boolean"}
+          }
+        },
+        "traffic": {
+          "type": "object",
+          "required": ["density"],
+          "properties": {
+            "density": {"type": "string", "enum": ["empty", "sparse", "moderate", "dense", "congested"]},
+            "flow": {"type": "string", "enum": ["free_flow", "stable", "unstable", "forced", "unknown"]},
+            "pedestrians_present": {"type": "boolean"},
+            "cyclists_present": {"type": "boolean"},
+            "special_vehicles_present": {"type": "boolean"},
+            "temporary_structures": {"type": "string", "enum": ["none", "construction", "roadworks", "refuse_collection", "unknown"]}
+          }
+        },
+        "structures": {
+          "type": "object",
+          "properties": {
+            "bridge": {"type": "boolean"},
+            "tunnel": {"type": "boolean"},
+            "toll_plaza": {"type": "boolean"},
+            "barriers_present": {"type": "boolean"},
+            "street_lighting": {"type": "string", "enum": ["none", "present", "unknown"]}
+          }
+        },
+        "notes": {"type": ["string", "null"]},
+        "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+      }
+    }
+  },
   "weather_only": {
     "system": "You are a weather analyst for drone footage. Analyze images and identify weather and lighting conditions from an aerial perspective.",
     "user_template": "Analyze the weather and lighting conditions in this drone footage image.\n\nRespond ONLY with a valid JSON object:\n{\n  \"precipitation\": \"none|rain|snow|unknown\",\n  \"precipitation_intensity\": \"none|light|moderate|heavy|unknown\",\n  \"particulates\": \"none|fog|mist|haze|dust|smoke|unknown\",\n  \"visibility_km\": null,\n  \"time_of_day\": \"day|night|dawn|dusk\",\n  \"sun_position\": \"front|left|right|behind|overcast|not_applicable\",\n  \"cloud_cover\": \"clear|partly_cloudy|overcast|unknown\",\n  \"confidence\": 0.0\n}",
