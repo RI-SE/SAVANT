@@ -360,6 +360,10 @@ class VLMResponseParser:
                 context_data["vec"].append(
                     {"name": f"{field}_confidence", "val": [round(conf, 4)]}
                 )
+                # Add rationale if present
+                rationale = traffic.get(f"{field}_rationale")
+                if rationale:
+                    context_data["text"].append({"name": f"{field}_rationale", "val": rationale})
 
         context_data = {k: v for k, v in context_data.items() if v}
 
@@ -524,6 +528,10 @@ class VLMResponseParser:
                     tag_data["boolean"].append({"name": field, "val": traffic[field]})
                     conf = traffic.get(f"{field}_confidence", avg_confidence)
                     VLMResponseParser._add_field_provenance(tag_data, field, conf)
+                    # Add rationale if present (includes frame info)
+                    rationale = traffic.get(f"{field}_rationale")
+                    if rationale:
+                        tag_data["text"].append({"name": f"{field}_rationale", "val": rationale})
 
             tag_data = {k: v for k, v in tag_data.items() if v}
 
@@ -757,14 +765,29 @@ class VLMResponseParser:
                     aggregated["traffic"][field] = max(set(values), key=values.count)
                     aggregated["traffic"][f"{field}_confidence"] = aggregate_confidence(field, traffic_data)
 
-            # Boolean fields - any True wins
+            # Boolean fields - any True wins, with frame tracking for rationales
             for field in traffic_bool_fields:
                 values = [d.get(field) for d in traffic_data if d.get(field) is not None]
                 if values:
                     aggregated["traffic"][field] = any(values)
                     aggregated["traffic"][f"{field}_confidence"] = aggregate_confidence(field, traffic_data)
 
-            # Rationale fields
+                    # Aggregate rationales with frame info for presence fields
+                    rationale_field = f"{field}_rationale"
+                    rationales_with_frames = []
+                    for r in results:
+                        traffic = r.get("traffic", {})
+                        if traffic.get(field) and traffic.get(rationale_field):
+                            frame_idx = r.get("_frame_idx")
+                            rationale = traffic[rationale_field]
+                            if frame_idx is not None:
+                                rationales_with_frames.append(f"[frame {frame_idx}] {rationale}")
+                            else:
+                                rationales_with_frames.append(rationale)
+                    if rationales_with_frames:
+                        aggregated["traffic"][rationale_field] = "; ".join(rationales_with_frames)
+
+            # Rationale fields (text fields)
             for rationale_field in traffic_rationale_fields:
                 for d in traffic_data:
                     if d.get(rationale_field):
