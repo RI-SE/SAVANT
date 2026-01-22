@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
+    QSpinBox,
     QStyle,
     QTextEdit,
     QVBoxLayout,
@@ -24,32 +25,20 @@ from PyQt6.QtWidgets import (
 
 
 # Fields that support rationales, organized by tag type
-# Format: tag_type -> list of field names
 RATIONALE_FIELDS = {
     "Weather": [
-        "precipitation",
-        "precipitation_intensity",
-        "particulates",
-        "time_of_day",
-        "sun_position",
-        "cloud_cover",
+        "precipitation", "precipitation_intensity", "particulates",
+        "time_of_day", "sun_position", "cloud_cover",
     ],
-    "Traffic": [
-        "density",
-        "flow",
-        "temporary_structures",
-    ],
+    "Traffic": ["density", "flow", "temporary_structures"],
     "Road": [
-        "drivable_area_type",
-        "surface_type",
-        "surface_condition",
-        "surface_quality",
+        "drivable_area_type", "surface_type", "surface_condition", "surface_quality",
     ],
 }
 
 
 class VLMAnalysisDialog(QDialog):
-    """Modal dialog displaying VLM contexts and tags with editing support."""
+    """Modal dialog displaying VLM contexts and tags with per-field editing."""
 
     def __init__(
         self,
@@ -64,7 +53,7 @@ class VLMAnalysisDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("VLM Analysis")
         self.setModal(True)
-        self.resize(600, 550)
+        self.resize(650, 600)
 
         self._contexts = contexts or {}
         self._tags = tags or {}
@@ -72,14 +61,14 @@ class VLMAnalysisDialog(QDialog):
         self._undo_manager = undo_manager
         self._undo_context = undo_context
 
-        # Track editing state for each tag
-        self._tag_editors: dict[str, dict] = {}
-        self._tag_widgets: dict[str, QWidget] = {}
+        # Track editing state for each field
+        self._field_widgets: dict[str, dict] = {}
+        self._tag_containers: dict[str, QWidget] = {}
 
         self._setup_ui()
 
     def _can_edit(self) -> bool:
-        """Check if editing is supported (all required components available)."""
+        """Check if editing is supported."""
         return all([
             self._frontend_state is not None,
             self._undo_manager is not None,
@@ -141,7 +130,7 @@ class VLMAnalysisDialog(QDialog):
             widget = self._create_tag_widget(
                 tag_id, tag_type.replace("Tag", ""), tag_data
             )
-            self._tag_widgets[tag_id] = widget
+            self._tag_containers[tag_id] = widget
             layout.addWidget(widget)
 
     def _add_contexts_section(self, layout: QVBoxLayout) -> None:
@@ -155,7 +144,6 @@ class VLMAnalysisDialog(QDialog):
             intervals = ctx.get("frame_intervals", [])
             ctx_data = ctx.get("context_data", {})
 
-            # Add frame interval info to display
             interval_str = ", ".join(
                 f"{iv.get('frame_start', 0)}-{iv.get('frame_end', 0)}"
                 for iv in intervals
@@ -165,6 +153,7 @@ class VLMAnalysisDialog(QDialog):
                     f"{ctx_type.replace('Context', '')} (frames {interval_str})",
                     ctx_data,
                     tag_type=ctx_type.replace("Context", ""),
+                    editable=False,
                 )
             )
 
@@ -174,60 +163,11 @@ class VLMAnalysisDialog(QDialog):
         return label
 
     def _get_rationale_fields_for_tag(self, tag_type: str) -> list[str]:
-        """Get the list of fields that support rationales for a tag type."""
+        """Get fields that support rationales for a tag type."""
         return RATIONALE_FIELDS.get(tag_type, [])
 
-    def _create_tag_widget(
-        self, tag_id: str, title: str, data: dict
-    ) -> QWidget:
-        """Create a widget for a tag that supports editing."""
-        widget = QWidget()
-        widget.setStyleSheet(
-            "background-color: rgba(128,128,128,0.1); border-radius: 4px;"
-        )
-        vlayout = QVBoxLayout(widget)
-        vlayout.setContentsMargins(10, 6, 10, 6)
-        vlayout.setSpacing(2)
-
-        # Title row with edit button
-        title_row = QHBoxLayout()
-        title_label = QLabel(f"<b>{title}</b>")
-        title_row.addWidget(title_label)
-        title_row.addStretch()
-
-        if self._can_edit():
-            edit_btn = QPushButton("Edit")
-            edit_btn.setFixedWidth(60)
-            edit_btn.clicked.connect(
-                lambda _, tid=tag_id: self._start_editing_tag(tid)
-            )
-            title_row.addWidget(edit_btn)
-
-        vlayout.addLayout(title_row)
-
-        # Data display (will be replaced during editing)
-        data_container = QWidget()
-        data_layout = QVBoxLayout(data_container)
-        data_layout.setContentsMargins(0, 0, 0, 0)
-        data_layout.setSpacing(2)
-
-        self._populate_data_display(data_layout, data, tag_type=title)
-
-        vlayout.addWidget(data_container)
-
-        # Store references for editing
-        self._tag_editors[tag_id] = {
-            "widget": widget,
-            "data_container": data_container,
-            "data": data,
-            "tag_type": title,
-            "is_editing": False,
-        }
-
-        return widget
-
     def _get_field_value(self, data: dict, field_name: str) -> Any:
-        """Get a field value from tag data by searching text, num, boolean lists."""
+        """Get a field value from tag data."""
         for item in data.get("text", []):
             if item.get("name") == field_name:
                 return item.get("val")
@@ -239,16 +179,40 @@ class VLMAnalysisDialog(QDialog):
                 return item.get("val")
         return None
 
-    def _populate_data_display(
-        self, layout: QVBoxLayout, data: dict, tag_type: str = ""
-    ) -> None:
-        """Populate a layout with read-only data display, grouping fields with rationales."""
-        rationale_fields = self._get_rationale_fields_for_tag(tag_type)
+    def _get_vec_value(self, data: dict, field_name: str) -> list | None:
+        """Get a vec value from tag data."""
+        for item in data.get("vec", []):
+            if item.get("name") == field_name:
+                return item.get("val")
+        return None
 
-        # Track which fields we've displayed (to avoid duplicates)
+    def _create_tag_widget(self, tag_id: str, title: str, data: dict) -> QWidget:
+        """Create a widget for a tag with per-field inline editing."""
+        widget = QWidget()
+        widget.setStyleSheet(
+            "background-color: rgba(128,128,128,0.1); border-radius: 4px;"
+        )
+        vlayout = QVBoxLayout(widget)
+        vlayout.setContentsMargins(10, 6, 10, 6)
+        vlayout.setSpacing(4)
+
+        # Title
+        title_label = QLabel(f"<b>{title}</b>")
+        vlayout.addWidget(title_label)
+
+        # Create field rows
+        self._populate_tag_fields(vlayout, tag_id, data, tag_type=title)
+
+        return widget
+
+    def _populate_tag_fields(
+        self, layout: QVBoxLayout, tag_id: str, data: dict, tag_type: str = ""
+    ) -> None:
+        """Populate a layout with per-field displays/editors."""
+        rationale_fields = self._get_rationale_fields_for_tag(tag_type)
         displayed_fields = set()
 
-        # First, display fields that support rationales with their grouped display
+        # Fields with rationale support - display grouped
         for field_name in rationale_fields:
             field_val = self._get_field_value(data, field_name)
             if field_val is None:
@@ -259,174 +223,34 @@ class VLMAnalysisDialog(QDialog):
             displayed_fields.add(f"{field_name}_rationale_rating")
             displayed_fields.add(f"{field_name}_human_rationale")
 
-            # Create grouped display for this field
-            group_widget = self._create_field_group_display(
-                field_name, field_val, data
+            field_widget = self._create_field_row(
+                tag_id, field_name, field_val, data, has_rationale=True, tag_type=tag_type
             )
-            layout.addWidget(group_widget)
+            layout.addWidget(field_widget)
 
-        # Then display remaining fields that don't have rationale support
+        # Text fields without rationale
         for item in data.get("text", []):
             name = item.get("name", "")
             if name in displayed_fields or name.endswith("_rationale") or name.endswith("_rating"):
                 continue
             val = item.get("val") or ""
-            layout.addWidget(QLabel(f"  {name}: {val}"))
-
-        for item in data.get("num", []):
-            name = item.get("name", "")
-            if name in displayed_fields:
-                continue
-            val = item.get("val", 0)
-            val_str = f"{val:.2f}" if isinstance(val, float) else str(val)
-            layout.addWidget(QLabel(f"  {name}: {val_str}"))
-
-        for item in data.get("boolean", []):
-            name = item.get("name", "")
-            if name in displayed_fields:
-                continue
-            val = "Yes" if item.get("val", False) else "No"
-            layout.addWidget(QLabel(f"  {name}: {val}"))
-
-        for item in data.get("vec", []):
-            name = item.get("name", "")
-            if name in displayed_fields:
-                continue
-            vals = item.get("val", [])
-            val_str = ", ".join(self._format_vec_value(v) for v in vals)
-            layout.addWidget(QLabel(f"  {name}: {val_str}"))
-
-    def _create_field_group_display(
-        self, field_name: str, field_val: Any, data: dict
-    ) -> QWidget:
-        """Create a grouped display for a field with its rationale."""
-        widget = QWidget()
-        vlayout = QVBoxLayout(widget)
-        vlayout.setContentsMargins(4, 4, 4, 4)
-        vlayout.setSpacing(2)
-
-        # Field value
-        vlayout.addWidget(QLabel(f"  <b>{field_name}</b>: {field_val}"))
-
-        # VLM rationale
-        vlm_rationale = self._get_field_value(data, f"{field_name}_rationale")
-        if vlm_rationale:
-            rationale_label = QLabel(f"    VLM: {vlm_rationale}")
-            rationale_label.setStyleSheet("font-style: italic; color: #666; font-size: 11px;")
-            rationale_label.setWordWrap(True)
-            vlayout.addWidget(rationale_label)
-
-            # Rating display
-            rating = self._get_field_value(data, f"{field_name}_rationale_rating")
-            if rating == "good":
-                rating_text = "    Rating: 👍 Good"
-            elif rating == "bad":
-                rating_text = "    Rating: 👎 Bad"
-            else:
-                rating_text = "    Rating: (unrated)"
-            rating_label = QLabel(rating_text)
-            rating_label.setStyleSheet("color: #888; font-size: 10px;")
-            vlayout.addWidget(rating_label)
-        else:
-            vlayout.addWidget(QLabel("    VLM: —"))
-
-        # Human rationale
-        human_rationale = self._get_field_value(data, f"{field_name}_human_rationale")
-        if human_rationale:
-            human_label = QLabel(f"    Human: {human_rationale}")
-            human_label.setStyleSheet("font-style: italic; color: #484; font-size: 11px;")
-            human_label.setWordWrap(True)
-            vlayout.addWidget(human_label)
-        else:
-            vlayout.addWidget(QLabel("    Human: —"))
-
-        return widget
-
-    def _start_editing_tag(self, tag_id: str) -> None:
-        """Switch a tag widget to editing mode."""
-        if tag_id not in self._tag_editors:
-            return
-
-        editor_info = self._tag_editors[tag_id]
-        if editor_info["is_editing"]:
-            return
-
-        editor_info["is_editing"] = True
-        data = editor_info["data"]
-        tag_type = editor_info["tag_type"]
-        data_container = editor_info["data_container"]
-
-        # Clear current display
-        old_layout = data_container.layout()
-        while old_layout.count():
-            item = old_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        # Create editors for editable fields
-        editors = {}
-        rationale_fields = self._get_rationale_fields_for_tag(tag_type)
-
-        # Track which fields we've displayed
-        displayed_fields = set()
-
-        # First, display fields that support rationales with editing UI
-        for field_name in rationale_fields:
-            field_val = self._get_field_value(data, field_name)
-            if field_val is None:
-                continue
-
-            displayed_fields.add(field_name)
-            displayed_fields.add(f"{field_name}_rationale")
-            displayed_fields.add(f"{field_name}_rationale_rating")
-            displayed_fields.add(f"{field_name}_human_rationale")
-
-            # Create edit group for this field
-            group_widget, field_editors = self._create_field_group_edit(
-                field_name, field_val, data
+            field_widget = self._create_field_row(
+                tag_id, name, val, data, has_rationale=False, field_type="text", tag_type=tag_type
             )
-            editors.update(field_editors)
-            old_layout.addWidget(group_widget)
+            layout.addWidget(field_widget)
+            displayed_fields.add(name)
 
-        # Text fields (except rationale-related and annotator)
-        for item in data.get("text", []):
-            name = item.get("name", "")
-            if name in displayed_fields or name == "annotator":
-                continue
-            if name.endswith("_rationale") or name.endswith("_rating"):
-                continue
-            val = item.get("val") or ""
-
-            row = QHBoxLayout()
-            row.addWidget(QLabel(f"  {name}:"))
-            editor = QLineEdit(str(val))
-            editor.setMinimumWidth(150)
-            editors[("text", name)] = editor
-            row.addWidget(editor)
-            row.addStretch()
-
-            row_widget = QWidget()
-            row_widget.setLayout(row)
-            old_layout.addWidget(row_widget)
-
-        # Num fields (except confidence which is auto-managed)
+        # Num fields
         for item in data.get("num", []):
             name = item.get("name", "")
-            if name == "confidence" or name in displayed_fields:
+            if name in displayed_fields:
                 continue
             val = item.get("val", 0)
-
-            row = QHBoxLayout()
-            row.addWidget(QLabel(f"  {name}:"))
-            editor = QLineEdit(str(val))
-            editor.setMinimumWidth(80)
-            editors[("num", name)] = editor
-            row.addWidget(editor)
-            row.addStretch()
-
-            row_widget = QWidget()
-            row_widget.setLayout(row)
-            old_layout.addWidget(row_widget)
+            field_widget = self._create_field_row(
+                tag_id, name, val, data, has_rationale=False, field_type="num", tag_type=tag_type
+            )
+            layout.addWidget(field_widget)
+            displayed_fields.add(name)
 
         # Boolean fields
         for item in data.get("boolean", []):
@@ -434,137 +258,125 @@ class VLMAnalysisDialog(QDialog):
             if name in displayed_fields:
                 continue
             val = item.get("val", False)
+            field_widget = self._create_field_row(
+                tag_id, name, val, data, has_rationale=False, field_type="boolean", tag_type=tag_type
+            )
+            layout.addWidget(field_widget)
+            displayed_fields.add(name)
 
-            row = QHBoxLayout()
-            row.addWidget(QLabel(f"  {name}:"))
-            editor = QCheckBox()
-            editor.setChecked(bool(val))
-            editors[("boolean", name)] = editor
-            row.addWidget(editor)
-            row.addStretch()
-
-            row_widget = QWidget()
-            row_widget.setLayout(row)
-            old_layout.addWidget(row_widget)
-
-        # Vec fields (read-only display)
-        for item in data.get("vec", []):
-            name = item.get("name", "")
-            if name in displayed_fields:
-                continue
-            vals = item.get("val", [])
-            val_str = ", ".join(self._format_vec_value(v) for v in vals)
-            old_layout.addWidget(QLabel(f"  {name}: {val_str} (auto-managed)"))
-
-        # Save/Cancel buttons
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-
-        save_btn = QPushButton("Save")
-        save_btn.clicked.connect(lambda: self._save_tag_edit(tag_id, editors))
-        button_row.addWidget(save_btn)
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(lambda: self._cancel_tag_edit(tag_id))
-        button_row.addWidget(cancel_btn)
-
-        button_widget = QWidget()
-        button_widget.setLayout(button_row)
-        old_layout.addWidget(button_widget)
-
-    def _create_field_group_edit(
-        self, field_name: str, field_val: Any, data: dict
-    ) -> tuple[QWidget, dict]:
-        """Create an editing group for a field with rating and human rationale."""
+    def _create_field_row(
+        self,
+        tag_id: str,
+        field_name: str,
+        field_val: Any,
+        data: dict,
+        has_rationale: bool = False,
+        field_type: str = "text",
+        tag_type: str = "",
+    ) -> QWidget:
+        """Create a row for a single field with inline editing on click."""
         widget = QWidget()
-        widget.setStyleSheet("background-color: rgba(100,100,150,0.1); border-radius: 4px; margin: 2px;")
+        if has_rationale:
+            widget.setStyleSheet("background-color: rgba(100,100,150,0.08); border-radius: 3px; margin: 1px;")
         vlayout = QVBoxLayout(widget)
-        vlayout.setContentsMargins(6, 4, 6, 4)
-        vlayout.setSpacing(4)
+        vlayout.setContentsMargins(4, 2, 4, 2)
+        vlayout.setSpacing(2)
 
-        editors = {}
+        # Get confidence and annotator for this field
+        conf_list = self._get_vec_value(data, f"{field_name}_confidence")
+        ann_list = self._get_vec_value(data, f"{field_name}_annotator")
+        confidence = conf_list[0] if conf_list else None
+        annotator = ann_list[0] if ann_list else None
 
-        # Field value (editable)
+        # Field value row (clickable to edit)
         value_row = QHBoxLayout()
-        value_row.addWidget(QLabel(f"  <b>{field_name}</b>:"))
-        value_editor = QLineEdit(str(field_val))
-        value_editor.setMinimumWidth(150)
-        editors[("text", field_name)] = value_editor
-        value_row.addWidget(value_editor)
-        value_row.addStretch()
-        value_widget = QWidget()
-        value_widget.setLayout(value_row)
-        vlayout.addWidget(value_widget)
+        value_row.setSpacing(4)
 
-        # VLM rationale (read-only) with rating buttons
-        vlm_rationale = self._get_field_value(data, f"{field_name}_rationale")
-        if vlm_rationale:
-            rationale_label = QLabel(f"    VLM: {vlm_rationale}")
-            rationale_label.setStyleSheet("font-style: italic; color: #666; font-size: 11px;")
-            rationale_label.setWordWrap(True)
-            vlayout.addWidget(rationale_label)
-
-            # Rating buttons
-            rating_row = QHBoxLayout()
-            rating_row.addWidget(QLabel("    Rate VLM:"))
-
-            current_rating = self._get_field_value(data, f"{field_name}_rationale_rating") or "unrated"
-
-            good_btn = QRadioButton("👍 Good")
-            bad_btn = QRadioButton("👎 Bad")
-            unrated_btn = QRadioButton("Unrated")
-
-            # Set current rating
-            if current_rating == "good":
-                good_btn.setChecked(True)
-            elif current_rating == "bad":
-                bad_btn.setChecked(True)
-            else:
-                unrated_btn.setChecked(True)
-
-            # Group the buttons
-            rating_group = QButtonGroup(widget)
-            rating_group.addButton(good_btn, 1)
-            rating_group.addButton(bad_btn, 2)
-            rating_group.addButton(unrated_btn, 0)
-
-            rating_row.addWidget(good_btn)
-            rating_row.addWidget(bad_btn)
-            rating_row.addWidget(unrated_btn)
-            rating_row.addStretch()
-
-            rating_widget = QWidget()
-            rating_widget.setLayout(rating_row)
-            vlayout.addWidget(rating_widget)
-
-            editors[("rating", f"{field_name}_rationale_rating")] = rating_group
+        # Format display value
+        if isinstance(field_val, bool):
+            display_val = "Yes" if field_val else "No"
+        elif isinstance(field_val, float):
+            display_val = f"{field_val:.2f}"
         else:
-            vlayout.addWidget(QLabel("    VLM: — (no VLM rationale)"))
+            display_val = str(field_val)
 
-        # Human rationale (editable)
-        human_row = QVBoxLayout()
-        human_row.addWidget(QLabel("    Human rationale:"))
+        # Value label (clickable)
+        value_label = QLabel(f"  <b>{field_name}</b>: {display_val}")
+        value_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        if self._can_edit():
+            value_label.mousePressEvent = lambda e, tid=tag_id, fn=field_name, fv=field_val, ft=field_type, d=data, tt=tag_type: (
+                self._start_field_edit(tid, fn, fv, ft, d, tt)
+            )
+        value_row.addWidget(value_label)
 
-        current_human = self._get_field_value(data, f"{field_name}_human_rationale") or ""
-        human_editor = QTextEdit()
-        human_editor.setPlainText(current_human)
-        human_editor.setMaximumHeight(60)
-        human_editor.setPlaceholderText("Add your rationale here...")
-        editors[("human_rationale", f"{field_name}_human_rationale")] = human_editor
-        human_row.addWidget(human_editor)
+        # Confidence/annotator info
+        if confidence is not None:
+            conf_pct = int(confidence * 100)
+            info_label = QLabel(f"({conf_pct}%)")
+            info_label.setStyleSheet("color: #666; font-size: 10px;")
+            value_row.addWidget(info_label)
 
-        human_widget = QWidget()
-        human_widget.setLayout(human_row)
-        vlayout.addWidget(human_widget)
+        value_row.addStretch()
+        value_container = QWidget()
+        value_container.setLayout(value_row)
+        vlayout.addWidget(value_container)
 
-        return widget, editors
+        # Store reference for potential editing
+        field_key = f"{tag_id}:{field_name}"
+        self._field_widgets[field_key] = {
+            "widget": widget,
+            "value_label": value_label,
+            "tag_id": tag_id,
+            "field_name": field_name,
+            "field_type": field_type,
+            "data": data,
+            "tag_type": tag_type,
+        }
 
-    def _save_tag_edit(self, tag_id: str, editors: dict) -> None:
-        """Save the edited tag data with annotator prepending."""
-        if tag_id not in self._tag_editors:
-            return
+        # Rationale section (if applicable)
+        if has_rationale:
+            vlm_rationale = self._get_field_value(data, f"{field_name}_rationale")
+            if vlm_rationale:
+                rat_label = QLabel(f"    VLM: {vlm_rationale}")
+                rat_label.setStyleSheet("font-style: italic; color: #666; font-size: 10px;")
+                rat_label.setWordWrap(True)
+                vlayout.addWidget(rat_label)
 
-        # Get current annotator
+                # Rating
+                rating = self._get_field_value(data, f"{field_name}_rationale_rating")
+                if rating == "good":
+                    rating_text = "    Rating: 👍"
+                elif rating == "bad":
+                    rating_text = "    Rating: 👎"
+                else:
+                    rating_text = "    Rating: —"
+                rating_label = QLabel(rating_text)
+                rating_label.setStyleSheet("color: #888; font-size: 10px;")
+                vlayout.addWidget(rating_label)
+
+            # Human rationale
+            human_rationale = self._get_field_value(data, f"{field_name}_human_rationale")
+            if human_rationale:
+                human_label = QLabel(f"    Human: {human_rationale}")
+                human_label.setStyleSheet("font-style: italic; color: #484; font-size: 10px;")
+                human_label.setWordWrap(True)
+                vlayout.addWidget(human_label)
+
+        return widget
+
+    def _start_field_edit(
+        self,
+        tag_id: str,
+        field_name: str,
+        field_val: Any,
+        field_type: str,
+        data: dict,
+        tag_type: str,
+    ) -> None:
+        """Start inline editing for a single field."""
+        from PyQt6.QtWidgets import QDialog as QD, QDialogButtonBox
+
+        # Get annotator
         annotator = self._frontend_state.require_current_annotator()
         if not annotator:
             QMessageBox.warning(
@@ -574,99 +386,202 @@ class VLMAnalysisDialog(QDialog):
             )
             return
 
-        editor_info = self._tag_editors[tag_id]
-        old_data = editor_info["data"]
+        # Create edit dialog for this field
+        edit_dialog = QD(self)
+        edit_dialog.setWindowTitle(f"Edit {field_name}")
+        edit_dialog.setModal(True)
+        edit_dialog.resize(400, 300)
+
+        dlg_layout = QVBoxLayout(edit_dialog)
+        dlg_layout.setSpacing(8)
+
+        # Field value editor
+        dlg_layout.addWidget(QLabel(f"<b>{field_name}</b>:"))
+
+        if field_type == "boolean":
+            value_editor = QCheckBox("Value")
+            value_editor.setChecked(bool(field_val))
+        elif field_type == "num":
+            value_editor = QLineEdit(str(field_val))
+        else:
+            value_editor = QLineEdit(str(field_val))
+
+        dlg_layout.addWidget(value_editor)
+
+        # Rationale section (if this field supports it)
+        rationale_fields = self._get_rationale_fields_for_tag(tag_type)
+        rating_group = None
+        human_editor = None
+
+        if field_name in rationale_fields:
+            vlm_rationale = self._get_field_value(data, f"{field_name}_rationale")
+
+            if vlm_rationale:
+                dlg_layout.addWidget(QLabel("VLM Rationale (read-only):"))
+                vlm_label = QLabel(vlm_rationale)
+                vlm_label.setStyleSheet("font-style: italic; color: #666; padding: 4px; background: #f0f0f0;")
+                vlm_label.setWordWrap(True)
+                dlg_layout.addWidget(vlm_label)
+
+                # Rating buttons
+                dlg_layout.addWidget(QLabel("Rate VLM rationale:"))
+                rating_row = QHBoxLayout()
+                good_btn = QRadioButton("👍 Good")
+                bad_btn = QRadioButton("👎 Bad")
+                unrated_btn = QRadioButton("Unrated")
+
+                current_rating = self._get_field_value(data, f"{field_name}_rationale_rating") or "unrated"
+                if current_rating == "good":
+                    good_btn.setChecked(True)
+                elif current_rating == "bad":
+                    bad_btn.setChecked(True)
+                else:
+                    unrated_btn.setChecked(True)
+
+                rating_group = QButtonGroup(edit_dialog)
+                rating_group.addButton(good_btn, 1)
+                rating_group.addButton(bad_btn, 2)
+                rating_group.addButton(unrated_btn, 0)
+
+                rating_row.addWidget(good_btn)
+                rating_row.addWidget(bad_btn)
+                rating_row.addWidget(unrated_btn)
+                rating_row.addStretch()
+                rating_container = QWidget()
+                rating_container.setLayout(rating_row)
+                dlg_layout.addWidget(rating_container)
+
+            # Human rationale
+            dlg_layout.addWidget(QLabel("Your rationale:"))
+            human_editor = QTextEdit()
+            human_editor.setPlainText(
+                self._get_field_value(data, f"{field_name}_human_rationale") or ""
+            )
+            human_editor.setMaximumHeight(60)
+            human_editor.setPlaceholderText("Add your rationale here...")
+            dlg_layout.addWidget(human_editor)
+
+        # Buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(edit_dialog.accept)
+        button_box.rejected.connect(edit_dialog.reject)
+        dlg_layout.addWidget(button_box)
+
+        if edit_dialog.exec() == QD.DialogCode.Accepted:
+            self._apply_field_edit(
+                tag_id,
+                field_name,
+                field_type,
+                value_editor,
+                rating_group,
+                human_editor,
+                annotator,
+                data,
+            )
+
+    def _apply_field_edit(
+        self,
+        tag_id: str,
+        field_name: str,
+        field_type: str,
+        value_editor,
+        rating_group,
+        human_editor,
+        annotator: str,
+        old_data: dict,
+    ) -> None:
+        """Apply the field edit and update via undo system."""
         new_data = deepcopy(old_data)
+
+        # Get new value
+        if field_type == "boolean":
+            new_val = value_editor.isChecked()
+        elif field_type == "num":
+            try:
+                new_val = float(value_editor.text())
+            except ValueError:
+                return  # Invalid input
+        else:
+            new_val = value_editor.text()
+
+        # Update field value
+        for item in new_data.get("text", []):
+            if item.get("name") == field_name:
+                item["val"] = new_val
+                break
+        for item in new_data.get("num", []):
+            if item.get("name") == field_name:
+                item["val"] = new_val
+                break
+        for item in new_data.get("boolean", []):
+            if item.get("name") == field_name:
+                item["val"] = new_val
+                break
 
         # Helper to find or create a text field
         def ensure_text_field(name: str) -> dict:
             for item in new_data.get("text", []):
                 if item.get("name") == name:
                     return item
-            # Create new field
             if "text" not in new_data:
                 new_data["text"] = []
             new_item = {"name": name, "val": ""}
             new_data["text"].append(new_item)
             return new_item
 
-        # Update text fields
-        for item in new_data.get("text", []):
-            name = item.get("name", "")
-            if name == "annotator":
-                continue
-            key = ("text", name)
-            if key in editors:
-                item["val"] = editors[key].text()
+        # Helper to find or create a vec field
+        def ensure_vec_field(name: str) -> dict:
+            if "vec" not in new_data:
+                new_data["vec"] = []
+            for item in new_data["vec"]:
+                if item.get("name") == name:
+                    return item
+            new_item = {"name": name, "val": []}
+            new_data["vec"].append(new_item)
+            return new_item
 
-        # Update num fields
-        for item in new_data.get("num", []):
-            name = item.get("name", "")
-            if name == "confidence":
-                continue
-            key = ("num", name)
-            if key in editors:
-                try:
-                    item["val"] = float(editors[key].text())
-                except ValueError:
-                    pass  # Keep old value if parse fails
+        # Update per-field annotator (prepend)
+        ann_field = ensure_vec_field(f"{field_name}_annotator")
+        if isinstance(ann_field["val"], list):
+            ann_field["val"].insert(0, annotator)
+        else:
+            ann_field["val"] = [annotator]
 
-        # Update boolean fields
-        for item in new_data.get("boolean", []):
-            name = item.get("name", "")
-            key = ("boolean", name)
-            if key in editors:
-                item["val"] = editors[key].isChecked()
+        # Update per-field confidence (prepend 1.0 for human)
+        conf_field = ensure_vec_field(f"{field_name}_confidence")
+        if isinstance(conf_field["val"], list):
+            conf_field["val"].insert(0, 1.0)
+        else:
+            conf_field["val"] = [1.0]
 
-        # Handle rating fields
-        for key, editor in editors.items():
-            if key[0] == "rating":
-                field_name = key[1]  # e.g., "precipitation_rationale_rating"
-                rating_group = editor
-                checked_id = rating_group.checkedId()
-                if checked_id == 1:
-                    rating_val = "good"
-                elif checked_id == 2:
-                    rating_val = "bad"
-                else:
-                    rating_val = "unrated"
+        # Handle rating
+        if rating_group is not None:
+            checked_id = rating_group.checkedId()
+            if checked_id == 1:
+                rating_val = "good"
+            elif checked_id == 2:
+                rating_val = "bad"
+            else:
+                rating_val = "unrated"
+            rating_field = ensure_text_field(f"{field_name}_rationale_rating")
+            rating_field["val"] = rating_val
 
-                # Find or create the rating field
-                rating_field = ensure_text_field(field_name)
-                rating_field["val"] = rating_val
+        # Handle human rationale
+        if human_editor is not None:
+            human_text = human_editor.toPlainText().strip()
+            if human_text:
+                human_field = ensure_text_field(f"{field_name}_human_rationale")
+                human_field["val"] = human_text
+            else:
+                # Remove empty human rationale
+                new_data["text"] = [
+                    item for item in new_data.get("text", [])
+                    if item.get("name") != f"{field_name}_human_rationale"
+                ]
 
-        # Handle human rationale fields
-        for key, editor in editors.items():
-            if key[0] == "human_rationale":
-                field_name = key[1]  # e.g., "precipitation_human_rationale"
-                human_text = editor.toPlainText().strip()
-
-                if human_text:
-                    # Find or create the human rationale field
-                    human_field = ensure_text_field(field_name)
-                    human_field["val"] = human_text
-                else:
-                    # Remove empty human rationale field if it exists
-                    new_data["text"] = [
-                        item for item in new_data.get("text", [])
-                        if item.get("name") != field_name
-                    ]
-
-        # Prepend annotator and confidence to vec fields
-        for item in new_data.get("vec", []):
-            name = item.get("name", "")
-            if name == "annotator":
-                if isinstance(item.get("val"), list):
-                    item["val"].insert(0, annotator)
-                else:
-                    item["val"] = [annotator]
-            elif name == "confidence":
-                if isinstance(item.get("val"), list):
-                    item["val"].insert(0, 1.0)  # Human confidence is always 1.0
-                else:
-                    item["val"] = [1.0]
-
-        # Create and execute undo command
+        # Execute via undo system
         from edit.frontend.utils.undo.commands import UpdateVLMTagCommand
         from edit.frontend.utils.undo.snapshots import VLMTagSnapshot
 
@@ -680,45 +595,27 @@ class VLMAnalysisDialog(QDialog):
         )
         self._undo_manager.execute(command, self._undo_context)
 
-        # Update local state and refresh display
-        editor_info["data"] = new_data
+        # Update local state
         self._tags[tag_id]["tag_data"] = new_data
-        editor_info["is_editing"] = False
-        self._refresh_tag_display(tag_id)
 
-    def _cancel_tag_edit(self, tag_id: str) -> None:
-        """Cancel editing and restore the read-only display."""
-        if tag_id not in self._tag_editors:
-            return
-
-        editor_info = self._tag_editors[tag_id]
-        editor_info["is_editing"] = False
-        self._refresh_tag_display(tag_id)
-
-    def _refresh_tag_display(self, tag_id: str) -> None:
-        """Refresh the display of a tag after editing."""
-        if tag_id not in self._tag_editors:
-            return
-
-        editor_info = self._tag_editors[tag_id]
-        data = editor_info["data"]
-        tag_type = editor_info["tag_type"]
-        data_container = editor_info["data_container"]
-
-        # Clear current display
-        old_layout = data_container.layout()
-        while old_layout.count():
-            item = old_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        # Repopulate with read-only display
-        self._populate_data_display(old_layout, data, tag_type=tag_type)
+        # Update the field widget display
+        field_key = f"{tag_id}:{field_name}"
+        if field_key in self._field_widgets:
+            info = self._field_widgets[field_key]
+            info["data"] = new_data
+            # Update label
+            if isinstance(new_val, bool):
+                display_val = "Yes" if new_val else "No"
+            elif isinstance(new_val, float):
+                display_val = f"{new_val:.2f}"
+            else:
+                display_val = str(new_val)
+            info["value_label"].setText(f"  <b>{field_name}</b>: {display_val}")
 
     def _create_data_widget(
-        self, title: str, data: dict, tag_type: str = ""
+        self, title: str, data: dict, tag_type: str = "", editable: bool = False
     ) -> QWidget:
-        """Create a read-only widget for context data (contexts are not editable)."""
+        """Create a read-only widget for context data."""
         widget = QWidget()
         widget.setStyleSheet(
             "background-color: rgba(128,128,128,0.1); border-radius: 4px;"
@@ -730,12 +627,23 @@ class VLMAnalysisDialog(QDialog):
         title_label = QLabel(f"<b>{title}</b>")
         vlayout.addWidget(title_label)
 
-        self._populate_data_display(vlayout, data, tag_type=tag_type)
+        # Simple field display for contexts (read-only)
+        for item in data.get("text", []):
+            name = item.get("name", "")
+            if name.endswith("_rationale") or name.endswith("_rating"):
+                continue
+            val = item.get("val") or ""
+            vlayout.addWidget(QLabel(f"  {name}: {val}"))
+
+        for item in data.get("num", []):
+            name = item.get("name", "")
+            val = item.get("val", 0)
+            val_str = f"{val:.2f}" if isinstance(val, float) else str(val)
+            vlayout.addWidget(QLabel(f"  {name}: {val_str}"))
+
+        for item in data.get("boolean", []):
+            name = item.get("name", "")
+            val = "Yes" if item.get("val", False) else "No"
+            vlayout.addWidget(QLabel(f"  {name}: {val}"))
 
         return widget
-
-    def _format_vec_value(self, val: Any) -> str:
-        """Format a single value in a vec list for display."""
-        if isinstance(val, float):
-            return f"{val:.2f}"
-        return str(val)

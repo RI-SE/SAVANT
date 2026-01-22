@@ -596,85 +596,90 @@ class TestAverageConfidence:
 # --- Tag Provenance Fields Tests ---
 
 class TestTagProvenanceFields:
-    """Tests for annotator and confidence provenance fields on VLM tags.
+    """Tests for per-field annotator and confidence provenance fields on VLM tags.
 
     Provenance fields use vec format (list-based) to support multi-annotator tracking.
-    When a human edits a tag, their annotator ID is prepended to the list.
+    Each field has its own {field}_annotator and {field}_confidence entries.
+    When a human edits a field, their annotator ID is prepended to that field's list.
     """
 
     def _get_vec_items(self, tag_data: dict) -> dict:
         """Helper to extract vec items as a dict of name -> val."""
         return {item["name"]: item["val"] for item in tag_data.get("vec", [])}
 
-    def test_weather_tag_has_provenance_fields(self, sample_comprehensive_response):
-        """WeatherTag has annotator and confidence fields in vec format."""
+    def test_weather_tag_has_per_field_provenance(self, sample_comprehensive_response):
+        """WeatherTag has per-field annotator and confidence in vec format."""
         results = [sample_comprehensive_response]
         tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
 
         weather_tag = next(t for t in tags.values() if t["type"] == "WeatherTag")
         vec_items = self._get_vec_items(weather_tag["tag_data"])
 
-        assert "annotator" in vec_items
-        assert "confidence" in vec_items
-        assert vec_items["annotator"] == ["markit_vlm"]
-        assert vec_items["confidence"] == [0.9]
+        # Check per-field provenance for precipitation
+        assert "precipitation_annotator" in vec_items
+        assert "precipitation_confidence" in vec_items
+        assert vec_items["precipitation_annotator"] == ["markit_vlm"]
 
-    def test_road_tag_has_provenance_fields(self, sample_comprehensive_response):
-        """RoadTag has annotator and confidence fields in vec format."""
+        # Check other weather fields have provenance
+        assert "time_of_day_annotator" in vec_items
+        assert "time_of_day_confidence" in vec_items
+
+    def test_road_tag_has_per_field_provenance(self, sample_comprehensive_response):
+        """RoadTag has per-field annotator and confidence in vec format."""
         results = [sample_comprehensive_response]
         tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
 
         road_tag = next(t for t in tags.values() if t["type"] == "RoadTag")
         vec_items = self._get_vec_items(road_tag["tag_data"])
 
-        assert "annotator" in vec_items
-        assert "confidence" in vec_items
-        assert vec_items["annotator"] == ["markit_vlm"]
+        assert "drivable_area_type_annotator" in vec_items
+        assert "drivable_area_type_confidence" in vec_items
+        assert vec_items["drivable_area_type_annotator"] == ["markit_vlm"]
 
-    def test_traffic_tag_has_provenance_fields(self, sample_comprehensive_response):
-        """TrafficTag has annotator and confidence fields in vec format."""
+    def test_traffic_tag_has_per_field_provenance(self, sample_comprehensive_response):
+        """TrafficTag has per-field annotator and confidence in vec format."""
         results = [sample_comprehensive_response]
         tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
 
         traffic_tag = next(t for t in tags.values() if t["type"] == "TrafficTag")
         vec_items = self._get_vec_items(traffic_tag["tag_data"])
 
-        assert "annotator" in vec_items
-        assert "confidence" in vec_items
+        assert "density_annotator" in vec_items
+        assert "density_confidence" in vec_items
 
-    def test_junction_tag_has_provenance_fields(self, sample_comprehensive_response):
-        """JunctionTag has annotator and confidence fields in vec format."""
+    def test_junction_tag_has_per_field_provenance(self, sample_comprehensive_response):
+        """JunctionTag has per-field annotator and confidence in vec format."""
         results = [sample_comprehensive_response]
         tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
 
         junction_tag = next(t for t in tags.values() if t["type"] == "JunctionTag")
         vec_items = self._get_vec_items(junction_tag["tag_data"])
 
-        assert "annotator" in vec_items
-        assert "confidence" in vec_items
+        assert "junction_type_annotator" in vec_items
+        assert "junction_type_confidence" in vec_items
 
-    def test_structures_tag_has_provenance_fields(self, sample_comprehensive_response):
-        """StructuresTag has annotator and confidence fields in vec format."""
+    def test_structures_tag_has_per_field_provenance(self, sample_comprehensive_response):
+        """StructuresTag has per-field annotator and confidence in vec format."""
         results = [sample_comprehensive_response]
         tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
 
         structures_tag = next(t for t in tags.values() if t["type"] == "StructuresTag")
         vec_items = self._get_vec_items(structures_tag["tag_data"])
 
-        assert "annotator" in vec_items
-        assert "confidence" in vec_items
+        assert "street_lighting_annotator" in vec_items
+        assert "street_lighting_confidence" in vec_items
 
-    def test_notes_tag_has_provenance_fields(self, sample_roundabout_response):
-        """NotesTag has annotator and confidence fields in vec format."""
+    def test_notes_tag_has_per_field_provenance(self, sample_roundabout_response):
+        """NotesTag has per-field annotator and confidence in vec format."""
         results = [sample_roundabout_response]
         tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
 
         notes_tag = next(t for t in tags.values() if t["type"] == "NotesTag")
         vec_items = self._get_vec_items(notes_tag["tag_data"])
 
-        assert "annotator" in vec_items
-        assert "confidence" in vec_items
-        assert vec_items["annotator"] == ["markit_vlm"]
+        assert "notes_annotator" in vec_items
+        assert "notes_confidence" in vec_items
+        assert vec_items["notes_annotator"] == ["markit_vlm"]
 
     def test_vlm_analysis_tag_unchanged(self, sample_comprehensive_response):
         """VLMAnalysisTag should NOT have vec provenance fields."""
@@ -692,11 +697,23 @@ class TestTagProvenanceFields:
         # vec provenance is not added to VLMAnalysisTag
         assert "vec" not in metadata_tag["tag_data"]
 
-    def test_provenance_uses_averaged_confidence(self):
-        """Provenance confidence uses the averaged value from all frames."""
+    def test_per_field_confidence_uses_averaged_value(self):
+        """Per-field confidence uses averaged value when field has confidence from VLM."""
         results = [
-            {"weather": {"precipitation": "none"}, "confidence": 0.9},
-            {"weather": {"precipitation": "none"}, "confidence": 0.7},
+            {
+                "weather": {
+                    "precipitation": "none",
+                    "precipitation_confidence": 0.9,
+                },
+                "confidence": 0.9,
+            },
+            {
+                "weather": {
+                    "precipitation": "none",
+                    "precipitation_confidence": 0.7,
+                },
+                "confidence": 0.7,
+            },
         ]
         tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 2)
 
@@ -704,4 +721,4 @@ class TestTagProvenanceFields:
         vec_items = self._get_vec_items(weather_tag["tag_data"])
 
         # Average of 0.9 and 0.7 is 0.8
-        assert vec_items["confidence"] == [0.8]
+        assert vec_items["precipitation_confidence"] == [0.8]

@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 SCENARIO_ONTOLOGY_UID = "1"
 SCENARIO_ONTOLOGY_URI = "http://github.com/RI-SE/SAVANT/scenario-ontology#"
 
+# Default annotator name for VLM-generated data
+VLM_ANNOTATOR = "markit_vlm"
+
 
 class VLMResponseParser:
     """Parse VLM text responses into structured data."""
@@ -274,61 +277,41 @@ class VLMResponseParser:
         weather: Dict[str, Any], frame_start: int, frame_end: int
     ) -> Dict[str, Any]:
         """Create a weather context for a frame interval."""
-        context_data = {"text": [], "num": []}
+        context_data = {"text": [], "num": [], "vec": []}
 
-        if weather.get("precipitation"):
-            context_data["text"].append(
-                {"name": "precipitation", "val": weather["precipitation"]}
-            )
-        if weather.get("precipitation_intensity"):
-            context_data["text"].append(
-                {"name": "precipitation_intensity", "val": weather["precipitation_intensity"]}
-            )
-        if weather.get("particulates"):
-            context_data["text"].append(
-                {"name": "particulates", "val": weather["particulates"]}
-            )
-        if weather.get("time_of_day"):
-            context_data["text"].append(
-                {"name": "time_of_day", "val": weather["time_of_day"]}
-            )
-        if weather.get("sun_position"):
-            context_data["text"].append(
-                {"name": "sun_position", "val": weather["sun_position"]}
-            )
-        if weather.get("cloud_cover"):
-            context_data["text"].append(
-                {"name": "cloud_cover", "val": weather["cloud_cover"]}
-            )
+        # Weather fields and their confidence
+        weather_fields = [
+            "precipitation", "precipitation_intensity", "particulates",
+            "time_of_day", "sun_position", "cloud_cover"
+        ]
+
+        for field in weather_fields:
+            if weather.get(field):
+                context_data["text"].append({"name": field, "val": weather[field]})
+                # Add per-field annotator and confidence
+                context_data["vec"].append(
+                    {"name": f"{field}_annotator", "val": [VLM_ANNOTATOR]}
+                )
+                conf = weather.get(f"{field}_confidence", 0.5)
+                context_data["vec"].append(
+                    {"name": f"{field}_confidence", "val": [round(conf, 4)]}
+                )
+                # Add rationale if present
+                rationale = weather.get(f"{field}_rationale")
+                if rationale:
+                    context_data["text"].append({"name": f"{field}_rationale", "val": rationale})
+
+        # Visibility is numeric
         if weather.get("visibility_km") is not None:
             context_data["num"].append(
                 {"name": "visibility_km", "val": float(weather["visibility_km"])}
             )
-
-        # Rationale fields (if present)
-        if weather.get("precipitation_rationale"):
-            context_data["text"].append(
-                {"name": "precipitation_rationale", "val": weather["precipitation_rationale"]}
+            context_data["vec"].append(
+                {"name": "visibility_km_annotator", "val": [VLM_ANNOTATOR]}
             )
-        if weather.get("precipitation_intensity_rationale"):
-            context_data["text"].append(
-                {"name": "precipitation_intensity_rationale", "val": weather["precipitation_intensity_rationale"]}
-            )
-        if weather.get("particulates_rationale"):
-            context_data["text"].append(
-                {"name": "particulates_rationale", "val": weather["particulates_rationale"]}
-            )
-        if weather.get("time_of_day_rationale"):
-            context_data["text"].append(
-                {"name": "time_of_day_rationale", "val": weather["time_of_day_rationale"]}
-            )
-        if weather.get("sun_position_rationale"):
-            context_data["text"].append(
-                {"name": "sun_position_rationale", "val": weather["sun_position_rationale"]}
-            )
-        if weather.get("cloud_cover_rationale"):
-            context_data["text"].append(
-                {"name": "cloud_cover_rationale", "val": weather["cloud_cover_rationale"]}
+            conf = weather.get("visibility_km_confidence", 0.5)
+            context_data["vec"].append(
+                {"name": "visibility_km_confidence", "val": [round(conf, 4)]}
             )
 
         context_data = {k: v for k, v in context_data.items() if v}
@@ -346,42 +329,37 @@ class VLMResponseParser:
         traffic: Dict[str, Any], frame_start: int, frame_end: int
     ) -> Dict[str, Any]:
         """Create a traffic context for a frame interval."""
-        context_data = {"text": [], "boolean": []}
+        context_data = {"text": [], "boolean": [], "vec": []}
 
-        if traffic.get("density"):
-            context_data["text"].append({"name": "density", "val": traffic["density"]})
-        if traffic.get("flow"):
-            context_data["text"].append({"name": "flow", "val": traffic["flow"]})
-        if traffic.get("temporary_structures"):
-            context_data["text"].append(
-                {"name": "temporary_structures", "val": traffic["temporary_structures"]}
-            )
-        if "pedestrians_present" in traffic:
-            context_data["boolean"].append(
-                {"name": "pedestrians_present", "val": traffic["pedestrians_present"]}
-            )
-        if "cyclists_present" in traffic:
-            context_data["boolean"].append(
-                {"name": "cyclists_present", "val": traffic["cyclists_present"]}
-            )
-        if "special_vehicles_present" in traffic:
-            context_data["boolean"].append(
-                {"name": "special_vehicles_present", "val": traffic["special_vehicles_present"]}
-            )
+        # Text fields
+        text_fields = ["density", "flow", "temporary_structures"]
+        for field in text_fields:
+            if traffic.get(field):
+                context_data["text"].append({"name": field, "val": traffic[field]})
+                context_data["vec"].append(
+                    {"name": f"{field}_annotator", "val": [VLM_ANNOTATOR]}
+                )
+                conf = traffic.get(f"{field}_confidence", 0.5)
+                context_data["vec"].append(
+                    {"name": f"{field}_confidence", "val": [round(conf, 4)]}
+                )
+                # Add rationale if present
+                rationale = traffic.get(f"{field}_rationale")
+                if rationale:
+                    context_data["text"].append({"name": f"{field}_rationale", "val": rationale})
 
-        # Rationale fields (if present)
-        if traffic.get("density_rationale"):
-            context_data["text"].append(
-                {"name": "density_rationale", "val": traffic["density_rationale"]}
-            )
-        if traffic.get("flow_rationale"):
-            context_data["text"].append(
-                {"name": "flow_rationale", "val": traffic["flow_rationale"]}
-            )
-        if traffic.get("temporary_structures_rationale"):
-            context_data["text"].append(
-                {"name": "temporary_structures_rationale", "val": traffic["temporary_structures_rationale"]}
-            )
+        # Boolean fields
+        bool_fields = ["pedestrians_present", "cyclists_present", "special_vehicles_present"]
+        for field in bool_fields:
+            if field in traffic:
+                context_data["boolean"].append({"name": field, "val": traffic[field]})
+                context_data["vec"].append(
+                    {"name": f"{field}_annotator", "val": [VLM_ANNOTATOR]}
+                )
+                conf = traffic.get(f"{field}_confidence", 0.5)
+                context_data["vec"].append(
+                    {"name": f"{field}_confidence", "val": [round(conf, 4)]}
+                )
 
         context_data = {k: v for k, v in context_data.items() if v}
 
@@ -394,26 +372,22 @@ class VLMResponseParser:
         }
 
     @staticmethod
-    def _add_provenance_fields(tag_data: Dict[str, Any], confidence: float) -> Dict[str, Any]:
-        """Add annotator and confidence provenance fields to tag_data using vec format.
-
-        Uses vec format (list-based) to support multi-annotator tracking. When a human
-        edits a VLM tag, their annotator ID and confidence (1.0) are prepended to the
-        lists, preserving the original VLM values.
+    def _add_field_provenance(
+        tag_data: Dict[str, Any],
+        field_name: str,
+        confidence: float,
+    ) -> None:
+        """Add per-field annotator and confidence to tag_data vec array.
 
         Args:
             tag_data: The tag_data dict to augment
-            confidence: The aggregated confidence value from VLM analysis
-
-        Returns:
-            The tag_data dict with provenance fields added
+            field_name: Name of the field
+            confidence: The confidence value for this field
         """
         if "vec" not in tag_data:
             tag_data["vec"] = []
-        tag_data["vec"].append({"name": "annotator", "val": ["markit_vlm"]})
-        tag_data["vec"].append({"name": "confidence", "val": [round(confidence, 4)]})
-
-        return tag_data
+        tag_data["vec"].append({"name": f"{field_name}_annotator", "val": [VLM_ANNOTATOR]})
+        tag_data["vec"].append({"name": f"{field_name}_confidence", "val": [round(confidence, 4)]})
 
     @staticmethod
     def to_openlabel_tags(
@@ -424,6 +398,7 @@ class VLMResponseParser:
         """Convert VLM analysis to OpenLABEL tags for scenario-level metadata.
 
         Per OpenLABEL spec, tags are for scenario categorization and organization.
+        Each field has its own annotator and confidence in the vec array.
 
         Args:
             analysis_results: List of parsed VLM analysis dicts
@@ -442,67 +417,34 @@ class VLMResponseParser:
         # Weather tag
         if "weather" in aggregated:
             weather = aggregated["weather"]
-            tag_data = {"text": [], "num": []}
+            tag_data = {"text": [], "num": [], "vec": []}
 
-            if "precipitation" in weather:
-                tag_data["text"].append(
-                    {"name": "precipitation", "val": weather["precipitation"]}
-                )
-            if "precipitation_intensity" in weather:
-                tag_data["text"].append(
-                    {"name": "precipitation_intensity", "val": weather["precipitation_intensity"]}
-                )
-            if "particulates" in weather:
-                tag_data["text"].append(
-                    {"name": "particulates", "val": weather["particulates"]}
-                )
-            if "time_of_day" in weather:
-                tag_data["text"].append(
-                    {"name": "time_of_day", "val": weather["time_of_day"]}
-                )
-            if "sun_position" in weather:
-                tag_data["text"].append(
-                    {"name": "sun_position", "val": weather["sun_position"]}
-                )
-            if "cloud_cover" in weather:
-                tag_data["text"].append(
-                    {"name": "cloud_cover", "val": weather["cloud_cover"]}
-                )
+            # Text fields with per-field provenance
+            text_fields = [
+                "precipitation", "precipitation_intensity", "particulates",
+                "time_of_day", "sun_position", "cloud_cover"
+            ]
+            for field in text_fields:
+                if field in weather:
+                    tag_data["text"].append({"name": field, "val": weather[field]})
+                    conf = weather.get(f"{field}_confidence", avg_confidence)
+                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
+                    # Add rationale if present
+                    rationale = weather.get(f"{field}_rationale")
+                    if rationale:
+                        tag_data["text"].append({"name": f"{field}_rationale", "val": rationale})
+
+            # Numeric field
             if weather.get("visibility_km") is not None:
                 tag_data["num"].append(
                     {"name": "visibility_km", "val": float(weather["visibility_km"])}
                 )
-
-            # Rationale fields (if present)
-            if weather.get("precipitation_rationale"):
-                tag_data["text"].append(
-                    {"name": "precipitation_rationale", "val": weather["precipitation_rationale"]}
-                )
-            if weather.get("precipitation_intensity_rationale"):
-                tag_data["text"].append(
-                    {"name": "precipitation_intensity_rationale", "val": weather["precipitation_intensity_rationale"]}
-                )
-            if weather.get("particulates_rationale"):
-                tag_data["text"].append(
-                    {"name": "particulates_rationale", "val": weather["particulates_rationale"]}
-                )
-            if weather.get("time_of_day_rationale"):
-                tag_data["text"].append(
-                    {"name": "time_of_day_rationale", "val": weather["time_of_day_rationale"]}
-                )
-            if weather.get("sun_position_rationale"):
-                tag_data["text"].append(
-                    {"name": "sun_position_rationale", "val": weather["sun_position_rationale"]}
-                )
-            if weather.get("cloud_cover_rationale"):
-                tag_data["text"].append(
-                    {"name": "cloud_cover_rationale", "val": weather["cloud_cover_rationale"]}
-                )
+                conf = weather.get("visibility_km_confidence", avg_confidence)
+                VLMResponseParser._add_field_provenance(tag_data, "visibility_km", conf)
 
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
-                VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
                 tags[str(tag_id)] = {
                     "name": "weather_conditions",
                     "type": "WeatherTag",
@@ -514,67 +456,42 @@ class VLMResponseParser:
         # Road tag
         if "road" in aggregated:
             road = aggregated["road"]
-            tag_data = {"text": [], "num": [], "boolean": []}
+            tag_data = {"text": [], "num": [], "boolean": [], "vec": []}
 
-            if "drivable_area_type" in road:
-                tag_data["text"].append(
-                    {"name": "drivable_area_type", "val": road["drivable_area_type"]}
-                )
-            if "geometry_horizontal" in road:
-                tag_data["text"].append(
-                    {"name": "geometry_horizontal", "val": road["geometry_horizontal"]}
-                )
-            if "geometry_longitudinal" in road:
-                tag_data["text"].append(
-                    {"name": "geometry_longitudinal", "val": road["geometry_longitudinal"]}
-                )
-            if "surface_type" in road:
-                tag_data["text"].append(
-                    {"name": "surface_type", "val": road["surface_type"]}
-                )
-            if "surface_condition" in road:
-                tag_data["text"].append(
-                    {"name": "surface_condition", "val": road["surface_condition"]}
-                )
-            if "surface_quality" in road:
-                tag_data["text"].append(
-                    {"name": "surface_quality", "val": road["surface_quality"]}
-                )
+            # Text fields
+            text_fields = [
+                "drivable_area_type", "geometry_horizontal", "geometry_longitudinal",
+                "surface_type", "surface_condition", "surface_quality"
+            ]
+            for field in text_fields:
+                if field in road:
+                    tag_data["text"].append({"name": field, "val": road[field]})
+                    conf = road.get(f"{field}_confidence", avg_confidence)
+                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
+                    # Add rationale if present
+                    rationale = road.get(f"{field}_rationale")
+                    if rationale:
+                        tag_data["text"].append({"name": f"{field}_rationale", "val": rationale})
+
+            # Numeric field
             if road.get("lane_count") is not None:
                 tag_data["num"].append(
                     {"name": "lane_count", "val": int(road["lane_count"])}
                 )
-            if "divided" in road:
-                tag_data["boolean"].append(
-                    {"name": "divided", "val": road["divided"]}
-                )
-            if "lane_markings_visible" in road:
-                tag_data["boolean"].append(
-                    {"name": "lane_markings_visible", "val": road["lane_markings_visible"]}
-                )
+                conf = road.get("lane_count_confidence", avg_confidence)
+                VLMResponseParser._add_field_provenance(tag_data, "lane_count", conf)
 
-            # Rationale fields (if present)
-            if road.get("drivable_area_type_rationale"):
-                tag_data["text"].append(
-                    {"name": "drivable_area_type_rationale", "val": road["drivable_area_type_rationale"]}
-                )
-            if road.get("surface_type_rationale"):
-                tag_data["text"].append(
-                    {"name": "surface_type_rationale", "val": road["surface_type_rationale"]}
-                )
-            if road.get("surface_condition_rationale"):
-                tag_data["text"].append(
-                    {"name": "surface_condition_rationale", "val": road["surface_condition_rationale"]}
-                )
-            if road.get("surface_quality_rationale"):
-                tag_data["text"].append(
-                    {"name": "surface_quality_rationale", "val": road["surface_quality_rationale"]}
-                )
+            # Boolean fields
+            bool_fields = ["divided", "lane_markings_visible"]
+            for field in bool_fields:
+                if field in road:
+                    tag_data["boolean"].append({"name": field, "val": road[field]})
+                    conf = road.get(f"{field}_confidence", avg_confidence)
+                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
 
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
-                VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
                 tags[str(tag_id)] = {
                     "name": "road_infrastructure",
                     "type": "RoadTag",
@@ -586,51 +503,31 @@ class VLMResponseParser:
         # Traffic tag
         if "traffic" in aggregated:
             traffic = aggregated["traffic"]
-            tag_data = {"text": [], "boolean": []}
+            tag_data = {"text": [], "boolean": [], "vec": []}
 
-            if "density" in traffic:
-                tag_data["text"].append(
-                    {"name": "density", "val": traffic["density"]}
-                )
-            if "flow" in traffic:
-                tag_data["text"].append(
-                    {"name": "flow", "val": traffic["flow"]}
-                )
-            if "temporary_structures" in traffic:
-                tag_data["text"].append(
-                    {"name": "temporary_structures", "val": traffic["temporary_structures"]}
-                )
-            if "pedestrians_present" in traffic:
-                tag_data["boolean"].append(
-                    {"name": "pedestrians_present", "val": traffic["pedestrians_present"]}
-                )
-            if "cyclists_present" in traffic:
-                tag_data["boolean"].append(
-                    {"name": "cyclists_present", "val": traffic["cyclists_present"]}
-                )
-            if "special_vehicles_present" in traffic:
-                tag_data["boolean"].append(
-                    {"name": "special_vehicles_present", "val": traffic["special_vehicles_present"]}
-                )
+            # Text fields
+            text_fields = ["density", "flow", "temporary_structures"]
+            for field in text_fields:
+                if field in traffic:
+                    tag_data["text"].append({"name": field, "val": traffic[field]})
+                    conf = traffic.get(f"{field}_confidence", avg_confidence)
+                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
+                    # Add rationale if present
+                    rationale = traffic.get(f"{field}_rationale")
+                    if rationale:
+                        tag_data["text"].append({"name": f"{field}_rationale", "val": rationale})
 
-            # Rationale fields (if present)
-            if traffic.get("density_rationale"):
-                tag_data["text"].append(
-                    {"name": "density_rationale", "val": traffic["density_rationale"]}
-                )
-            if traffic.get("flow_rationale"):
-                tag_data["text"].append(
-                    {"name": "flow_rationale", "val": traffic["flow_rationale"]}
-                )
-            if traffic.get("temporary_structures_rationale"):
-                tag_data["text"].append(
-                    {"name": "temporary_structures_rationale", "val": traffic["temporary_structures_rationale"]}
-                )
+            # Boolean fields
+            bool_fields = ["pedestrians_present", "cyclists_present", "special_vehicles_present"]
+            for field in bool_fields:
+                if field in traffic:
+                    tag_data["boolean"].append({"name": field, "val": traffic[field]})
+                    conf = traffic.get(f"{field}_confidence", avg_confidence)
+                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
 
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
-                VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
                 tags[str(tag_id)] = {
                     "name": "traffic_conditions",
                     "type": "TrafficTag",
@@ -642,37 +539,34 @@ class VLMResponseParser:
         # Junction tag
         if "junction" in aggregated:
             junction = aggregated["junction"]
-            tag_data = {"text": [], "boolean": []}
+            tag_data = {"text": [], "boolean": [], "vec": []}
 
-            if "type" in junction:
-                tag_data["text"].append(
-                    {"name": "junction_type", "val": junction["type"]}
-                )
-            if "roundabout_type" in junction:
-                tag_data["text"].append(
-                    {"name": "roundabout_type", "val": junction["roundabout_type"]}
-                )
-            if "present" in junction:
-                tag_data["boolean"].append(
-                    {"name": "junction_present", "val": junction["present"]}
-                )
-            if "signalized" in junction:
-                tag_data["boolean"].append(
-                    {"name": "signalized", "val": junction["signalized"]}
-                )
-            if "pedestrian_crossing" in junction:
-                tag_data["boolean"].append(
-                    {"name": "pedestrian_crossing", "val": junction["pedestrian_crossing"]}
-                )
-            if "rail_crossing" in junction:
-                tag_data["boolean"].append(
-                    {"name": "rail_crossing", "val": junction["rail_crossing"]}
-                )
+            # Text fields
+            text_fields = ["type", "roundabout_type"]
+            field_names = {"type": "junction_type", "roundabout_type": "roundabout_type"}
+            for field in text_fields:
+                if field in junction:
+                    tag_data["text"].append({"name": field_names[field], "val": junction[field]})
+                    conf = junction.get(f"{field}_confidence", avg_confidence)
+                    VLMResponseParser._add_field_provenance(tag_data, field_names[field], conf)
+
+            # Boolean fields
+            bool_fields = ["present", "signalized", "pedestrian_crossing", "rail_crossing"]
+            bool_names = {
+                "present": "junction_present",
+                "signalized": "signalized",
+                "pedestrian_crossing": "pedestrian_crossing",
+                "rail_crossing": "rail_crossing"
+            }
+            for field in bool_fields:
+                if field in junction:
+                    tag_data["boolean"].append({"name": bool_names[field], "val": junction[field]})
+                    conf = junction.get(f"{field}_confidence", avg_confidence)
+                    VLMResponseParser._add_field_provenance(tag_data, bool_names[field], conf)
 
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
-                VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
                 tags[str(tag_id)] = {
                     "name": "junction_info",
                     "type": "JunctionTag",
@@ -684,33 +578,27 @@ class VLMResponseParser:
         # Structures tag
         if "structures" in aggregated:
             structures = aggregated["structures"]
-            tag_data = {"text": [], "boolean": []}
+            tag_data = {"text": [], "boolean": [], "vec": []}
 
+            # Text field
             if "street_lighting" in structures:
                 tag_data["text"].append(
                     {"name": "street_lighting", "val": structures["street_lighting"]}
                 )
-            if "bridge" in structures:
-                tag_data["boolean"].append(
-                    {"name": "bridge", "val": structures["bridge"]}
-                )
-            if "tunnel" in structures:
-                tag_data["boolean"].append(
-                    {"name": "tunnel", "val": structures["tunnel"]}
-                )
-            if "toll_plaza" in structures:
-                tag_data["boolean"].append(
-                    {"name": "toll_plaza", "val": structures["toll_plaza"]}
-                )
-            if "barriers_present" in structures:
-                tag_data["boolean"].append(
-                    {"name": "barriers_present", "val": structures["barriers_present"]}
-                )
+                conf = structures.get("street_lighting_confidence", avg_confidence)
+                VLMResponseParser._add_field_provenance(tag_data, "street_lighting", conf)
+
+            # Boolean fields
+            bool_fields = ["bridge", "tunnel", "toll_plaza", "barriers_present"]
+            for field in bool_fields:
+                if field in structures:
+                    tag_data["boolean"].append({"name": field, "val": structures[field]})
+                    conf = structures.get(f"{field}_confidence", avg_confidence)
+                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
 
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
-                VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
                 tags[str(tag_id)] = {
                     "name": "structures_info",
                     "type": "StructuresTag",
@@ -725,8 +613,13 @@ class VLMResponseParser:
             (r.get("notes") for r in analysis_results if r.get("notes")), None
         )
         if first_note:
-            tag_data = {"text": [{"name": "notes", "val": first_note}]}
-            VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
+            tag_data = {
+                "text": [{"name": "notes", "val": first_note}],
+                "vec": [
+                    {"name": "notes_annotator", "val": [VLM_ANNOTATOR]},
+                    {"name": "notes_confidence", "val": [round(avg_confidence, 4)]},
+                ],
+            }
             tags[str(tag_id)] = {
                 "name": "scene_notes",
                 "type": "NotesTag",
@@ -735,7 +628,7 @@ class VLMResponseParser:
             }
             tag_id += 1
 
-        # VLM analysis metadata tag (already has analyzer and average_confidence)
+        # VLM analysis metadata tag
         tags[str(tag_id)] = {
             "name": "vlm_analysis_metadata",
             "type": "VLMAnalysisTag",
@@ -758,11 +651,13 @@ class VLMResponseParser:
     def _aggregate_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Aggregate multiple frame analyses using voting/averaging.
 
+        For per-field confidence values, averages are computed across frames.
+
         Args:
             results: List of analysis dicts from multiple frames
 
         Returns:
-            Aggregated analysis dict
+            Aggregated analysis dict with per-field confidence values
         """
         if not results:
             return {}
@@ -772,185 +667,150 @@ class VLMResponseParser:
 
         aggregated = {}
 
+        # Helper to aggregate confidence values
+        def aggregate_confidence(field_name: str, category_data: List[Dict]) -> float:
+            conf_key = f"{field_name}_confidence"
+            confs = [d.get(conf_key) for d in category_data if d.get(conf_key) is not None]
+            return sum(confs) / len(confs) if confs else 0.5
+
         # Aggregate weather using majority voting
-        weather_values = {
-            "precipitation": [],
-            "precipitation_intensity": [],
-            "particulates": [],
-            "visibility_km": [],
-            "time_of_day": [],
-            "sun_position": [],
-            "cloud_cover": [],
-        }
-        # Rationale fields - use first non-empty value (not majority voting)
-        weather_rationale_fields = [
-            "precipitation_rationale",
-            "precipitation_intensity_rationale",
-            "particulates_rationale",
-            "time_of_day_rationale",
-            "sun_position_rationale",
-            "cloud_cover_rationale",
+        weather_fields = [
+            "precipitation", "precipitation_intensity", "particulates",
+            "time_of_day", "sun_position", "cloud_cover"
         ]
-        for r in results:
-            weather = r.get("weather", {})
-            for key in weather_values:
-                if key in weather and weather[key] is not None:
-                    weather_values[key].append(weather[key])
+        weather_rationale_fields = [f"{f}_rationale" for f in weather_fields]
+        weather_data = [r.get("weather", {}) for r in results if r.get("weather")]
 
-        if any(weather_values.values()):
+        if weather_data:
             aggregated["weather"] = {}
-            for key, values in weather_values.items():
+            for field in weather_fields:
+                values = [d.get(field) for d in weather_data if d.get(field) is not None]
                 if values:
-                    if key == "visibility_km":
-                        # Average for numeric
-                        aggregated["weather"][key] = sum(values) / len(values)
-                    else:
-                        # Majority voting for categorical
-                        aggregated["weather"][key] = max(set(values), key=values.count)
+                    aggregated["weather"][field] = max(set(values), key=values.count)
+                    # Average the confidence
+                    aggregated["weather"][f"{field}_confidence"] = aggregate_confidence(field, weather_data)
 
-            # Rationale fields: use first non-empty value (rationales don't aggregate well)
+            # Visibility is numeric - average
+            vis_values = [d.get("visibility_km") for d in weather_data if d.get("visibility_km") is not None]
+            if vis_values:
+                aggregated["weather"]["visibility_km"] = sum(vis_values) / len(vis_values)
+                aggregated["weather"]["visibility_km_confidence"] = aggregate_confidence("visibility_km", weather_data)
+
+            # Rationale fields: use first non-empty value
             for rationale_field in weather_rationale_fields:
-                for r in results:
-                    rationale = r.get("weather", {}).get(rationale_field)
-                    if rationale:
-                        aggregated["weather"][rationale_field] = rationale
+                for d in weather_data:
+                    if d.get(rationale_field):
+                        aggregated["weather"][rationale_field] = d[rationale_field]
                         break
 
         # Aggregate road
-        road_values = {
-            "drivable_area_type": [],
-            "geometry_horizontal": [],
-            "geometry_longitudinal": [],
-            "divided": [],
-            "surface_type": [],
-            "surface_condition": [],
-            "surface_quality": [],
-            "lane_count": [],
-            "lane_markings_visible": [],
-        }
-        # Rationale fields - use first non-empty value (not majority voting)
-        road_rationale_fields = [
-            "drivable_area_type_rationale",
-            "surface_type_rationale",
-            "surface_condition_rationale",
-            "surface_quality_rationale",
+        road_text_fields = [
+            "drivable_area_type", "geometry_horizontal", "geometry_longitudinal",
+            "surface_type", "surface_condition", "surface_quality"
         ]
-        for r in results:
-            road = r.get("road", {})
-            for key in road_values:
-                if key in road and road[key] is not None:
-                    road_values[key].append(road[key])
+        road_bool_fields = ["divided", "lane_markings_visible"]
+        road_rationale_fields = [
+            "drivable_area_type_rationale", "surface_type_rationale",
+            "surface_condition_rationale", "surface_quality_rationale"
+        ]
+        road_data = [r.get("road", {}) for r in results if r.get("road")]
 
-        if any(road_values.values()):
+        if road_data:
             aggregated["road"] = {}
-            for key, values in road_values.items():
+            for field in road_text_fields:
+                values = [d.get(field) for d in road_data if d.get(field) is not None]
                 if values:
-                    if key == "lane_count":
-                        # Average for numeric, round to int
-                        aggregated["road"][key] = round(sum(values) / len(values))
-                    elif key in ("divided", "lane_markings_visible"):
-                        # Majority for booleans
-                        aggregated["road"][key] = sum(values) > len(values) / 2
-                    else:
-                        aggregated["road"][key] = max(set(values), key=values.count)
+                    aggregated["road"][field] = max(set(values), key=values.count)
+                    aggregated["road"][f"{field}_confidence"] = aggregate_confidence(field, road_data)
 
-            # Rationale fields: use first non-empty value
+            # Boolean fields - majority voting
+            for field in road_bool_fields:
+                values = [d.get(field) for d in road_data if d.get(field) is not None]
+                if values:
+                    aggregated["road"][field] = sum(values) > len(values) / 2
+                    aggregated["road"][f"{field}_confidence"] = aggregate_confidence(field, road_data)
+
+            # Lane count - average and round
+            lane_values = [d.get("lane_count") for d in road_data if d.get("lane_count") is not None]
+            if lane_values:
+                aggregated["road"]["lane_count"] = round(sum(lane_values) / len(lane_values))
+                aggregated["road"]["lane_count_confidence"] = aggregate_confidence("lane_count", road_data)
+
+            # Rationale fields
             for rationale_field in road_rationale_fields:
-                for r in results:
-                    rationale = r.get("road", {}).get(rationale_field)
-                    if rationale:
-                        aggregated["road"][rationale_field] = rationale
+                for d in road_data:
+                    if d.get(rationale_field):
+                        aggregated["road"][rationale_field] = d[rationale_field]
                         break
 
         # Aggregate traffic
-        traffic_values = {
-            "density": [],
-            "flow": [],
-            "pedestrians_present": [],
-            "cyclists_present": [],
-            "special_vehicles_present": [],
-            "temporary_structures": [],
-        }
-        # Rationale fields - use first non-empty value (not majority voting)
-        traffic_rationale_fields = [
-            "density_rationale",
-            "flow_rationale",
-            "temporary_structures_rationale",
-        ]
-        for r in results:
-            traffic = r.get("traffic", {})
-            for key in traffic_values:
-                if key in traffic and traffic[key] is not None:
-                    traffic_values[key].append(traffic[key])
+        traffic_text_fields = ["density", "flow", "temporary_structures"]
+        traffic_bool_fields = ["pedestrians_present", "cyclists_present", "special_vehicles_present"]
+        traffic_rationale_fields = ["density_rationale", "flow_rationale", "temporary_structures_rationale"]
+        traffic_data = [r.get("traffic", {}) for r in results if r.get("traffic")]
 
-        if any(traffic_values.values()):
+        if traffic_data:
             aggregated["traffic"] = {}
-            for key, values in traffic_values.items():
+            for field in traffic_text_fields:
+                values = [d.get(field) for d in traffic_data if d.get(field) is not None]
                 if values:
-                    if key in ("pedestrians_present", "cyclists_present", "special_vehicles_present"):
-                        # Any True wins for presence detection
-                        aggregated["traffic"][key] = any(values)
-                    else:
-                        aggregated["traffic"][key] = max(set(values), key=values.count)
+                    aggregated["traffic"][field] = max(set(values), key=values.count)
+                    aggregated["traffic"][f"{field}_confidence"] = aggregate_confidence(field, traffic_data)
 
-            # Rationale fields: use first non-empty value
+            # Boolean fields - any True wins
+            for field in traffic_bool_fields:
+                values = [d.get(field) for d in traffic_data if d.get(field) is not None]
+                if values:
+                    aggregated["traffic"][field] = any(values)
+                    aggregated["traffic"][f"{field}_confidence"] = aggregate_confidence(field, traffic_data)
+
+            # Rationale fields
             for rationale_field in traffic_rationale_fields:
-                for r in results:
-                    rationale = r.get("traffic", {}).get(rationale_field)
-                    if rationale:
-                        aggregated["traffic"][rationale_field] = rationale
+                for d in traffic_data:
+                    if d.get(rationale_field):
+                        aggregated["traffic"][rationale_field] = d[rationale_field]
                         break
 
         # Aggregate junction
-        junction_values = {
-            "present": [],
-            "type": [],
-            "roundabout_type": [],
-            "signalized": [],
-            "pedestrian_crossing": [],
-            "rail_crossing": [],
-        }
-        for r in results:
-            junction = r.get("junction", {})
-            for key in junction_values:
-                if key in junction and junction[key] is not None:
-                    junction_values[key].append(junction[key])
+        junction_text_fields = ["type", "roundabout_type"]
+        junction_bool_fields = ["present", "signalized", "pedestrian_crossing", "rail_crossing"]
+        junction_data = [r.get("junction", {}) for r in results if r.get("junction")]
 
-        if any(junction_values.values()):
+        if junction_data:
             aggregated["junction"] = {}
-            for key, values in junction_values.items():
+            for field in junction_text_fields:
+                values = [d.get(field) for d in junction_data if d.get(field) is not None]
                 if values:
-                    if key in ("present", "signalized", "pedestrian_crossing", "rail_crossing"):
-                        # Any True wins for presence detection
-                        aggregated["junction"][key] = any(values)
-                    else:
-                        aggregated["junction"][key] = max(set(values), key=values.count)
+                    aggregated["junction"][field] = max(set(values), key=values.count)
+                    aggregated["junction"][f"{field}_confidence"] = aggregate_confidence(field, junction_data)
+
+            # Boolean fields - any True wins
+            for field in junction_bool_fields:
+                values = [d.get(field) for d in junction_data if d.get(field) is not None]
+                if values:
+                    aggregated["junction"][field] = any(values)
+                    aggregated["junction"][f"{field}_confidence"] = aggregate_confidence(field, junction_data)
 
         # Aggregate structures
-        structures_values = {
-            "bridge": [],
-            "tunnel": [],
-            "toll_plaza": [],
-            "barriers_present": [],
-            "street_lighting": [],
-        }
-        for r in results:
-            structures = r.get("structures", {})
-            for key in structures_values:
-                if key in structures and structures[key] is not None:
-                    structures_values[key].append(structures[key])
+        structures_bool_fields = ["bridge", "tunnel", "toll_plaza", "barriers_present"]
+        structures_data = [r.get("structures", {}) for r in results if r.get("structures")]
 
-        if any(structures_values.values()):
+        if structures_data:
             aggregated["structures"] = {}
-            for key, values in structures_values.items():
-                if values:
-                    if key in ("bridge", "tunnel", "toll_plaza", "barriers_present"):
-                        # Any True wins for presence detection
-                        aggregated["structures"][key] = any(values)
-                    else:
-                        aggregated["structures"][key] = max(set(values), key=values.count)
+            # Street lighting is text
+            sl_values = [d.get("street_lighting") for d in structures_data if d.get("street_lighting") is not None]
+            if sl_values:
+                aggregated["structures"]["street_lighting"] = max(set(sl_values), key=sl_values.count)
+                aggregated["structures"]["street_lighting_confidence"] = aggregate_confidence("street_lighting", structures_data)
 
-        # Copy through confidence
+            # Boolean fields - any True wins
+            for field in structures_bool_fields:
+                values = [d.get(field) for d in structures_data if d.get(field) is not None]
+                if values:
+                    aggregated["structures"][field] = any(values)
+                    aggregated["structures"][f"{field}_confidence"] = aggregate_confidence(field, structures_data)
+
+        # Copy through overall confidence
         confidences = [r.get("confidence") for r in results if "confidence" in r]
         if confidences:
             aggregated["confidence"] = sum(confidences) / len(confidences)
