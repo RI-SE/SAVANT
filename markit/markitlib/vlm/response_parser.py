@@ -82,6 +82,10 @@ class VLMResponseParser:
 
         return data
 
+    # Minimum interval length in frames. Intervals shorter than this are considered
+    # potential VLM noise and will be merged with adjacent intervals.
+    MIN_CONTEXT_INTERVAL_FRAMES = 2
+
     @staticmethod
     def to_openlabel_contexts(
         analysis_results: List[Dict[str, Any]],
@@ -91,6 +95,10 @@ class VLMResponseParser:
 
         Creates contexts that track when conditions change over time. A new context
         is only created when a condition differs from the previous analyzed frame.
+
+        Note: Only dynamic context types (weather, traffic) are generated as contexts.
+        Static types (road, junction, structures) are only included in tags since
+        they don't change in a static aerial view.
 
         Args:
             analysis_results: List of parsed VLM analysis dicts (must have _frame_idx)
@@ -102,9 +110,6 @@ class VLMResponseParser:
         if not analysis_results:
             return {}
 
-        contexts = {}
-        context_id = 0
-
         # Sort results by frame index
         sorted_results = sorted(
             analysis_results, key=lambda x: x.get("_frame_idx", 0)
@@ -114,162 +119,155 @@ class VLMResponseParser:
         video_start = frame_intervals[0]["frame_start"] if frame_intervals else 0
         video_end = frame_intervals[0]["frame_end"] if frame_intervals else None
 
-        # Track segments for each condition type
-        # Each tracker: {"current": value, "start": frame, "data": full_data_dict}
-        weather_tracker = {"current": None, "start": None, "data": None}
-        road_tracker = {"current": None, "start": None, "data": None}
-        traffic_tracker = {"current": None, "start": None, "data": None}
-        junction_tracker = {"current": None, "start": None, "data": None}
-        structures_tracker = {"current": None, "start": None, "data": None}
+        # Build raw segments for dynamic context types only
+        # Static types (road, junction, structures) are only in tags
+        weather_segments = VLMResponseParser._build_segments(
+            sorted_results, "weather", "precipitation", video_start, video_end
+        )
+        traffic_segments = VLMResponseParser._build_segments(
+            sorted_results, "traffic", "density", video_start, video_end
+        )
 
-        prev_frame = video_start
+        # Merge single-frame intervals with adjacent segments
+        weather_segments = VLMResponseParser._merge_short_intervals(
+            weather_segments, sorted_results, "weather", "precipitation"
+        )
+        traffic_segments = VLMResponseParser._merge_short_intervals(
+            traffic_segments, sorted_results, "traffic", "density"
+        )
 
-        for result in sorted_results:
-            frame_idx = result.get("_frame_idx", 0)
+        # Build contexts dict
+        contexts = {}
+        context_id = 0
 
-            # Weather tracking - key on precipitation
-            weather = result.get("weather", {})
-            weather_key = weather.get("precipitation")
-            if weather_key != weather_tracker["current"]:
-                if weather_tracker["current"] is not None:
-                    # Close previous weather segment
-                    contexts[str(context_id)] = (
-                        VLMResponseParser._create_weather_context(
-                            weather_tracker["data"],
-                            weather_tracker["start"],
-                            prev_frame,
-                        )
-                    )
-                    context_id += 1
-                # Start new segment
-                weather_tracker = {
-                    "current": weather_key,
-                    "start": frame_idx,
-                    "data": weather,
-                }
-
-            # Road tracking - key on drivable_area_type + surface_condition
-            road = result.get("road", {})
-            road_key = (road.get("drivable_area_type"), road.get("surface_condition"))
-            if road_key != road_tracker["current"]:
-                if road_tracker["current"] is not None:
-                    contexts[str(context_id)] = (
-                        VLMResponseParser._create_road_context(
-                            road_tracker["data"],
-                            road_tracker["start"],
-                            prev_frame,
-                        )
-                    )
-                    context_id += 1
-                road_tracker = {"current": road_key, "start": frame_idx, "data": road}
-
-            # Traffic tracking - key on density
-            traffic = result.get("traffic", {})
-            traffic_key = traffic.get("density")
-            if traffic_key != traffic_tracker["current"]:
-                if traffic_tracker["current"] is not None:
-                    contexts[str(context_id)] = (
-                        VLMResponseParser._create_traffic_context(
-                            traffic_tracker["data"],
-                            traffic_tracker["start"],
-                            prev_frame,
-                        )
-                    )
-                    context_id += 1
-                traffic_tracker = {
-                    "current": traffic_key,
-                    "start": frame_idx,
-                    "data": traffic,
-                }
-
-            # Junction tracking - key on type
-            junction = result.get("junction", {})
-            junction_key = junction.get("type")
-            if junction_key != junction_tracker["current"]:
-                if junction_tracker["current"] is not None:
-                    contexts[str(context_id)] = (
-                        VLMResponseParser._create_junction_context(
-                            junction_tracker["data"],
-                            junction_tracker["start"],
-                            prev_frame,
-                        )
-                    )
-                    context_id += 1
-                junction_tracker = {
-                    "current": junction_key,
-                    "start": frame_idx,
-                    "data": junction,
-                }
-
-            # Structures tracking - key on tuple of boolean flags
-            structures = result.get("structures", {})
-            structures_key = (
-                structures.get("bridge"),
-                structures.get("tunnel"),
-                structures.get("toll_plaza"),
-            )
-            if structures_key != structures_tracker["current"]:
-                if structures_tracker["current"] is not None:
-                    contexts[str(context_id)] = (
-                        VLMResponseParser._create_structures_context(
-                            structures_tracker["data"],
-                            structures_tracker["start"],
-                            prev_frame,
-                        )
-                    )
-                    context_id += 1
-                structures_tracker = {
-                    "current": structures_key,
-                    "start": frame_idx,
-                    "data": structures,
-                }
-
-            prev_frame = frame_idx
-
-        # Close final segments (extend to video end if available)
-        final_frame = video_end if video_end is not None else prev_frame
-
-        if weather_tracker["current"] is not None:
+        for segment in weather_segments:
             contexts[str(context_id)] = VLMResponseParser._create_weather_context(
-                weather_tracker["data"],
-                weather_tracker["start"],
-                final_frame,
+                segment["data"], segment["start"], segment["end"]
             )
             context_id += 1
 
-        if road_tracker["current"] is not None:
-            contexts[str(context_id)] = VLMResponseParser._create_road_context(
-                road_tracker["data"],
-                road_tracker["start"],
-                final_frame,
-            )
-            context_id += 1
-
-        if traffic_tracker["current"] is not None:
+        for segment in traffic_segments:
             contexts[str(context_id)] = VLMResponseParser._create_traffic_context(
-                traffic_tracker["data"],
-                traffic_tracker["start"],
-                final_frame,
-            )
-            context_id += 1
-
-        if junction_tracker["current"] is not None:
-            contexts[str(context_id)] = VLMResponseParser._create_junction_context(
-                junction_tracker["data"],
-                junction_tracker["start"],
-                final_frame,
-            )
-            context_id += 1
-
-        if structures_tracker["current"] is not None:
-            contexts[str(context_id)] = VLMResponseParser._create_structures_context(
-                structures_tracker["data"],
-                structures_tracker["start"],
-                final_frame,
+                segment["data"], segment["start"], segment["end"]
             )
             context_id += 1
 
         return contexts
+
+    @staticmethod
+    def _build_segments(
+        sorted_results: List[Dict[str, Any]],
+        category: str,
+        key_field: str,
+        video_start: int,
+        video_end: Optional[int],
+    ) -> List[Dict[str, Any]]:
+        """Build raw segments for a context category by tracking key field changes.
+
+        Args:
+            sorted_results: Frame analysis results sorted by frame index
+            category: Category name (e.g., "weather", "traffic")
+            key_field: Field to track for changes (e.g., "precipitation", "density")
+            video_start: First frame of video
+            video_end: Last frame of video (for extending final segment)
+
+        Returns:
+            List of segment dicts with keys: start, end, key, data
+        """
+        segments = []
+        current_segment = None
+        prev_frame = video_start
+
+        for result in sorted_results:
+            frame_idx = result.get("_frame_idx", 0)
+            data = result.get(category, {})
+            key_value = data.get(key_field)
+
+            if current_segment is None or key_value != current_segment["key"]:
+                # Close previous segment
+                if current_segment is not None:
+                    current_segment["end"] = prev_frame
+                    segments.append(current_segment)
+                # Start new segment
+                current_segment = {
+                    "key": key_value,
+                    "start": frame_idx,
+                    "end": None,
+                    "data": data,
+                }
+
+            prev_frame = frame_idx
+
+        # Close final segment
+        if current_segment is not None:
+            current_segment["end"] = video_end if video_end is not None else prev_frame
+            segments.append(current_segment)
+
+        return segments
+
+    @staticmethod
+    def _merge_short_intervals(
+        segments: List[Dict[str, Any]],
+        sorted_results: List[Dict[str, Any]],
+        category: str,
+        key_field: str,
+    ) -> List[Dict[str, Any]]:
+        """Merge single-frame intervals with adjacent segments using most common value.
+
+        Single-frame intervals are likely VLM noise. They should be merged into the
+        adjacent interval that has the most common value for the key field.
+
+        Args:
+            segments: List of segments from _build_segments
+            sorted_results: Original analysis results for computing most common value
+            category: Category name for extracting values
+            key_field: Field to use for most common value computation
+
+        Returns:
+            List of merged segments
+        """
+        if len(segments) <= 1:
+            return segments
+
+        # Compute most common value across all results
+        values = [
+            r.get(category, {}).get(key_field)
+            for r in sorted_results
+            if r.get(category, {}).get(key_field) is not None
+        ]
+        if not values:
+            return segments
+
+        most_common = max(set(values), key=values.count)
+
+        # Find short intervals and merge them
+        merged = []
+        i = 0
+        while i < len(segments):
+            segment = segments[i]
+            interval_length = segment["end"] - segment["start"]
+
+            if interval_length < VLMResponseParser.MIN_CONTEXT_INTERVAL_FRAMES:
+                # Short interval - merge with adjacent using most common value
+                if i > 0 and merged[-1]["key"] == most_common:
+                    # Extend previous segment to cover this one
+                    merged[-1]["end"] = segment["end"]
+                elif i < len(segments) - 1 and segments[i + 1]["key"] == most_common:
+                    # Will be absorbed by next segment - skip this one
+                    # Extend next segment's start backwards
+                    segments[i + 1]["start"] = segment["start"]
+                elif i > 0:
+                    # No ideal match - just extend previous segment
+                    merged[-1]["end"] = segment["end"]
+                else:
+                    # First segment and short - keep it but it will be merged next iteration
+                    merged.append(segment)
+            else:
+                merged.append(segment)
+
+            i += 1
+
+        return merged
 
     @staticmethod
     def _create_weather_context(
@@ -318,60 +316,6 @@ class VLMResponseParser:
         }
 
     @staticmethod
-    def _create_road_context(
-        road: Dict[str, Any], frame_start: int, frame_end: int
-    ) -> Dict[str, Any]:
-        """Create a road context for a frame interval."""
-        context_data = {"text": [], "num": [], "boolean": []}
-
-        if road.get("drivable_area_type"):
-            context_data["text"].append(
-                {"name": "drivable_area_type", "val": road["drivable_area_type"]}
-            )
-        if road.get("geometry_horizontal"):
-            context_data["text"].append(
-                {"name": "geometry_horizontal", "val": road["geometry_horizontal"]}
-            )
-        if road.get("geometry_longitudinal"):
-            context_data["text"].append(
-                {"name": "geometry_longitudinal", "val": road["geometry_longitudinal"]}
-            )
-        if road.get("surface_type"):
-            context_data["text"].append(
-                {"name": "surface_type", "val": road["surface_type"]}
-            )
-        if road.get("surface_condition"):
-            context_data["text"].append(
-                {"name": "surface_condition", "val": road["surface_condition"]}
-            )
-        if road.get("surface_quality"):
-            context_data["text"].append(
-                {"name": "surface_quality", "val": road["surface_quality"]}
-            )
-        if road.get("lane_count") is not None:
-            context_data["num"].append(
-                {"name": "lane_count", "val": int(road["lane_count"])}
-            )
-        if "divided" in road:
-            context_data["boolean"].append(
-                {"name": "divided", "val": road["divided"]}
-            )
-        if "lane_markings_visible" in road:
-            context_data["boolean"].append(
-                {"name": "lane_markings_visible", "val": road["lane_markings_visible"]}
-            )
-
-        context_data = {k: v for k, v in context_data.items() if v}
-
-        return {
-            "name": "road_infrastructure",
-            "type": "RoadContext",
-            "ontology_uid": SCENARIO_ONTOLOGY_UID,
-            "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
-            "context_data": context_data,
-        }
-
-    @staticmethod
     def _create_traffic_context(
         traffic: Dict[str, Any], frame_start: int, frame_end: int
     ) -> Dict[str, Any]:
@@ -404,84 +348,6 @@ class VLMResponseParser:
         return {
             "name": "traffic_conditions",
             "type": "TrafficContext",
-            "ontology_uid": SCENARIO_ONTOLOGY_UID,
-            "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
-            "context_data": context_data,
-        }
-
-    @staticmethod
-    def _create_junction_context(
-        junction: Dict[str, Any], frame_start: int, frame_end: int
-    ) -> Dict[str, Any]:
-        """Create a junction context for a frame interval."""
-        context_data = {"text": [], "boolean": []}
-
-        if junction.get("type"):
-            context_data["text"].append({"name": "junction_type", "val": junction["type"]})
-        if junction.get("roundabout_type"):
-            context_data["text"].append(
-                {"name": "roundabout_type", "val": junction["roundabout_type"]}
-            )
-        if "present" in junction:
-            context_data["boolean"].append(
-                {"name": "junction_present", "val": junction["present"]}
-            )
-        if "signalized" in junction:
-            context_data["boolean"].append(
-                {"name": "signalized", "val": junction["signalized"]}
-            )
-        if "pedestrian_crossing" in junction:
-            context_data["boolean"].append(
-                {"name": "pedestrian_crossing", "val": junction["pedestrian_crossing"]}
-            )
-        if "rail_crossing" in junction:
-            context_data["boolean"].append(
-                {"name": "rail_crossing", "val": junction["rail_crossing"]}
-            )
-
-        context_data = {k: v for k, v in context_data.items() if v}
-
-        return {
-            "name": "junction_info",
-            "type": "JunctionContext",
-            "ontology_uid": SCENARIO_ONTOLOGY_UID,
-            "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
-            "context_data": context_data,
-        }
-
-    @staticmethod
-    def _create_structures_context(
-        structures: Dict[str, Any], frame_start: int, frame_end: int
-    ) -> Dict[str, Any]:
-        """Create a structures context for a frame interval."""
-        context_data = {"text": [], "boolean": []}
-
-        if structures.get("street_lighting"):
-            context_data["text"].append(
-                {"name": "street_lighting", "val": structures["street_lighting"]}
-            )
-        if "bridge" in structures:
-            context_data["boolean"].append(
-                {"name": "bridge", "val": structures["bridge"]}
-            )
-        if "tunnel" in structures:
-            context_data["boolean"].append(
-                {"name": "tunnel", "val": structures["tunnel"]}
-            )
-        if "toll_plaza" in structures:
-            context_data["boolean"].append(
-                {"name": "toll_plaza", "val": structures["toll_plaza"]}
-            )
-        if "barriers_present" in structures:
-            context_data["boolean"].append(
-                {"name": "barriers_present", "val": structures["barriers_present"]}
-            )
-
-        context_data = {k: v for k, v in context_data.items() if v}
-
-        return {
-            "name": "structures_info",
-            "type": "StructuresContext",
             "ontology_uid": SCENARIO_ONTOLOGY_UID,
             "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
             "context_data": context_data,
@@ -727,15 +593,18 @@ class VLMResponseParser:
                 }
                 tag_id += 1
 
-        # Notes tag (if any frames had unusual observations)
-        notes = [r.get("notes") for r in analysis_results if r.get("notes")]
-        if notes:
+        # Notes tag - use only the first frame's notes since static scenes
+        # produce similar (but differently phrased) observations
+        first_note = next(
+            (r.get("notes") for r in analysis_results if r.get("notes")), None
+        )
+        if first_note:
             tags[str(tag_id)] = {
                 "name": "scene_notes",
                 "type": "NotesTag",
                 "ontology_uid": SCENARIO_ONTOLOGY_UID,
                 "tag_data": {
-                    "vec": [{"name": "notes", "val": notes}],
+                    "text": [{"name": "notes", "val": first_note}],
                 },
             }
             tag_id += 1

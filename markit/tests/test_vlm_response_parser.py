@@ -251,85 +251,6 @@ class TestCreateWeatherContext:
         assert text_items["time_of_day"] == "night"
 
 
-class TestCreateRoadContext:
-    """Tests for road context creation."""
-
-    def test_create_road_context_full(self):
-        """Create road context with all fields."""
-        road = {
-            "drivable_area_type": "motorway",
-            "geometry_horizontal": "curved",
-            "geometry_longitudinal": "upslope",
-            "divided": True,
-            "surface_type": "asphalt",
-            "surface_condition": "wet",
-            "surface_quality": "good",
-            "lane_count": 3,
-            "lane_markings_visible": True
-        }
-        result = VLMResponseParser._create_road_context(road, 0, 200)
-
-        assert result["name"] == "road_infrastructure"
-        assert result["type"] == "RoadContext"
-
-        text_items = {item["name"]: item["val"] for item in result["context_data"]["text"]}
-        assert text_items["drivable_area_type"] == "motorway"
-        assert text_items["geometry_horizontal"] == "curved"
-        assert text_items["geometry_longitudinal"] == "upslope"
-        assert text_items["surface_type"] == "asphalt"
-        assert text_items["surface_condition"] == "wet"
-        assert text_items["surface_quality"] == "good"
-
-        num_items = {item["name"]: item["val"] for item in result["context_data"]["num"]}
-        assert num_items["lane_count"] == 3
-
-        bool_items = {item["name"]: item["val"] for item in result["context_data"]["boolean"]}
-        assert bool_items["divided"] is True
-        assert bool_items["lane_markings_visible"] is True
-
-
-class TestCreateJunctionContext:
-    """Tests for junction context creation."""
-
-    def test_create_junction_context_roundabout(self):
-        """Create junction context for roundabout."""
-        junction = {
-            "present": True,
-            "type": "roundabout",
-            "roundabout_type": "normal",
-            "signalized": False,
-            "pedestrian_crossing": False,
-            "rail_crossing": False
-        }
-        result = VLMResponseParser._create_junction_context(junction, 0, 100)
-
-        assert result["name"] == "junction_info"
-        assert result["type"] == "JunctionContext"
-
-        text_items = {item["name"]: item["val"] for item in result["context_data"]["text"]}
-        assert text_items["junction_type"] == "roundabout"
-        assert text_items["roundabout_type"] == "normal"
-
-        bool_items = {item["name"]: item["val"] for item in result["context_data"]["boolean"]}
-        assert bool_items["junction_present"] is True
-        assert bool_items["signalized"] is False
-
-    def test_create_junction_context_no_junction(self):
-        """Create junction context when no junction present."""
-        junction = {
-            "present": False,
-            "type": "none",
-            "roundabout_type": "not_applicable",
-            "signalized": False,
-            "pedestrian_crossing": False,
-            "rail_crossing": False
-        }
-        result = VLMResponseParser._create_junction_context(junction, 0, 100)
-
-        bool_items = {item["name"]: item["val"] for item in result["context_data"]["boolean"]}
-        assert bool_items["junction_present"] is False
-
-
 class TestCreateTrafficContext:
     """Tests for traffic context creation."""
 
@@ -359,71 +280,60 @@ class TestCreateTrafficContext:
         assert bool_items["special_vehicles_present"] is True
 
 
-class TestCreateStructuresContext:
-    """Tests for structures context creation."""
-
-    def test_create_structures_context_bridge(self):
-        """Create structures context for bridge."""
-        structures = {
-            "bridge": True,
-            "tunnel": False,
-            "toll_plaza": False,
-            "barriers_present": True,
-            "street_lighting": "present"
-        }
-        result = VLMResponseParser._create_structures_context(structures, 0, 100)
-
-        assert result["name"] == "structures_info"
-        assert result["type"] == "StructuresContext"
-
-        text_items = {item["name"]: item["val"] for item in result["context_data"]["text"]}
-        assert text_items["street_lighting"] == "present"
-
-        bool_items = {item["name"]: item["val"] for item in result["context_data"]["boolean"]}
-        assert bool_items["bridge"] is True
-        assert bool_items["tunnel"] is False
-        assert bool_items["barriers_present"] is True
-
-
 # --- OpenLABEL Contexts Tests ---
 
 class TestToOpenlabelContexts:
     """Tests for converting analysis results to OpenLABEL contexts."""
 
     def test_single_frame_creates_contexts(self, sample_comprehensive_response):
-        """Single frame analysis creates all context types."""
+        """Single frame analysis creates dynamic context types only.
+
+        Note: Road, junction, and structures are static in aerial views and only
+        appear in tags, not in frame-bound contexts.
+        """
         results = [{**sample_comprehensive_response, "_frame_idx": 0}]
         frame_intervals = [{"frame_start": 0, "frame_end": 100}]
 
         contexts = VLMResponseParser.to_openlabel_contexts(results, frame_intervals)
 
-        # Should have weather, road, traffic, junction, structures contexts
-        assert len(contexts) == 5
+        # Should have only weather and traffic contexts (dynamic types)
+        # Road, junction, structures are static and only appear in tags
+        assert len(contexts) == 2
         context_types = {c["type"] for c in contexts.values()}
         assert "WeatherContext" in context_types
-        assert "RoadContext" in context_types
         assert "TrafficContext" in context_types
-        assert "JunctionContext" in context_types
-        assert "StructuresContext" in context_types
+        # Static types should NOT be in contexts
+        assert "RoadContext" not in context_types
+        assert "JunctionContext" not in context_types
+        assert "StructuresContext" not in context_types
 
     def test_condition_change_creates_new_context(self):
-        """Changing conditions create new context segments."""
+        """Changing conditions create new context segments.
+
+        Note: Intervals must be long enough (>= MIN_CONTEXT_INTERVAL_FRAMES)
+        to avoid being merged as noise.
+        """
+        # Use multiple samples per condition to create intervals longer than 1 frame
         results = [
             {
                 "_frame_idx": 0,
                 "weather": {"precipitation": "none"},
-                "road": {"drivable_area_type": "motorway", "surface_condition": "dry"},
                 "traffic": {"density": "sparse"},
-                "junction": {"type": "none"},
-                "structures": {"bridge": False, "tunnel": False, "toll_plaza": False},
+            },
+            {
+                "_frame_idx": 10,
+                "weather": {"precipitation": "none"},  # Same as frame 0
+                "traffic": {"density": "sparse"},
             },
             {
                 "_frame_idx": 50,
                 "weather": {"precipitation": "rain"},  # Changed!
-                "road": {"drivable_area_type": "motorway", "surface_condition": "dry"},
                 "traffic": {"density": "sparse"},
-                "junction": {"type": "none"},
-                "structures": {"bridge": False, "tunnel": False, "toll_plaza": False},
+            },
+            {
+                "_frame_idx": 60,
+                "weather": {"precipitation": "rain"},  # Same as frame 50
+                "traffic": {"density": "sparse"},
             },
         ]
         frame_intervals = [{"frame_start": 0, "frame_end": 100}]
@@ -434,15 +344,52 @@ class TestToOpenlabelContexts:
         weather_contexts = [c for c in contexts.values() if c["type"] == "WeatherContext"]
         assert len(weather_contexts) == 2
 
-        # First should end at frame 0, second should extend to video end
+        # First should end at frame 10, second should extend to video end
         weather_by_start = sorted(weather_contexts, key=lambda c: c["frame_intervals"][0]["frame_start"])
-        assert weather_by_start[0]["frame_intervals"][0]["frame_end"] == 0
+        assert weather_by_start[0]["frame_intervals"][0]["frame_end"] == 10
         assert weather_by_start[1]["frame_intervals"][0]["frame_end"] == 100
 
     def test_empty_results_returns_empty(self):
         """Empty results return empty contexts dict."""
         contexts = VLMResponseParser.to_openlabel_contexts([], [])
         assert contexts == {}
+
+    def test_single_frame_intervals_merged(self):
+        """Single-frame intervals are merged with adjacent segments.
+
+        Single-frame intervals are likely VLM noise and should be merged
+        with adjacent intervals using the most common value.
+        """
+        # Most common precipitation is "none" (frames 0 and 100)
+        # Frame 50 has "rain" which is a single-frame interval
+        results = [
+            {
+                "_frame_idx": 0,
+                "weather": {"precipitation": "none"},
+                "traffic": {"density": "sparse"},
+            },
+            {
+                "_frame_idx": 50,
+                "weather": {"precipitation": "rain"},  # Single frame - should be merged
+                "traffic": {"density": "sparse"},
+            },
+            {
+                "_frame_idx": 100,
+                "weather": {"precipitation": "none"},
+                "traffic": {"density": "sparse"},
+            },
+        ]
+        frame_intervals = [{"frame_start": 0, "frame_end": 200}]
+
+        contexts = VLMResponseParser.to_openlabel_contexts(results, frame_intervals)
+
+        # The single-frame "rain" interval should be merged, resulting in
+        # fewer weather contexts than without merging
+        weather_contexts = [c for c in contexts.values() if c["type"] == "WeatherContext"]
+
+        # With merging, we should have fewer contexts
+        # The exact number depends on merging behavior, but it should be less than 3
+        assert len(weather_contexts) <= 2
 
 
 # --- OpenLABEL Tags Tests ---
@@ -484,7 +431,8 @@ class TestToOpenlabelTags:
 
         notes_tags = [t for t in tags.values() if t["type"] == "NotesTag"]
         assert len(notes_tags) == 1
-        assert "Traffic flowing smoothly" in notes_tags[0]["tag_data"]["vec"][0]["val"][0]
+        note_value = notes_tags[0]["tag_data"]["text"][0]["val"]
+        assert "Traffic flowing smoothly" in note_value
 
     def test_junction_tag_captures_roundabout(self, sample_roundabout_response):
         """Junction tag correctly captures roundabout type."""
@@ -495,6 +443,22 @@ class TestToOpenlabelTags:
         text_items = {item["name"]: item["val"] for item in junction_tag["tag_data"]["text"]}
         assert text_items["junction_type"] == "roundabout"
         assert text_items["roundabout_type"] == "normal"
+
+    def test_only_first_frame_notes_used(self):
+        """Only the first frame's notes are used for static scenes."""
+        results = [
+            {"weather": {"precipitation": "none"}, "notes": "Clear day with good visibility"},
+            {"weather": {"precipitation": "none"}, "notes": "Sunny conditions observed"},
+            {"weather": {"precipitation": "none"}, "notes": "Traffic flowing smoothly"},
+        ]
+        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 3)
+
+        notes_tags = [t for t in tags.values() if t["type"] == "NotesTag"]
+        assert len(notes_tags) == 1
+
+        # Should only have the first frame's note
+        note_value = notes_tags[0]["tag_data"]["text"][0]["val"]
+        assert note_value == "Clear day with good visibility"
 
 
 # --- Aggregation Tests ---

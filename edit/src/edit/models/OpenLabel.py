@@ -1,6 +1,6 @@
 from collections import deque
 from math import isfinite
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import (
     BaseModel,
