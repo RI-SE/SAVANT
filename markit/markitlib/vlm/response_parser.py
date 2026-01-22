@@ -322,6 +322,10 @@ class VLMResponseParser:
             context_data["text"].append(
                 {"name": "time_of_day_rationale", "val": weather["time_of_day_rationale"]}
             )
+        if weather.get("sun_position_rationale"):
+            context_data["text"].append(
+                {"name": "sun_position_rationale", "val": weather["sun_position_rationale"]}
+            )
         if weather.get("cloud_cover_rationale"):
             context_data["text"].append(
                 {"name": "cloud_cover_rationale", "val": weather["cloud_cover_rationale"]}
@@ -363,6 +367,20 @@ class VLMResponseParser:
         if "special_vehicles_present" in traffic:
             context_data["boolean"].append(
                 {"name": "special_vehicles_present", "val": traffic["special_vehicles_present"]}
+            )
+
+        # Rationale fields (if present)
+        if traffic.get("density_rationale"):
+            context_data["text"].append(
+                {"name": "density_rationale", "val": traffic["density_rationale"]}
+            )
+        if traffic.get("flow_rationale"):
+            context_data["text"].append(
+                {"name": "flow_rationale", "val": traffic["flow_rationale"]}
+            )
+        if traffic.get("temporary_structures_rationale"):
+            context_data["text"].append(
+                {"name": "temporary_structures_rationale", "val": traffic["temporary_structures_rationale"]}
             )
 
         context_data = {k: v for k, v in context_data.items() if v}
@@ -472,6 +490,10 @@ class VLMResponseParser:
                 tag_data["text"].append(
                     {"name": "time_of_day_rationale", "val": weather["time_of_day_rationale"]}
                 )
+            if weather.get("sun_position_rationale"):
+                tag_data["text"].append(
+                    {"name": "sun_position_rationale", "val": weather["sun_position_rationale"]}
+                )
             if weather.get("cloud_cover_rationale"):
                 tag_data["text"].append(
                     {"name": "cloud_cover_rationale", "val": weather["cloud_cover_rationale"]}
@@ -531,6 +553,24 @@ class VLMResponseParser:
                     {"name": "lane_markings_visible", "val": road["lane_markings_visible"]}
                 )
 
+            # Rationale fields (if present)
+            if road.get("drivable_area_type_rationale"):
+                tag_data["text"].append(
+                    {"name": "drivable_area_type_rationale", "val": road["drivable_area_type_rationale"]}
+                )
+            if road.get("surface_type_rationale"):
+                tag_data["text"].append(
+                    {"name": "surface_type_rationale", "val": road["surface_type_rationale"]}
+                )
+            if road.get("surface_condition_rationale"):
+                tag_data["text"].append(
+                    {"name": "surface_condition_rationale", "val": road["surface_condition_rationale"]}
+                )
+            if road.get("surface_quality_rationale"):
+                tag_data["text"].append(
+                    {"name": "surface_quality_rationale", "val": road["surface_quality_rationale"]}
+                )
+
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
@@ -571,6 +611,20 @@ class VLMResponseParser:
             if "special_vehicles_present" in traffic:
                 tag_data["boolean"].append(
                     {"name": "special_vehicles_present", "val": traffic["special_vehicles_present"]}
+                )
+
+            # Rationale fields (if present)
+            if traffic.get("density_rationale"):
+                tag_data["text"].append(
+                    {"name": "density_rationale", "val": traffic["density_rationale"]}
+                )
+            if traffic.get("flow_rationale"):
+                tag_data["text"].append(
+                    {"name": "flow_rationale", "val": traffic["flow_rationale"]}
+                )
+            if traffic.get("temporary_structures_rationale"):
+                tag_data["text"].append(
+                    {"name": "temporary_structures_rationale", "val": traffic["temporary_structures_rationale"]}
                 )
 
             tag_data = {k: v for k, v in tag_data.items() if v}
@@ -734,6 +788,7 @@ class VLMResponseParser:
             "precipitation_intensity_rationale",
             "particulates_rationale",
             "time_of_day_rationale",
+            "sun_position_rationale",
             "cloud_cover_rationale",
         ]
         for r in results:
@@ -773,6 +828,13 @@ class VLMResponseParser:
             "lane_count": [],
             "lane_markings_visible": [],
         }
+        # Rationale fields - use first non-empty value (not majority voting)
+        road_rationale_fields = [
+            "drivable_area_type_rationale",
+            "surface_type_rationale",
+            "surface_condition_rationale",
+            "surface_quality_rationale",
+        ]
         for r in results:
             road = r.get("road", {})
             for key in road_values:
@@ -792,6 +854,14 @@ class VLMResponseParser:
                     else:
                         aggregated["road"][key] = max(set(values), key=values.count)
 
+            # Rationale fields: use first non-empty value
+            for rationale_field in road_rationale_fields:
+                for r in results:
+                    rationale = r.get("road", {}).get(rationale_field)
+                    if rationale:
+                        aggregated["road"][rationale_field] = rationale
+                        break
+
         # Aggregate traffic
         traffic_values = {
             "density": [],
@@ -801,6 +871,12 @@ class VLMResponseParser:
             "special_vehicles_present": [],
             "temporary_structures": [],
         }
+        # Rationale fields - use first non-empty value (not majority voting)
+        traffic_rationale_fields = [
+            "density_rationale",
+            "flow_rationale",
+            "temporary_structures_rationale",
+        ]
         for r in results:
             traffic = r.get("traffic", {})
             for key in traffic_values:
@@ -816,6 +892,14 @@ class VLMResponseParser:
                         aggregated["traffic"][key] = any(values)
                     else:
                         aggregated["traffic"][key] = max(set(values), key=values.count)
+
+            # Rationale fields: use first non-empty value
+            for rationale_field in traffic_rationale_fields:
+                for r in results:
+                    rationale = r.get("traffic", {}).get(rationale_field)
+                    if rationale:
+                        aggregated["traffic"][rationale_field] = rationale
+                        break
 
         # Aggregate junction
         junction_values = {
