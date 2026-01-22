@@ -47,6 +47,7 @@ from edit.frontend.utils.project_config import record_annotator_login
 from edit.frontend.utils.undo import (
     ControllerAnnotationGateway,
     ControllerFrameTagGateway,
+    ControllerVLMGateway,
     GatewayHolder,
     UndoRedoManager,
 )
@@ -88,6 +89,7 @@ class MainWindow(QMainWindow):
                 project_state_controller=self.project_state_controller,
             ),
             frame_tag_gateway=ControllerFrameTagGateway(self.annotation_controller),
+            vlm_gateway=ControllerVLMGateway(self.project_state_controller),
         )
 
         # state
@@ -251,10 +253,17 @@ class MainWindow(QMainWindow):
         about_dialog.exec()
 
     def open_vlm_analysis(self):
-        """Open dialog showing VLM analysis data."""
+        """Open dialog showing VLM analysis data with editing support."""
         contexts = self.project_state_controller.get_vlm_contexts()
         tags = self.project_state_controller.get_vlm_tags()
-        dialog = VLMAnalysisDialog(contexts, tags, parent=self)
+        dialog = VLMAnalysisDialog(
+            contexts,
+            tags,
+            parent=self,
+            frontend_state=self.state,
+            undo_manager=self.undo_manager,
+            undo_context=self.undo_context,
+        )
         dialog.exec()
 
     def update_vlm_menu_state(self):

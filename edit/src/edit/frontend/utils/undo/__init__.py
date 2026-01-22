@@ -15,14 +15,17 @@ from .commands import (
     ResolveConfidenceCommand,
     UndoableCommand,
     UpdateBBoxGeometryCommand,
+    UpdateVLMTagCommand,
 )
 from .gateways import (
     AnnotationGateway,
     ControllerAnnotationGateway,
     ControllerFrameTagGateway,
+    ControllerVLMGateway,
     FrameTagGateway,
     GatewayHolder,
     UndoGatewayError,
+    VLMGateway,
 )
 from .manager import UndoRedoManager
 from .snapshots import (
@@ -31,6 +34,7 @@ from .snapshots import (
     FrameObjectSnapshot,
     FrameTagSnapshot,
     ObjectMetadataSnapshot,
+    VLMTagSnapshot,
 )
 
 __all__ = [
@@ -40,13 +44,16 @@ __all__ = [
     "UndoGatewayError",
     "ControllerAnnotationGateway",
     "ControllerFrameTagGateway",
+    "ControllerVLMGateway",
     "AnnotationGateway",
     "FrameTagGateway",
+    "VLMGateway",
     "BBoxGeometrySnapshot",
     "FrameObjectSnapshot",
     "ObjectMetadataSnapshot",
     "CreatedObjectSnapshot",
     "FrameTagSnapshot",
+    "VLMTagSnapshot",
     "AddFrameTagCommand",
     "CascadeBBoxCommand",
     "CompositeCommand",
@@ -59,5 +66,6 @@ __all__ = [
     "RemoveFrameTagCommand",
     "ResolveConfidenceCommand",
     "UpdateBBoxGeometryCommand",
+    "UpdateVLMTagCommand",
     "DeleteRelationshipCommand",
 ]

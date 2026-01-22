@@ -354,6 +354,28 @@ class VLMResponseParser:
         }
 
     @staticmethod
+    def _add_provenance_fields(tag_data: Dict[str, Any], confidence: float) -> Dict[str, Any]:
+        """Add annotator and confidence provenance fields to tag_data using vec format.
+
+        Uses vec format (list-based) to support multi-annotator tracking. When a human
+        edits a VLM tag, their annotator ID and confidence (1.0) are prepended to the
+        lists, preserving the original VLM values.
+
+        Args:
+            tag_data: The tag_data dict to augment
+            confidence: The aggregated confidence value from VLM analysis
+
+        Returns:
+            The tag_data dict with provenance fields added
+        """
+        if "vec" not in tag_data:
+            tag_data["vec"] = []
+        tag_data["vec"].append({"name": "annotator", "val": ["markit_vlm"]})
+        tag_data["vec"].append({"name": "confidence", "val": [round(confidence, 4)]})
+
+        return tag_data
+
+    @staticmethod
     def to_openlabel_tags(
         analysis_results: List[Dict[str, Any]],
         model_name: str,
@@ -375,6 +397,7 @@ class VLMResponseParser:
         tag_id = 0
 
         aggregated = VLMResponseParser._aggregate_results(analysis_results)
+        avg_confidence = VLMResponseParser._average_confidence(analysis_results)
 
         # Weather tag
         if "weather" in aggregated:
@@ -413,6 +436,7 @@ class VLMResponseParser:
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
+                VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
                 tags[str(tag_id)] = {
                     "name": "weather_conditions",
                     "type": "WeatherTag",
@@ -466,6 +490,7 @@ class VLMResponseParser:
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
+                VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
                 tags[str(tag_id)] = {
                     "name": "road_infrastructure",
                     "type": "RoadTag",
@@ -507,6 +532,7 @@ class VLMResponseParser:
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
+                VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
                 tags[str(tag_id)] = {
                     "name": "traffic_conditions",
                     "type": "TrafficTag",
@@ -548,6 +574,7 @@ class VLMResponseParser:
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
+                VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
                 tags[str(tag_id)] = {
                     "name": "junction_info",
                     "type": "JunctionTag",
@@ -585,6 +612,7 @@ class VLMResponseParser:
             tag_data = {k: v for k, v in tag_data.items() if v}
 
             if tag_data:
+                VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
                 tags[str(tag_id)] = {
                     "name": "structures_info",
                     "type": "StructuresTag",
@@ -599,18 +627,17 @@ class VLMResponseParser:
             (r.get("notes") for r in analysis_results if r.get("notes")), None
         )
         if first_note:
+            tag_data = {"text": [{"name": "notes", "val": first_note}]}
+            VLMResponseParser._add_provenance_fields(tag_data, avg_confidence)
             tags[str(tag_id)] = {
                 "name": "scene_notes",
                 "type": "NotesTag",
                 "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                "tag_data": {
-                    "text": [{"name": "notes", "val": first_note}],
-                },
+                "tag_data": tag_data,
             }
             tag_id += 1
 
-        # VLM analysis metadata tag
-        avg_confidence = VLMResponseParser._average_confidence(analysis_results)
+        # VLM analysis metadata tag (already has analyzer and average_confidence)
         tags[str(tag_id)] = {
             "name": "vlm_analysis_metadata",
             "type": "VLMAnalysisTag",

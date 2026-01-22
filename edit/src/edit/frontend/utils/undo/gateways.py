@@ -12,6 +12,7 @@ from .snapshots import (
     FrameObjectSnapshot,
     FrameTagSnapshot,
     ObjectMetadataSnapshot,
+    VLMTagSnapshot,
 )
 
 
@@ -127,12 +128,22 @@ class FrameTagGateway(Protocol):
     def remove_frame_tag(self, snapshot: FrameTagSnapshot) -> None: ...
 
 
+@runtime_checkable
+class VLMGateway(Protocol):
+    """API for updating VLM tags."""
+
+    def capture_tag(self, tag_id: str) -> Optional[VLMTagSnapshot]: ...
+
+    def update_tag(self, tag_id: str, tag_data: dict) -> None: ...
+
+
 @dataclass
 class GatewayHolder:
     """Gateway bundle exposed to undo/redo commands."""
 
     annotation_gateway: AnnotationGateway
     frame_tag_gateway: Optional[FrameTagGateway] = None
+    vlm_gateway: Optional[VLMGateway] = None
 
 
 class UndoGatewayError(RuntimeError):
@@ -456,3 +467,23 @@ class ControllerFrameTagGateway:
         )
         if removed is False:
             raise UndoGatewayError("Frame tag removal failed; snapshot not present.")
+
+
+@dataclass
+class ControllerVLMGateway:
+    """Adapter that exposes VLM tag operations to undo/redo commands."""
+
+    project_state_controller: object
+
+    def capture_tag(self, tag_id: str) -> Optional[VLMTagSnapshot]:
+        """Capture a snapshot of a VLM tag's current state."""
+        tags = self.project_state_controller.get_vlm_tags()
+        if tags is None or tag_id not in tags:
+            return None
+        tag = tags[tag_id]
+        tag_data = tag.get("tag_data", {})
+        return VLMTagSnapshot(tag_id=tag_id, tag_data=deepcopy(tag_data))
+
+    def update_tag(self, tag_id: str, tag_data: dict) -> None:
+        """Update a VLM tag's data."""
+        self.project_state_controller.update_vlm_tag(tag_id, deepcopy(tag_data))
