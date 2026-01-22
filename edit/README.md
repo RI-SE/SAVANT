@@ -102,6 +102,8 @@ The release binaries ship with the bundled assets used by the UI. When a new tag
 - The **Confidence Issues** list in the sidebar shows every active warning/error near the current frame. Sort by frame or ID, multi-select rows, and right-click → *Mark as resolved* to confirm you have reviewed the issue.
 - The issue panel in the playback controls mirrors the same data and adds any enabled tag notes. Use the `Next/Previous issue` buttons to jump along the timeline.
 
+For details on how confidence values are generated and what they mean for different annotator types (YOLO, VLM, human), see the [Schema documentation](../schema/README.md#annotator-and-confidence-fields).
+
 ### 4.6 Saving Projects
 - `Ctrl+S`, `File → Save project`, or the Save toolbar icon writes the OpenLabel JSON back to disk. Before saving, the app validates action tags to ensure each interval has a valid start/end.
 - After saving annotations you are asked whether to store the current settings (zoom, warning ranges, tag toggles, namespace, etc.) inside `savant_project_config.json`. Choosing “Yes” means next time the project opens it will look exactly the same without further tweaks.

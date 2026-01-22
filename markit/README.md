@@ -377,6 +377,18 @@ Markit exports detections in OpenLabel (subset) JSON format, including informati
 }
 ```
 
+### Annotator and Confidence
+
+Each detection includes annotator identification and a confidence score in the vec format. This supports multi-annotator tracking where human edits preserve the original detection history.
+
+| Annotator | Confidence Meaning |
+|-----------|-------------------|
+| `markit_yolo` | YOLO model detection confidence (0.0–1.0) |
+| `markit_vlm` | VLM analysis confidence (0.0–1.0) |
+| Human | Always 1.0 (ground truth by convention) |
+
+See [Schema documentation](../schema/README.md#annotator-and-confidence-fields) for full details on multi-annotator tracking.
+
 ### Output Video
 
 Generate an annotated video with drawn bounding boxes:
