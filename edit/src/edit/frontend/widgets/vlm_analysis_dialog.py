@@ -30,7 +30,10 @@ RATIONALE_FIELDS = {
         "precipitation", "precipitation_intensity", "particulates",
         "time_of_day", "sun_position", "cloud_cover",
     ],
-    "Traffic": ["density", "flow", "temporary_structures"],
+    "Traffic": [
+        "density", "flow", "temporary_structures",
+        "pedestrians_present", "cyclists_present", "special_vehicles_present",
+    ],
     "Road": [
         "drivable_area_type", "surface_type", "surface_condition", "surface_quality",
     ],
