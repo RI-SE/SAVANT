@@ -4,4 +4,6 @@ trainit - YOLO OBB model training for UAV object detection
 Training pipeline for oriented bounding box models.
 """
 
-__version__ = "2.0.2"
+from savant_common.version import get_version
+
+__version__ = get_version()
