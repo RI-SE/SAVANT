@@ -108,3 +108,17 @@ class FrameTagSnapshot:
     tag_name: str
     start_frame: int
     end_frame: int
+
+
+@dataclass(frozen=True)
+class VLMTagSnapshot:
+    """Snapshot of a VLM tag's data for undo/redo operations."""
+
+    tag_id: str
+    tag_data: dict
+
+    def clone(self) -> "VLMTagSnapshot":
+        return VLMTagSnapshot(
+            tag_id=self.tag_id,
+            tag_data=deepcopy(self.tag_data),
+        )

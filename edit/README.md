@@ -94,15 +94,38 @@ The release binaries ship with the bundled assets used by the UI. When a new tag
 - **Relationships** let you describe interactions (e.g., “vehicle follows person”). Choose the subject, relation, and object from the dialog. The editor limits the relationship to the frames where both objects exist and displays the link both in the overlay and the object details list.
 
 ### 4.4 Tags & Metadata
-- **Frame tags**: select `New frame tag`, choose an Action label, and pick start/end frames. By default the dialog suggests a window centered on the current frame based on the “Action interval offset” setting. Tags appear in the sidebar list and can be removed (select row → `Delete`).
+- **Frame tags**: select `New frame tag`, choose an Action label, and pick start/end frames. By default the dialog suggests a window centered on the current frame based on the "Action interval offset" setting. Tags appear in the sidebar list and can be removed (select row → `Delete`).
 - **Object tags**: when you enable a tag in the Settings dialog, its frames are used as additional warning markers and show up in the playback issue panel when the corresponding object is visible.
 
-### 4.5 Confidence Issues
+### 4.5 VLM Analysis
+If the OpenLabel file contains VLM-generated scene analysis (from markit `--vlm`), you can view and edit it via **View → VLM Analysis...**.
+
+The dialog shows two sections:
+- **Video-Level Tags** – Aggregated metadata for the entire video (editable)
+- **Frame-Bound Contexts** – Time-bounded scene conditions with frame intervals (read-only)
+
+To edit a tag:
+1. Click **Edit** on the tag you want to modify
+2. Change the text, number, or boolean fields as needed
+3. Click **Save** to commit or **Cancel** to discard
+
+When you save an edit, the system automatically:
+- Prepends your annotator name to the annotator history
+- Sets confidence to 1.0 (human ground truth)
+- Preserves the original VLM annotation in the history
+
+The `annotator` and `confidence` vec fields are auto-managed and shown as read-only during editing. Edits support undo/redo (`Ctrl+Z` / `Ctrl+Shift+Z`).
+
+For details on confidence values and multi-annotator tracking, see the [Schema documentation](../schema/README.md#annotator-and-confidence-fields).
+
+### 4.6 Confidence Issues
 - Confidence markers are drawn when a bounding box’s stored confidence value falls inside the Warning or Error range you configured. Warnings show amber icons, errors show red icons, and both ranges also appear under the seek bar.
 - The **Confidence Issues** list in the sidebar shows every active warning/error near the current frame. Sort by frame or ID, multi-select rows, and right-click → *Mark as resolved* to confirm you have reviewed the issue.
 - The issue panel in the playback controls mirrors the same data and adds any enabled tag notes. Use the `Next/Previous issue` buttons to jump along the timeline.
 
-### 4.6 Saving Projects
+For details on how confidence values are generated and what they mean for different annotator types (YOLO, VLM, human), see the [Schema documentation](../schema/README.md#annotator-and-confidence-fields).
+
+### 4.7 Saving Projects
 - `Ctrl+S`, `File → Save project`, or the Save toolbar icon writes the OpenLabel JSON back to disk. Before saving, the app validates action tags to ensure each interval has a valid start/end.
 - After saving annotations you are asked whether to store the current settings (zoom, warning ranges, tag toggles, namespace, etc.) inside `savant_project_config.json`. Choosing “Yes” means next time the project opens it will look exactly the same without further tweaks.
 

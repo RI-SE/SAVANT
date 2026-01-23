@@ -145,6 +145,155 @@
             }
           }
         },
+        "contexts": {
+          "type": "object",
+          "description": "Nonspatial/temporal annotations for scene context (weather, road type, etc.)",
+          "patternProperties": {
+            "^[0-9]+$": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "ontology_uid": { "type": "string" },
+                "frame_intervals": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "frame_start": { "type": "integer" },
+                      "frame_end": { "type": "integer" }
+                    },
+                    "required": ["frame_start", "frame_end"]
+                  }
+                },
+                "context_data": {
+                  "type": "object",
+                  "properties": {
+                    "boolean": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "val": { "type": "boolean" }
+                        },
+                        "required": ["name", "val"]
+                      }
+                    },
+                    "num": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "val": { "type": "number" }
+                        },
+                        "required": ["name", "val"]
+                      }
+                    },
+                    "text": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "val": { "type": "string" }
+                        },
+                        "required": ["name", "val"]
+                      }
+                    },
+                    "vec": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "val": {
+                            "type": "array",
+                            "items": { "type": ["number", "string"] }
+                          }
+                        },
+                        "required": ["name", "val"]
+                      }
+                    }
+                  }
+                }
+              },
+              "required": ["name", "type"]
+            }
+          }
+        },
+        "tags": {
+          "type": "object",
+          "description": "Scenario-level metadata tags",
+          "patternProperties": {
+            "^[0-9]+$": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "ontology_uid": { "type": "string" },
+                "tag_data": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "boolean": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" },
+                              "val": { "type": "boolean" }
+                            },
+                            "required": ["name", "val"]
+                          }
+                        },
+                        "num": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" },
+                              "val": { "type": "number" }
+                            },
+                            "required": ["name", "val"]
+                          }
+                        },
+                        "text": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" },
+                              "val": { "type": "string" }
+                            },
+                            "required": ["name", "val"]
+                          }
+                        },
+                        "vec": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" },
+                              "val": {
+                                "type": "array",
+                                "items": { "type": ["number", "string"] }
+                              }
+                            },
+                            "required": ["name", "val"]
+                          }
+                        }
+                      }
+                    },
+                    { "type": "string" }
+                  ]
+                }
+              },
+              "required": ["type"]
+            }
+          }
+        },
         "frames": {
           "type": "object",
           "patternProperties": {

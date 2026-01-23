@@ -125,6 +125,82 @@ Dynamic per-frame information, primarily bounding boxes for tracked objects.
 }
 ```
 
+## Annotator and Confidence Fields
+
+SAVANT uses a multi-annotator tracking system that preserves the edit history for both bounding boxes and VLM tags. The `annotator` and `confidence` fields use the vec (list) format to support this history.
+
+### Vec Format Structure
+
+```json
+"vec": [
+  { "name": "annotator", "val": ["human_user", "markit_yolo"] },
+  { "name": "confidence", "val": [1.0, 0.89] }
+]
+```
+
+- The **first element** is the most recent annotator/confidence
+- **Later elements** preserve the original annotation history
+- When a human edits an annotation, their ID is prepended with confidence 1.0
+
+### Confidence Values by Annotator Type
+
+| Annotator | Confidence Range | Meaning |
+|-----------|-----------------|---------|
+| `markit_yolo` | 0.0–1.0 | YOLO model detection confidence. Higher = model more certain about detection. Typical values: 0.7–0.95 |
+| `markit_vlm` | 0.0–1.0 | VLM self-reported confidence in its scene analysis. Aggregated across analyzed frames |
+| Human (any name) | Always 1.0 | Human review/edit. By convention, human annotations are considered ground truth |
+
+### Example: Bounding Box Edit History
+
+Original YOLO detection:
+```json
+"vec": [
+  { "name": "annotator", "val": ["markit_yolo"] },
+  { "name": "confidence", "val": [0.87] }
+]
+```
+
+After human correction:
+```json
+"vec": [
+  { "name": "annotator", "val": ["alice", "markit_yolo"] },
+  { "name": "confidence", "val": [1.0, 0.87] }
+]
+```
+
+### Example: VLM Tag Edit History
+
+Original VLM analysis:
+```json
+"tag_data": {
+  "text": [{ "name": "precipitation", "val": "none" }],
+  "vec": [
+    { "name": "annotator", "val": ["markit_vlm"] },
+    { "name": "confidence", "val": [0.92] }
+  ]
+}
+```
+
+After human edit (changed precipitation value):
+```json
+"tag_data": {
+  "text": [{ "name": "precipitation", "val": "light_rain" }],
+  "vec": [
+    { "name": "annotator", "val": ["bob", "markit_vlm"] },
+    { "name": "confidence", "val": [1.0, 0.92] }
+  ]
+}
+```
+
+### Usage in Savant Edit
+
+The confidence value determines how annotations appear in the editor:
+- **Error range** (default <0.5): Red markers on seek bar, red overlay indicators
+- **Warning range** (default 0.5–0.8): Amber markers and indicators
+- **Normal range** (default >0.8): No special indicators
+
+When reviewing low-confidence detections, use "Mark as resolved" to set confidence to 1.0 and prepend your annotator ID.
+
 ## Rotated Bounding Box (rbbox)
 
 SAVANT uses rotated bounding boxes for all dynamic objects:

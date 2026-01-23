@@ -12,7 +12,9 @@ Used by:
 - utils: Various utility tools
 """
 
-__version__ = '1.1.0'
+from savant_common.version import get_version
+
+__version__ = get_version()
 
 from savant_common.ontology import (
     read_ontology_classes,

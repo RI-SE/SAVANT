@@ -4,4 +4,6 @@ SAVANT utilities package
 Command-line utilities for working with SAVANT ontology and datasets.
 """
 
-__version__ = '1.0.0'
+from savant_common.version import get_version
+
+__version__ = get_version()

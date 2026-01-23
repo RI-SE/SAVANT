@@ -181,6 +181,12 @@ class OpenLabel(BaseModel):
     ontologies: Dict[str, Union[str, OntologyDetails]]
     objects: Dict[str, ObjectMetadata]
     actions: Optional[Dict[str, ActionMetadata]] = None
+    # Object relations
+    relations: Optional[Dict[str, Any]] = None
+    # Scene context annotations (weather, road conditions, etc.) - from VLM analysis
+    contexts: Optional[Dict[str, Dict[str, Any]]] = None
+    # Scenario-level metadata tags - from VLM analysis
+    tags: Optional[Dict[str, Dict[str, Any]]] = None
     frames: Dict[str, FrameObjects]
 
     def model_dump(self, *args, **kwargs) -> dict:

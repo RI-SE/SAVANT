@@ -18,6 +18,7 @@ class AppMenu:
         on_interpolate,
         on_create_relationship,
         on_change_annotator,
+        on_vlm_analysis,
         on_about,
     ):
 
@@ -25,10 +26,6 @@ class AppMenu:
 
         file_menu = mb.addMenu("File")
         edit_menu = mb.addMenu("Edit")
-        # Add the "About" action directly to the menubar
-        about_action = QAction("About", window)
-        about_action.triggered.connect(on_about)
-        mb.addAction(about_action)
 
         self.new_action = QAction("New project", window)
         self.new_action.triggered.connect(on_new)
@@ -65,5 +62,18 @@ class AppMenu:
         edit_menu.addSeparator()
         edit_menu.addAction(self.change_annotator_action)
 
+        # View menu
+        view_menu = mb.addMenu("View")
+        self.vlm_analysis_action = QAction("VLM Analysis...", window)
+        self.vlm_analysis_action.triggered.connect(on_vlm_analysis)
+        self.vlm_analysis_action.setEnabled(False)  # Disabled until VLM data loaded
+        view_menu.addAction(self.vlm_analysis_action)
+
+        # Add the "About" action directly to the menubar
+        about_action = QAction("About", window)
+        about_action.triggered.connect(on_about)
+        mb.addAction(about_action)
+
         # expose menus if you want to add more later
         self.file_menu = file_menu
+        self.view_menu = view_menu

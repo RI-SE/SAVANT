@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "savant"
-version = "2.0.2"
+version = "2.0.3"
 description = "SAVANT - Semi-automated video annotation toolkit for UAV object detection"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,6 +30,7 @@ markit = [
     "pyyaml",
     "pydantic>=2.0",
     "rdflib",
+    "httpx>=0.24.0",
     "dataprov @ git+https://github.com/RI-SE/dataprov.git",
     "PyQt6>=6.5.0",
     "matplotlib>=3.7.0",
@@ -41,6 +42,7 @@ trainit = [
     "matplotlib>=3.7.0",
     "numpy",
     "PyQt6>=6.5.0",
+    "rdflib>=7.0.0",
 ]
 edit = [
     "pyqt6<=6.9.1",

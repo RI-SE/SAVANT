@@ -94,3 +94,28 @@ class ProjectStateController:
     def get_tag_frame_details(self) -> dict[int, list[dict]]:
         """Return descriptive tag details per frame."""
         return self.project_state.get_tag_frame_details()
+
+    @error_handler
+    def get_vlm_contexts(self) -> dict | None:
+        """Return VLM contexts from OpenLABEL data."""
+        if self.project_state.annotation_config:
+            return self.project_state.annotation_config.contexts
+        return None
+
+    @error_handler
+    def get_vlm_tags(self) -> dict | None:
+        """Return VLM tags from OpenLABEL data."""
+        if self.project_state.annotation_config:
+            return self.project_state.annotation_config.tags
+        return None
+
+    @error_handler
+    def update_vlm_tag(self, tag_id: str, tag_data: dict) -> None:
+        """Update a VLM tag's data."""
+        if self.project_state.annotation_config is None:
+            return
+        tags = self.project_state.annotation_config.tags
+        if tags is None:
+            return
+        if tag_id in tags:
+            tags[tag_id]["tag_data"] = tag_data

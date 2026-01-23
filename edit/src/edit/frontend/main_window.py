@@ -47,11 +47,13 @@ from edit.frontend.utils.project_config import record_annotator_login
 from edit.frontend.utils.undo import (
     ControllerAnnotationGateway,
     ControllerFrameTagGateway,
+    ControllerVLMGateway,
     GatewayHolder,
     UndoRedoManager,
 )
 from edit.frontend.widgets.about_dialog import AboutDialog
 from edit.frontend.widgets.menu import AppMenu
+from edit.frontend.widgets.vlm_analysis_dialog import VLMAnalysisDialog
 from edit.frontend.widgets.overlay import Overlay
 from edit.frontend.widgets.playback_controls import PlaybackControls
 from edit.frontend.widgets.seek_bar import SeekBar
@@ -87,6 +89,7 @@ class MainWindow(QMainWindow):
                 project_state_controller=self.project_state_controller,
             ),
             frame_tag_gateway=ControllerFrameTagGateway(self.annotation_controller),
+            vlm_gateway=ControllerVLMGateway(self.project_state_controller),
         )
 
         # state
@@ -108,6 +111,7 @@ class MainWindow(QMainWindow):
             on_interpolate=self.open_interpolation_dialog,
             on_create_relationship=self.open_relationship_dialog,
             on_change_annotator=self.change_current_annotator,
+            on_vlm_analysis=self.open_vlm_analysis,
             on_about=self.open_about,
         )
 
@@ -247,6 +251,27 @@ class MainWindow(QMainWindow):
 
         about_dialog = AboutDialog(theme=current_theme, parent=self)
         about_dialog.exec()
+
+    def open_vlm_analysis(self):
+        """Open dialog showing VLM analysis data with editing support."""
+        contexts = self.project_state_controller.get_vlm_contexts()
+        tags = self.project_state_controller.get_vlm_tags()
+        dialog = VLMAnalysisDialog(
+            contexts,
+            tags,
+            parent=self,
+            frontend_state=self.state,
+            undo_manager=self.undo_manager,
+            undo_context=self.undo_context,
+        )
+        dialog.exec()
+
+    def update_vlm_menu_state(self):
+        """Enable/disable VLM Analysis menu item based on data availability."""
+        contexts = self.project_state_controller.get_vlm_contexts()
+        tags = self.project_state_controller.get_vlm_tags()
+        has_data = bool(contexts) or bool(tags)
+        self.menu.vlm_analysis_action.setEnabled(has_data)
 
     def open_settings(self):
         dlg = SettingsDialog(

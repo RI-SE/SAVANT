@@ -5,7 +5,9 @@ Internal package for markit.py video processing tool.
 Contains detection engines, video processing, postprocessing, and OpenLabel handling.
 """
 
-__version__ = "2.0.0"
+from savant_common.version import get_version
+
+__version__ = get_version()
 
 from .config import (
     Constants,

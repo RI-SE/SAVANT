@@ -14,6 +14,7 @@ from .snapshots import (
     FrameTagSnapshot,
     ObjectMetadataSnapshot,
     RelationshipSnapshot,
+    VLMTagSnapshot,
 )
 
 
@@ -509,3 +510,25 @@ class DeleteRelationshipCommand:
             subject_object_id=self._snapshot.subject,
             object_object_id=self._snapshot.object,
         )
+
+
+@dataclass
+class UpdateVLMTagCommand:
+    """Command to update a VLM tag's data with undo support."""
+
+    tag_id: str
+    before: VLMTagSnapshot
+    after: VLMTagSnapshot
+    description: str = "Update VLM tag"
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.vlm_gateway
+        if gateway is None:
+            raise RuntimeError("No VLM gateway configured.")
+        gateway.update_tag(self.tag_id, self.after.tag_data)
+
+    def undo(self, context: GatewayHolder) -> None:
+        gateway = context.vlm_gateway
+        if gateway is None:
+            raise RuntimeError("No VLM gateway configured.")
+        gateway.update_tag(self.tag_id, self.before.tag_data)

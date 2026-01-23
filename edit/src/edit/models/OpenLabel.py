@@ -1,6 +1,6 @@
 from collections import deque
 from math import isfinite
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import (
     BaseModel,
@@ -174,6 +174,10 @@ class OpenLabel(BaseModel):
         None  # Made optional as they are not being used yet according to the spec.
     )
     relations: Optional[Dict[str, RelationMetadata]] = None
+    # Scene context annotations (weather, road conditions, etc.) - from VLM analysis
+    contexts: Optional[Dict[str, Dict[str, Any]]] = None
+    # Scenario-level metadata tags - from VLM analysis
+    tags: Optional[Dict[str, Dict[str, Any]]] = None
 
     frames: Dict[str, FrameObjects]
 

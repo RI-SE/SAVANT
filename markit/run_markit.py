@@ -3,8 +3,8 @@
 run_markit
 
 Advanced command-line tool for running multi-engine object detection (YOLO + Optical Flow)
-with IoU-based conflict resolution. Exports results in OpenLabel JSON format with SAVANT
-ontology integration and optionally as annotated video.
+with IoU-based conflict resolution and optional VLM scene analysis. Exports results in
+OpenLabel JSON format with SAVANT ontology integration and optionally as annotated video.
 
 Usage:
     run_markit --input INPUT_VIDEO --output_json OUTPUT_JSON [OPTIONS]
@@ -16,7 +16,7 @@ Required Arguments:
 Optional Arguments:
     --weights            Path to YOLO weights file (.pt) - required if using YOLO detection (default: markit_yolo.pt)
     --schema             Path to OpenLabel JSON schema file (default: ../schema/savant_openlabel_subset.schema.json)
-    --ontology           Path to SAVANT ontology file for class mapping (default: ../ontology/savant_ontology_1.3.1.ttl)
+    --ontology           Path to SAVANT ontology file for class mapping (default: ../ontology/savant.ttl)
     --ontology-uri       Ontology URI for OpenLabel output (default: extracted from ontology file)
     --output_video       Path to output annotated video file (optional)
     --aruco-csv          Path to CSV file with ArUco marker GPS positions (enables ArUco detection)
@@ -44,6 +44,20 @@ Postprocessing (Housekeeping):
     --static-threshold   Movement threshold in pixels for static object removal (default: 20, negative disables)
     --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
 
+VLM Scene Analysis:
+    --vlm                Enable VLM-based scene analysis for scenario tagging
+    --vlm-model          VLM model name on the vLLM server (default: llama-3.2-11b-vision-instruct)
+    --vlm-url            vLLM API base URL (default: http://localhost:8000)
+    --vlm-api-key        API key for vLLM server (if required)
+    --vlm-sampling       Frame sampling strategy: uniform, scene_change, keyframes (default: uniform)
+    --vlm-interval       Frame interval for uniform sampling (default: 30)
+    --vlm-max-frames     Maximum frames to analyze with VLM (default: 20)
+    --vlm-timeout        VLM request timeout in seconds (default: 120)
+    --vlm-prompts        Path to custom prompts JSON file
+    --vlm-max-resolution Max frame height in pixels (e.g., 1080). Reduces VRAM usage.
+    --vlm-delay          Delay between VLM requests in seconds (default: 0)
+    --vlm-rationale      Request rationale explanations for weather fields (increases token usage)
+
 Logging and Debug:
     --verbose            Enable verbose output with detailed angle and detection logging
 
@@ -51,6 +65,7 @@ Features:
     - YOLO OBB (Oriented Bounding Box) detection with tracking
     - Background subtraction + optical flow detection
     - IoU-based conflict resolution with YOLO precedence
+    - VLM scene analysis for automatic scenario tagging (BSI PAS-1883 ODD taxonomy)
     - OpenLabel JSON export with SAVANT ontology integration
     - Dynamic class mapping from ontology (41 classes)
     - Configurable postprocessing pipeline for data quality improvement
@@ -301,6 +316,34 @@ Examples:
         help="Enable verbose output with detailed angle and detection logging",
     )
 
+    # VLM Analysis Configuration
+    vlm_group = parser.add_argument_group('VLM Scene Analysis')
+    vlm_group.add_argument('--vlm', action='store_true',
+                           help='Enable VLM-based scene analysis for scenario tagging')
+    vlm_group.add_argument('--vlm-model', default='llama-3.2-11b-vision-instruct',
+                           help='VLM model name on the vLLM server (default: llama-3.2-11b-vision-instruct)')
+    vlm_group.add_argument('--vlm-url', default='http://localhost:8000',
+                           help='vLLM API base URL (default: http://localhost:8000)')
+    vlm_group.add_argument('--vlm-api-key',
+                           help='API key for vLLM server (if required)')
+    vlm_group.add_argument('--vlm-sampling', choices=['uniform', 'scene_change', 'keyframes'],
+                           default='uniform',
+                           help='Frame sampling strategy for VLM analysis (default: uniform)')
+    vlm_group.add_argument('--vlm-interval', type=int, default=30,
+                           help='Frame interval for uniform sampling (default: 30)')
+    vlm_group.add_argument('--vlm-max-frames', type=int, default=20,
+                           help='Maximum frames to analyze with VLM (default: 20)')
+    vlm_group.add_argument('--vlm-timeout', type=int, default=120,
+                           help='VLM request timeout in seconds (default: 120)')
+    vlm_group.add_argument('--vlm-prompts',
+                           help='Path to custom prompts JSON file (optional)')
+    vlm_group.add_argument('--vlm-max-resolution', type=int, default=None,
+                           help='Max frame height in pixels for VLM (e.g., 1080). Reduces VRAM usage.')
+    vlm_group.add_argument('--vlm-delay', type=float, default=0.0,
+                           help='Delay between VLM requests in seconds (default: 0)')
+    vlm_group.add_argument('--vlm-rationale', action='store_true',
+                           help='Request rationale explanations for weather fields (increases token usage)')
+
     return parser.parse_args()
 
 
@@ -539,6 +582,42 @@ def main():
             )
         else:
             logger.info("Housekeeping disabled, skipping postprocessing")
+
+        # VLM Scene Analysis (if enabled)
+        if args.vlm:
+            logger.info("Starting VLM scene analysis...")
+            from markit.markitlib.vlm import VLMConfig, VLMProvider, SamplingStrategy, VLMAnalysisPass
+
+            vlm_config = VLMConfig(
+                enabled=True,
+                provider=VLMProvider.VLLM,
+                model_name=args.vlm_model,
+                base_url=args.vlm_url,
+                api_key=args.vlm_api_key,
+                timeout=args.vlm_timeout,
+                sampling_strategy=SamplingStrategy(args.vlm_sampling),
+                sample_interval=args.vlm_interval,
+                max_samples=args.vlm_max_frames,
+                max_resolution=args.vlm_max_resolution,
+                request_delay=args.vlm_delay,
+                prompts_file=args.vlm_prompts,
+                rationale_enabled=args.vlm_rationale,
+            )
+
+            vlm_pass = VLMAnalysisPass(vlm_config)
+            vlm_pass.set_video_path(config.video_path)
+            vlm_pass.set_video_properties(
+                video_processor.frame_width,
+                video_processor.frame_height,
+                video_processor.fps
+            )
+
+            openlabel_handler.openlabel_data = vlm_pass.process(
+                openlabel_handler.openlabel_data
+            )
+
+            vlm_stats = vlm_pass.get_statistics()
+            logger.info(f"VLM analysis statistics: {vlm_stats}")
 
         # Render output video from postprocessed data (if requested)
         if config.output_video_path:

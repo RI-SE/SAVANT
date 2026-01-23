@@ -410,6 +410,11 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
     on_open_video(main_window, str(video_path))
     persist_current_settings()
 
+    # Update VLM menu state after project loads
+    update_vlm_menu = getattr(main_window, "update_vlm_menu_state", None)
+    if callable(update_vlm_menu):
+        update_vlm_menu()
+
     state = getattr(main_window, "state", None)
     current_session_annotator = ""
     if state is not None:
