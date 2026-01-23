@@ -281,6 +281,12 @@ VLM analysis adds two sections to the OpenLabel output:
       "text": [
         {"name": "precipitation", "val": "none"},
         {"name": "time_of_day", "val": "day"}
+      ],
+      "vec": [
+        {"name": "precipitation_confidence", "val": [0.95]},
+        {"name": "precipitation_annotator", "val": ["markit_vlm"]},
+        {"name": "time_of_day_confidence", "val": [0.98]},
+        {"name": "time_of_day_annotator", "val": ["markit_vlm"]}
       ]
     }
   }
@@ -298,11 +304,22 @@ VLM analysis adds two sections to the OpenLabel output:
       "text": [
         {"name": "precipitation", "val": "none"},
         {"name": "time_of_day", "val": "day"}
+      ],
+      "vec": [
+        {"name": "precipitation_confidence", "val": [0.95]},
+        {"name": "precipitation_annotator", "val": ["markit_vlm"]},
+        {"name": "time_of_day_confidence", "val": [0.98]},
+        {"name": "time_of_day_annotator", "val": ["markit_vlm"]}
       ]
     }
   }
 }
 ```
+
+Each VLM-generated field includes:
+- `*_confidence` - VLM's certainty for this classification (0.0-1.0)
+- `*_annotator` - Source identifier (`markit_vlm`)
+- `*_rationale` - Optional explanation when `--vlm-rationale` is enabled
 
 ### Custom Prompts
 
