@@ -2185,6 +2185,7 @@ trainit = [
     { name = "pydantic" },
     { name = "pyqt6" },
     { name = "pyyaml" },
+    { name = "rdflib" },
     { name = "ultralytics" },
 ]
 
@@ -2213,6 +2214,7 @@ all-apps = [
     { name = "pyqt6", specifier = ">=6.5.0" },
     { name = "pyyaml" },
     { name = "rdflib" },
+    { name = "rdflib", specifier = ">=7.0.0" },
     { name = "rdflib", specifier = ">=7.2.1" },
     { name = "ultralytics" },
 ]
@@ -2250,6 +2252,7 @@ trainit = [
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pyqt6", specifier = ">=6.5.0" },
     { name = "pyyaml" },
+    { name = "rdflib", specifier = ">=7.0.0" },
     { name = "ultralytics" },
 ]
 

@@ -42,6 +42,7 @@ trainit = [
     "matplotlib>=3.7.0",
     "numpy",
     "PyQt6>=6.5.0",
+    "rdflib>=7.0.0",
 ]
 edit = [
     "pyqt6<=6.9.1",
