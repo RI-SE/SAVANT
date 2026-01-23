@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
-    QSpinBox,
     QStyle,
     QTextEdit,
     QVBoxLayout,
@@ -287,9 +286,7 @@ class VLMAnalysisDialog(QDialog):
 
         # Get confidence and annotator for this field
         conf_list = self._get_vec_value(data, f"{field_name}_confidence")
-        ann_list = self._get_vec_value(data, f"{field_name}_annotator")
         confidence = conf_list[0] if conf_list else None
-        annotator = ann_list[0] if ann_list else None
 
         # Field value row (clickable to edit)
         value_row = QHBoxLayout()

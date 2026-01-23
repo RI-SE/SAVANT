@@ -275,19 +275,9 @@ class VLMAnalysisPass(PostprocessingPass):
         """
         ontologies = openlabel_data.get("openlabel", {}).get("ontologies", {})
 
-        # Find next available ontology UID
-        existing_uids = [int(uid) for uid in ontologies.keys() if uid.isdigit()]
-        next_uid = max(existing_uids) + 1 if existing_uids else 1
-
-        # Use UID "1" if available, otherwise use next available
-        scenario_uid = "1" if "1" not in ontologies else str(next_uid)
-
-        # Update the constant in response_parser if needed
-        # For now, we use "1" as planned
-
         if "1" not in ontologies:
             openlabel_data["openlabel"]["ontologies"]["1"] = SCENARIO_ONTOLOGY_URI
-            logger.debug(f"Added scenario ontology as ontology UID 1")
+            logger.debug("Added scenario ontology as ontology UID 1")
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get VLM analysis statistics.

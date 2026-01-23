@@ -4,7 +4,7 @@ config - Configuration classes for VLM analysis
 Provides dataclasses for configuring VLM provider, sampling strategy, and analysis options.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
