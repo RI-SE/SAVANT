@@ -31,7 +31,7 @@ markit = [
     "pydantic>=2.0",
     "rdflib",
     "httpx>=0.24.0",
-    "dataprov @ git+https://github.com/RI-SE/dataprov.git",
+    "dataprov>=3.0.2",
     "PyQt6>=6.5.0",
     "matplotlib>=3.7.0",
 ]
@@ -72,6 +72,10 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["savant_common", "markit", "trainit", "utils", "edit/src/edit"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"ontology" = "savant_common/ontology"
+"schema" = "savant_common/schema"
 
 [tool.pytest.ini_options]
 testpaths = ["markit/tests", "edit/tests", "trainit/tests"]

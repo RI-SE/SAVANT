@@ -500,8 +500,12 @@ wheels = [
 
 [[package]]
 name = "dataprov"
-version = "3.0.0"
-source = { git = "https://github.com/RI-SE/dataprov.git#064f6b8c1e1eb38e662b1924529fc564efad74ee" }
+version = "3.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/bb/bae18bbad6d75c09459255200b32cd5e25e4d9301314364f41b3ede0b077/dataprov-3.0.2.tar.gz", hash = "sha256:bc42479dcf0c5552cc9788590c34558e8d174e6802e4588db718f3d9d6277f12", size = 81939, upload-time = "2026-01-23T16:40:55.568Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e8/97/19e8be69bafa51af7049adaf6bc9e4d984d00384aed5d97ea59280915048/dataprov-3.0.2-py3-none-any.whl", hash = "sha256:ca6131989386527b2bf15894291061786e8426160154f5242a2af5cded7e8991", size = 44420, upload-time = "2026-01-23T16:40:54.008Z" },
+]
 
 [[package]]
 name = "exceptiongroup"
@@ -2200,7 +2204,7 @@ provides-extras = ["dev"]
 [package.metadata.requires-dev]
 all-apps = [
     { name = "appdirs", specifier = ">=1.4.4" },
-    { name = "dataprov", git = "https://github.com/RI-SE/dataprov.git" },
+    { name = "dataprov", specifier = ">=3.0.2" },
     { name = "httpx", specifier = ">=0.24.0" },
     { name = "lap", specifier = ">=0.5.12" },
     { name = "matplotlib", specifier = ">=3.7.0" },
@@ -2234,7 +2238,7 @@ edit = [
     { name = "rdflib", specifier = ">=7.2.1" },
 ]
 markit = [
-    { name = "dataprov", git = "https://github.com/RI-SE/dataprov.git" },
+    { name = "dataprov", specifier = ">=3.0.2" },
     { name = "httpx", specifier = ">=0.24.0" },
     { name = "lap", specifier = ">=0.5.12" },
     { name = "matplotlib", specifier = ">=3.7.0" },

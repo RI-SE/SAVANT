@@ -82,6 +82,7 @@ from ultralytics import __version__ as ultralytics_version
 
 # Import from markitlib package
 from markit.markitlib import MarkitConfig, __version__
+from savant_common.resources import get_ontology_path, get_schema_path, get_weights_path
 from markit.markitlib.processing import VideoProcessor
 from markit.markitlib.openlabel import OpenLabelHandler
 from markit.markitlib.outputvideo import render_output_video
@@ -154,18 +155,18 @@ Examples:
     optional = parser.add_argument_group("Optional Arguments")
     optional.add_argument(
         "--weights",
-        default="markit_yolo.pt",
-        help="Path to YOLO weights file (.pt) (default: markit_yolo.pt)",
+        default=None,
+        help="Path to YOLO weights file (.pt) (auto-downloads if not found)",
     )
     optional.add_argument(
         "--schema",
-        default="../schema/savant_openlabel_subset.schema.json",
-        help="Path to OpenLabel JSON schema file (default: ../schema/savant_openlabel_subset.schema.json)",
+        default=None,
+        help="Path to OpenLabel JSON schema file (uses package default if not specified)",
     )
     optional.add_argument(
         "--ontology",
-        default="../ontology/savant.ttl",
-        help="Path to SAVANT ontology file for class mapping (default: ../ontology/savant.ttl)",
+        default=None,
+        help="Path to SAVANT ontology file for class mapping (uses package default if not specified)",
     )
     optional.add_argument(
         "--ontology-uri",
@@ -492,6 +493,12 @@ def main():
         logger.info(
             f"Library versions: OpenCV {cv2.__version__}, NumPy {np.__version__}, Ultralytics {ultralytics_version}"
         )
+
+        # Resolve resource paths (package data or fallbacks)
+        args.ontology = args.ontology or get_ontology_path()
+        args.schema = args.schema or get_schema_path()
+        if args.detection_method in ["yolo", "both"]:
+            args.weights = args.weights or get_weights_path()
 
         # Create configuration
         config = MarkitConfig(args)
