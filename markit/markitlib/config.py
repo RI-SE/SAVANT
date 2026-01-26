@@ -53,11 +53,29 @@ class DetectionResult:
 
 @dataclass
 class OpticalFlowParams:
-    """Parameters for optical flow detection."""
+    """Parameters for optical flow detection.
+
+    Attributes:
+        motion_threshold: Threshold for motion magnitude detection.
+        min_area: Minimum contour area in pixels to be considered a detection.
+        morph_kernel_size: Kernel size for morphological operations.
+        algorithm: Optical flow algorithm - "dis", "farneback", or "lucas_kanade".
+        temporal_smoothing: Weight for exponential moving average smoothing (0=no smoothing, 1=full).
+        pyramid_levels: Number of pyramid levels for Farneback algorithm.
+        window_size: Averaging window size for Farneback algorithm.
+        iterations: Iterations per pyramid level for Farneback algorithm.
+        median_filter_size: Median filter kernel size (0 to disable).
+    """
 
     motion_threshold: float = 0.5
     min_area: int = 200
     morph_kernel_size: int = 9
+    algorithm: str = "dis"
+    temporal_smoothing: float = 0.3
+    pyramid_levels: int = 7
+    window_size: int = 25
+    iterations: int = 5
+    median_filter_size: int = 5
 
 
 @dataclass
@@ -116,7 +134,14 @@ class MarkitConfig:
 
         # Optical flow parameters
         self.optical_flow_params = OpticalFlowParams(
-            motion_threshold=args.motion_threshold, min_area=args.min_object_area
+            motion_threshold=args.motion_threshold,
+            min_area=args.min_object_area,
+            algorithm=getattr(args, "flow_algorithm", "dis"),
+            temporal_smoothing=getattr(args, "flow_temporal_smoothing", 0.3),
+            pyramid_levels=getattr(args, "flow_pyramid_levels", 7),
+            window_size=getattr(args, "flow_window_size", 25),
+            iterations=getattr(args, "flow_iterations", 5),
+            median_filter_size=getattr(args, "flow_median_filter", 5),
         )
 
         # IoU-based conflict resolution configuration

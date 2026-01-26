@@ -391,12 +391,17 @@ class OpticalFlowEngine(BaseDetectionEngine):
         self.id_manager = id_manager
         self.back_sub = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
         self.prev_gray = None
+        self.prev_flow = None  # For temporal smoothing
         self.object_tracker = SimpleTracker(id_manager=id_manager)
         self.optical_flow_method = None  # Will be set by availability check
+        self.dis_instance = None  # Cached DIS optical flow instance
         self.optical_flow_available = self._check_optical_flow_availability()
 
         if self.optical_flow_available:
-            logger.info("Optical flow engine initialized with motion detection")
+            logger.info(
+                f"Optical flow engine initialized with {self.optical_flow_method}, "
+                f"temporal_smoothing={params.temporal_smoothing:.2f}"
+            )
         else:
             logger.warning(
                 "Optical flow not available - using background subtraction only"
@@ -405,24 +410,37 @@ class OpticalFlowEngine(BaseDetectionEngine):
     def _check_optical_flow_availability(self) -> bool:
         """Check if optical flow functions are available in OpenCV.
 
+        Respects params.algorithm preference, falling back to other methods if unavailable.
+
         Returns:
             True if optical flow is available, False otherwise
         """
         # Log OpenCV version for diagnostics
         logger.info(f"OpenCV version: {cv2.__version__}")
 
-        # Try multiple optical flow methods in order of preference
-        optical_flow_methods = [
-            ("calcOpticalFlowPyrFarneback", self._test_farneback),
-            ("calcOpticalFlowPyrLK", self._test_lucas_kanade),
-            ("optflow.calcOpticalFlowSF", self._test_simple_flow),
-        ]
+        # Define all available methods with their test functions
+        all_methods = {
+            "dis": ("DISOpticalFlow", self._test_dis),
+            "farneback": ("calcOpticalFlowPyrFarneback", self._test_farneback),
+            "lucas_kanade": ("calcOpticalFlowPyrLK", self._test_lucas_kanade),
+            "simple_flow": ("optflow.calcOpticalFlowSF", self._test_simple_flow),
+        }
 
-        for method_name, test_func in optical_flow_methods:
+        # Build priority order based on user preference
+        preferred = self.params.algorithm.lower()
+        if preferred in all_methods:
+            # Try preferred method first, then fallbacks
+            method_order = [preferred] + [m for m in all_methods if m != preferred]
+        else:
+            # Default order: DIS > Farneback > Lucas-Kanade > SimpleFlow
+            method_order = ["dis", "farneback", "lucas_kanade", "simple_flow"]
+
+        for method_key in method_order:
+            method_name, test_func = all_methods[method_key]
             try:
                 if test_func():
                     logger.info(f"Optical flow available using: {method_name}")
-                    self.optical_flow_method = method_name
+                    self.optical_flow_method = method_key
                     return True
             except Exception as e:
                 logger.debug(f"{method_name} not available: {e}")
@@ -432,13 +450,35 @@ class OpticalFlowEngine(BaseDetectionEngine):
         logger.info("Install with: pip install opencv-contrib-python>=4.5.0")
         return False
 
+    def _test_dis(self) -> bool:
+        """Test DIS (Dense Inverse Search) optical flow method."""
+        try:
+            # Check if DISOpticalFlow exists
+            if not hasattr(cv2, "DISOpticalFlow_create"):
+                return False
+
+            # Create DIS instance with medium preset for balance of speed/quality
+            dis = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
+            # DIS requires images >= 12 pixels in both dimensions
+            dummy1 = np.zeros((16, 16), dtype=np.uint8)
+            dummy2 = np.zeros((16, 16), dtype=np.uint8)
+            flow = dis.calc(dummy1, dummy2, None)
+
+            # Cache the instance for reuse
+            self.dis_instance = cv2.DISOpticalFlow_create(
+                cv2.DISOPTICAL_FLOW_PRESET_MEDIUM
+            )
+            return flow is not None
+        except Exception:
+            return False
+
     def _test_farneback(self) -> bool:
         """Test Farneback optical flow method."""
         if not hasattr(cv2, "calcOpticalFlowPyrFarneback"):
             return False
 
-        dummy1 = np.zeros((10, 10), dtype=np.uint8)
-        dummy2 = np.zeros((10, 10), dtype=np.uint8)
+        dummy1 = np.zeros((16, 16), dtype=np.uint8)
+        dummy2 = np.zeros((16, 16), dtype=np.uint8)
         flow = cv2.calcOpticalFlowPyrFarneback(
             dummy1, dummy2, None, 0.5, 3, 15, 3, 5, 1.2, 0
         )
@@ -449,10 +489,10 @@ class OpticalFlowEngine(BaseDetectionEngine):
         if not hasattr(cv2, "calcOpticalFlowPyrLK"):
             return False
 
-        dummy1 = np.zeros((10, 10), dtype=np.uint8)
-        dummy2 = np.zeros((10, 10), dtype=np.uint8)
+        dummy1 = np.zeros((16, 16), dtype=np.uint8)
+        dummy2 = np.zeros((16, 16), dtype=np.uint8)
         # Need some points for LK
-        points = np.array([[5.0, 5.0]], dtype=np.float32).reshape(-1, 1, 2)
+        points = np.array([[8.0, 8.0]], dtype=np.float32).reshape(-1, 1, 2)
         new_points, status, error = cv2.calcOpticalFlowPyrLK(
             dummy1, dummy2, points, None
         )
@@ -462,8 +502,8 @@ class OpticalFlowEngine(BaseDetectionEngine):
         """Test SimpleFlow optical flow method (contrib module)."""
         try:
             if hasattr(cv2, "optflow") and hasattr(cv2.optflow, "calcOpticalFlowSF"):
-                dummy1 = np.zeros((10, 10), dtype=np.uint8)
-                dummy2 = np.zeros((10, 10), dtype=np.uint8)
+                dummy1 = np.zeros((16, 16), dtype=np.uint8)
+                dummy2 = np.zeros((16, 16), dtype=np.uint8)
                 flow = cv2.optflow.calcOpticalFlowSF(dummy1, dummy2, 3, 2, 4)
                 return flow is not None
         except Exception:
@@ -475,6 +515,8 @@ class OpticalFlowEngine(BaseDetectionEngine):
     ) -> Optional[np.ndarray]:
         """Calculate optical flow magnitude using the available method.
 
+        Applies temporal smoothing and median filtering based on params.
+
         Args:
             prev_gray: Previous frame (grayscale)
             curr_gray: Current frame (grayscale)
@@ -483,70 +525,114 @@ class OpticalFlowEngine(BaseDetectionEngine):
             Magnitude array or None if calculation fails
         """
         try:
-            if self.optical_flow_method == "calcOpticalFlowPyrFarneback":
-                flow = cv2.calcOpticalFlowPyrFarneback(
-                    prev_gray, curr_gray, None, 0.5, 5, 21, 3, 7, 1.5, 0
-                )
-                magnitude, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
-                return magnitude
-
-            elif self.optical_flow_method == "calcOpticalFlowPyrLK":
-                # For Lucas-Kanade, we need feature points
-                # Use goodFeaturesToTrack to find points
-                points = cv2.goodFeaturesToTrack(
-                    prev_gray,
-                    maxCorners=100,
-                    qualityLevel=0.3,
-                    minDistance=7,
-                    blockSize=7,
-                )
-                if points is not None and len(points) > 0:
-                    new_points, status, error = cv2.calcOpticalFlowPyrLK(
-                        prev_gray, curr_gray, points, None
-                    )
-
-                    # Create magnitude map from point movements
-                    magnitude = np.zeros_like(prev_gray, dtype=np.float32)
-                    good_points = status.ravel() == 1
-
-                    if np.any(good_points):
-                        old_pts = points[good_points].reshape(-1, 2)
-                        new_pts = new_points[good_points].reshape(-1, 2)
-
-                        # Calculate point displacements
-                        displacements = np.linalg.norm(new_pts - old_pts, axis=1)
-
-                        # Map displacements to image
-                        for i, (pt, disp) in enumerate(
-                            zip(old_pts.astype(int), displacements)
-                        ):
-                            if (
-                                0 <= pt[1] < magnitude.shape[0]
-                                and 0 <= pt[0] < magnitude.shape[1]
-                            ):
-                                magnitude[pt[1], pt[0]] = disp
-
-                        # Dilate to spread motion information
-                        kernel = np.ones((15, 15), np.uint8)
-                        magnitude = cv2.dilate(magnitude, kernel, iterations=1)
-
-                    return magnitude
-                else:
-                    return np.zeros_like(prev_gray, dtype=np.float32)
-
-            elif self.optical_flow_method == "optflow.calcOpticalFlowSF":
-                flow = cv2.optflow.calcOpticalFlowSF(prev_gray, curr_gray, 3, 2, 4)
-                magnitude, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
-                return magnitude
-
-            else:
-                logger.warning(
-                    f"Unknown optical flow method: {self.optical_flow_method}"
-                )
+            flow = self._compute_raw_flow(prev_gray, curr_gray)
+            if flow is None:
                 return None
+
+            # Apply median filtering to reduce noise on the flow field
+            if self.params.median_filter_size > 0:
+                ksize = self.params.median_filter_size
+                # Ensure kernel size is odd
+                if ksize % 2 == 0:
+                    ksize += 1
+                flow_x = cv2.medianBlur(flow[..., 0].astype(np.float32), ksize)
+                flow_y = cv2.medianBlur(flow[..., 1].astype(np.float32), ksize)
+                flow = np.stack([flow_x, flow_y], axis=-1)
+
+            # Apply temporal smoothing via exponential moving average
+            if self.params.temporal_smoothing > 0 and self.prev_flow is not None:
+                alpha = self.params.temporal_smoothing
+                # Only smooth if shapes match (handles resolution changes)
+                if self.prev_flow.shape == flow.shape:
+                    flow = alpha * flow + (1 - alpha) * self.prev_flow
+
+            # Store for next frame's temporal smoothing
+            self.prev_flow = flow.copy()
+
+            # Compute magnitude from (possibly smoothed) flow
+            magnitude, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+            return magnitude
 
         except Exception as e:
             logger.error(f"Optical flow calculation failed: {e}")
+            return None
+
+    def _compute_raw_flow(
+        self, prev_gray: np.ndarray, curr_gray: np.ndarray
+    ) -> Optional[np.ndarray]:
+        """Compute raw optical flow field using the selected algorithm.
+
+        Args:
+            prev_gray: Previous frame (grayscale)
+            curr_gray: Current frame (grayscale)
+
+        Returns:
+            Flow field (H, W, 2) or None if calculation fails
+        """
+        if self.optical_flow_method == "dis":
+            # DIS (Dense Inverse Search) - faster and more robust than Farneback
+            if self.dis_instance is None:
+                self.dis_instance = cv2.DISOpticalFlow_create(
+                    cv2.DISOPTICAL_FLOW_PRESET_MEDIUM
+                )
+            return self.dis_instance.calc(prev_gray, curr_gray, None)
+
+        elif self.optical_flow_method == "farneback":
+            # Farneback with tuned parameters for drone footage
+            return cv2.calcOpticalFlowPyrFarneback(
+                prev_gray,
+                curr_gray,
+                None,
+                0.5,  # pyr_scale: pyramid scale factor
+                self.params.pyramid_levels,  # levels: more levels for larger motions
+                self.params.window_size,  # winsize: larger for smoother estimates
+                self.params.iterations,  # iterations: more for better convergence
+                7,  # poly_n: polynomial expansion neighborhood
+                1.5,  # poly_sigma: Gaussian smoothing for derivatives
+                cv2.OPTFLOW_FARNEBACK_GAUSSIAN,  # Use Gaussian filter
+            )
+
+        elif self.optical_flow_method == "lucas_kanade":
+            # Sparse Lucas-Kanade - convert to dense flow representation
+            points = cv2.goodFeaturesToTrack(
+                prev_gray,
+                maxCorners=100,
+                qualityLevel=0.3,
+                minDistance=7,
+                blockSize=7,
+            )
+            if points is None or len(points) == 0:
+                return np.zeros((*prev_gray.shape, 2), dtype=np.float32)
+
+            new_points, status, _ = cv2.calcOpticalFlowPyrLK(
+                prev_gray, curr_gray, points, None
+            )
+
+            # Create dense flow map from sparse point movements
+            flow = np.zeros((*prev_gray.shape, 2), dtype=np.float32)
+            good_points = status.ravel() == 1
+
+            if np.any(good_points):
+                old_pts = points[good_points].reshape(-1, 2)
+                new_pts = new_points[good_points].reshape(-1, 2)
+                displacements = new_pts - old_pts
+
+                for pt, disp in zip(old_pts.astype(int), displacements):
+                    if 0 <= pt[1] < flow.shape[0] and 0 <= pt[0] < flow.shape[1]:
+                        flow[pt[1], pt[0]] = disp
+
+                # Dilate to spread flow information from sparse points
+                kernel = np.ones((15, 15), np.uint8)
+                flow[..., 0] = cv2.dilate(flow[..., 0], kernel, iterations=1)
+                flow[..., 1] = cv2.dilate(flow[..., 1], kernel, iterations=1)
+
+            return flow
+
+        elif self.optical_flow_method == "simple_flow":
+            return cv2.optflow.calcOpticalFlowSF(prev_gray, curr_gray, 3, 2, 4)
+
+        else:
+            logger.warning(f"Unknown optical flow method: {self.optical_flow_method}")
             return None
 
     def process_frame(self, frame: np.ndarray) -> List[DetectionResult]:
@@ -654,6 +740,8 @@ class OpticalFlowEngine(BaseDetectionEngine):
         """Clean up optical flow engine resources."""
         self.back_sub = None
         self.prev_gray = None
+        self.prev_flow = None
+        self.dis_instance = None
 
 
 class ArUcoGPSData:

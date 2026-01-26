@@ -71,6 +71,13 @@ class TestOpticalFlowParams:
         assert params.motion_threshold == 0.5
         assert params.min_area == 200
         assert params.morph_kernel_size == 9
+        # New algorithm parameters
+        assert params.algorithm == "dis"
+        assert params.temporal_smoothing == 0.3
+        assert params.pyramid_levels == 7
+        assert params.window_size == 25
+        assert params.iterations == 5
+        assert params.median_filter_size == 5
 
     def test_custom_values(self):
         """Test custom optical flow parameters."""
@@ -80,6 +87,23 @@ class TestOpticalFlowParams:
         assert params.motion_threshold == 0.7
         assert params.min_area == 300
         assert params.morph_kernel_size == 11
+
+    def test_custom_algorithm_params(self):
+        """Test custom algorithm-related parameters."""
+        params = OpticalFlowParams(
+            algorithm="farneback",
+            temporal_smoothing=0.5,
+            pyramid_levels=5,
+            window_size=21,
+            iterations=3,
+            median_filter_size=0,  # Disabled
+        )
+        assert params.algorithm == "farneback"
+        assert params.temporal_smoothing == 0.5
+        assert params.pyramid_levels == 5
+        assert params.window_size == 21
+        assert params.iterations == 3
+        assert params.median_filter_size == 0
 
 
 class TestConflictResolutionConfig:

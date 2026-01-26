@@ -26,6 +26,12 @@ Detection Configuration:
     --detection-method   Detection method: yolo, optical_flow, or both (default: yolo)
     --motion-threshold   Optical flow motion threshold (default: 0.5)
     --min-object-area    Minimum object area for optical flow detection (default: 200)
+    --flow-algorithm     Optical flow algorithm: dis, farneback, lucas_kanade (default: dis)
+    --flow-temporal-smoothing  Temporal smoothing factor (0-1, default: 0.3)
+    --flow-pyramid-levels      Pyramid levels for Farneback (default: 7)
+    --flow-window-size         Window size for Farneback (default: 25)
+    --flow-iterations          Iterations for Farneback (default: 5)
+    --flow-median-filter       Median filter size for noise reduction (default: 5, 0 to disable)
     --aruco-dict         ArUco dictionary type (default: DICT_4X4_50)
 
 Conflict Resolution:
@@ -210,6 +216,42 @@ Examples:
         help="Minimum object area for optical flow detection (default: 200)",
     )
     detection.add_argument(
+        "--flow-algorithm",
+        choices=["dis", "farneback", "lucas_kanade"],
+        default="dis",
+        help="Optical flow algorithm: dis (faster, recommended), farneback, lucas_kanade (default: dis)",
+    )
+    detection.add_argument(
+        "--flow-temporal-smoothing",
+        type=float,
+        default=0.3,
+        help="Temporal smoothing for flow (0=no smoothing, 1=full smoothing, default: 0.3)",
+    )
+    detection.add_argument(
+        "--flow-pyramid-levels",
+        type=int,
+        default=7,
+        help="Pyramid levels for Farneback algorithm (default: 7)",
+    )
+    detection.add_argument(
+        "--flow-window-size",
+        type=int,
+        default=25,
+        help="Window size for Farneback algorithm (default: 25)",
+    )
+    detection.add_argument(
+        "--flow-iterations",
+        type=int,
+        default=5,
+        help="Iterations per pyramid level for Farneback (default: 5)",
+    )
+    detection.add_argument(
+        "--flow-median-filter",
+        type=int,
+        default=5,
+        help="Median filter size for flow noise reduction (0 to disable, default: 5)",
+    )
+    detection.add_argument(
         "--aruco-dict",
         dest="aruco_dict",
         default="DICT_4X4_50",
@@ -385,6 +427,14 @@ def build_arguments_string(args: argparse.Namespace) -> str:
     if args.detection_method in ["optical_flow", "both"]:
         parts.append(f"--motion-threshold {args.motion_threshold}")
         parts.append(f"--min-object-area {args.min_object_area}")
+        parts.append(f"--flow-algorithm {args.flow_algorithm}")
+        parts.append(f"--flow-temporal-smoothing {args.flow_temporal_smoothing}")
+        if args.flow_algorithm == "farneback":
+            parts.append(f"--flow-pyramid-levels {args.flow_pyramid_levels}")
+            parts.append(f"--flow-window-size {args.flow_window_size}")
+            parts.append(f"--flow-iterations {args.flow_iterations}")
+        if args.flow_median_filter > 0:
+            parts.append(f"--flow-median-filter {args.flow_median_filter}")
     if args.detection_method == "both" and not args.disable_conflict_resolution:
         parts.append(f"--iou-threshold {args.iou_threshold}")
     return " ".join(parts)
