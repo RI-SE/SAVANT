@@ -648,6 +648,9 @@ class OpticalFlowEngine(BaseDetectionEngine):
     def process_frame(self, frame: np.ndarray) -> List[DetectionResult]:
         """Process frame with optical flow + background subtraction.
 
+        Optionally downscales frame before processing for performance, then
+        upscales results back to original resolution.
+
         Args:
             frame: Input frame
 
@@ -656,12 +659,29 @@ class OpticalFlowEngine(BaseDetectionEngine):
         """
         try:
             results = []
+            orig_height, orig_width = frame.shape[:2]
+            scale = self.params.processing_scale
+
+            # Downscale frame if processing_scale < 1.0
+            if scale < 1.0:
+                new_width = int(orig_width * scale)
+                new_height = int(orig_height * scale)
+                proc_frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            else:
+                proc_frame = frame
+                scale = 1.0  # Ensure scale is exactly 1.0 for coordinate scaling
+
+            proc_height, proc_width = proc_frame.shape[:2]
+
+            # Scale min_area with resolution (base is 1080p)
+            resolution_scale = (proc_height / 1080) ** 2
+            effective_min_area = int(self.params.min_area * resolution_scale)
 
             # 1. Background subtraction
-            fg_mask = self.back_sub.apply(frame)
+            fg_mask = self.back_sub.apply(proc_frame)
 
             # 2. Optical flow (if available and previous frame exists)
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(proc_frame, cv2.COLOR_BGR2GRAY)
             gray = cv2.GaussianBlur(gray, (5, 5), 0)
             motion_mask = np.zeros_like(fg_mask)
 
@@ -712,23 +732,33 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
             # 5. Generate oriented bounding boxes
             for contour in contours:
-                if cv2.contourArea(contour) > self.params.min_area:
+                if cv2.contourArea(contour) > effective_min_area:
                     # Get minimum area rectangle (OBB)
                     rect = cv2.minAreaRect(contour)
                     box = cv2.boxPoints(rect)
-                    box = np.array(box, dtype=np.int32)
+                    box = np.array(box, dtype=np.float32)
 
                     # Calculate center and angle
                     (center_x, center_y), (width, height), angle = rect
 
-                    # Assign object ID (simple tracking)
+                    # Scale coordinates back to original resolution if downscaled
+                    if scale < 1.0:
+                        inv_scale = 1.0 / scale
+                        box = box * inv_scale
+                        center_x *= inv_scale
+                        center_y *= inv_scale
+                        width *= inv_scale
+                        height *= inv_scale
+
+                    # Assign object ID (simple tracking) - use original resolution coords
                     obj_id = self.object_tracker.get_id((center_x, center_y))
 
                     # Calculate confidence based on contour area (normalized)
                     area = cv2.contourArea(contour)
+                    # Scale area-based confidence threshold with resolution
                     confidence = min(
-                        0.9, max(0.3, area / 10000.0)
-                    )  # Simple area-based confidence
+                        0.9, max(0.3, area / (10000.0 * resolution_scale))
+                    )
 
                     # Convert angle from degrees to radians (cv2.minAreaRect returns degrees)
                     angle_rad = np.radians(angle)

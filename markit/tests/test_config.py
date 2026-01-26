@@ -19,7 +19,7 @@ class TestConstants:
 
     def test_constants_have_expected_values(self):
         """Verify constants have expected values."""
-        assert Constants.MP4V_FOURCC == "mp4v"
+        assert Constants.MP4V_FOURCC == "avc1"  # H.264 codec for better compression
         assert Constants.SCHEMA_VERSION == "1.1"
         assert "SAVANT markit" in Constants.ANNOTATOR_NAME
 
@@ -68,8 +68,8 @@ class TestOpticalFlowParams:
     def test_default_values(self):
         """Test default optical flow parameters."""
         params = OpticalFlowParams()
-        assert params.motion_threshold == 0.5
-        assert params.min_area == 200
+        assert params.motion_threshold == 1.0  # Increased for drone footage
+        assert params.min_area == 500  # Increased, scaled with resolution at runtime
         assert params.morph_kernel_size == 9
         # New algorithm parameters
         assert params.algorithm == "dis"
@@ -78,6 +78,7 @@ class TestOpticalFlowParams:
         assert params.window_size == 25
         assert params.iterations == 5
         assert params.median_filter_size == 5
+        assert params.processing_scale == 0.5  # Downscale for faster processing
 
     def test_custom_values(self):
         """Test custom optical flow parameters."""

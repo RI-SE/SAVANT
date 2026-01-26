@@ -24,8 +24,9 @@ Optional Arguments:
 
 Detection Configuration:
     --detection-method   Detection method: yolo, optical_flow, or both (default: yolo)
-    --motion-threshold   Optical flow motion threshold (default: 0.5)
-    --min-object-area    Minimum object area for optical flow detection (default: 200)
+    --motion-threshold   Optical flow motion threshold (default: 1.0)
+    --min-object-area    Minimum object area for optical flow detection (default: 500)
+    --flow-scale         Scale factor for optical flow processing (default: 0.5)
     --flow-algorithm     Optical flow algorithm: dis, farneback, lucas_kanade (default: dis)
     --flow-temporal-smoothing  Temporal smoothing factor (0-1, default: 0.3)
     --flow-pyramid-levels      Pyramid levels for Farneback (default: 7)
@@ -207,14 +208,14 @@ Examples:
     detection.add_argument(
         "--motion-threshold",
         type=float,
-        default=0.5,
-        help="Optical flow motion threshold (default: 0.5)",
+        default=1.0,
+        help="Optical flow motion threshold (default: 1.0)",
     )
     detection.add_argument(
         "--min-object-area",
         type=int,
-        default=200,
-        help="Minimum object area for optical flow detection (default: 200)",
+        default=500,
+        help="Minimum object area for optical flow detection, base for 1080p (default: 500)",
     )
     detection.add_argument(
         "--flow-algorithm",
@@ -256,6 +257,12 @@ Examples:
         "--debug-flow",
         action="store_true",
         help="Enable optical flow visualization in output video (magnitude heatmap overlay)",
+    )
+    detection.add_argument(
+        "--flow-scale",
+        type=float,
+        default=0.5,
+        help="Scale factor for optical flow processing (0.25-1.0, default: 0.5). Lower = faster but less precise.",
     )
     detection.add_argument(
         "--aruco-dict",
@@ -435,6 +442,7 @@ def build_arguments_string(args: argparse.Namespace) -> str:
         parts.append(f"--min-object-area {args.min_object_area}")
         parts.append(f"--flow-algorithm {args.flow_algorithm}")
         parts.append(f"--flow-temporal-smoothing {args.flow_temporal_smoothing}")
+        parts.append(f"--flow-scale {args.flow_scale}")
         if args.flow_algorithm == "farneback":
             parts.append(f"--flow-pyramid-levels {args.flow_pyramid_levels}")
             parts.append(f"--flow-window-size {args.flow_window_size}")

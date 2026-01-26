@@ -281,11 +281,26 @@ def render_output_video(
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
 
-    # Setup video writer
+    # Setup video writer with codec fallback
+    # Try H.264 (avc1) first for better compression, fall back to mp4v if unavailable
     fourcc = cv2.VideoWriter_fourcc(*Constants.MP4V_FOURCC)
     out = cv2.VideoWriter(
         config.output_video_path, fourcc, fps, (frame_width, frame_height)
     )
+
+    # Check if writer opened successfully; if not, try fallback codec
+    if not out.isOpened():
+        logger.warning(
+            f"Codec '{Constants.MP4V_FOURCC}' not available, falling back to 'mp4v'"
+        )
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        out = cv2.VideoWriter(
+            config.output_video_path, fourcc, fps, (frame_width, frame_height)
+        )
+        if not out.isOpened():
+            logger.error("Failed to open video writer with fallback codec")
+            cap.release()
+            return
 
     frame_idx = 0
     frames_data = openlabel_data.get("openlabel", {}).get("frames", {})

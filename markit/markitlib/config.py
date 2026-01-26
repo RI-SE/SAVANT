@@ -20,7 +20,7 @@ from . import __version__
 class Constants:
     """Constants used throughout the application."""
 
-    MP4V_FOURCC = "mp4v"
+    MP4V_FOURCC = "avc1"  # H.264 codec for better compression (was "mp4v")
     SCHEMA_VERSION = "1.1"
     ANNOTATOR_NAME = f"SAVANT markit v{__version__}"
     # Fallback class map used when ontology file cannot be loaded
@@ -57,7 +57,7 @@ class OpticalFlowParams:
 
     Attributes:
         motion_threshold: Threshold for motion magnitude detection.
-        min_area: Minimum contour area in pixels to be considered a detection.
+        min_area: Minimum contour area in pixels to be considered a detection (base for 1080p).
         morph_kernel_size: Kernel size for morphological operations.
         algorithm: Optical flow algorithm - "dis", "farneback", or "lucas_kanade".
         temporal_smoothing: Weight for exponential moving average smoothing (0=no smoothing, 1=full).
@@ -66,10 +66,11 @@ class OpticalFlowParams:
         iterations: Iterations per pyramid level for Farneback algorithm.
         median_filter_size: Median filter kernel size (0 to disable).
         debug_visualization: Enable caching of intermediate data for visualization.
+        processing_scale: Scale factor for frame downscaling before flow computation (0.25-1.0).
     """
 
-    motion_threshold: float = 0.5
-    min_area: int = 200
+    motion_threshold: float = 1.0  # Increased from 0.5 for drone footage
+    min_area: int = 500  # Increased from 200, scaled with resolution at runtime
     morph_kernel_size: int = 9
     algorithm: str = "dis"
     temporal_smoothing: float = 0.3
@@ -78,6 +79,7 @@ class OpticalFlowParams:
     iterations: int = 5
     median_filter_size: int = 5
     debug_visualization: bool = False
+    processing_scale: float = 0.5  # Downscale factor for flow computation (0.25 = 1/4 res)
 
 
 @dataclass
@@ -145,6 +147,7 @@ class MarkitConfig:
             iterations=getattr(args, "flow_iterations", 5),
             median_filter_size=getattr(args, "flow_median_filter", 5),
             debug_visualization=getattr(args, "debug_flow", False),
+            processing_scale=getattr(args, "flow_scale", 0.5),
         )
 
         # IoU-based conflict resolution configuration
