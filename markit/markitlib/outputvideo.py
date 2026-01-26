@@ -281,26 +281,31 @@ def render_output_video(
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
 
-    # Setup video writer with codec fallback
-    # Try H.264 (avc1) first for better compression, fall back to mp4v if unavailable
-    fourcc = cv2.VideoWriter_fourcc(*Constants.MP4V_FOURCC)
-    out = cv2.VideoWriter(
-        config.output_video_path, fourcc, fps, (frame_width, frame_height)
-    )
+    # Setup video writer - try H.264 first for better compression, fall back to mp4v
+    # H.264 requires libx264; if unavailable, mp4v (MPEG-4 Part 2) is used
+    codec_chain = ["avc1", Constants.MP4V_FOURCC]
+    out = None
+    used_codec = None
 
-    # Check if writer opened successfully; if not, try fallback codec
-    if not out.isOpened():
-        logger.warning(
-            f"Codec '{Constants.MP4V_FOURCC}' not available, falling back to 'mp4v'"
-        )
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    for codec in codec_chain:
+        fourcc = cv2.VideoWriter_fourcc(*codec)
         out = cv2.VideoWriter(
             config.output_video_path, fourcc, fps, (frame_width, frame_height)
         )
-        if not out.isOpened():
-            logger.error("Failed to open video writer with fallback codec")
-            cap.release()
-            return
+        if out.isOpened():
+            used_codec = codec
+            break
+        out.release()
+
+    if used_codec is None or not out.isOpened():
+        logger.error("Failed to open video writer with any available codec")
+        cap.release()
+        return
+
+    if used_codec == "avc1":
+        logger.info("Using H.264 codec for output video")
+    elif used_codec != "avc1":
+        logger.debug(f"H.264 not available, using '{used_codec}' codec")
 
     frame_idx = 0
     frames_data = openlabel_data.get("openlabel", {}).get("frames", {})

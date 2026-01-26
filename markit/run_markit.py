@@ -25,7 +25,8 @@ Optional Arguments:
 Detection Configuration:
     --detection-method   Detection method: yolo, optical_flow, or both (default: yolo)
     --motion-threshold   Optical flow motion threshold (default: 1.0)
-    --min-object-area    Minimum object area for optical flow detection (default: 500)
+    --min-object-area    Minimum object area at full resolution (default: 2000)
+    --max-object-area    Maximum object area at full resolution (default: 30000, 0 to disable)
     --flow-scale         Scale factor for optical flow processing (default: 0.5)
     --flow-algorithm     Optical flow algorithm: dis, farneback, lucas_kanade (default: dis)
     --flow-temporal-smoothing  Temporal smoothing factor (0-1, default: 0.3)
@@ -214,8 +215,20 @@ Examples:
     detection.add_argument(
         "--min-object-area",
         type=int,
-        default=500,
-        help="Minimum object area for optical flow detection, base for 1080p (default: 500)",
+        default=2000,
+        help="Minimum object area in pixels at full resolution, scaled with flow-scale² (default: 2000)",
+    )
+    detection.add_argument(
+        "--max-object-area",
+        type=int,
+        default=30000,
+        help="Maximum object area in pixels at full resolution, scaled with flow-scale² (0 to disable, default: 30000)",
+    )
+    detection.add_argument(
+        "--morph-kernel-size",
+        type=int,
+        default=5,
+        help="Morphological kernel size for noise removal (smaller = tighter bboxes, default: 5)",
     )
     detection.add_argument(
         "--flow-algorithm",
@@ -440,6 +453,7 @@ def build_arguments_string(args: argparse.Namespace) -> str:
     if args.detection_method in ["optical_flow", "both"]:
         parts.append(f"--motion-threshold {args.motion_threshold}")
         parts.append(f"--min-object-area {args.min_object_area}")
+        parts.append(f"--max-object-area {args.max_object_area}")
         parts.append(f"--flow-algorithm {args.flow_algorithm}")
         parts.append(f"--flow-temporal-smoothing {args.flow_temporal_smoothing}")
         parts.append(f"--flow-scale {args.flow_scale}")

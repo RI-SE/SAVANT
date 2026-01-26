@@ -673,9 +673,10 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
             proc_height, proc_width = proc_frame.shape[:2]
 
-            # Scale min_area with resolution (base is 1080p)
-            resolution_scale = (proc_height / 1080) ** 2
-            effective_min_area = int(self.params.min_area * resolution_scale)
+            # Scale min_area and max_area with processing_scale² (settings are for full resolution)
+            scale_sq = scale * scale
+            effective_min_area = int(self.params.min_area * scale_sq)
+            effective_max_area = int(self.params.max_area * scale_sq) if self.params.max_area > 0 else 0
 
             # 1. Background subtraction
             fg_mask = self.back_sub.apply(proc_frame)
@@ -732,50 +733,54 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
             # 5. Generate oriented bounding boxes
             for contour in contours:
-                if cv2.contourArea(contour) > effective_min_area:
-                    # Get minimum area rectangle (OBB)
-                    rect = cv2.minAreaRect(contour)
-                    box = cv2.boxPoints(rect)
-                    box = np.array(box, dtype=np.float32)
+                area = cv2.contourArea(contour)
+                if area < effective_min_area:
+                    continue
+                if effective_max_area > 0 and area > effective_max_area:
+                    continue
 
-                    # Calculate center and angle
-                    (center_x, center_y), (width, height), angle = rect
+                # Get minimum area rectangle (OBB)
+                rect = cv2.minAreaRect(contour)
+                box = cv2.boxPoints(rect)
+                box = np.array(box, dtype=np.float32)
 
-                    # Scale coordinates back to original resolution if downscaled
-                    if scale < 1.0:
-                        inv_scale = 1.0 / scale
-                        box = box * inv_scale
-                        center_x *= inv_scale
-                        center_y *= inv_scale
-                        width *= inv_scale
-                        height *= inv_scale
+                # Calculate center and angle
+                (center_x, center_y), (width, height), angle = rect
 
-                    # Assign object ID (simple tracking) - use original resolution coords
-                    obj_id = self.object_tracker.get_id((center_x, center_y))
+                # Scale coordinates back to original resolution if downscaled
+                if scale < 1.0:
+                    inv_scale = 1.0 / scale
+                    box = box * inv_scale
+                    center_x *= inv_scale
+                    center_y *= inv_scale
+                    width *= inv_scale
+                    height *= inv_scale
 
-                    # Calculate confidence based on contour area (normalized)
-                    area = cv2.contourArea(contour)
-                    # Scale area-based confidence threshold with resolution
-                    confidence = min(
-                        0.9, max(0.3, area / (10000.0 * resolution_scale))
+                # Assign object ID (simple tracking) - use original resolution coords
+                obj_id = self.object_tracker.get_id((center_x, center_y))
+
+                # Calculate confidence based on contour area (normalized)
+                # Scale area-based confidence threshold with processing scale
+                confidence = min(
+                    0.9, max(0.3, area / (10000.0 * scale_sq))
+                )
+
+                # Convert angle from degrees to radians (cv2.minAreaRect returns degrees)
+                angle_rad = np.radians(angle)
+
+                results.append(
+                    DetectionResult(
+                        object_id=obj_id,
+                        class_id=0,  # Generic "moving object" class
+                        confidence=confidence,
+                        oriented_bbox=box.astype(np.float32),
+                        center=(center_x, center_y),
+                        angle=angle_rad,
+                        source_engine="optical_flow",
+                        width=float(width),
+                        height=float(height),
                     )
-
-                    # Convert angle from degrees to radians (cv2.minAreaRect returns degrees)
-                    angle_rad = np.radians(angle)
-
-                    results.append(
-                        DetectionResult(
-                            object_id=obj_id,
-                            class_id=0,  # Generic "moving object" class
-                            confidence=confidence,
-                            oriented_bbox=box.astype(np.float32),
-                            center=(center_x, center_y),
-                            angle=angle_rad,
-                            source_engine="optical_flow",
-                            width=float(width),
-                            height=float(height),
-                        )
-                    )
+                )
 
             self.prev_gray = gray.copy()
             return results

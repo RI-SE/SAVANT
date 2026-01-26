@@ -20,7 +20,7 @@ from . import __version__
 class Constants:
     """Constants used throughout the application."""
 
-    MP4V_FOURCC = "avc1"  # H.264 codec for better compression (was "mp4v")
+    MP4V_FOURCC = "mp4v"  # MPEG-4 Part 2 (widely supported; H.264 tried first if available)
     SCHEMA_VERSION = "1.1"
     ANNOTATOR_NAME = f"SAVANT markit v{__version__}"
     # Fallback class map used when ontology file cannot be loaded
@@ -57,7 +57,8 @@ class OpticalFlowParams:
 
     Attributes:
         motion_threshold: Threshold for motion magnitude detection.
-        min_area: Minimum contour area in pixels to be considered a detection (base for 1080p).
+        min_area: Minimum contour area in pixels at full resolution (scaled with processing_scale²).
+        max_area: Maximum contour area in pixels at full resolution (scaled with processing_scale², 0 to disable).
         morph_kernel_size: Kernel size for morphological operations.
         algorithm: Optical flow algorithm - "dis", "farneback", or "lucas_kanade".
         temporal_smoothing: Weight for exponential moving average smoothing (0=no smoothing, 1=full).
@@ -70,8 +71,9 @@ class OpticalFlowParams:
     """
 
     motion_threshold: float = 1.0  # Increased from 0.5 for drone footage
-    min_area: int = 500  # Increased from 200, scaled with resolution at runtime
-    morph_kernel_size: int = 9
+    min_area: int = 2000  # For full resolution, scaled down with processing_scale²
+    max_area: int = 30000  # For full resolution, scaled down with processing_scale² (0 to disable)
+    morph_kernel_size: int = 5  # Reduced from 9 for tighter bboxes
     algorithm: str = "dis"
     temporal_smoothing: float = 0.3
     pyramid_levels: int = 7
@@ -140,6 +142,8 @@ class MarkitConfig:
         self.optical_flow_params = OpticalFlowParams(
             motion_threshold=args.motion_threshold,
             min_area=args.min_object_area,
+            max_area=getattr(args, "max_object_area", 30000),
+            morph_kernel_size=getattr(args, "morph_kernel_size", 5),
             algorithm=getattr(args, "flow_algorithm", "dis"),
             temporal_smoothing=getattr(args, "flow_temporal_smoothing", 0.3),
             pyramid_levels=getattr(args, "flow_pyramid_levels", 7),
