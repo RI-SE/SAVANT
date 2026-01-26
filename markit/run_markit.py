@@ -32,6 +32,7 @@ Detection Configuration:
     --flow-window-size         Window size for Farneback (default: 25)
     --flow-iterations          Iterations for Farneback (default: 5)
     --flow-median-filter       Median filter size for noise reduction (default: 5, 0 to disable)
+    --debug-flow         Enable optical flow visualization in output video (magnitude heatmap)
     --aruco-dict         ArUco dictionary type (default: DICT_4X4_50)
 
 Conflict Resolution:
@@ -250,6 +251,11 @@ Examples:
         type=int,
         default=5,
         help="Median filter size for flow noise reduction (0 to disable, default: 5)",
+    )
+    detection.add_argument(
+        "--debug-flow",
+        action="store_true",
+        help="Enable optical flow visualization in output video (magnitude heatmap overlay)",
     )
     detection.add_argument(
         "--aruco-dict",

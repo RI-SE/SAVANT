@@ -65,6 +65,7 @@ class OpticalFlowParams:
         window_size: Averaging window size for Farneback algorithm.
         iterations: Iterations per pyramid level for Farneback algorithm.
         median_filter_size: Median filter kernel size (0 to disable).
+        debug_visualization: Enable caching of intermediate data for visualization.
     """
 
     motion_threshold: float = 0.5
@@ -76,6 +77,7 @@ class OpticalFlowParams:
     window_size: int = 25
     iterations: int = 5
     median_filter_size: int = 5
+    debug_visualization: bool = False
 
 
 @dataclass
@@ -142,6 +144,7 @@ class MarkitConfig:
             window_size=getattr(args, "flow_window_size", 25),
             iterations=getattr(args, "flow_iterations", 5),
             median_filter_size=getattr(args, "flow_median_filter", 5),
+            debug_visualization=getattr(args, "debug_flow", False),
         )
 
         # IoU-based conflict resolution configuration

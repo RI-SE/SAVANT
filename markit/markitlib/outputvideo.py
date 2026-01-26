@@ -3,16 +3,17 @@ outputvideo - Output video rendering from postprocessed OpenLabel data
 
 Handles rendering of annotated video from final postprocessed OpenLabel data,
 with support for detecting and highlighting postprocessing modifications.
+Includes optional optical flow debug visualization (magnitude heatmap, motion mask).
 """
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import cv2
 import numpy as np
 
-from .config import Constants, DetectionResult, MarkitConfig
-from .processing import FrameAnnotator
+from .config import Constants, DetectionResult, MarkitConfig, OpticalFlowParams
+from .processing import FrameAnnotator, OpticalFlowEngine
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +202,43 @@ def _openlabel_to_detections(
     return detection_results
 
 
+def draw_optical_flow_debug(
+    frame: np.ndarray,
+    debug_data: Dict[str, np.ndarray],
+    alpha: float = 0.5,
+) -> np.ndarray:
+    """Overlay optical flow visualization on frame.
+
+    Draws a magnitude heatmap showing motion intensity (blue=no motion, red=high motion).
+
+    Args:
+        frame: BGR image
+        debug_data: Dict with 'magnitude', 'motion_mask', 'flow' arrays
+        alpha: Blend factor for overlay (0=original only, 1=heatmap only)
+
+    Returns:
+        Annotated frame with flow visualization
+    """
+    if debug_data is None:
+        return frame
+
+    magnitude = debug_data.get("magnitude")
+    if magnitude is None:
+        return frame
+
+    # Normalize magnitude to 0-255 for colormap
+    mag_normalized = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX)
+    mag_uint8 = mag_normalized.astype(np.uint8)
+
+    # Apply JET colormap: blue (low) -> green -> red (high)
+    heatmap = cv2.applyColorMap(mag_uint8, cv2.COLORMAP_JET)
+
+    # Blend heatmap with original frame
+    result = cv2.addWeighted(frame, 1 - alpha, heatmap, alpha, 0)
+
+    return result
+
+
 def render_output_video(
     config: MarkitConfig, openlabel_data: Dict, debug_data: Dict = None
 ) -> None:
@@ -222,6 +260,15 @@ def render_output_video(
         logger.info(
             "Verbose mode: Drawing YOLO boxes (red) and OpenLabel boxes (green/colors)"
         )
+
+    # Check if optical flow debug visualization is enabled
+    flow_debug_enabled = config.optical_flow_params.debug_visualization
+    flow_engine: Optional[OpticalFlowEngine] = None
+
+    if flow_debug_enabled:
+        logger.info("Optical flow debug visualization enabled (magnitude heatmap)")
+        # Create a dedicated optical flow engine for visualization
+        flow_engine = OpticalFlowEngine(config.optical_flow_params)
 
     # Open input video
     cap = cv2.VideoCapture(config.video_path)
@@ -250,11 +297,22 @@ def render_output_video(
             if not success:
                 break
 
+            annotated_frame = frame.copy()
+
+            # Draw optical flow debug visualization (heatmap) if enabled
+            if flow_engine is not None:
+                # Process frame to get optical flow debug data
+                flow_engine.process_frame(frame)
+                flow_debug_data = flow_engine.get_debug_visualization()
+                if flow_debug_data is not None:
+                    annotated_frame = draw_optical_flow_debug(
+                        annotated_frame, flow_debug_data, alpha=0.5
+                    )
+
             # Get detections for this frame from OpenLabel data
             frame_str = str(frame_idx)
             if frame_str in frames_data:
                 # If verbose, draw original YOLO boxes first (in red)
-                annotated_frame = frame.copy()
                 if config.verbose:
                     annotated_frame = _draw_raw_yolo_boxes(
                         annotated_frame, frame_idx, debug_data
@@ -267,9 +325,8 @@ def render_output_video(
                 annotated_frame = FrameAnnotator.annotate_frame(
                     annotated_frame, detection_results, config.class_map
                 )
-                out.write(annotated_frame)
-            else:
-                out.write(frame)  # No detections, write original frame
+
+            out.write(annotated_frame)
 
             frame_idx += 1
             if frame_idx % 100 == 0:
@@ -278,5 +335,7 @@ def render_output_video(
     finally:
         cap.release()
         out.release()
+        if flow_engine is not None:
+            flow_engine.cleanup()
 
     logger.info(f"Output video rendered: {config.output_video_path}")

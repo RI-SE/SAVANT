@@ -397,6 +397,11 @@ class OpticalFlowEngine(BaseDetectionEngine):
         self.dis_instance = None  # Cached DIS optical flow instance
         self.optical_flow_available = self._check_optical_flow_availability()
 
+        # Debug visualization cache (only populated when debug_visualization=True)
+        self.last_magnitude: Optional[np.ndarray] = None
+        self.last_motion_mask: Optional[np.ndarray] = None
+        self.last_flow: Optional[np.ndarray] = None
+
         if self.optical_flow_available:
             logger.info(
                 f"Optical flow engine initialized with {self.optical_flow_method}, "
@@ -516,6 +521,7 @@ class OpticalFlowEngine(BaseDetectionEngine):
         """Calculate optical flow magnitude using the available method.
 
         Applies temporal smoothing and median filtering based on params.
+        When debug_visualization is enabled, caches flow field for visualization.
 
         Args:
             prev_gray: Previous frame (grayscale)
@@ -548,6 +554,10 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
             # Store for next frame's temporal smoothing
             self.prev_flow = flow.copy()
+
+            # Cache flow field for debug visualization
+            if self.params.debug_visualization:
+                self.last_flow = flow.copy()
 
             # Compute magnitude from (possibly smoothed) flow
             magnitude, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
@@ -659,6 +669,10 @@ class OpticalFlowEngine(BaseDetectionEngine):
                 try:
                     magnitude = self._calculate_optical_flow(self.prev_gray, gray)
                     if magnitude is not None:
+                        # Cache magnitude for debug visualization
+                        if self.params.debug_visualization:
+                            self.last_magnitude = magnitude.copy()
+
                         motion_mask = (magnitude > self.params.motion_threshold).astype(
                             np.uint8
                         ) * 255
@@ -668,6 +682,10 @@ class OpticalFlowEngine(BaseDetectionEngine):
                         motion_mask = cv2.dilate(
                             motion_mask, dilate_kernel, iterations=1
                         )
+
+                        # Cache motion mask for debug visualization
+                        if self.params.debug_visualization:
+                            self.last_motion_mask = motion_mask.copy()
                     else:
                         self.optical_flow_available = False
                 except Exception as e:
@@ -736,12 +754,33 @@ class OpticalFlowEngine(BaseDetectionEngine):
             logger.error(f"Error processing frame with optical flow: {e}")
             return []
 
+    def get_debug_visualization(self) -> Optional[Dict[str, np.ndarray]]:
+        """Return cached intermediate data for visualization.
+
+        Only returns data when debug_visualization is enabled and data is available.
+
+        Returns:
+            Dict with 'magnitude', 'motion_mask', 'flow' arrays, or None if unavailable
+        """
+        if not self.params.debug_visualization:
+            return None
+        if self.last_magnitude is None:
+            return None
+        return {
+            "magnitude": self.last_magnitude,
+            "motion_mask": self.last_motion_mask,
+            "flow": self.last_flow,
+        }
+
     def cleanup(self) -> None:
         """Clean up optical flow engine resources."""
         self.back_sub = None
         self.prev_gray = None
         self.prev_flow = None
         self.dis_instance = None
+        self.last_magnitude = None
+        self.last_motion_mask = None
+        self.last_flow = None
 
 
 class ArUcoGPSData:
