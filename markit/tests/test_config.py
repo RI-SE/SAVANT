@@ -72,6 +72,7 @@ class TestOpticalFlowParams:
         assert params.min_area == 2000  # For full resolution, scaled with processing_scale²
         assert params.max_area == 30000  # For full resolution, scaled with processing_scale²
         assert params.morph_kernel_size == 5  # Reduced from 9 for tighter bboxes
+        assert params.track_max_age == 10  # Frames before track expires
         # New algorithm parameters
         assert params.algorithm == "dis"
         assert params.temporal_smoothing == 0.3

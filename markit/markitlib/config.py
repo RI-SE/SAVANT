@@ -68,9 +68,11 @@ class OpticalFlowParams:
         median_filter_size: Median filter kernel size (0 to disable).
         debug_visualization: Enable caching of intermediate data for visualization.
         processing_scale: Scale factor for frame downscaling before flow computation (0.25-1.0).
+        track_max_age: Maximum frames a track can be unmatched before expiring.
     """
 
     motion_threshold: float = 1.0  # Increased from 0.5 for drone footage
+    track_max_age: int = 10  # Frames before track expires (prevents ID reuse)
     min_area: int = 2000  # For full resolution, scaled down with processing_scale²
     max_area: int = 30000  # For full resolution, scaled down with processing_scale² (0 to disable)
     morph_kernel_size: int = 5  # Reduced from 9 for tighter bboxes
@@ -152,6 +154,7 @@ class MarkitConfig:
             median_filter_size=getattr(args, "flow_median_filter", 5),
             debug_visualization=getattr(args, "debug_flow", False),
             processing_scale=getattr(args, "flow_scale", 0.5),
+            track_max_age=getattr(args, "track_max_age", 10),
         )
 
         # IoU-based conflict resolution configuration

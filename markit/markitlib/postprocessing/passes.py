@@ -179,16 +179,24 @@ class GapFillingPass(PostprocessingPass):
         x_before, y_before, w_before, h_before, r_before = rbbox_before
         x_after, y_after, w_after, h_after, r_after = rbbox_after
 
+        # Calculate deltas for all parameters
         delta_x = x_after - x_before
         delta_y = y_after - y_before
+        delta_w = w_after - w_before
+        delta_h = h_after - h_before
+        delta_r = r_after - r_before
 
         total_steps = gap_size + 1
 
         for step in range(1, gap_size + 1):
             interpolation_factor = step / total_steps
 
-            x_interpolated = int(x_before + delta_x * interpolation_factor)
-            y_interpolated = int(y_before + delta_y * interpolation_factor)
+            # Interpolate all bbox parameters
+            x_interpolated = x_before + delta_x * interpolation_factor
+            y_interpolated = y_before + delta_y * interpolation_factor
+            w_interpolated = w_before + delta_w * interpolation_factor
+            h_interpolated = h_before + delta_h * interpolation_factor
+            r_interpolated = r_before + delta_r * interpolation_factor
 
             missing_frame_idx = frame_before + step
             missing_frame_str = str(missing_frame_idx)
@@ -204,9 +212,9 @@ class GapFillingPass(PostprocessingPass):
                             "val": [
                                 x_interpolated,
                                 y_interpolated,
-                                w_before,
-                                h_before,
-                                r_before,
+                                w_interpolated,
+                                h_interpolated,
+                                r_interpolated,
                             ],
                         }
                     ],

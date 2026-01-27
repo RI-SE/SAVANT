@@ -231,6 +231,12 @@ Examples:
         help="Morphological kernel size for noise removal (smaller = tighter bboxes, default: 5)",
     )
     detection.add_argument(
+        "--track-max-age",
+        type=int,
+        default=10,
+        help="Maximum frames a track can be unmatched before expiring (default: 10)",
+    )
+    detection.add_argument(
         "--flow-algorithm",
         choices=["dis", "farneback", "lucas_kanade"],
         default="dis",

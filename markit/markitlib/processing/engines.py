@@ -321,33 +321,54 @@ class YOLOEngine(BaseDetectionEngine):
 
 
 class SimpleTracker:
-    """Simple object tracker for optical flow detections."""
+    """Simple object tracker for optical flow detections with track expiration."""
 
     def __init__(
-        self, max_distance: float = 50.0, id_manager: Optional["ObjectIDManager"] = None
+        self,
+        max_distance: float = 50.0,
+        max_age: int = 10,
+        id_manager: Optional["ObjectIDManager"] = None,
     ):
+        """Initialize tracker.
+
+        Args:
+            max_distance: Maximum distance in pixels to match a detection to existing track
+            max_age: Maximum frames a track can be unmatched before expiring
+            id_manager: Optional ID manager for unified sequential IDs
+        """
         self.max_distance = max_distance
-        self.tracks = {}  # Maps remapped_id -> center position
+        self.max_age = max_age
+        self.tracks = {}  # Maps remapped_id -> (center, last_seen_frame)
         self.id_manager = id_manager
+        self._current_frame = 0
         # Local tracking ID for ID manager lookup (sequential per tracker)
         self._next_local_id = 1
         # Fallback for legacy mode without ID manager
         self._next_legacy_id = 1000001
 
-    def get_id(self, center: Tuple[float, float]) -> int:
+    def get_id(self, center: Tuple[float, float], frame_idx: int = None) -> int:
         """Get object ID for center position.
 
         Args:
             center: Object center position (x, y)
+            frame_idx: Current frame index (for track age management)
 
         Returns:
             Object ID (remapped if ID manager available)
         """
+        if frame_idx is not None:
+            self._current_frame = frame_idx
+
         min_distance = float("inf")
         best_track_id = None
 
-        # Find closest existing track
-        for track_id, track_center in self.tracks.items():
+        # Find closest existing track that hasn't expired
+        for track_id, (track_center, last_seen) in list(self.tracks.items()):
+            # Skip expired tracks
+            age = self._current_frame - last_seen
+            if age > self.max_age:
+                continue
+
             distance = np.sqrt(
                 (center[0] - track_center[0]) ** 2 + (center[1] - track_center[1]) ** 2
             )
@@ -357,7 +378,7 @@ class SimpleTracker:
 
         if best_track_id is not None:
             # Update existing track
-            self.tracks[best_track_id] = center
+            self.tracks[best_track_id] = (center, self._current_frame)
             return best_track_id
         else:
             # Create new track with remapped ID
@@ -371,8 +392,19 @@ class SimpleTracker:
                 new_id = self._next_legacy_id
                 self._next_legacy_id += 1
 
-            self.tracks[new_id] = center
+            self.tracks[new_id] = (center, self._current_frame)
             return new_id
+
+    def end_frame(self) -> None:
+        """Called at end of frame processing to clean up expired tracks."""
+        # Remove tracks that have been expired for a while (2x max_age)
+        expired = [
+            track_id
+            for track_id, (_, last_seen) in self.tracks.items()
+            if self._current_frame - last_seen > self.max_age * 2
+        ]
+        for track_id in expired:
+            del self.tracks[track_id]
 
 
 class OpticalFlowEngine(BaseDetectionEngine):
@@ -392,7 +424,8 @@ class OpticalFlowEngine(BaseDetectionEngine):
         self.back_sub = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
         self.prev_gray = None
         self.prev_flow = None  # For temporal smoothing
-        self.object_tracker = SimpleTracker(id_manager=id_manager)
+        self.object_tracker = SimpleTracker(max_age=params.track_max_age, id_manager=id_manager)
+        self._frame_idx = 0  # Frame counter for track age management
         self.optical_flow_method = None  # Will be set by availability check
         self.dis_instance = None  # Cached DIS optical flow instance
         self.optical_flow_available = self._check_optical_flow_availability()
@@ -661,6 +694,7 @@ class OpticalFlowEngine(BaseDetectionEngine):
             results = []
             orig_height, orig_width = frame.shape[:2]
             scale = self.params.processing_scale
+            self._frame_idx += 1  # Increment frame counter for track age
 
             # Downscale frame if processing_scale < 1.0
             if scale < 1.0:
@@ -767,7 +801,7 @@ class OpticalFlowEngine(BaseDetectionEngine):
                     height *= inv_scale
 
                 # Assign object ID (simple tracking) - use original resolution coords
-                obj_id = self.object_tracker.get_id((center_x, center_y))
+                obj_id = self.object_tracker.get_id((center_x, center_y), self._frame_idx)
 
                 # Calculate confidence based on bbox area (normalized)
                 # Scale area-based confidence threshold with processing scale
@@ -793,6 +827,7 @@ class OpticalFlowEngine(BaseDetectionEngine):
                 )
 
             self.prev_gray = gray.copy()
+            self.object_tracker.end_frame()  # Clean up expired tracks
             return results
 
         except Exception as e:
