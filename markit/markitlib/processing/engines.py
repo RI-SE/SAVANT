@@ -740,10 +740,8 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
             # 5. Generate oriented bounding boxes
             for contour in contours:
-                area = cv2.contourArea(contour)
-                if area < effective_min_area:
-                    continue
-                if effective_max_area > 0 and area > effective_max_area:
+                contour_area = cv2.contourArea(contour)
+                if contour_area < effective_min_area:
                     continue
 
                 # Get minimum area rectangle (OBB)
@@ -753,6 +751,11 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
                 # Calculate center and angle
                 (center_x, center_y), (width, height), angle = rect
+
+                # Check bounding box area (not contour area) against max limit
+                bbox_area = width * height
+                if effective_max_area > 0 and bbox_area > effective_max_area:
+                    continue
 
                 # Scale coordinates back to original resolution if downscaled
                 if scale < 1.0:

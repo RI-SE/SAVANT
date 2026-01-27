@@ -233,6 +233,10 @@ def draw_optical_flow_debug(
     # Apply JET colormap: blue (low) -> green -> red (high)
     heatmap = cv2.applyColorMap(mag_uint8, cv2.COLORMAP_JET)
 
+    # Resize heatmap to match frame size if needed (when processing_scale < 1.0)
+    if heatmap.shape[:2] != frame.shape[:2]:
+        heatmap = cv2.resize(heatmap, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_LINEAR)
+
     # Blend heatmap with original frame
     result = cv2.addWeighted(frame, 1 - alpha, heatmap, alpha, 0)
 
