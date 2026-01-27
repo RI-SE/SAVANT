@@ -936,15 +936,22 @@ class RotationAdjustmentPass(PostprocessingPass):
         movement_direction = float(np.arctan2(avg_sin, avg_cos))
 
         # Determine correct rotation based on which axis should align with movement
-        # New semantic format: width is always the long axis
-        # - rotation = angle of the WIDTH axis (long axis)
-        # - For vehicles, the long axis should align with movement direction
+        # For YOLO: width is always the long axis (semantic)
+        # For optical flow: width/height from minAreaRect are arbitrary
+        # The rotation value represents the angle of the WIDTH axis
+        # So if h > w, the long axis is perpendicular to the width axis
 
         aspect_ratio = max(w_current, h_current) / max(min(w_current, h_current), 1.0)
 
         if aspect_ratio > 1.5:  # Elongated object (likely vehicle)
-            # Width (long axis) should align with movement direction
-            correct_rotation = movement_direction
+            # Long axis should align with movement direction
+            if h_current > w_current:
+                # Height is the long axis, width axis is perpendicular
+                # Rotation represents width axis, so add 90° to movement direction
+                correct_rotation = movement_direction + np.pi / 2
+            else:
+                # Width is the long axis, aligns with movement
+                correct_rotation = movement_direction
         else:
             # Not elongated (circular or square) - use movement direction
             correct_rotation = movement_direction
