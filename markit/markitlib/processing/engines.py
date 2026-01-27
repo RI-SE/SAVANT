@@ -769,10 +769,10 @@ class OpticalFlowEngine(BaseDetectionEngine):
                 # Assign object ID (simple tracking) - use original resolution coords
                 obj_id = self.object_tracker.get_id((center_x, center_y))
 
-                # Calculate confidence based on contour area (normalized)
+                # Calculate confidence based on bbox area (normalized)
                 # Scale area-based confidence threshold with processing scale
                 confidence = min(
-                    0.9, max(0.3, area / (10000.0 * scale_sq))
+                    0.9, max(0.3, bbox_area / (10000.0 * scale_sq))
                 )
 
                 # Convert angle from degrees to radians (cv2.minAreaRect returns degrees)
