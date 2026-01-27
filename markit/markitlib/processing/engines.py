@@ -678,6 +678,13 @@ class OpticalFlowEngine(BaseDetectionEngine):
             effective_min_area = int(self.params.min_area * scale_sq)
             effective_max_area = int(self.params.max_area * scale_sq) if self.params.max_area > 0 else 0
 
+            # Log effective area limits on first frame
+            if self.prev_gray is None:
+                logger.info(
+                    f"Optical flow area limits: min={effective_min_area}, max={effective_max_area} "
+                    f"(scale={scale:.2f}, orig min={self.params.min_area}, orig max={self.params.max_area})"
+                )
+
             # 1. Background subtraction
             fg_mask = self.back_sub.apply(proc_frame)
 
