@@ -660,23 +660,30 @@ class RotationAdjustmentPass(PostprocessingPass):
         self,
         rotation_threshold: float = 0.1,
         min_movement_pixels: float = 5.0,
+        min_total_movement: float = 30.0,
         temporal_smoothing: float = 0.3,
+        max_rotation_change: float = 0.524,
     ):
         """Initialize rotation adjustment pass.
 
         Args:
             rotation_threshold: Minimum angle difference to trigger adjustment (radians, default: 0.1)
             min_movement_pixels: Minimum movement distance to consider for rotation calculation (default: 5.0)
+            min_total_movement: Minimum cumulative movement across all vectors to trust direction (default: 30.0)
             temporal_smoothing: Temporal smoothing factor (0-1, higher = more smoothing between frames, default: 0.3)
+            max_rotation_change: Maximum rotation change per frame in radians (default: 0.524 ≈ 30°)
         """
         self.rotations_adjusted = 0
         self.rotations_kept = 0
         self.rotations_copied = 0
         self.rotations_gap_skipped = 0
+        self.rotations_skipped_slow = 0
         self.objects_processed = 0
         self.rotation_threshold = rotation_threshold
         self.min_movement_pixels = min_movement_pixels
+        self.min_total_movement = min_total_movement
         self.temporal_smoothing = temporal_smoothing
+        self.max_rotation_change = max_rotation_change
 
     def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
         """Adjust rotation values based on movement direction with temporal smoothing.
@@ -832,7 +839,7 @@ class RotationAdjustmentPass(PostprocessingPass):
         """Apply temporal smoothing with maximum per-frame rotation limit.
 
         Prevents sudden rotation flips by:
-        1. Limiting max rotation change per frame to ~30° (π/6 radians)
+        1. Limiting max rotation change per frame (configurable via max_rotation_change)
         2. Using EMA smoothing for gradual transitions
 
         Args:
@@ -847,12 +854,9 @@ class RotationAdjustmentPass(PostprocessingPass):
         angle_diff = normalize_angle_to_pi(angle_diff)
 
         # Limit maximum rotation change per frame to prevent sudden flips
-        # ~30° per frame allows smooth rotation while preventing noise-induced flips
-        max_change_per_frame = np.pi / 6  # 30 degrees
-
-        if abs(angle_diff) > max_change_per_frame:
+        if abs(angle_diff) > self.max_rotation_change:
             # Clamp the change to max allowed
-            clamped_diff = np.sign(angle_diff) * max_change_per_frame
+            clamped_diff = np.sign(angle_diff) * self.max_rotation_change
             smoothed = prev_angle + clamped_diff
         else:
             # Small change - apply EMA smoothing
@@ -895,6 +899,7 @@ class RotationAdjustmentPass(PostprocessingPass):
 
         angles = []
         weights = []
+        total_distance = 0.0
 
         # Look backward (1-4 frames), skip gap-filled frames
         for lookback in range(1, 5):
@@ -917,6 +922,7 @@ class RotationAdjustmentPass(PostprocessingPass):
             distance = np.sqrt(delta_x**2 + delta_y**2)
 
             if distance >= self.min_movement_pixels:
+                total_distance += distance
                 angle = np.arctan2(delta_y, delta_x)
                 # Weight by distance (longer movement = more reliable) and proximity
                 weight = distance * (2.0 / lookback)
@@ -944,6 +950,7 @@ class RotationAdjustmentPass(PostprocessingPass):
             distance = np.sqrt(delta_x**2 + delta_y**2)
 
             if distance >= self.min_movement_pixels:
+                total_distance += distance
                 angle = np.arctan2(delta_y, delta_x)
                 # Weight by distance and proximity
                 weight = distance * (9.0 - lookahead)
@@ -951,6 +958,11 @@ class RotationAdjustmentPass(PostprocessingPass):
                 weights.append(weight)
 
         if not angles:
+            return None
+
+        # Skip if total movement is too small - direction is unreliable for slow objects
+        if total_distance < self.min_total_movement:
+            self.rotations_skipped_slow += 1
             return None
 
         # Circular averaging using sin/cos
@@ -963,7 +975,7 @@ class RotationAdjustmentPass(PostprocessingPass):
 
         # Check consistency - if angles point in many directions, result is unreliable
         consistency = np.sqrt(avg_sin**2 + avg_cos**2)
-        if consistency < 0.3:
+        if consistency < 0.5:
             return None
 
         movement_direction = float(np.arctan2(avg_sin, avg_cos))
@@ -995,6 +1007,7 @@ class RotationAdjustmentPass(PostprocessingPass):
             "rotations_kept": self.rotations_kept,
             "rotations_copied": self.rotations_copied,
             "rotations_gap_skipped": self.rotations_gap_skipped,
+            "rotations_skipped_slow": self.rotations_skipped_slow,
         }
 
 
