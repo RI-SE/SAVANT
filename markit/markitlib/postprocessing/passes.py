@@ -184,7 +184,8 @@ class GapFillingPass(PostprocessingPass):
         delta_y = y_after - y_before
         delta_w = w_after - w_before
         delta_h = h_after - h_before
-        delta_r = r_after - r_before
+        # Use shortest angular path for rotation interpolation
+        delta_r = normalize_angle_to_pi(r_after - r_before)
 
         total_steps = gap_size + 1
 
