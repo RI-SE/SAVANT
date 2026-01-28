@@ -169,6 +169,8 @@ class MarkitConfig:
         self.rotation_threshold = args.rotation_threshold
         self.min_movement_pixels = args.min_movement_pixels
         self.temporal_smoothing = args.temporal_smoothing
+        self.min_total_movement = args.min_total_movement
+        self.max_rotation_change = args.max_rotation_change
         self.edge_distance = args.edge_distance
         self.static_threshold = args.static_threshold
         self.static_mark = args.static_mark
