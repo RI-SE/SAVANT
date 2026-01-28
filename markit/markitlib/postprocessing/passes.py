@@ -1374,19 +1374,16 @@ class StaticObjectRemovalPass(PostprocessingPass):
 
 
 class BboxSmoothingPass(PostprocessingPass):
-    """Apply temporal smoothing to bbox position and size parameters (x, y, w, h).
+    """Apply temporal smoothing to bbox size parameters (w, h) only.
 
-    Rotation is handled separately by RotationAdjustmentPass. This pass applies
-    exponential moving average (EMA) smoothing with velocity-adaptive factors
-    and special handling for objects near frame edges.
+    Position (x, y) is NOT smoothed - raw positions are acceptable and smoothing
+    can actually increase jitter in some cases. Size smoothing uses bidirectional
+    EMA with special handling for objects near frame edges.
     """
 
     def __init__(
         self,
         smoothing_factor: float = 0.7,
-        velocity_adaptive: bool = True,
-        min_velocity: float = 2.0,
-        max_velocity: float = 20.0,
         edge_margin: int = 100,
         edge_size_mode: str = "freeze",
     ):
@@ -1397,18 +1394,10 @@ class BboxSmoothingPass(PostprocessingPass):
                 previous smoothed value to keep. Higher = more smoothing/stability.
                 With factor 0.7: new_smoothed = 0.7 * old_smoothed + 0.3 * raw_value
                 Default 0.7 provides good noise rejection while tracking real movement.
-            velocity_adaptive: Adjust smoothing based on velocity (default: True).
-                At low velocity, smoothing increases (less jitter when stationary).
-                At high velocity, smoothing decreases (faster response to real movement).
-            min_velocity: Below this velocity (px/frame), use maximum smoothing (default: 2.0)
-            max_velocity: Above this velocity (px/frame), use minimum smoothing (default: 20.0)
             edge_margin: Pixels from frame edge for special handling (default: 100)
             edge_size_mode: How to handle size near edges - "freeze" or "normal" (default: "freeze")
         """
         self.smoothing_factor = smoothing_factor
-        self.velocity_adaptive = velocity_adaptive
-        self.min_velocity = min_velocity
-        self.max_velocity = max_velocity
         self.edge_margin = edge_margin
         self.edge_size_mode = edge_size_mode
 
@@ -1462,7 +1451,9 @@ class BboxSmoothingPass(PostprocessingPass):
         obj_id: str,
         frame_list: List[int],
     ) -> None:
-        """Smooth the trajectory of a single object using bidirectional EMA.
+        """Smooth size (w, h) of a single object using bidirectional EMA.
+
+        Position (x, y) is NOT smoothed - raw positions are acceptable.
 
         Bidirectional smoothing eliminates lag by:
         1. Forward pass: EMA from start to end
@@ -1495,64 +1486,32 @@ class BboxSmoothingPass(PostprocessingPass):
         if n == 0:
             return
 
-        # Forward pass
-        forward_x = [0.0] * n
-        forward_y = [0.0] * n
+        # Forward pass (size only)
         forward_w = [0.0] * n
         forward_h = [0.0] * n
 
-        forward_x[0] = raw_values[0]["x"]
-        forward_y[0] = raw_values[0]["y"]
         forward_w[0] = raw_values[0]["w"]
         forward_h[0] = raw_values[0]["h"]
 
+        factor = self.smoothing_factor
         for i in range(1, n):
-            x, y, w, h = raw_values[i]["x"], raw_values[i]["y"], raw_values[i]["w"], raw_values[i]["h"]
-
-            # Velocity from raw values for adaptive smoothing
-            prev_x, prev_y = raw_values[i-1]["x"], raw_values[i-1]["y"]
-            velocity = np.sqrt((x - prev_x)**2 + (y - prev_y)**2)
-            factor = self._get_effective_smoothing_factor(velocity)
-
-            forward_x[i] = factor * forward_x[i-1] + (1 - factor) * x
-            forward_y[i] = factor * forward_y[i-1] + (1 - factor) * y
+            w, h = raw_values[i]["w"], raw_values[i]["h"]
             forward_w[i] = factor * forward_w[i-1] + (1 - factor) * w
             forward_h[i] = factor * forward_h[i-1] + (1 - factor) * h
 
-        # Backward pass
-        backward_x = [0.0] * n
-        backward_y = [0.0] * n
+        # Backward pass (size only)
         backward_w = [0.0] * n
         backward_h = [0.0] * n
 
-        backward_x[n-1] = raw_values[n-1]["x"]
-        backward_y[n-1] = raw_values[n-1]["y"]
         backward_w[n-1] = raw_values[n-1]["w"]
         backward_h[n-1] = raw_values[n-1]["h"]
 
         for i in range(n-2, -1, -1):
-            x, y, w, h = raw_values[i]["x"], raw_values[i]["y"], raw_values[i]["w"], raw_values[i]["h"]
-
-            # Velocity from raw values
-            next_x, next_y = raw_values[i+1]["x"], raw_values[i+1]["y"]
-            velocity = np.sqrt((next_x - x)**2 + (next_y - y)**2)
-            factor = self._get_effective_smoothing_factor(velocity)
-
-            backward_x[i] = factor * backward_x[i+1] + (1 - factor) * x
-            backward_y[i] = factor * backward_y[i+1] + (1 - factor) * y
+            w, h = raw_values[i]["w"], raw_values[i]["h"]
             backward_w[i] = factor * backward_w[i+1] + (1 - factor) * w
             backward_h[i] = factor * backward_h[i+1] + (1 - factor) * h
 
-        # Average forward and backward passes, then apply to frames
-        # Track last interior size for edge handling
-        last_interior_size = None
-        for i in range(n):
-            # Find last interior size before this frame
-            if not raw_values[i]["is_near_edge"]:
-                # Will be updated after we compute smoothed values
-                pass
-
-        # First pass to find interior sizes
+        # First pass to find interior sizes for edge handling
         interior_sizes = []
         for i in range(n):
             avg_w = (forward_w[i] + backward_w[i]) / 2
@@ -1560,16 +1519,14 @@ class BboxSmoothingPass(PostprocessingPass):
             if not raw_values[i]["is_near_edge"]:
                 interior_sizes.append((i, avg_w, avg_h))
 
-        # Apply smoothed values
+        # Apply smoothed size values (position unchanged)
         for i in range(n):
             frame_idx = raw_values[i]["frame_idx"]
             frame_str = str(frame_idx)
             rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
             is_near_edge = raw_values[i]["is_near_edge"]
 
-            # Average bidirectional smoothing
-            smoothed_x = (forward_x[i] + backward_x[i]) / 2
-            smoothed_y = (forward_y[i] + backward_y[i]) / 2
+            # Average bidirectional smoothing for size
             smoothed_w = (forward_w[i] + backward_w[i]) / 2
             smoothed_h = (forward_h[i] + backward_h[i]) / 2
 
@@ -1580,42 +1537,12 @@ class BboxSmoothingPass(PostprocessingPass):
                 smoothed_w, smoothed_h = nearest[1], nearest[2]
                 self.edge_frames_handled += 1
 
-            rbbox[0] = smoothed_x
-            rbbox[1] = smoothed_y
+            # Only update size - position (x, y) stays unchanged
             rbbox[2] = smoothed_w
             rbbox[3] = smoothed_h
 
             self._update_annotator(frames[frame_str]["objects"][obj_id])
             self.frames_smoothed += 1
-
-    def _get_effective_smoothing_factor(self, velocity: float) -> float:
-        """Calculate velocity-adaptive smoothing factor.
-
-        With default smoothing_factor=0.7:
-        - Low velocity (<2 px/frame): factor=0.9 (very smooth, reduces jitter when stationary)
-        - Normal velocity: factor=0.7 (balanced)
-        - High velocity (>20 px/frame): factor=0.35 (responsive to fast real movement)
-
-        Args:
-            velocity: Movement velocity in pixels/frame
-
-        Returns:
-            Effective smoothing factor (higher = more smoothing)
-        """
-        if not self.velocity_adaptive:
-            return self.smoothing_factor
-
-        if velocity < self.min_velocity:
-            # Low velocity: maximum smoothing to reduce jitter when nearly stationary
-            return min(self.smoothing_factor * 1.5, 0.9)
-        elif velocity > self.max_velocity:
-            # High velocity: reduced smoothing to track fast real movement
-            return self.smoothing_factor * 0.5
-        else:
-            # Linear interpolation between low and high velocity behavior
-            t = (velocity - self.min_velocity) / (self.max_velocity - self.min_velocity)
-            multiplier = 1.5 - t  # Goes from 1.5 to 0.5
-            return self.smoothing_factor * multiplier
 
     def _is_near_edge(self, x: float, y: float) -> bool:
         """Check if position is near frame edge.
@@ -1661,6 +1588,236 @@ class BboxSmoothingPass(PostprocessingPass):
             "objects_smoothed": self.objects_smoothed,
             "frames_smoothed": self.frames_smoothed,
             "edge_frames_handled": self.edge_frames_handled,
+        }
+
+
+class Rotation90JumpFixPass(PostprocessingPass):
+    """Fix 90° rotation jumps caused by minAreaRect w/h swapping.
+
+    minAreaRect can return equivalent bounding boxes rotated by 90° with w/h swapped.
+    This pass detects such jumps and corrects them by swapping w/h and adjusting rotation.
+    """
+
+    def __init__(self, jump_threshold_low: float = 70.0, jump_threshold_high: float = 110.0):
+        """Initialize 90° jump fix pass.
+
+        Args:
+            jump_threshold_low: Lower bound for 90° jump detection in degrees (default: 70)
+            jump_threshold_high: Upper bound for 90° jump detection in degrees (default: 110)
+        """
+        self.jump_threshold_low = np.radians(jump_threshold_low)
+        self.jump_threshold_high = np.radians(jump_threshold_high)
+        self.jumps_fixed = 0
+        self.objects_processed = 0
+        self.wh_swaps = 0
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fix 90° rotation jumps in object trajectories.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Modified OpenLabel data with 90° jumps fixed
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+
+        # Build object-to-frames mapping
+        object_frame_map = defaultdict(list)
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            frame_objects = frame_data.get("objects", {})
+            for obj_id_str in frame_objects.keys():
+                object_frame_map[obj_id_str].append(frame_idx)
+
+        # Process each object
+        for obj_id, frame_list in object_frame_map.items():
+            if len(frame_list) < 2:
+                continue
+
+            self.objects_processed += 1
+            frame_list_sorted = sorted(frame_list)
+            self._fix_object_jumps(frames, obj_id, frame_list_sorted)
+
+        logger.info(
+            f"Rotation90JumpFix: Processed {self.objects_processed} objects, "
+            f"fixed {self.jumps_fixed} jumps, {self.wh_swaps} w/h swaps"
+        )
+
+        return openlabel_data
+
+    def _fix_object_jumps(
+        self,
+        frames: Dict[str, Any],
+        obj_id: str,
+        frame_list: List[int],
+    ) -> None:
+        """Fix 90° jumps for a single object.
+
+        Args:
+            frames: Frame data dictionary
+            obj_id: Object ID string
+            frame_list: Sorted list of frame indices for this object
+        """
+        prev_rotation = None
+
+        for frame_idx in frame_list:
+            frame_str = str(frame_idx)
+            rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
+            x, y, w, h, r = rbbox
+
+            if prev_rotation is not None:
+                # Calculate angle difference
+                diff = normalize_angle_to_pi(r - prev_rotation)
+                abs_diff = abs(diff)
+
+                # Check if this looks like a 90° jump
+                if self.jump_threshold_low < abs_diff < self.jump_threshold_high:
+                    # Try adjusting rotation by ±90°
+                    sign = -1 if diff > 0 else 1
+                    alt_rotation = r + sign * (np.pi / 2)
+                    alt_diff = normalize_angle_to_pi(alt_rotation - prev_rotation)
+
+                    if abs(alt_diff) < abs_diff:
+                        # Swapping makes it more continuous - apply correction
+                        rbbox[2] = h  # Swap w and h
+                        rbbox[3] = w
+                        rbbox[4] = alt_rotation
+                        r = alt_rotation  # Update for next iteration
+                        self.jumps_fixed += 1
+                        self.wh_swaps += 1
+                        self._update_annotator(frames[frame_str]["objects"][obj_id])
+
+            prev_rotation = r
+
+    def _update_annotator(self, obj_data: Dict[str, Any]) -> None:
+        """Update annotator field to indicate 90° jump fix was applied."""
+        vec_list = obj_data["object_data"]["vec"]
+        for vec_item in vec_list:
+            if vec_item.get("name") == "annotator":
+                if "markit_housekeeping(90fix)" not in vec_item["val"]:
+                    vec_item["val"].insert(0, "markit_housekeeping(90fix)")
+                return
+        vec_list.insert(0, {"name": "annotator", "val": ["markit_housekeeping(90fix)"]})
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get 90° jump fix statistics."""
+        return {
+            "objects_processed": self.objects_processed,
+            "jumps_fixed": self.jumps_fixed,
+            "wh_swaps": self.wh_swaps,
+        }
+
+
+class RotationTemporalSmoothingPass(PostprocessingPass):
+    """Apply light temporal smoothing to rotation without recalculating from movement.
+
+    Only smooths small jitter (<20°). Large intentional rotations are preserved.
+    Does NOT use movement direction - respects the raw rotation values.
+    """
+
+    def __init__(self, smoothing_factor: float = 0.3, max_smooth_angle: float = 20.0):
+        """Initialize rotation temporal smoothing pass.
+
+        Args:
+            smoothing_factor: EMA factor for smoothing (0-1, default: 0.3)
+            max_smooth_angle: Maximum angle difference to smooth in degrees (default: 20)
+        """
+        self.smoothing_factor = smoothing_factor
+        self.max_smooth_angle = np.radians(max_smooth_angle)
+        self.rotations_smoothed = 0
+        self.rotations_kept = 0
+        self.objects_processed = 0
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply temporal smoothing to rotation values.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Modified OpenLabel data with smoothed rotations
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+
+        # Build object-to-frames mapping
+        object_frame_map = defaultdict(list)
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            frame_objects = frame_data.get("objects", {})
+            for obj_id_str in frame_objects.keys():
+                object_frame_map[obj_id_str].append(frame_idx)
+
+        # Process each object
+        for obj_id, frame_list in object_frame_map.items():
+            if len(frame_list) < 2:
+                continue
+
+            self.objects_processed += 1
+            frame_list_sorted = sorted(frame_list)
+            self._smooth_object_rotation(frames, obj_id, frame_list_sorted)
+
+        logger.info(
+            f"RotationTemporalSmoothing: Processed {self.objects_processed} objects, "
+            f"smoothed {self.rotations_smoothed} frames, kept {self.rotations_kept} unchanged"
+        )
+
+        return openlabel_data
+
+    def _smooth_object_rotation(
+        self,
+        frames: Dict[str, Any],
+        obj_id: str,
+        frame_list: List[int],
+    ) -> None:
+        """Smooth rotation for a single object.
+
+        Args:
+            frames: Frame data dictionary
+            obj_id: Object ID string
+            frame_list: Sorted list of frame indices for this object
+        """
+        smoothed_rotation = None
+
+        for frame_idx in frame_list:
+            frame_str = str(frame_idx)
+            rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
+            current_rotation = rbbox[4]
+
+            if smoothed_rotation is None:
+                # First frame - initialize
+                smoothed_rotation = current_rotation
+            else:
+                # Calculate difference
+                diff = normalize_angle_to_pi(current_rotation - smoothed_rotation)
+
+                if abs(diff) < self.max_smooth_angle:
+                    # Small jitter - smooth it
+                    smoothed_rotation = smoothed_rotation + self.smoothing_factor * diff
+                    rbbox[4] = smoothed_rotation
+                    self.rotations_smoothed += 1
+                    self._update_annotator(frames[frame_str]["objects"][obj_id])
+                else:
+                    # Large change - accept it (might be real)
+                    smoothed_rotation = current_rotation
+                    self.rotations_kept += 1
+
+    def _update_annotator(self, obj_data: Dict[str, Any]) -> None:
+        """Update annotator field to indicate smoothing was applied."""
+        vec_list = obj_data["object_data"]["vec"]
+        for vec_item in vec_list:
+            if vec_item.get("name") == "annotator":
+                if "markit_housekeeping(rotsmooth)" not in vec_item["val"]:
+                    vec_item["val"].insert(0, "markit_housekeeping(rotsmooth)")
+                return
+        vec_list.insert(0, {"name": "annotator", "val": ["markit_housekeeping(rotsmooth)"]})
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get rotation smoothing statistics."""
+        return {
+            "objects_processed": self.objects_processed,
+            "rotations_smoothed": self.rotations_smoothed,
+            "rotations_kept": self.rotations_kept,
         }
 
 

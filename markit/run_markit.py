@@ -102,6 +102,7 @@ from markit.markitlib.postprocessing import (
     DuplicateRemovalPass,
     FirstDetectionRefinementPass,
     BboxSmoothingPass,
+    Rotation90JumpFixPass,
     RotationAdjustmentPass,
     SuddenPass,
     FrameIntervalPass,
@@ -633,14 +634,21 @@ def main():
                 video_processor.fps,
             )
             postprocessing_pipeline.set_ontology_path(config.ontology_path)
+
+            # Pipeline order:
+            # 1. Gap detection and filling
             postprocessing_pipeline.add_pass(GapDetectionPass())
             postprocessing_pipeline.add_pass(GapFillingPass())
+
+            # 2. Duplicate removal
             postprocessing_pipeline.add_pass(
                 DuplicateRemovalPass(
                     avg_iou_threshold=config.duplicate_avg_iou,
                     min_iou_threshold=config.duplicate_min_iou,
                 )
             )
+
+            # 3. Static object removal (if enabled)
             if config.static_threshold >= 0:
                 postprocessing_pipeline.add_pass(
                     StaticObjectRemovalPass(
@@ -648,15 +656,22 @@ def main():
                         mark_only=config.static_mark,
                     )
                 )
-            # MANDATORY: Refine initial detection angles using lookahead
+
+            # 4. Refine initial detection angles using lookahead
             postprocessing_pipeline.add_pass(
                 FirstDetectionRefinementPass(
                     lookahead_frames=5, min_movement_pixels=5.0
                 )
             )
-            # Apply temporal smoothing to bbox position and size
+
+            # 5. Fix 90° rotation jumps from minAreaRect w/h swapping
+            postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
+
+            # 6. Size smoothing (position NOT smoothed - raw is acceptable)
+            # Run before rotation adjustment so aspect ratio logic uses stable sizes
             postprocessing_pipeline.add_pass(BboxSmoothingPass())
-            # OPTIONAL: Further refine rotation using movement direction
+
+            # 7. Adjust rotation based on movement direction
             postprocessing_pipeline.add_pass(
                 RotationAdjustmentPass(
                     rotation_threshold=config.rotation_threshold,
@@ -664,11 +679,16 @@ def main():
                     temporal_smoothing=config.temporal_smoothing,
                 )
             )
+
+            # 8. Detect sudden appear/disappear events
             postprocessing_pipeline.add_pass(
                 SuddenPass(edge_distance=config.edge_distance)
             )
+
+            # 9. Add frame intervals
             postprocessing_pipeline.add_pass(FrameIntervalPass())
-            # MANDATORY FINAL PASS: Normalize all angles to [0, 2π) for OpenLabel output
+
+            # 10. Normalize all angles to [0, 2π) for OpenLabel output
             postprocessing_pipeline.add_pass(AngleNormalizationPass())
 
             openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
