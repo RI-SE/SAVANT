@@ -797,7 +797,11 @@ class RotationAdjustmentPass(PostprocessingPass):
             vec_list.append({"name": "confidence", "val": [0.8888]})
 
     def _apply_temporal_smoothing(self, prev_angle: float, curr_angle: float) -> float:
-        """Apply temporal smoothing between consecutive frames using exponential moving average.
+        """Apply temporal smoothing with maximum per-frame rotation limit.
+
+        Prevents sudden rotation flips by:
+        1. Limiting max rotation change per frame to ~30° (π/6 radians)
+        2. Using EMA smoothing for gradual transitions
 
         Args:
             prev_angle: Previous frame's smoothed angle (radians, continuous)
@@ -806,18 +810,23 @@ class RotationAdjustmentPass(PostprocessingPass):
         Returns:
             Temporally smoothed angle (radians, continuous)
         """
-        # Handle angle wraparound: ensure angles are within π of each other
+        # Calculate shortest angular difference
         angle_diff = curr_angle - prev_angle
-
-        # Normalize to [-π, π] to get shortest rotation path
         angle_diff = normalize_angle_to_pi(angle_diff)
 
-        # Apply exponential moving average
-        smoothed = prev_angle + (1 - self.temporal_smoothing) * angle_diff
+        # Limit maximum rotation change per frame to prevent sudden flips
+        # ~30° per frame allows smooth rotation while preventing noise-induced flips
+        max_change_per_frame = np.pi / 6  # 30 degrees
 
-        # Rebase if needed (only if |angle| > 2π)
+        if abs(angle_diff) > max_change_per_frame:
+            # Clamp the change to max allowed
+            clamped_diff = np.sign(angle_diff) * max_change_per_frame
+            smoothed = prev_angle + clamped_diff
+        else:
+            # Small change - apply EMA smoothing
+            smoothed = prev_angle + (1 - self.temporal_smoothing) * angle_diff
+
         smoothed = rebase_angle_if_needed(smoothed)
-
         return smoothed
 
     def _calculate_smoothed_rotation(
@@ -828,15 +837,13 @@ class RotationAdjustmentPass(PostprocessingPass):
         frame_list_sorted: List[int],
         current_idx: int,
     ) -> Optional[float]:
-        """Calculate smoothed rotation using bidirectional weighted average with outlier rejection.
+        """Calculate rotation based on movement direction with distance weighting.
 
-        This version:
-        - Uses CORRECTED arctan2(delta_y, delta_x) argument order
-        - Looks both backward (1-4 frames) and forward (1-8 frames)
-        - Applies minimum movement threshold to filter noise
-        - Rejects outlier angles that differ too much from the median (fixes flip issues)
-        - Uses circular averaging for proper angle handling
-        - Validates against bbox aspect ratio
+        Uses movement vectors from neighboring frames, weighted by:
+        - Distance traveled (longer = more reliable)
+        - Temporal proximity (closer frames = higher weight)
+
+        The temporal smoothing in the caller will prevent sudden flips.
 
         Args:
             frames: Frame data
@@ -846,7 +853,7 @@ class RotationAdjustmentPass(PostprocessingPass):
             current_idx: Index in frame_list_sorted
 
         Returns:
-            Smoothed rotation angle in radians, or None if insufficient movement
+            Rotation angle in radians, or None if insufficient movement
         """
         current_frame_str = str(current_frame)
         current_obj = frames[current_frame_str]["objects"][obj_id]
@@ -856,9 +863,8 @@ class RotationAdjustmentPass(PostprocessingPass):
 
         angles = []
         weights = []
-        distances = []
 
-        # Look backward (1-4 frames) with lower weights
+        # Look backward (1-4 frames)
         for lookback in range(1, 5):
             if current_idx - lookback < 0:
                 break
@@ -875,11 +881,12 @@ class RotationAdjustmentPass(PostprocessingPass):
 
             if distance >= self.min_movement_pixels:
                 angle = np.arctan2(delta_y, delta_x)
+                # Weight by distance (longer movement = more reliable) and proximity
+                weight = distance * (2.0 / lookback)
                 angles.append(angle)
-                weights.append(2.0 / lookback)
-                distances.append(distance)
+                weights.append(weight)
 
-        # Look forward (1-8 frames) with higher weights
+        # Look forward (1-8 frames)
         for lookahead in range(1, 9):
             if current_idx + lookahead >= len(frame_list_sorted):
                 break
@@ -896,118 +903,43 @@ class RotationAdjustmentPass(PostprocessingPass):
 
             if distance >= self.min_movement_pixels:
                 angle = np.arctan2(delta_y, delta_x)
+                # Weight by distance and proximity
+                weight = distance * (9.0 - lookahead)
                 angles.append(angle)
-                weights.append(9.0 - lookahead)
-                distances.append(distance)
+                weights.append(weight)
 
         if not angles:
             return None
 
-        # Calculate average movement distance to assess confidence
-        avg_distance = sum(distances) / len(distances)
-
-        # For very slow movement, don't adjust
-        if avg_distance < 10.0:
-            return None
-
-        # Outlier rejection: remove angles that differ too much from the median
-        # This prevents position noise (backward movement) from corrupting the direction
-        if len(angles) >= 3:
-            angles, weights, distances = self._reject_angle_outliers(
-                angles, weights, distances, max_deviation=np.pi / 2  # 90° threshold
-            )
-
-        if not angles:
-            return None
-
-        # Circular averaging using sin/cos (handles wraparound correctly)
-        # Note: Don't use np.unwrap here - it's meant for continuous signals, not
-        # independent angle measurements that may legitimately differ
-        weighted_sin = sum(
-            np.sin(angle) * weight for angle, weight in zip(angles, weights)
-        )
-        weighted_cos = sum(
-            np.cos(angle) * weight for angle, weight in zip(angles, weights)
-        )
+        # Circular averaging using sin/cos
+        weighted_sin = sum(np.sin(a) * w for a, w in zip(angles, weights))
+        weighted_cos = sum(np.cos(a) * w for a, w in zip(angles, weights))
         weight_sum = sum(weights)
 
         avg_sin = weighted_sin / weight_sum
         avg_cos = weighted_cos / weight_sum
 
-        # Check if angles are too inconsistent (vector magnitude near zero)
+        # Check consistency - if angles point in many directions, result is unreliable
         consistency = np.sqrt(avg_sin**2 + avg_cos**2)
-        if consistency < 0.3:  # Angles are pointing in many directions
+        if consistency < 0.3:
             return None
 
         movement_direction = float(np.arctan2(avg_sin, avg_cos))
 
-        # Determine correct rotation based on which axis should align with movement
+        # Determine rotation based on aspect ratio
         aspect_ratio = max(w_current, h_current) / max(min(w_current, h_current), 1.0)
 
-        if aspect_ratio > 1.5:  # Elongated object (likely vehicle)
+        if aspect_ratio > 1.5:  # Elongated object
             if h_current > w_current:
-                # Height is the long axis, width axis is perpendicular
+                # Height is long axis, add 90° to movement direction
                 correct_rotation = movement_direction + np.pi / 2
             else:
-                # Width is the long axis, aligns with movement
+                # Width is long axis, use movement direction
                 correct_rotation = movement_direction
         else:
-            # Not elongated - use movement direction
             correct_rotation = movement_direction
 
         return correct_rotation
-
-    def _reject_angle_outliers(
-        self,
-        angles: List[float],
-        weights: List[float],
-        distances: List[float],
-        max_deviation: float = np.pi / 2,
-    ) -> tuple:
-        """Reject angle outliers that differ too much from the circular median.
-
-        Position noise can cause apparent backward movement, resulting in angles
-        ~180° off from the true direction. This filters those out.
-
-        Args:
-            angles: List of movement direction angles (radians)
-            weights: Corresponding weights
-            distances: Corresponding movement distances
-            max_deviation: Maximum allowed deviation from median (radians, default: π/2)
-
-        Returns:
-            Filtered (angles, weights, distances) tuple
-        """
-        if len(angles) < 3:
-            return angles, weights, distances
-
-        # Calculate circular median using sin/cos
-        # First, find the angle that minimizes total angular distance
-        sin_sum = sum(np.sin(a) for a in angles)
-        cos_sum = sum(np.cos(a) for a in angles)
-        circular_mean = np.arctan2(sin_sum, cos_sum)
-
-        # Filter angles within max_deviation of the circular mean
-        filtered_angles = []
-        filtered_weights = []
-        filtered_distances = []
-
-        for angle, weight, dist in zip(angles, weights, distances):
-            # Calculate angular difference (shortest path)
-            diff = angle - circular_mean
-            # Normalize to [-π, π]
-            diff = np.arctan2(np.sin(diff), np.cos(diff))
-
-            if abs(diff) <= max_deviation:
-                filtered_angles.append(angle)
-                filtered_weights.append(weight)
-                filtered_distances.append(dist)
-
-        # Only use filtered results if we kept enough angles
-        if len(filtered_angles) >= 2:
-            return filtered_angles, filtered_weights, filtered_distances
-
-        return angles, weights, distances
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get rotation adjustment statistics.
@@ -1530,28 +1462,25 @@ class BboxSmoothingPass(PostprocessingPass):
         obj_id: str,
         frame_list: List[int],
     ) -> None:
-        """Smooth the trajectory of a single object.
+        """Smooth the trajectory of a single object using bidirectional EMA.
+
+        Bidirectional smoothing eliminates lag by:
+        1. Forward pass: EMA from start to end
+        2. Backward pass: EMA from end to start
+        3. Average the two passes
 
         Args:
             frames: Frame data dictionary
             obj_id: Object ID string
             frame_list: Sorted list of frame indices for this object
         """
-        # First pass: collect raw values and identify interior frames
+        # Collect raw values
         raw_values = []
-        last_interior_size = None
-
         for frame_idx in frame_list:
             frame_str = str(frame_idx)
             rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
             x, y, w, h, r = rbbox
-
             is_near_edge = self._is_near_edge(x, y)
-
-            # Track last interior (non-edge) size
-            if not is_near_edge:
-                last_interior_size = (w, h)
-
             raw_values.append({
                 "frame_idx": frame_idx,
                 "x": x,
@@ -1562,70 +1491,102 @@ class BboxSmoothingPass(PostprocessingPass):
                 "is_near_edge": is_near_edge,
             })
 
-        # Second pass: apply smoothing
-        smoothed_x = None
-        smoothed_y = None
-        smoothed_w = None
-        smoothed_h = None
-        prev_x = None
-        prev_y = None
+        n = len(raw_values)
+        if n == 0:
+            return
 
-        for i, val in enumerate(raw_values):
-            frame_idx = val["frame_idx"]
+        # Forward pass
+        forward_x = [0.0] * n
+        forward_y = [0.0] * n
+        forward_w = [0.0] * n
+        forward_h = [0.0] * n
+
+        forward_x[0] = raw_values[0]["x"]
+        forward_y[0] = raw_values[0]["y"]
+        forward_w[0] = raw_values[0]["w"]
+        forward_h[0] = raw_values[0]["h"]
+
+        for i in range(1, n):
+            x, y, w, h = raw_values[i]["x"], raw_values[i]["y"], raw_values[i]["w"], raw_values[i]["h"]
+
+            # Velocity from raw values for adaptive smoothing
+            prev_x, prev_y = raw_values[i-1]["x"], raw_values[i-1]["y"]
+            velocity = np.sqrt((x - prev_x)**2 + (y - prev_y)**2)
+            factor = self._get_effective_smoothing_factor(velocity)
+
+            forward_x[i] = factor * forward_x[i-1] + (1 - factor) * x
+            forward_y[i] = factor * forward_y[i-1] + (1 - factor) * y
+            forward_w[i] = factor * forward_w[i-1] + (1 - factor) * w
+            forward_h[i] = factor * forward_h[i-1] + (1 - factor) * h
+
+        # Backward pass
+        backward_x = [0.0] * n
+        backward_y = [0.0] * n
+        backward_w = [0.0] * n
+        backward_h = [0.0] * n
+
+        backward_x[n-1] = raw_values[n-1]["x"]
+        backward_y[n-1] = raw_values[n-1]["y"]
+        backward_w[n-1] = raw_values[n-1]["w"]
+        backward_h[n-1] = raw_values[n-1]["h"]
+
+        for i in range(n-2, -1, -1):
+            x, y, w, h = raw_values[i]["x"], raw_values[i]["y"], raw_values[i]["w"], raw_values[i]["h"]
+
+            # Velocity from raw values
+            next_x, next_y = raw_values[i+1]["x"], raw_values[i+1]["y"]
+            velocity = np.sqrt((next_x - x)**2 + (next_y - y)**2)
+            factor = self._get_effective_smoothing_factor(velocity)
+
+            backward_x[i] = factor * backward_x[i+1] + (1 - factor) * x
+            backward_y[i] = factor * backward_y[i+1] + (1 - factor) * y
+            backward_w[i] = factor * backward_w[i+1] + (1 - factor) * w
+            backward_h[i] = factor * backward_h[i+1] + (1 - factor) * h
+
+        # Average forward and backward passes, then apply to frames
+        # Track last interior size for edge handling
+        last_interior_size = None
+        for i in range(n):
+            # Find last interior size before this frame
+            if not raw_values[i]["is_near_edge"]:
+                # Will be updated after we compute smoothed values
+                pass
+
+        # First pass to find interior sizes
+        interior_sizes = []
+        for i in range(n):
+            avg_w = (forward_w[i] + backward_w[i]) / 2
+            avg_h = (forward_h[i] + backward_h[i]) / 2
+            if not raw_values[i]["is_near_edge"]:
+                interior_sizes.append((i, avg_w, avg_h))
+
+        # Apply smoothed values
+        for i in range(n):
+            frame_idx = raw_values[i]["frame_idx"]
             frame_str = str(frame_idx)
             rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
+            is_near_edge = raw_values[i]["is_near_edge"]
 
-            x, y, w, h = val["x"], val["y"], val["w"], val["h"]
-            is_near_edge = val["is_near_edge"]
+            # Average bidirectional smoothing
+            smoothed_x = (forward_x[i] + backward_x[i]) / 2
+            smoothed_y = (forward_y[i] + backward_y[i]) / 2
+            smoothed_w = (forward_w[i] + backward_w[i]) / 2
+            smoothed_h = (forward_h[i] + backward_h[i]) / 2
 
-            # Calculate velocity for adaptive smoothing
-            velocity = 0.0
-            if prev_x is not None:
-                delta_x = x - prev_x
-                delta_y = y - prev_y
-                velocity = np.sqrt(delta_x**2 + delta_y**2)
+            # Handle size near edges - use nearest interior size
+            if is_near_edge and self.edge_size_mode == "freeze" and interior_sizes:
+                # Find nearest interior frame
+                nearest = min(interior_sizes, key=lambda x: abs(x[0] - i))
+                smoothed_w, smoothed_h = nearest[1], nearest[2]
+                self.edge_frames_handled += 1
 
-            # Calculate effective smoothing factor
-            effective_factor = self._get_effective_smoothing_factor(velocity)
-
-            # First frame: initialize smoothed values
-            if smoothed_x is None:
-                smoothed_x = x
-                smoothed_y = y
-                smoothed_w = w
-                smoothed_h = h
-            else:
-                # Apply EMA smoothing to position (always)
-                smoothed_x = effective_factor * smoothed_x + (1 - effective_factor) * x
-                smoothed_y = effective_factor * smoothed_y + (1 - effective_factor) * y
-
-                # Handle size based on edge mode
-                if is_near_edge and self.edge_size_mode == "freeze":
-                    # Near edge: freeze size to last interior value
-                    if last_interior_size is not None:
-                        smoothed_w, smoothed_h = last_interior_size
-                    self.edge_frames_handled += 1
-                else:
-                    # Normal smoothing for size
-                    smoothed_w = effective_factor * smoothed_w + (1 - effective_factor) * w
-                    smoothed_h = effective_factor * smoothed_h + (1 - effective_factor) * h
-
-            # Update the bbox (position and size only, rotation unchanged)
             rbbox[0] = smoothed_x
             rbbox[1] = smoothed_y
             rbbox[2] = smoothed_w
             rbbox[3] = smoothed_h
 
-            # Update annotator to indicate smoothing was applied
             self._update_annotator(frames[frame_str]["objects"][obj_id])
-
-            prev_x = x
-            prev_y = y
             self.frames_smoothed += 1
-
-            # Update last interior size if this frame is not near edge
-            if not is_near_edge:
-                last_interior_size = (smoothed_w, smoothed_h)
 
     def _get_effective_smoothing_factor(self, velocity: float) -> float:
         """Calculate velocity-adaptive smoothing factor.
