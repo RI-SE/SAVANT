@@ -151,10 +151,13 @@ markit --input video.mp4 --output_json output.json --housekeeping
 | Gap Filling | Interpolates detections across small gaps |
 | Duplicate Removal | Removes overlapping detections using IoU thresholds |
 | First Detection Refinement | Refines initial detection angles using lookahead |
+| Bbox Smoothing | Applies temporal smoothing to position and size (reduces jitter) |
 | Rotation Adjustment | Smooths rotation using movement direction |
 | Sudden Detection | Flags objects appearing/disappearing far from frame edges |
 | Frame Interval | Calculates frame intervals for each object |
 | Static Object Removal | Removes or marks objects that don't move |
+
+For detailed algorithm descriptions and tuning guidelines, see [Postprocessing Technical Reference](docs/postprocessing.md).
 
 ### Postprocessing Options
 

@@ -101,6 +101,7 @@ from markit.markitlib.postprocessing import (
     GapFillingPass,
     DuplicateRemovalPass,
     FirstDetectionRefinementPass,
+    BboxSmoothingPass,
     RotationAdjustmentPass,
     SuddenPass,
     FrameIntervalPass,
@@ -653,6 +654,8 @@ def main():
                     lookahead_frames=5, min_movement_pixels=5.0
                 )
             )
+            # Apply temporal smoothing to bbox position and size
+            postprocessing_pipeline.add_pass(BboxSmoothingPass())
             # OPTIONAL: Further refine rotation using movement direction
             postprocessing_pipeline.add_pass(
                 RotationAdjustmentPass(

@@ -1391,6 +1391,258 @@ class StaticObjectRemovalPass(PostprocessingPass):
             }
 
 
+class BboxSmoothingPass(PostprocessingPass):
+    """Apply temporal smoothing to bbox position and size parameters (x, y, w, h).
+
+    Rotation is handled separately by RotationAdjustmentPass. This pass applies
+    exponential moving average (EMA) smoothing with velocity-adaptive factors
+    and special handling for objects near frame edges.
+    """
+
+    def __init__(
+        self,
+        smoothing_factor: float = 0.3,
+        velocity_adaptive: bool = True,
+        min_velocity: float = 2.0,
+        max_velocity: float = 20.0,
+        edge_margin: int = 100,
+        edge_size_mode: str = "freeze",
+    ):
+        """Initialize bbox smoothing pass.
+
+        Args:
+            smoothing_factor: Base EMA factor (0-1, higher = smoother, default: 0.3)
+            velocity_adaptive: Adjust smoothing based on velocity (default: True)
+            min_velocity: Below this velocity, use maximum smoothing (default: 2.0)
+            max_velocity: Above this velocity, use minimum smoothing (default: 20.0)
+            edge_margin: Pixels from frame edge for special handling (default: 100)
+            edge_size_mode: How to handle size near edges - "freeze" or "normal" (default: "freeze")
+        """
+        self.smoothing_factor = smoothing_factor
+        self.velocity_adaptive = velocity_adaptive
+        self.min_velocity = min_velocity
+        self.max_velocity = max_velocity
+        self.edge_margin = edge_margin
+        self.edge_size_mode = edge_size_mode
+
+        # Statistics
+        self.objects_smoothed = 0
+        self.frames_smoothed = 0
+        self.edge_frames_handled = 0
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply temporal smoothing to bbox parameters.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Modified OpenLabel data with smoothed bbox parameters
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+
+        if not hasattr(self, "frame_width") or not hasattr(self, "frame_height"):
+            logger.warning("BboxSmoothingPass: Video properties not set, skipping")
+            return openlabel_data
+
+        # Build object-to-frames mapping
+        object_frame_map = defaultdict(list)
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            frame_objects = frame_data.get("objects", {})
+            for obj_id_str in frame_objects.keys():
+                object_frame_map[obj_id_str].append(frame_idx)
+
+        # Process each object
+        for obj_id, frame_list in object_frame_map.items():
+            if len(frame_list) < 2:
+                continue
+
+            frame_list_sorted = sorted(frame_list)
+            self._smooth_object_trajectory(frames, obj_id, frame_list_sorted)
+            self.objects_smoothed += 1
+
+        logger.info(
+            f"BboxSmoothing: Smoothed {self.objects_smoothed} objects, "
+            f"{self.frames_smoothed} frames, {self.edge_frames_handled} edge frames handled"
+        )
+
+        return openlabel_data
+
+    def _smooth_object_trajectory(
+        self,
+        frames: Dict[str, Any],
+        obj_id: str,
+        frame_list: List[int],
+    ) -> None:
+        """Smooth the trajectory of a single object.
+
+        Args:
+            frames: Frame data dictionary
+            obj_id: Object ID string
+            frame_list: Sorted list of frame indices for this object
+        """
+        # First pass: collect raw values and identify interior frames
+        raw_values = []
+        last_interior_size = None
+
+        for frame_idx in frame_list:
+            frame_str = str(frame_idx)
+            rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
+            x, y, w, h, r = rbbox
+
+            is_near_edge = self._is_near_edge(x, y)
+
+            # Track last interior (non-edge) size
+            if not is_near_edge:
+                last_interior_size = (w, h)
+
+            raw_values.append({
+                "frame_idx": frame_idx,
+                "x": x,
+                "y": y,
+                "w": w,
+                "h": h,
+                "r": r,
+                "is_near_edge": is_near_edge,
+            })
+
+        # Second pass: apply smoothing
+        smoothed_x = None
+        smoothed_y = None
+        smoothed_w = None
+        smoothed_h = None
+        prev_x = None
+        prev_y = None
+
+        for i, val in enumerate(raw_values):
+            frame_idx = val["frame_idx"]
+            frame_str = str(frame_idx)
+            rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
+
+            x, y, w, h = val["x"], val["y"], val["w"], val["h"]
+            is_near_edge = val["is_near_edge"]
+
+            # Calculate velocity for adaptive smoothing
+            velocity = 0.0
+            if prev_x is not None:
+                delta_x = x - prev_x
+                delta_y = y - prev_y
+                velocity = np.sqrt(delta_x**2 + delta_y**2)
+
+            # Calculate effective smoothing factor
+            effective_factor = self._get_effective_smoothing_factor(velocity)
+
+            # First frame: initialize smoothed values
+            if smoothed_x is None:
+                smoothed_x = x
+                smoothed_y = y
+                smoothed_w = w
+                smoothed_h = h
+            else:
+                # Apply EMA smoothing to position (always)
+                smoothed_x = effective_factor * smoothed_x + (1 - effective_factor) * x
+                smoothed_y = effective_factor * smoothed_y + (1 - effective_factor) * y
+
+                # Handle size based on edge mode
+                if is_near_edge and self.edge_size_mode == "freeze":
+                    # Near edge: freeze size to last interior value
+                    if last_interior_size is not None:
+                        smoothed_w, smoothed_h = last_interior_size
+                    self.edge_frames_handled += 1
+                else:
+                    # Normal smoothing for size
+                    smoothed_w = effective_factor * smoothed_w + (1 - effective_factor) * w
+                    smoothed_h = effective_factor * smoothed_h + (1 - effective_factor) * h
+
+            # Update the bbox (position and size only, rotation unchanged)
+            rbbox[0] = smoothed_x
+            rbbox[1] = smoothed_y
+            rbbox[2] = smoothed_w
+            rbbox[3] = smoothed_h
+
+            # Update annotator to indicate smoothing was applied
+            self._update_annotator(frames[frame_str]["objects"][obj_id])
+
+            prev_x = x
+            prev_y = y
+            self.frames_smoothed += 1
+
+            # Update last interior size if this frame is not near edge
+            if not is_near_edge:
+                last_interior_size = (smoothed_w, smoothed_h)
+
+    def _get_effective_smoothing_factor(self, velocity: float) -> float:
+        """Calculate velocity-adaptive smoothing factor.
+
+        Args:
+            velocity: Movement velocity in pixels/frame
+
+        Returns:
+            Effective smoothing factor
+        """
+        if not self.velocity_adaptive:
+            return self.smoothing_factor
+
+        if velocity < self.min_velocity:
+            # Low velocity: maximum smoothing (1.5x base factor)
+            return min(self.smoothing_factor * 1.5, 0.9)
+        elif velocity > self.max_velocity:
+            # High velocity: minimum smoothing (0.5x base factor)
+            return self.smoothing_factor * 0.5
+        else:
+            # Linear interpolation between
+            t = (velocity - self.min_velocity) / (self.max_velocity - self.min_velocity)
+            multiplier = 1.5 - t  # Goes from 1.5 to 0.5
+            return self.smoothing_factor * multiplier
+
+    def _is_near_edge(self, x: float, y: float) -> bool:
+        """Check if position is near frame edge.
+
+        Args:
+            x: Center x coordinate
+            y: Center y coordinate
+
+        Returns:
+            True if position is within edge_margin of any frame edge
+        """
+        return (
+            x < self.edge_margin
+            or x > self.frame_width - self.edge_margin
+            or y < self.edge_margin
+            or y > self.frame_height - self.edge_margin
+        )
+
+    def _update_annotator(self, obj_data: Dict[str, Any]) -> None:
+        """Update annotator field to indicate smoothing was applied.
+
+        Args:
+            obj_data: Object data dictionary
+        """
+        vec_list = obj_data["object_data"]["vec"]
+        for vec_item in vec_list:
+            if vec_item.get("name") == "annotator":
+                # Only add if not already present
+                if "markit_housekeeping(smooth)" not in vec_item["val"]:
+                    vec_item["val"].insert(0, "markit_housekeeping(smooth)")
+                return
+
+        # No annotator field found, add one
+        vec_list.insert(0, {"name": "annotator", "val": ["markit_housekeeping(smooth)"]})
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get bbox smoothing statistics.
+
+        Returns:
+            Dictionary with smoothing statistics
+        """
+        return {
+            "objects_smoothed": self.objects_smoothed,
+            "frames_smoothed": self.frames_smoothed,
+            "edge_frames_handled": self.edge_frames_handled,
+        }
+
+
 class AngleNormalizationPass(PostprocessingPass):
     """Normalize all rotation angles to [0, 2π) for OpenLabel output.
 
