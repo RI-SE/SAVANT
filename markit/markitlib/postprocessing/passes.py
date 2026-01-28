@@ -671,6 +671,7 @@ class RotationAdjustmentPass(PostprocessingPass):
         self.rotations_adjusted = 0
         self.rotations_kept = 0
         self.rotations_copied = 0
+        self.rotations_gap_skipped = 0
         self.objects_processed = 0
         self.rotation_threshold = rotation_threshold
         self.min_movement_pixels = min_movement_pixels
@@ -707,12 +708,26 @@ class RotationAdjustmentPass(PostprocessingPass):
 
             for i in range(len(frame_list_sorted)):
                 current_frame = frame_list_sorted[i]
+                current_frame_str = str(current_frame)
+                frame_obj_data = frames[current_frame_str]["objects"][obj_id]
                 is_last_frame = i == len(frame_list_sorted) - 1
+
+                # Skip gap-filled frames - they have unreliable position data
+                # Just copy the last valid angle if available
+                if self._is_gap_filled(frame_obj_data):
+                    if last_valid_angle is not None:
+                        rbbox = frame_obj_data["object_data"]["rbbox"][0]["val"]
+                        r_current = rbbox[4]
+                        if abs(last_valid_angle - r_current) > self.rotation_threshold:
+                            self._apply_rotation_adjustment(
+                                frame_obj_data, last_valid_angle
+                            )
+                            self.rotations_copied += 1
+                    self.rotations_gap_skipped += 1
+                    continue
 
                 if is_last_frame:
                     if last_valid_angle is not None:
-                        current_frame_str = str(current_frame)
-                        frame_obj_data = frames[current_frame_str]["objects"][obj_id]
                         rbbox = frame_obj_data["object_data"]["rbbox"][0]["val"]
                         r_current = rbbox[4]
 
@@ -727,8 +742,6 @@ class RotationAdjustmentPass(PostprocessingPass):
                     frames, obj_id, current_frame, frame_list_sorted, i
                 )
 
-                current_frame_str = str(current_frame)
-                frame_obj_data = frames[current_frame_str]["objects"][obj_id]
                 rbbox = frame_obj_data["object_data"]["rbbox"][0]["val"]
                 r_current = rbbox[4]
 
@@ -755,6 +768,24 @@ class RotationAdjustmentPass(PostprocessingPass):
                     self.rotations_kept += 1
 
         return openlabel_data
+
+    def _is_gap_filled(self, frame_obj_data: Dict[str, Any]) -> bool:
+        """Check if frame was created by gap filling.
+
+        Gap-filled frames have unreliable position data (linear interpolation)
+        and should not be used for movement direction calculation.
+
+        Args:
+            frame_obj_data: Frame object data
+
+        Returns:
+            True if frame was gap-filled, False otherwise
+        """
+        vec_list = frame_obj_data.get("object_data", {}).get("vec", [])
+        for vec_item in vec_list:
+            if vec_item.get("name") == "annotator":
+                return "markit_housekeeping(gap)" in vec_item.get("val", [])
+        return False
 
     def _apply_rotation_adjustment(
         self, frame_obj_data: Dict[str, Any], r_new: float
@@ -864,7 +895,7 @@ class RotationAdjustmentPass(PostprocessingPass):
         angles = []
         weights = []
 
-        # Look backward (1-4 frames)
+        # Look backward (1-4 frames), skip gap-filled frames
         for lookback in range(1, 5):
             if current_idx - lookback < 0:
                 break
@@ -872,6 +903,11 @@ class RotationAdjustmentPass(PostprocessingPass):
             past_frame = frame_list_sorted[current_idx - lookback]
             past_frame_str = str(past_frame)
             past_obj = frames[past_frame_str]["objects"][obj_id]
+
+            # Skip gap-filled frames - their positions are interpolated, not real
+            if self._is_gap_filled(past_obj):
+                continue
+
             past_rbbox = past_obj["object_data"]["rbbox"][0]["val"]
             x_past, y_past = past_rbbox[0], past_rbbox[1]
 
@@ -886,7 +922,7 @@ class RotationAdjustmentPass(PostprocessingPass):
                 angles.append(angle)
                 weights.append(weight)
 
-        # Look forward (1-8 frames)
+        # Look forward (1-8 frames), skip gap-filled frames
         for lookahead in range(1, 9):
             if current_idx + lookahead >= len(frame_list_sorted):
                 break
@@ -894,6 +930,11 @@ class RotationAdjustmentPass(PostprocessingPass):
             future_frame = frame_list_sorted[current_idx + lookahead]
             future_frame_str = str(future_frame)
             future_obj = frames[future_frame_str]["objects"][obj_id]
+
+            # Skip gap-filled frames - their positions are interpolated, not real
+            if self._is_gap_filled(future_obj):
+                continue
+
             future_rbbox = future_obj["object_data"]["rbbox"][0]["val"]
             x_future, y_future = future_rbbox[0], future_rbbox[1]
 
@@ -952,6 +993,7 @@ class RotationAdjustmentPass(PostprocessingPass):
             "rotations_adjusted": self.rotations_adjusted,
             "rotations_kept": self.rotations_kept,
             "rotations_copied": self.rotations_copied,
+            "rotations_gap_skipped": self.rotations_gap_skipped,
         }
 
 
