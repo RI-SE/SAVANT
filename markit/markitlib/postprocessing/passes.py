@@ -828,14 +828,14 @@ class RotationAdjustmentPass(PostprocessingPass):
         frame_list_sorted: List[int],
         current_idx: int,
     ) -> Optional[float]:
-        """Calculate smoothed rotation using bidirectional weighted average with movement threshold.
+        """Calculate smoothed rotation using bidirectional weighted average with outlier rejection.
 
-        This improved version:
+        This version:
         - Uses CORRECTED arctan2(delta_y, delta_x) argument order
         - Looks both backward (1-4 frames) and forward (1-8 frames)
         - Applies minimum movement threshold to filter noise
-        - Handles angle wraparound with np.unwrap
-        - Uses normalized weighting regardless of available frames
+        - Rejects outlier angles that differ too much from the median (fixes flip issues)
+        - Uses circular averaging for proper angle handling
         - Validates against bbox aspect ratio
 
         Args:
@@ -873,12 +873,10 @@ class RotationAdjustmentPass(PostprocessingPass):
             delta_y = y_current - y_past
             distance = np.sqrt(delta_x**2 + delta_y**2)
 
-            # Apply minimum movement threshold (Fix #2)
             if distance >= self.min_movement_pixels:
-                # FIXED: Correct arctan2 argument order (Fix #1)
                 angle = np.arctan2(delta_y, delta_x)
                 angles.append(angle)
-                weights.append(2.0 / lookback)  # Lower weight for past frames
+                weights.append(2.0 / lookback)
                 distances.append(distance)
 
         # Look forward (1-8 frames) with higher weights
@@ -896,12 +894,10 @@ class RotationAdjustmentPass(PostprocessingPass):
             delta_y = y_future - y_current
             distance = np.sqrt(delta_x**2 + delta_y**2)
 
-            # Apply minimum movement threshold (Fix #2)
             if distance >= self.min_movement_pixels:
-                # FIXED: Correct arctan2 argument order (Fix #1)
                 angle = np.arctan2(delta_y, delta_x)
                 angles.append(angle)
-                weights.append(9.0 - lookahead)  # Higher weight for near-future frames
+                weights.append(9.0 - lookahead)
                 distances.append(distance)
 
         if not angles:
@@ -910,54 +906,108 @@ class RotationAdjustmentPass(PostprocessingPass):
         # Calculate average movement distance to assess confidence
         avg_distance = sum(distances) / len(distances)
 
-        # For very slow movement, don't adjust - insufficient data to determine direction
-        # Adjusting on slow movement often makes things worse due to noise
+        # For very slow movement, don't adjust
         if avg_distance < 10.0:
             return None
 
-        # Handle angle wraparound (Fix #4)
-        angles_array = np.array(angles)
-        angles_unwrapped = np.unwrap(angles_array)
+        # Outlier rejection: remove angles that differ too much from the median
+        # This prevents position noise (backward movement) from corrupting the direction
+        if len(angles) >= 3:
+            angles, weights, distances = self._reject_angle_outliers(
+                angles, weights, distances, max_deviation=np.pi / 2  # 90° threshold
+            )
 
-        # Circular averaging with normalized weights
+        if not angles:
+            return None
+
+        # Circular averaging using sin/cos (handles wraparound correctly)
+        # Note: Don't use np.unwrap here - it's meant for continuous signals, not
+        # independent angle measurements that may legitimately differ
         weighted_sin = sum(
-            np.sin(angle) * weight for angle, weight in zip(angles_unwrapped, weights)
+            np.sin(angle) * weight for angle, weight in zip(angles, weights)
         )
         weighted_cos = sum(
-            np.cos(angle) * weight for angle, weight in zip(angles_unwrapped, weights)
+            np.cos(angle) * weight for angle, weight in zip(angles, weights)
         )
         weight_sum = sum(weights)
 
         avg_sin = weighted_sin / weight_sum
         avg_cos = weighted_cos / weight_sum
 
-        # Movement direction in OpenLabel format (clockwise from horizontal right)
-        # arctan2(delta_y, delta_x) with Y pointing down gives correct clockwise angle
+        # Check if angles are too inconsistent (vector magnitude near zero)
+        consistency = np.sqrt(avg_sin**2 + avg_cos**2)
+        if consistency < 0.3:  # Angles are pointing in many directions
+            return None
+
         movement_direction = float(np.arctan2(avg_sin, avg_cos))
 
         # Determine correct rotation based on which axis should align with movement
-        # For YOLO: width is always the long axis (semantic)
-        # For optical flow: width/height from minAreaRect are arbitrary
-        # The rotation value represents the angle of the WIDTH axis
-        # So if h > w, the long axis is perpendicular to the width axis
-
         aspect_ratio = max(w_current, h_current) / max(min(w_current, h_current), 1.0)
 
         if aspect_ratio > 1.5:  # Elongated object (likely vehicle)
-            # Long axis should align with movement direction
             if h_current > w_current:
                 # Height is the long axis, width axis is perpendicular
-                # Rotation represents width axis, so add 90° to movement direction
                 correct_rotation = movement_direction + np.pi / 2
             else:
                 # Width is the long axis, aligns with movement
                 correct_rotation = movement_direction
         else:
-            # Not elongated (circular or square) - use movement direction
+            # Not elongated - use movement direction
             correct_rotation = movement_direction
 
-        # No normalization needed - angles are continuous
         return correct_rotation
+
+    def _reject_angle_outliers(
+        self,
+        angles: List[float],
+        weights: List[float],
+        distances: List[float],
+        max_deviation: float = np.pi / 2,
+    ) -> tuple:
+        """Reject angle outliers that differ too much from the circular median.
+
+        Position noise can cause apparent backward movement, resulting in angles
+        ~180° off from the true direction. This filters those out.
+
+        Args:
+            angles: List of movement direction angles (radians)
+            weights: Corresponding weights
+            distances: Corresponding movement distances
+            max_deviation: Maximum allowed deviation from median (radians, default: π/2)
+
+        Returns:
+            Filtered (angles, weights, distances) tuple
+        """
+        if len(angles) < 3:
+            return angles, weights, distances
+
+        # Calculate circular median using sin/cos
+        # First, find the angle that minimizes total angular distance
+        sin_sum = sum(np.sin(a) for a in angles)
+        cos_sum = sum(np.cos(a) for a in angles)
+        circular_mean = np.arctan2(sin_sum, cos_sum)
+
+        # Filter angles within max_deviation of the circular mean
+        filtered_angles = []
+        filtered_weights = []
+        filtered_distances = []
+
+        for angle, weight, dist in zip(angles, weights, distances):
+            # Calculate angular difference (shortest path)
+            diff = angle - circular_mean
+            # Normalize to [-π, π]
+            diff = np.arctan2(np.sin(diff), np.cos(diff))
+
+            if abs(diff) <= max_deviation:
+                filtered_angles.append(angle)
+                filtered_weights.append(weight)
+                filtered_distances.append(dist)
+
+        # Only use filtered results if we kept enough angles
+        if len(filtered_angles) >= 2:
+            return filtered_angles, filtered_weights, filtered_distances
+
+        return angles, weights, distances
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get rotation adjustment statistics.
@@ -1401,7 +1451,7 @@ class BboxSmoothingPass(PostprocessingPass):
 
     def __init__(
         self,
-        smoothing_factor: float = 0.3,
+        smoothing_factor: float = 0.7,
         velocity_adaptive: bool = True,
         min_velocity: float = 2.0,
         max_velocity: float = 20.0,
@@ -1411,10 +1461,15 @@ class BboxSmoothingPass(PostprocessingPass):
         """Initialize bbox smoothing pass.
 
         Args:
-            smoothing_factor: Base EMA factor (0-1, higher = smoother, default: 0.3)
-            velocity_adaptive: Adjust smoothing based on velocity (default: True)
-            min_velocity: Below this velocity, use maximum smoothing (default: 2.0)
-            max_velocity: Above this velocity, use minimum smoothing (default: 20.0)
+            smoothing_factor: Base EMA retention factor (0-1). Represents how much of the
+                previous smoothed value to keep. Higher = more smoothing/stability.
+                With factor 0.7: new_smoothed = 0.7 * old_smoothed + 0.3 * raw_value
+                Default 0.7 provides good noise rejection while tracking real movement.
+            velocity_adaptive: Adjust smoothing based on velocity (default: True).
+                At low velocity, smoothing increases (less jitter when stationary).
+                At high velocity, smoothing decreases (faster response to real movement).
+            min_velocity: Below this velocity (px/frame), use maximum smoothing (default: 2.0)
+            max_velocity: Above this velocity (px/frame), use minimum smoothing (default: 20.0)
             edge_margin: Pixels from frame edge for special handling (default: 100)
             edge_size_mode: How to handle size near edges - "freeze" or "normal" (default: "freeze")
         """
@@ -1575,23 +1630,28 @@ class BboxSmoothingPass(PostprocessingPass):
     def _get_effective_smoothing_factor(self, velocity: float) -> float:
         """Calculate velocity-adaptive smoothing factor.
 
+        With default smoothing_factor=0.7:
+        - Low velocity (<2 px/frame): factor=0.9 (very smooth, reduces jitter when stationary)
+        - Normal velocity: factor=0.7 (balanced)
+        - High velocity (>20 px/frame): factor=0.35 (responsive to fast real movement)
+
         Args:
             velocity: Movement velocity in pixels/frame
 
         Returns:
-            Effective smoothing factor
+            Effective smoothing factor (higher = more smoothing)
         """
         if not self.velocity_adaptive:
             return self.smoothing_factor
 
         if velocity < self.min_velocity:
-            # Low velocity: maximum smoothing (1.5x base factor)
+            # Low velocity: maximum smoothing to reduce jitter when nearly stationary
             return min(self.smoothing_factor * 1.5, 0.9)
         elif velocity > self.max_velocity:
-            # High velocity: minimum smoothing (0.5x base factor)
+            # High velocity: reduced smoothing to track fast real movement
             return self.smoothing_factor * 0.5
         else:
-            # Linear interpolation between
+            # Linear interpolation between low and high velocity behavior
             t = (velocity - self.min_velocity) / (self.max_velocity - self.min_velocity)
             multiplier = 1.5 - t  # Goes from 1.5 to 0.5
             return self.smoothing_factor * multiplier
