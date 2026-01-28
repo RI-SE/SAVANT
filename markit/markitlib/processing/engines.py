@@ -321,12 +321,16 @@ class YOLOEngine(BaseDetectionEngine):
 
 
 class SimpleTracker:
-    """Simple object tracker for optical flow detections with track expiration."""
+    """Simple object tracker for optical flow detections with track expiration.
+
+    Uses center distance and optional IoU overlap for track association.
+    """
 
     def __init__(
         self,
         max_distance: float = 50.0,
         max_age: int = 10,
+        min_iou: float = 0.1,
         id_manager: Optional["ObjectIDManager"] = None,
     ):
         """Initialize tracker.
@@ -334,11 +338,14 @@ class SimpleTracker:
         Args:
             max_distance: Maximum distance in pixels to match a detection to existing track
             max_age: Maximum frames a track can be unmatched before expiring
+            min_iou: Minimum IoU overlap for track association (default: 0.1)
             id_manager: Optional ID manager for unified sequential IDs
         """
         self.max_distance = max_distance
         self.max_age = max_age
-        self.tracks = {}  # Maps remapped_id -> (center, last_seen_frame)
+        self.min_iou = min_iou
+        # Maps remapped_id -> {'center': (x, y), 'last_seen': frame, 'bbox': corners}
+        self.tracks: Dict[int, Dict] = {}
         self.id_manager = id_manager
         self._current_frame = 0
         # Local tracking ID for ID manager lookup (sequential per tracker)
@@ -346,12 +353,18 @@ class SimpleTracker:
         # Fallback for legacy mode without ID manager
         self._next_legacy_id = 1000001
 
-    def get_id(self, center: Tuple[float, float], frame_idx: int = None) -> int:
-        """Get object ID for center position.
+    def get_id(
+        self,
+        center: Tuple[float, float],
+        frame_idx: int = None,
+        bbox: Optional[np.ndarray] = None,
+    ) -> int:
+        """Get object ID for center position, optionally using bbox for IoU matching.
 
         Args:
             center: Object center position (x, y)
             frame_idx: Current frame index (for track age management)
+            bbox: Optional bbox corner points for IoU matching (4x2 array)
 
         Returns:
             Object ID (remapped if ID manager available)
@@ -359,26 +372,48 @@ class SimpleTracker:
         if frame_idx is not None:
             self._current_frame = frame_idx
 
-        min_distance = float("inf")
+        best_score = float("inf")
         best_track_id = None
 
-        # Find closest existing track that hasn't expired
-        for track_id, (track_center, last_seen) in list(self.tracks.items()):
+        # Find best matching track (lowest score = best match)
+        for track_id, track_data in list(self.tracks.items()):
             # Skip expired tracks
-            age = self._current_frame - last_seen
+            age = self._current_frame - track_data["last_seen"]
             if age > self.max_age:
                 continue
 
+            track_center = track_data["center"]
             distance = np.sqrt(
                 (center[0] - track_center[0]) ** 2 + (center[1] - track_center[1]) ** 2
             )
-            if distance < min_distance and distance < self.max_distance:
-                min_distance = distance
+
+            # Must be within max distance
+            if distance >= self.max_distance:
+                continue
+
+            # Check IoU if both bboxes available
+            iou = 0.0
+            track_bbox = track_data.get("bbox")
+            if bbox is not None and track_bbox is not None and self.min_iou > 0:
+                iou = self._calculate_iou(bbox, track_bbox)
+                # Must meet minimum IoU threshold
+                if iou < self.min_iou:
+                    continue
+
+            # Score: lower is better (distance-based, IoU as bonus)
+            # Distance contributes positively, IoU contributes negatively (higher IoU = lower score)
+            score = distance / (iou + 0.1)
+
+            if score < best_score:
+                best_score = score
                 best_track_id = track_id
 
         if best_track_id is not None:
             # Update existing track
-            self.tracks[best_track_id] = (center, self._current_frame)
+            self.tracks[best_track_id]["center"] = center
+            self.tracks[best_track_id]["last_seen"] = self._current_frame
+            if bbox is not None:
+                self.tracks[best_track_id]["bbox"] = bbox.copy()
             return best_track_id
         else:
             # Create new track with remapped ID
@@ -392,16 +427,125 @@ class SimpleTracker:
                 new_id = self._next_legacy_id
                 self._next_legacy_id += 1
 
-            self.tracks[new_id] = (center, self._current_frame)
+            self.tracks[new_id] = {
+                "center": center,
+                "last_seen": self._current_frame,
+                "bbox": bbox.copy() if bbox is not None else None,
+            }
             return new_id
+
+    def _calculate_iou(self, bbox1: np.ndarray, bbox2: np.ndarray) -> float:
+        """Calculate IoU between two rotated bboxes.
+
+        Uses the Sutherland-Hodgman algorithm for polygon intersection.
+
+        Args:
+            bbox1: First bbox as 4 corner points (4x2 array)
+            bbox2: Second bbox as 4 corner points (4x2 array)
+
+        Returns:
+            IoU value between 0 and 1
+        """
+        try:
+            # Ensure correct format
+            pts1 = np.array(bbox1, dtype=np.float32).reshape(-1, 2)
+            pts2 = np.array(bbox2, dtype=np.float32).reshape(-1, 2)
+
+            # Calculate areas using the shoelace formula
+            area1 = self._polygon_area(pts1)
+            area2 = self._polygon_area(pts2)
+
+            if area1 <= 0 or area2 <= 0:
+                return 0.0
+
+            # Find intersection using Sutherland-Hodgman clipping
+            intersection_pts = self._sutherland_hodgman_clip(pts1, pts2)
+
+            if len(intersection_pts) < 3:
+                return 0.0
+
+            intersection_area = self._polygon_area(intersection_pts)
+            if intersection_area <= 0:
+                return 0.0
+
+            union_area = area1 + area2 - intersection_area
+            if union_area <= 0:
+                return 0.0
+
+            return intersection_area / union_area
+
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def _polygon_area(points: np.ndarray) -> float:
+        """Calculate polygon area using the shoelace formula."""
+        if len(points) < 3:
+            return 0.0
+        x = points[:, 0]
+        y = points[:, 1]
+        return 0.5 * abs(
+            sum(
+                x[i] * y[(i + 1) % len(x)] - x[(i + 1) % len(x)] * y[i]
+                for i in range(len(x))
+            )
+        )
+
+    @staticmethod
+    def _sutherland_hodgman_clip(
+        subject_polygon: np.ndarray, clip_polygon: np.ndarray
+    ) -> np.ndarray:
+        """Clip subject polygon against clip polygon."""
+
+        def _is_inside(point, edge_start, edge_end):
+            edge_vec = edge_end - edge_start
+            point_vec = point - edge_start
+            return (edge_vec[0] * point_vec[1] - edge_vec[1] * point_vec[0]) >= 0
+
+        def _intersection_point(p1, p2, edge_start, edge_end):
+            d1 = edge_end - edge_start
+            d2 = p2 - p1
+            denominator = d1[0] * d2[1] - d1[1] * d2[0]
+            if abs(denominator) < 1e-10:
+                return p1
+            p1_vec = p1 - edge_start
+            t = (p1_vec[0] * d2[1] - p1_vec[1] * d2[0]) / denominator
+            return edge_start + t * d1
+
+        output_list = subject_polygon.tolist()
+
+        for i in range(len(clip_polygon)):
+            if not output_list:
+                break
+
+            edge_start = clip_polygon[i]
+            edge_end = clip_polygon[(i + 1) % len(clip_polygon)]
+            input_list = output_list
+            output_list = []
+
+            if not input_list:
+                continue
+
+            s = np.array(input_list[-1])
+            for vertex in input_list:
+                e = np.array(vertex)
+                if _is_inside(e, edge_start, edge_end):
+                    if not _is_inside(s, edge_start, edge_end):
+                        output_list.append(_intersection_point(s, e, edge_start, edge_end).tolist())
+                    output_list.append(e.tolist())
+                elif _is_inside(s, edge_start, edge_end):
+                    output_list.append(_intersection_point(s, e, edge_start, edge_end).tolist())
+                s = e
+
+        return np.array(output_list) if output_list else np.array([])
 
     def end_frame(self) -> None:
         """Called at end of frame processing to clean up expired tracks."""
         # Remove tracks that have been expired for a while (2x max_age)
         expired = [
             track_id
-            for track_id, (_, last_seen) in self.tracks.items()
-            if self._current_frame - last_seen > self.max_age * 2
+            for track_id, track_data in self.tracks.items()
+            if self._current_frame - track_data["last_seen"] > self.max_age * 2
         ]
         for track_id in expired:
             del self.tracks[track_id]
@@ -424,7 +568,11 @@ class OpticalFlowEngine(BaseDetectionEngine):
         self.back_sub = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
         self.prev_gray = None
         self.prev_flow = None  # For temporal smoothing
-        self.object_tracker = SimpleTracker(max_age=params.track_max_age, id_manager=id_manager)
+        self.object_tracker = SimpleTracker(
+            max_age=params.track_max_age,
+            min_iou=params.track_min_iou,
+            id_manager=id_manager,
+        )
         self._frame_idx = 0  # Frame counter for track age management
         self.optical_flow_method = None  # Will be set by availability check
         self.dis_instance = None  # Cached DIS optical flow instance
@@ -800,8 +948,10 @@ class OpticalFlowEngine(BaseDetectionEngine):
                     width *= inv_scale
                     height *= inv_scale
 
-                # Assign object ID (simple tracking) - use original resolution coords
-                obj_id = self.object_tracker.get_id((center_x, center_y), self._frame_idx)
+                # Assign object ID (simple tracking with IoU) - use original resolution coords
+                obj_id = self.object_tracker.get_id(
+                    (center_x, center_y), self._frame_idx, bbox=box
+                )
 
                 # Calculate confidence based on bbox area (normalized)
                 # Scale area-based confidence threshold with processing scale

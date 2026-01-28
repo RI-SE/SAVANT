@@ -69,10 +69,12 @@ class OpticalFlowParams:
         debug_visualization: Enable caching of intermediate data for visualization.
         processing_scale: Scale factor for frame downscaling before flow computation (0.25-1.0).
         track_max_age: Maximum frames a track can be unmatched before expiring.
+        track_min_iou: Minimum IoU overlap for track association (prevents merging nearby vehicles).
     """
 
     motion_threshold: float = 1.0  # Increased from 0.5 for drone footage
     track_max_age: int = 10  # Frames before track expires (prevents ID reuse)
+    track_min_iou: float = 0.1  # Minimum IoU for track association (prevents track merging)
     min_area: int = 2000  # For full resolution, scaled down with processing_scale²
     max_area: int = 30000  # For full resolution, scaled down with processing_scale² (0 to disable)
     morph_kernel_size: int = 5  # Reduced from 9 for tighter bboxes

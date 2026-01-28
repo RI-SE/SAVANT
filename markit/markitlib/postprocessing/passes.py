@@ -663,6 +663,7 @@ class RotationAdjustmentPass(PostprocessingPass):
         min_total_movement: float = 30.0,
         temporal_smoothing: float = 0.3,
         max_rotation_change: float = 0.524,
+        aspect_instability_window: int = 5,
     ):
         """Initialize rotation adjustment pass.
 
@@ -672,18 +673,21 @@ class RotationAdjustmentPass(PostprocessingPass):
             min_total_movement: Minimum cumulative movement across all vectors to trust direction (default: 30.0)
             temporal_smoothing: Temporal smoothing factor (0-1, higher = more smoothing between frames, default: 0.3)
             max_rotation_change: Maximum rotation change per frame in radians (default: 0.524 ≈ 30°)
+            aspect_instability_window: Number of frames to check for aspect ratio instability (default: 5)
         """
         self.rotations_adjusted = 0
         self.rotations_kept = 0
         self.rotations_copied = 0
         self.rotations_gap_skipped = 0
         self.rotations_skipped_slow = 0
+        self.rotations_skipped_unstable = 0
         self.objects_processed = 0
         self.rotation_threshold = rotation_threshold
         self.min_movement_pixels = min_movement_pixels
         self.min_total_movement = min_total_movement
         self.temporal_smoothing = temporal_smoothing
         self.max_rotation_change = max_rotation_change
+        self.aspect_instability_window = aspect_instability_window
 
     def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
         """Adjust rotation values based on movement direction with temporal smoothing.
@@ -865,6 +869,61 @@ class RotationAdjustmentPass(PostprocessingPass):
         smoothed = rebase_angle_if_needed(smoothed)
         return smoothed
 
+    def _is_aspect_ratio_unstable(
+        self,
+        frames: Dict[str, Any],
+        obj_id: str,
+        frame_list_sorted: List[int],
+        current_idx: int,
+    ) -> bool:
+        """Check if aspect ratio is unstable (w/h swap in progress).
+
+        Returns True if the long axis (w vs h) differs across the lookback window,
+        indicating the object's aspect ratio is changing and rotation adjustment
+        should be skipped to prevent drift.
+
+        Args:
+            frames: Frame data
+            obj_id: Object ID
+            frame_list_sorted: Sorted list of frames for this object
+            current_idx: Index in frame_list_sorted
+
+        Returns:
+            True if aspect ratio is unstable, False otherwise
+        """
+        window = self.aspect_instability_window
+        long_axis_is_width = []
+
+        start_idx = max(0, current_idx - window)
+        end_idx = min(len(frame_list_sorted), current_idx + window + 1)
+
+        for i in range(start_idx, end_idx):
+            frame = frame_list_sorted[i]
+            frame_str = str(frame)
+            if frame_str not in frames:
+                continue
+            if obj_id not in frames[frame_str].get("objects", {}):
+                continue
+
+            obj = frames[frame_str]["objects"][obj_id]
+
+            # Skip gap-filled frames - their dimensions are interpolated
+            if self._is_gap_filled(obj):
+                continue
+
+            rbbox = obj["object_data"]["rbbox"][0]["val"]
+            w, h = rbbox[2], rbbox[3]
+            long_axis_is_width.append(w > h)
+
+        if len(long_axis_is_width) < 3:
+            return False  # Not enough data to determine stability
+
+        # If long axis flips within window, aspect ratio is unstable
+        all_width = all(long_axis_is_width)
+        all_height = not any(long_axis_is_width)
+
+        return not (all_width or all_height)
+
     def _calculate_smoothed_rotation(
         self,
         frames: Dict[str, Any],
@@ -891,6 +950,11 @@ class RotationAdjustmentPass(PostprocessingPass):
         Returns:
             Rotation angle in radians, or None if insufficient movement
         """
+        # Skip rotation adjustment if aspect ratio is unstable (w/h swapping)
+        if self._is_aspect_ratio_unstable(frames, obj_id, frame_list_sorted, current_idx):
+            self.rotations_skipped_unstable += 1
+            return None
+
         current_frame_str = str(current_frame)
         current_obj = frames[current_frame_str]["objects"][obj_id]
         current_rbbox = current_obj["object_data"]["rbbox"][0]["val"]
@@ -1008,6 +1072,7 @@ class RotationAdjustmentPass(PostprocessingPass):
             "rotations_copied": self.rotations_copied,
             "rotations_gap_skipped": self.rotations_gap_skipped,
             "rotations_skipped_slow": self.rotations_skipped_slow,
+            "rotations_skipped_unstable": self.rotations_skipped_unstable,
         }
 
 
@@ -1644,6 +1709,174 @@ class BboxSmoothingPass(PostprocessingPass):
             "objects_smoothed": self.objects_smoothed,
             "frames_smoothed": self.frames_smoothed,
             "edge_frames_handled": self.edge_frames_handled,
+        }
+
+
+class SizeOutlierFilterPass(PostprocessingPass):
+    """Detect and fix frames where object size is an outlier compared to its history.
+
+    Uses MAD (Median Absolute Deviation) to identify outlier frames for each object
+    individually. This catches motion streak artifacts (suddenly much larger area)
+    without rejecting legitimately large vehicles like buses.
+
+    Outlier frames have their size interpolated from neighboring non-outlier frames.
+    """
+
+    def __init__(self, outlier_threshold: float = 3.0, min_frames: int = 5):
+        """Initialize size outlier filter pass.
+
+        Args:
+            outlier_threshold: Number of MAD from median to consider outlier (default: 3.0)
+            min_frames: Minimum frames an object must have for outlier detection (default: 5)
+        """
+        self.outlier_threshold = outlier_threshold
+        self.min_frames = min_frames
+        self.outliers_fixed = 0
+        self.objects_processed = 0
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Detect and fix size outliers per object.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Modified OpenLabel data with outliers fixed
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+
+        # Build object-to-frames mapping
+        object_frame_map = defaultdict(list)
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            frame_objects = frame_data.get("objects", {})
+            for obj_id_str in frame_objects.keys():
+                object_frame_map[obj_id_str].append(frame_idx)
+
+        # Process each object
+        for obj_id, frame_list in object_frame_map.items():
+            if len(frame_list) < self.min_frames:
+                continue
+
+            self.objects_processed += 1
+            frame_list_sorted = sorted(frame_list)
+            self._fix_object_outliers(frames, obj_id, frame_list_sorted)
+
+        logger.info(
+            f"SizeOutlierFilter: Processed {self.objects_processed} objects, "
+            f"fixed {self.outliers_fixed} outlier frames"
+        )
+
+        return openlabel_data
+
+    def _fix_object_outliers(
+        self,
+        frames: Dict[str, Any],
+        obj_id: str,
+        frame_list: List[int],
+    ) -> None:
+        """Fix size outliers for a single object.
+
+        Args:
+            frames: Frame data dictionary
+            obj_id: Object ID string
+            frame_list: Sorted list of frame indices for this object
+        """
+        # Collect size data (area = w * h)
+        size_data = []
+        for frame_idx in frame_list:
+            frame_str = str(frame_idx)
+            rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
+            w, h = rbbox[2], rbbox[3]
+            area = w * h
+            size_data.append({
+                "frame_idx": frame_idx,
+                "w": w,
+                "h": h,
+                "area": area,
+            })
+
+        # Calculate median area and MAD
+        areas = np.array([s["area"] for s in size_data])
+        median_area = np.median(areas)
+        mad = np.median(np.abs(areas - median_area))
+
+        # Avoid division by zero - if MAD is very small, sizes are very consistent
+        if mad < 1.0:
+            mad = 1.0
+
+        # Identify outliers
+        outlier_indices = []
+        for i, s in enumerate(size_data):
+            deviation = abs(s["area"] - median_area) / mad
+            if deviation > self.outlier_threshold:
+                outlier_indices.append(i)
+
+        if not outlier_indices:
+            return
+
+        # Fix outliers by interpolating from neighbors
+        for outlier_idx in outlier_indices:
+            frame_idx = size_data[outlier_idx]["frame_idx"]
+            frame_str = str(frame_idx)
+
+            # Find nearest non-outlier neighbors
+            prev_good = None
+            next_good = None
+
+            # Search backward for non-outlier
+            for i in range(outlier_idx - 1, -1, -1):
+                if i not in outlier_indices:
+                    prev_good = size_data[i]
+                    break
+
+            # Search forward for non-outlier
+            for i in range(outlier_idx + 1, len(size_data)):
+                if i not in outlier_indices:
+                    next_good = size_data[i]
+                    break
+
+            # Interpolate size from neighbors
+            if prev_good and next_good:
+                # Linear interpolation between neighbors
+                t = (frame_idx - prev_good["frame_idx"]) / (
+                    next_good["frame_idx"] - prev_good["frame_idx"]
+                )
+                new_w = prev_good["w"] + t * (next_good["w"] - prev_good["w"])
+                new_h = prev_good["h"] + t * (next_good["h"] - prev_good["h"])
+            elif prev_good:
+                # Use previous good value
+                new_w, new_h = prev_good["w"], prev_good["h"]
+            elif next_good:
+                # Use next good value
+                new_w, new_h = next_good["w"], next_good["h"]
+            else:
+                # No good neighbors - skip
+                continue
+
+            # Apply fix
+            rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
+            rbbox[2] = new_w
+            rbbox[3] = new_h
+
+            self._update_annotator(frames[frame_str]["objects"][obj_id])
+            self.outliers_fixed += 1
+
+    def _update_annotator(self, obj_data: Dict[str, Any]) -> None:
+        """Update annotator field to indicate outlier fix was applied."""
+        vec_list = obj_data["object_data"]["vec"]
+        for vec_item in vec_list:
+            if vec_item.get("name") == "annotator":
+                if "markit_housekeeping(outlier)" not in vec_item["val"]:
+                    vec_item["val"].insert(0, "markit_housekeeping(outlier)")
+                return
+        vec_list.insert(0, {"name": "annotator", "val": ["markit_housekeeping(outlier)"]})
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get size outlier filter statistics."""
+        return {
+            "objects_processed": self.objects_processed,
+            "outliers_fixed": self.outliers_fixed,
         }
 
 

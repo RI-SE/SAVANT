@@ -104,6 +104,7 @@ from markit.markitlib.postprocessing import (
     DuplicateRemovalPass,
     FirstDetectionRefinementPass,
     BboxSmoothingPass,
+    SizeOutlierFilterPass,
     Rotation90JumpFixPass,
     RotationAdjustmentPass,
     SuddenPass,
@@ -687,7 +688,11 @@ def main():
             # Run before rotation adjustment so aspect ratio logic uses stable sizes
             postprocessing_pipeline.add_pass(BboxSmoothingPass())
 
-            # 7. Adjust rotation based on movement direction
+            # 7. Filter size outliers (motion streaks, sudden elongation)
+            # Run after smoothing to catch remaining outliers
+            postprocessing_pipeline.add_pass(SizeOutlierFilterPass())
+
+            # 8. Adjust rotation based on movement direction
             postprocessing_pipeline.add_pass(
                 RotationAdjustmentPass(
                     rotation_threshold=config.rotation_threshold,
@@ -698,15 +703,15 @@ def main():
                 )
             )
 
-            # 8. Detect sudden appear/disappear events
+            # 9. Detect sudden appear/disappear events
             postprocessing_pipeline.add_pass(
                 SuddenPass(edge_distance=config.edge_distance)
             )
 
-            # 9. Add frame intervals
+            # 10. Add frame intervals
             postprocessing_pipeline.add_pass(FrameIntervalPass())
 
-            # 10. Normalize all angles to [0, 2π) for OpenLabel output
+            # 11. Normalize all angles to [0, 2π) for OpenLabel output
             postprocessing_pipeline.add_pass(AngleNormalizationPass())
 
             openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
