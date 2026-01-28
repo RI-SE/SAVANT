@@ -344,8 +344,8 @@ Examples:
     postproc.add_argument(
         "--duplicate-avg-iou",
         type=float,
-        default=0.7,
-        help="Average IOU threshold for duplicate detection (default: 0.7)",
+        default=0.5,
+        help="Average IOU threshold for duplicate detection (default: 0.5)",
     )
     postproc.add_argument(
         "--duplicate-min-iou",

@@ -1719,7 +1719,9 @@ class SizeOutlierFilterPass(PostprocessingPass):
     individually. This catches motion streak artifacts (suddenly much larger area)
     without rejecting legitimately large vehicles like buses.
 
-    Outlier frames have their size interpolated from neighboring non-outlier frames.
+    Outlier frames have their size replaced with the median w/h from non-outlier
+    frames. This handles cases where motion streaks persist over multiple consecutive
+    frames better than neighbor-based interpolation.
     """
 
     def __init__(self, outlier_threshold: float = 3.0, min_frames: int = 5):
@@ -1733,6 +1735,7 @@ class SizeOutlierFilterPass(PostprocessingPass):
         self.min_frames = min_frames
         self.outliers_fixed = 0
         self.objects_processed = 0
+        self.objects_all_outliers = 0
 
     def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
         """Detect and fix size outliers per object.
@@ -1765,6 +1768,8 @@ class SizeOutlierFilterPass(PostprocessingPass):
         logger.info(
             f"SizeOutlierFilter: Processed {self.objects_processed} objects, "
             f"fixed {self.outliers_fixed} outlier frames"
+            + (f", {self.objects_all_outliers} objects had all frames as outliers"
+               if self.objects_all_outliers > 0 else "")
         )
 
         return openlabel_data
@@ -1776,6 +1781,9 @@ class SizeOutlierFilterPass(PostprocessingPass):
         frame_list: List[int],
     ) -> None:
         """Fix size outliers for a single object.
+
+        Uses median w/h from non-outlier frames instead of neighbor interpolation.
+        This handles consecutive outlier frames (e.g., persistent motion streaks).
 
         Args:
             frames: Frame data dictionary
@@ -1805,59 +1813,41 @@ class SizeOutlierFilterPass(PostprocessingPass):
         if mad < 1.0:
             mad = 1.0
 
-        # Identify outliers
-        outlier_indices = []
+        # Identify outliers based on area
+        outlier_indices = set()
         for i, s in enumerate(size_data):
             deviation = abs(s["area"] - median_area) / mad
             if deviation > self.outlier_threshold:
-                outlier_indices.append(i)
+                outlier_indices.add(i)
 
         if not outlier_indices:
             return
 
-        # Fix outliers by interpolating from neighbors
+        # Get non-outlier frames
+        non_outlier_data = [s for i, s in enumerate(size_data) if i not in outlier_indices]
+
+        if not non_outlier_data:
+            # All frames are outliers - can't fix, flag object
+            self.objects_all_outliers += 1
+            logger.warning(
+                f"SizeOutlierFilter: Object {obj_id} has all {len(size_data)} frames "
+                "flagged as outliers - cannot fix"
+            )
+            return
+
+        # Calculate median w and h from non-outlier frames
+        median_w = float(np.median([s["w"] for s in non_outlier_data]))
+        median_h = float(np.median([s["h"] for s in non_outlier_data]))
+
+        # Fix outliers by replacing with median w/h
         for outlier_idx in outlier_indices:
             frame_idx = size_data[outlier_idx]["frame_idx"]
             frame_str = str(frame_idx)
 
-            # Find nearest non-outlier neighbors
-            prev_good = None
-            next_good = None
-
-            # Search backward for non-outlier
-            for i in range(outlier_idx - 1, -1, -1):
-                if i not in outlier_indices:
-                    prev_good = size_data[i]
-                    break
-
-            # Search forward for non-outlier
-            for i in range(outlier_idx + 1, len(size_data)):
-                if i not in outlier_indices:
-                    next_good = size_data[i]
-                    break
-
-            # Interpolate size from neighbors
-            if prev_good and next_good:
-                # Linear interpolation between neighbors
-                t = (frame_idx - prev_good["frame_idx"]) / (
-                    next_good["frame_idx"] - prev_good["frame_idx"]
-                )
-                new_w = prev_good["w"] + t * (next_good["w"] - prev_good["w"])
-                new_h = prev_good["h"] + t * (next_good["h"] - prev_good["h"])
-            elif prev_good:
-                # Use previous good value
-                new_w, new_h = prev_good["w"], prev_good["h"]
-            elif next_good:
-                # Use next good value
-                new_w, new_h = next_good["w"], next_good["h"]
-            else:
-                # No good neighbors - skip
-                continue
-
-            # Apply fix
+            # Apply fix - use median w/h from non-outliers
             rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
-            rbbox[2] = new_w
-            rbbox[3] = new_h
+            rbbox[2] = median_w
+            rbbox[3] = median_h
 
             self._update_annotator(frames[frame_str]["objects"][obj_id])
             self.outliers_fixed += 1
@@ -1877,6 +1867,7 @@ class SizeOutlierFilterPass(PostprocessingPass):
         return {
             "objects_processed": self.objects_processed,
             "outliers_fixed": self.outliers_fixed,
+            "objects_all_outliers": self.objects_all_outliers,
         }
 
 
@@ -2128,6 +2119,10 @@ class Rotation90JumpFixPass(PostprocessingPass):
     ) -> None:
         """Fix 90° and 180° jumps for a single object.
 
+        For any jump > 70°, tries multiple corrections and picks the best:
+        - ±90° with w/h swap (for minAreaRect w/h ambiguity)
+        - ±180° without swap (for minAreaRect angle flip)
+
         Args:
             frames: Frame data dictionary
             obj_id: Object ID string
@@ -2145,33 +2140,34 @@ class Rotation90JumpFixPass(PostprocessingPass):
                 diff = normalize_angle_to_pi(r - prev_rotation)
                 abs_diff = abs(diff)
 
-                # Check if this looks like a 90° jump (70-110° range)
-                if self.jump_threshold_low < abs_diff < self.jump_threshold_high:
-                    # Try adjusting rotation by ±90°
+                # For any significant jump (>70°), try multiple corrections
+                if abs_diff > self.jump_threshold_low:
                     sign = -1 if diff > 0 else 1
-                    alt_rotation = r + sign * (np.pi / 2)
-                    alt_diff = normalize_angle_to_pi(alt_rotation - prev_rotation)
 
-                    if abs(alt_diff) < abs_diff:
-                        # Swapping makes it more continuous - apply correction
-                        rbbox[2] = h  # Swap w and h
+                    # Try 90° correction (with w/h swap)
+                    r_90 = r + sign * (np.pi / 2)
+                    diff_90 = abs(normalize_angle_to_pi(r_90 - prev_rotation))
+
+                    # Try 180° correction (no w/h swap)
+                    r_180 = r + sign * np.pi
+                    diff_180 = abs(normalize_angle_to_pi(r_180 - prev_rotation))
+
+                    # Pick the best correction
+                    if diff_90 < abs_diff and diff_90 <= diff_180:
+                        # 90° correction is best - swap w/h
+                        rbbox[2] = h
                         rbbox[3] = w
-                        rbbox[4] = alt_rotation
-                        r = alt_rotation  # Update for next iteration
+                        rbbox[4] = r_90
+                        r = r_90
                         self.jumps_fixed += 1
                         self.wh_swaps += 1
                         self._update_annotator(frames[frame_str]["objects"][obj_id])
-
-                # Check if this looks like a 180° jump (>160° range)
-                # minAreaRect can flip angle by 180° while keeping same w/h
-                elif abs_diff > self.jump_180_threshold:
-                    # Pure angle flip - adjust by ±180°, no w/h swap needed
-                    sign = -1 if diff > 0 else 1
-                    alt_rotation = r + sign * np.pi
-                    rbbox[4] = alt_rotation
-                    r = alt_rotation  # Update for next iteration
-                    self.jumps_180_fixed += 1
-                    self._update_annotator(frames[frame_str]["objects"][obj_id])
+                    elif diff_180 < abs_diff:
+                        # 180° correction is best - no w/h swap
+                        rbbox[4] = r_180
+                        r = r_180
+                        self.jumps_180_fixed += 1
+                        self._update_annotator(frames[frame_str]["objects"][obj_id])
 
             prev_rotation = r
 
