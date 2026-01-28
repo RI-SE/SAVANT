@@ -105,6 +105,7 @@ from markit.markitlib.postprocessing import (
     FirstDetectionRefinementPass,
     BboxSmoothingPass,
     SizeOutlierFilterPass,
+    SizeStepDetectionPass,
     Rotation90JumpFixPass,
     RotationAdjustmentPass,
     SuddenPass,
@@ -681,16 +682,16 @@ def main():
                 )
             )
 
-            # 5. Fix 90° rotation jumps from minAreaRect w/h swapping
+            # 5. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
             postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
 
-            # 6. Size smoothing (position NOT smoothed - raw is acceptable)
-            # Run before rotation adjustment so aspect ratio logic uses stable sizes
-            postprocessing_pipeline.add_pass(BboxSmoothingPass())
-
-            # 7. Filter size outliers (motion streaks, sudden elongation)
-            # Run after smoothing to catch remaining outliers
+            # 6. Filter size outliers (motion streaks, sudden elongation)
+            # Run BEFORE smoothing to detect raw spikes before EMA blends them
             postprocessing_pipeline.add_pass(SizeOutlierFilterPass())
+
+            # 7. Size smoothing (position NOT smoothed - raw is acceptable)
+            # Run after outlier filter so smoothing works on clean data
+            postprocessing_pipeline.add_pass(BboxSmoothingPass())
 
             # 8. Adjust rotation based on movement direction
             postprocessing_pipeline.add_pass(
@@ -708,10 +709,13 @@ def main():
                 SuddenPass(edge_distance=config.edge_distance)
             )
 
-            # 10. Add frame intervals
+            # 10. Detect persistent size changes (step changes) for manual review
+            postprocessing_pipeline.add_pass(SizeStepDetectionPass())
+
+            # 11. Add frame intervals
             postprocessing_pipeline.add_pass(FrameIntervalPass())
 
-            # 11. Normalize all angles to [0, 2π) for OpenLabel output
+            # 12. Normalize all angles to [0, 2π) for OpenLabel output
             postprocessing_pipeline.add_pass(AngleNormalizationPass())
 
             openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
