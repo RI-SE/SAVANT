@@ -682,18 +682,15 @@ def main():
                 )
             )
 
-            # 5. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
-            postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
-
-            # 6. Filter size outliers (motion streaks, sudden elongation)
+            # 5. Filter size outliers (motion streaks, sudden elongation)
             # Run BEFORE smoothing to detect raw spikes before EMA blends them
             postprocessing_pipeline.add_pass(SizeOutlierFilterPass())
 
-            # 7. Size smoothing (position NOT smoothed - raw is acceptable)
+            # 6. Size smoothing (position NOT smoothed - raw is acceptable)
             # Run after outlier filter so smoothing works on clean data
             postprocessing_pipeline.add_pass(BboxSmoothingPass())
 
-            # 8. Adjust rotation based on movement direction
+            # 7. Adjust rotation based on movement direction
             postprocessing_pipeline.add_pass(
                 RotationAdjustmentPass(
                     rotation_threshold=config.rotation_threshold,
@@ -703,6 +700,10 @@ def main():
                     max_rotation_change=config.max_rotation_change,
                 )
             )
+
+            # 8. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
+            # Run AFTER RotationAdjustmentPass to fix any remaining jumps
+            postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
 
             # 9. Detect sudden appear/disappear events
             postprocessing_pipeline.add_pass(
@@ -717,6 +718,13 @@ def main():
 
             # 12. Normalize all angles to [0, 2π) for OpenLabel output
             postprocessing_pipeline.add_pass(AngleNormalizationPass())
+
+            # Final pipeline order:
+            # 1. GapDetection → 2. GapFilling → 3. DuplicateRemoval →
+            # 4. StaticObjectRemoval → 5. FirstDetectionRefinement →
+            # 6. SizeOutlierFilter → 7. BboxSmoothing → 8. RotationAdjustment →
+            # 9. Rotation90JumpFix → 10. Sudden → 11. SizeStepDetection →
+            # 12. FrameInterval → 13. AngleNormalization
 
             openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
                 openlabel_handler.openlabel_data
