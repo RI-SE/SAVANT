@@ -122,6 +122,8 @@ def _openlabel_to_detections(
     Returns:
         List of DetectionResult objects
     """
+    import re
+
     detection_results = []
 
     for obj_id, obj_frame_data in frame_data.get("objects", {}).items():
@@ -141,38 +143,43 @@ def _openlabel_to_detections(
             vec_data = obj_frame_data.get("object_data", {}).get("vec", [])
             confidence = 1.0
             source_engine = "yolo"
-
-            # Check for postprocessing markers and extract metadata
-            has_gap = False
-            has_rot = False
+            housekeeping_tags = []
 
             for vec in vec_data:
                 if vec.get("name") == "confidence":
                     conf_vals = vec.get("val", [1.0])
+                    # Use last confidence (detector confidence, not housekeeping)
                     confidence = conf_vals[-1] if conf_vals else 1.0
                 elif vec.get("name") == "annotator":
                     annotators = vec.get("val", [""])
-                    # Check for specific postprocessing types
-                    for ann in annotators:
-                        if "gap" in ann:
-                            has_gap = True
-                        elif "rot" in ann:
-                            has_rot = True
 
-                    # Determine source engine (gap takes priority over rot)
-                    if has_gap:
-                        source_engine = "postprocessed_gap"
-                    elif has_rot:
-                        source_engine = "postprocessed_rot"
-                    else:
-                        # Use the last/most recent annotator for engine detection
-                        annotator = annotators[-1] if annotators else ""
-                        if "yolo" in annotator:
+                    # Extract housekeeping tags from markit_housekeeping(...) entry
+                    for ann in annotators:
+                        match = re.match(r"markit_housekeeping\(([^)]*)\)", ann)
+                        if match and match.group(1):
+                            housekeeping_tags = [t.strip() for t in match.group(1).split(",")]
+
+                    # Determine source engine from detector annotator (not housekeeping)
+                    # Search from last to first for a detector entry
+                    for ann in reversed(annotators):
+                        if "markit_housekeeping" in ann:
+                            continue  # Skip housekeeping entries
+                        if "yolo" in ann:
                             source_engine = "yolo"
-                        elif "oflow" in annotator:
+                            break
+                        elif "optical_flow" in ann or "oflow" in ann:
                             source_engine = "optical_flow"
-                        elif "aruco" in annotator:
+                            break
+                        elif "aruco" in ann:
                             source_engine = "aruco"
+                            break
+                    else:
+                        # No detector found - likely gap-filled frame
+                        # Use "gap" as source if gap tag present, else default
+                        if "gap" in housekeeping_tags:
+                            source_engine = "gap"
+                        else:
+                            source_engine = "unknown"
 
             # Get class from objects data
             obj_meta = objects_data.get(obj_id, {})
@@ -194,6 +201,8 @@ def _openlabel_to_detections(
                 source_engine=source_engine,
                 object_id=int(obj_id),
             )
+            # Attach housekeeping tags for label rendering
+            detection.housekeeping_tags = housekeeping_tags
             detection_results.append(detection)
 
         except Exception as e:

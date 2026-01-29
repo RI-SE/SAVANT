@@ -1809,6 +1809,10 @@ class BboxSmoothingPass(PostprocessingPass):
             rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
             is_near_edge = raw_values[i]["is_near_edge"]
 
+            # Get original values
+            original_w = raw_values[i]["w"]
+            original_h = raw_values[i]["h"]
+
             # Average bidirectional smoothing for size
             smoothed_w = (forward_w[i] + backward_w[i]) / 2
             smoothed_h = (forward_h[i] + backward_h[i]) / 2
@@ -1820,12 +1824,12 @@ class BboxSmoothingPass(PostprocessingPass):
                 smoothed_w, smoothed_h = nearest[1], nearest[2]
                 self.edge_frames_handled += 1
 
-            # Only update size - position (x, y) stays unchanged
-            rbbox[2] = smoothed_w
-            rbbox[3] = smoothed_h
-
-            update_housekeeping_annotator(frames[frame_str]["objects"][obj_id], "smooth")
-            self.frames_smoothed += 1
+            # Only update and tag if values actually changed (> 0.1 pixel threshold)
+            if abs(smoothed_w - original_w) > 0.1 or abs(smoothed_h - original_h) > 0.1:
+                rbbox[2] = smoothed_w
+                rbbox[3] = smoothed_h
+                update_housekeeping_annotator(frames[frame_str]["objects"][obj_id], "smooth")
+                self.frames_smoothed += 1
 
     def _is_near_edge(self, x: float, y: float) -> bool:
         """Check if position is near frame edge.
