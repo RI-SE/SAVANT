@@ -691,15 +691,7 @@ def main():
             postprocessing_pipeline.add_pass(GapDetectionPass())
             postprocessing_pipeline.add_pass(GapFillingPass())
 
-            # 2. Duplicate removal
-            postprocessing_pipeline.add_pass(
-                DuplicateRemovalPass(
-                    avg_iou_threshold=config.duplicate_avg_iou,
-                    min_iou_threshold=config.duplicate_min_iou,
-                )
-            )
-
-            # 3. Static object removal (if enabled)
+            # 2. Static object removal (if enabled)
             if config.static_threshold >= 0:
                 postprocessing_pipeline.add_pass(
                     StaticObjectRemovalPass(
@@ -708,20 +700,29 @@ def main():
                     )
                 )
 
-            # 4. Refine initial detection angles using lookahead
+            # 3. Refine initial detection angles using lookahead
             postprocessing_pipeline.add_pass(
                 FirstDetectionRefinementPass(
                     lookahead_frames=5, min_movement_pixels=5.0
                 )
             )
 
-            # 5. Filter size outliers (motion streaks, sudden elongation)
+            # 4. Filter size outliers (motion streaks, sudden elongation)
             # Run BEFORE smoothing to detect raw spikes before EMA blends them
             postprocessing_pipeline.add_pass(SizeOutlierFilterPass())
 
-            # 6. Size smoothing (position NOT smoothed - raw is acceptable)
+            # 5. Size smoothing (position NOT smoothed - raw is acceptable)
             # Run after outlier filter so smoothing works on clean data
             postprocessing_pipeline.add_pass(BboxSmoothingPass())
+
+            # 6. Duplicate removal - runs AFTER size outlier filter and smoothing
+            # so that IoU calculations are based on consistent bbox sizes
+            postprocessing_pipeline.add_pass(
+                DuplicateRemovalPass(
+                    avg_iou_threshold=config.duplicate_avg_iou,
+                    min_iou_threshold=config.duplicate_min_iou,
+                )
+            )
 
             # 7. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
             # Run BEFORE RotationAdjustmentPass so jumps are fixed before temporal smoothing
@@ -753,10 +754,10 @@ def main():
             postprocessing_pipeline.add_pass(AngleNormalizationPass())
 
             # Final pipeline order:
-            # 1. GapDetection → 2. GapFilling → 3. DuplicateRemoval →
-            # 4. StaticObjectRemoval → 5. FirstDetectionRefinement →
-            # 6. SizeOutlierFilter → 7. BboxSmoothing → 8. Rotation90JumpFix →
-            # 9. RotationAdjustment → 10. Sudden → 11. SizeStepDetection →
+            # 1. GapDetection → 2. GapFilling → 3. StaticObjectRemoval →
+            # 4. FirstDetectionRefinement → 5. SizeOutlierFilter → 6. BboxSmoothing →
+            # 7. DuplicateRemoval → 8. Rotation90JumpFix → 9. RotationAdjustment →
+            # 10. Sudden → 11. SizeStepDetection →
             # 12. FrameInterval → 13. AngleNormalization
 
             openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
