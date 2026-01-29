@@ -2,6 +2,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
+    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -9,6 +10,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMenu,
     QMessageBox,
+    QProgressDialog,
     QVBoxLayout,
 )
 
@@ -27,6 +29,7 @@ from edit.frontend.utils.undo import (
     DeleteRelationshipCommand,
     LinkObjectIdsCommand,
     ResolveConfidenceCommand,
+    TrackObjectCommand,
     UpdateBBoxGeometryCommand,
 )
 from edit.frontend.widgets.cascade_dropdown import CascadeDirection
@@ -565,6 +568,11 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
     action_delete_cascade = context_menu.addAction("Cascade delete all with this ID")
     action_delete_relationship = context_menu.addAction("Delete relationships")
 
+    # Add tracking actions
+    context_menu.addSeparator()
+    action_track_forward = context_menu.addAction("Track Forward")
+    action_track_backward = context_menu.addAction("Track Backward")
+
     action_apply_static = None
     if obj_id:
         object_metadata = main_window.annotation_controller.get_object_metadata(obj_id)
@@ -635,6 +643,10 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
     elif selected_action == action_apply_static:
         if obj_id:
             _apply_to_all_empty_frames(main_window, obj_id, frontend_state)
+    elif selected_action == action_track_forward:
+        _start_tracking(main_window, obj_id, "forward", frontend_state)
+    elif selected_action == action_track_backward:
+        _start_tracking(main_window, obj_id, "backward", frontend_state)
 
 
 def _apply_to_all_empty_frames(
@@ -720,6 +732,118 @@ def _apply_to_all_empty_frames(
         main_window,
         "Operation Complete",
         f"Applied bounding box to {len(missing_frame_indices)} frames.",
+    )
+
+
+def _start_tracking(
+    main_window, object_id: str, direction: str, frontend_state: FrontendState
+):
+    """Start tracking the selected object forward or backward.
+
+    Args:
+        main_window: Main application window
+        object_id: ID of the object to track
+        direction: "forward" or "backward"
+        frontend_state: Current frontend state
+    """
+    annotator = frontend_state.require_current_annotator()
+    if not annotator:
+        QMessageBox.warning(
+            main_window, "Tracking", "An active annotator is required."
+        )
+        return
+
+    tracking_service = getattr(main_window, "tracking_service", None)
+    if tracking_service is None:
+        QMessageBox.warning(
+            main_window,
+            "Tracking",
+            "Tracking service not available. Check OpenCV installation.",
+        )
+        return
+
+    current_frame = int(main_window.video_controller.current_index())
+    bbox = main_window.overlay._get_selected_bbox()
+    if not bbox:
+        QMessageBox.warning(main_window, "Tracking", "No bounding box selected.")
+        return
+
+    # Create progress dialog
+    progress = QProgressDialog(
+        f"Tracking {direction}...", "Cancel", 0, 0, main_window
+    )
+    progress.setWindowTitle("Object Tracking")
+    progress.setWindowModality(Qt.WindowModality.WindowModal)
+    progress.setMinimumDuration(0)
+    progress.setValue(0)
+    progress.show()
+
+    def on_progress(current_frame_idx: int, total_tracked: int) -> bool:
+        """Update progress dialog. Returns True to cancel tracking."""
+        progress.setLabelText(
+            f"Tracking {direction}... Frame {current_frame_idx} "
+            f"({total_tracked} frames tracked)"
+        )
+        QApplication.processEvents()
+        return progress.wasCanceled()
+
+    try:
+        if direction == "forward":
+            tracked_frames = tracking_service.track_forward(
+                current_frame, bbox, object_id,
+                iou_threshold=0.3,
+                progress_callback=on_progress,
+            )
+        else:
+            tracked_frames = tracking_service.track_backward(
+                current_frame, bbox, object_id,
+                iou_threshold=0.3,
+                progress_callback=on_progress,
+            )
+    except RuntimeError as e:
+        progress.close()
+        QMessageBox.warning(main_window, "Tracking Error", str(e))
+        return
+    finally:
+        progress.close()
+
+    if progress.wasCanceled():
+        if tracked_frames:
+            # User cancelled but some frames were tracked - ask if they want to keep them
+            keep = QMessageBox.question(
+                main_window,
+                "Tracking Cancelled",
+                f"Tracking was cancelled. Keep the {len(tracked_frames)} frames tracked so far?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if keep != QMessageBox.StandardButton.Yes:
+                return
+        else:
+            return
+
+    if not tracked_frames:
+        QMessageBox.information(
+            main_window,
+            "Tracking",
+            "Tracking stopped immediately (object lost or overlap detected).",
+        )
+        return
+
+    # Create undoable command for all tracked frames
+    command = TrackObjectCommand(
+        object_id=object_id,
+        tracked_frames=tracked_frames,
+        annotator=annotator,
+    )
+    main_window.execute_undoable_command(command)
+    _refresh_after_annotation_change(main_window)
+
+    frame_ranges_str = _frames_to_ranges([tf.frame_idx for tf in tracked_frames])
+    QMessageBox.information(
+        main_window,
+        "Tracking Complete",
+        f"Added bboxes to {len(tracked_frames)} frames: {frame_ranges_str}",
     )
 
 

@@ -60,6 +60,7 @@ from edit.frontend.widgets.seek_bar import SeekBar
 from edit.frontend.widgets.settings import SettingsDialog
 from edit.frontend.widgets.sidebar import Sidebar
 from edit.frontend.widgets.video_display import VideoDisplay
+from edit.services.tracking_service import TrackingService
 
 
 class MainWindow(QMainWindow):
@@ -90,6 +91,12 @@ class MainWindow(QMainWindow):
             ),
             frame_tag_gateway=ControllerFrameTagGateway(self.annotation_controller),
             vlm_gateway=ControllerVLMGateway(self.project_state_controller),
+        )
+
+        # Tracking service for object tracking
+        self.tracking_service = TrackingService(
+            video_reader=self.video_controller.reader,
+            annotation_controller=self.annotation_controller,
         )
 
         # state

@@ -46,7 +46,7 @@ trainit = [
 ]
 edit = [
     "pyqt6<=6.9.1",
-    "opencv-python>=4.10.0",
+    "opencv-contrib-python>=4.10.0",
     "numpy>=1.26.0",
     "pydantic>=2.11.7",
     "appdirs>=1.4.4",
