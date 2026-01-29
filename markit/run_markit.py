@@ -314,6 +314,34 @@ Examples:
         ],
         help="ArUco dictionary type (default: DICT_4X4_50)",
     )
+    detection.add_argument(
+        "--flow-mask-mode",
+        dest="flow_mask_mode",
+        choices=["or", "and", "flow_only", "bg_only"],
+        default="or",
+        help="Mask combination mode: 'or' (union), 'and' (intersection), 'flow_only', 'bg_only' (default: or)",
+    )
+    detection.add_argument(
+        "--flow-dilate-size",
+        dest="flow_dilate_size",
+        type=int,
+        default=5,
+        help="Dilation kernel size for motion mask, 0 to disable (default: 5)",
+    )
+    detection.add_argument(
+        "--flow-morph-close",
+        dest="flow_morph_close",
+        type=int,
+        default=5,
+        help="MORPH_CLOSE kernel size, 0 to disable (default: 5)",
+    )
+    detection.add_argument(
+        "--flow-morph-open",
+        dest="flow_morph_open",
+        type=int,
+        default=5,
+        help="MORPH_OPEN kernel size, 0 to disable (default: 5)",
+    )
 
     # Conflict resolution
     conflict = parser.add_argument_group("Conflict Resolution")
@@ -483,6 +511,10 @@ def build_arguments_string(args: argparse.Namespace) -> str:
         parts.append(f"--flow-algorithm {args.flow_algorithm}")
         parts.append(f"--flow-temporal-smoothing {args.flow_temporal_smoothing}")
         parts.append(f"--flow-scale {args.flow_scale}")
+        parts.append(f"--flow-mask-mode {args.flow_mask_mode}")
+        parts.append(f"--flow-dilate-size {args.flow_dilate_size}")
+        parts.append(f"--flow-morph-close {args.flow_morph_close}")
+        parts.append(f"--flow-morph-open {args.flow_morph_open}")
         if args.flow_algorithm == "farneback":
             parts.append(f"--flow-pyramid-levels {args.flow_pyramid_levels}")
             parts.append(f"--flow-window-size {args.flow_window_size}")
@@ -690,7 +722,11 @@ def main():
             # Run after outlier filter so smoothing works on clean data
             postprocessing_pipeline.add_pass(BboxSmoothingPass())
 
-            # 7. Adjust rotation based on movement direction
+            # 7. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
+            # Run BEFORE RotationAdjustmentPass so jumps are fixed before temporal smoothing
+            postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
+
+            # 8. Adjust rotation based on movement direction
             postprocessing_pipeline.add_pass(
                 RotationAdjustmentPass(
                     rotation_threshold=config.rotation_threshold,
@@ -700,10 +736,6 @@ def main():
                     max_rotation_change=config.max_rotation_change,
                 )
             )
-
-            # 8. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
-            # Run AFTER RotationAdjustmentPass to fix any remaining jumps
-            postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
 
             # 9. Detect sudden appear/disappear events
             postprocessing_pipeline.add_pass(
@@ -722,8 +754,8 @@ def main():
             # Final pipeline order:
             # 1. GapDetection → 2. GapFilling → 3. DuplicateRemoval →
             # 4. StaticObjectRemoval → 5. FirstDetectionRefinement →
-            # 6. SizeOutlierFilter → 7. BboxSmoothing → 8. RotationAdjustment →
-            # 9. Rotation90JumpFix → 10. Sudden → 11. SizeStepDetection →
+            # 6. SizeOutlierFilter → 7. BboxSmoothing → 8. Rotation90JumpFix →
+            # 9. RotationAdjustment → 10. Sudden → 11. SizeStepDetection →
             # 12. FrameInterval → 13. AngleNormalization
 
             openlabel_handler.openlabel_data = postprocessing_pipeline.execute(

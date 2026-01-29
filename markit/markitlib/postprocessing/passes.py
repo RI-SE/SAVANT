@@ -681,6 +681,7 @@ class RotationAdjustmentPass(PostprocessingPass):
         self.rotations_gap_skipped = 0
         self.rotations_skipped_slow = 0
         self.rotations_skipped_unstable = 0
+        self.first_frame_flips = 0
         self.objects_processed = 0
         self.rotation_threshold = rotation_threshold
         self.min_movement_pixels = min_movement_pixels
@@ -688,6 +689,97 @@ class RotationAdjustmentPass(PostprocessingPass):
         self.temporal_smoothing = temporal_smoothing
         self.max_rotation_change = max_rotation_change
         self.aspect_instability_window = aspect_instability_window
+
+    def _check_first_frame_offset(
+        self,
+        frames: Dict[str, Any],
+        obj_id: str,
+        frame_list_sorted: List[int],
+    ) -> bool:
+        """Check if first frame angle is ~180° off from initial movement direction.
+
+        When the first detection's angle is 180° off from the true heading,
+        temporal smoothing causes a slow drift as it clamps the correction to
+        max_rotation_change per frame. This method detects such cases by comparing
+        the first frame's angle to movement direction from the first few frames.
+
+        If detected, flips the first frame's angle by 180° so temporal smoothing
+        starts from the correct orientation.
+
+        Args:
+            frames: Frame data
+            obj_id: Object ID
+            frame_list_sorted: Sorted list of frame indices
+
+        Returns:
+            True if first frame was flipped, False otherwise
+        """
+        if len(frame_list_sorted) < 3:
+            return False
+
+        # Get first non-gap-filled frame
+        first_frame_str = str(frame_list_sorted[0])
+        first_obj = frames[first_frame_str]["objects"][obj_id]
+
+        if self._is_gap_filled(first_obj):
+            return False
+
+        first_rbbox = first_obj["object_data"]["rbbox"][0]["val"]
+        x_first, y_first = first_rbbox[0], first_rbbox[1]
+        w_first, h_first = first_rbbox[2], first_rbbox[3]
+        r_first = first_rbbox[4]
+
+        # Calculate initial movement direction from first few frames
+        movement_vectors = []
+        for i in range(1, min(5, len(frame_list_sorted))):
+            frame_str = str(frame_list_sorted[i])
+            frame_obj = frames[frame_str]["objects"][obj_id]
+
+            if self._is_gap_filled(frame_obj):
+                continue
+
+            rbbox = frame_obj["object_data"]["rbbox"][0]["val"]
+            x, y = rbbox[0], rbbox[1]
+
+            dx = x - x_first
+            dy = y - y_first
+            distance = np.sqrt(dx**2 + dy**2)
+
+            if distance >= self.min_movement_pixels:
+                movement_vectors.append((dx, dy, distance))
+
+        if not movement_vectors:
+            return False
+
+        # Calculate weighted average movement direction
+        total_dx = sum(v[0] * v[2] for v in movement_vectors)
+        total_dy = sum(v[1] * v[2] for v in movement_vectors)
+        total_weight = sum(v[2] for v in movement_vectors)
+
+        if total_weight < self.min_total_movement:
+            return False
+
+        movement_angle = np.arctan2(total_dy / total_weight, total_dx / total_weight)
+
+        # Determine expected rotation based on aspect ratio
+        aspect_ratio = max(w_first, h_first) / max(min(w_first, h_first), 1.0)
+        if aspect_ratio > 1.5 and h_first > w_first:
+            # Height is long axis, expected rotation is movement + 90°
+            expected_rotation = movement_angle + np.pi / 2
+        else:
+            expected_rotation = movement_angle
+
+        # Check if first frame angle is ~180° off
+        diff = normalize_angle_to_pi(r_first - expected_rotation)
+        if abs(abs(diff) - np.pi) < np.radians(30):  # Within 30° of 180° off
+            # Flip by 180°
+            new_angle = r_first + np.pi
+            new_angle = rebase_angle_if_needed(new_angle)
+            first_rbbox[4] = new_angle
+            self.first_frame_flips += 1
+            return True
+
+        return False
 
     def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
         """Adjust rotation values based on movement direction with temporal smoothing.
@@ -715,6 +807,11 @@ class RotationAdjustmentPass(PostprocessingPass):
 
             self.objects_processed += 1
             frame_list_sorted = sorted(frame_list)
+
+            # Check if first frame angle is ~180° off from movement direction
+            # If so, flip it before temporal smoothing starts
+            self._check_first_frame_offset(frames, obj_id, frame_list_sorted)
+
             last_valid_angle = None
             previous_smoothed_angle = None
 
@@ -1073,6 +1170,7 @@ class RotationAdjustmentPass(PostprocessingPass):
             "rotations_gap_skipped": self.rotations_gap_skipped,
             "rotations_skipped_slow": self.rotations_skipped_slow,
             "rotations_skipped_unstable": self.rotations_skipped_unstable,
+            "first_frame_flips": self.first_frame_flips,
         }
 
 

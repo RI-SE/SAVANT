@@ -59,7 +59,7 @@ class OpticalFlowParams:
         motion_threshold: Threshold for motion magnitude detection.
         min_area: Minimum contour area in pixels at full resolution (scaled with processing_scale²).
         max_area: Maximum contour area in pixels at full resolution (scaled with processing_scale², 0 to disable).
-        morph_kernel_size: Kernel size for morphological operations.
+        morph_kernel_size: Kernel size for morphological operations (legacy, used if morph_close/open not set).
         algorithm: Optical flow algorithm - "dis", "farneback", or "lucas_kanade".
         temporal_smoothing: Weight for exponential moving average smoothing (0=no smoothing, 1=full).
         pyramid_levels: Number of pyramid levels for Farneback algorithm.
@@ -70,6 +70,10 @@ class OpticalFlowParams:
         processing_scale: Scale factor for frame downscaling before flow computation (0.25-1.0).
         track_max_age: Maximum frames a track can be unmatched before expiring.
         track_min_iou: Minimum IoU overlap for track association (prevents merging nearby vehicles).
+        mask_mode: How to combine bg subtraction and optical flow masks ("or", "and", "flow_only", "bg_only").
+        dilate_kernel_size: Dilation kernel size for motion mask (0 to disable).
+        morph_close_size: MORPH_CLOSE kernel size (0 to disable).
+        morph_open_size: MORPH_OPEN kernel size (0 to disable).
     """
 
     motion_threshold: float = 1.0  # Increased from 0.5 for drone footage
@@ -77,7 +81,7 @@ class OpticalFlowParams:
     track_min_iou: float = 0.1  # Minimum IoU for track association (prevents track merging)
     min_area: int = 2000  # For full resolution, scaled down with processing_scale²
     max_area: int = 30000  # For full resolution, scaled down with processing_scale² (0 to disable)
-    morph_kernel_size: int = 5  # Reduced from 9 for tighter bboxes
+    morph_kernel_size: int = 5  # Legacy: used if morph_close/open not explicitly set
     algorithm: str = "dis"
     temporal_smoothing: float = 0.3
     pyramid_levels: int = 7
@@ -86,6 +90,11 @@ class OpticalFlowParams:
     median_filter_size: int = 5
     debug_visualization: bool = False
     processing_scale: float = 0.5  # Downscale factor for flow computation (0.25 = 1/4 res)
+    # Mask combination and morphological tuning parameters
+    mask_mode: str = "or"  # "or", "and", "flow_only", "bg_only"
+    dilate_kernel_size: int = 5  # Dilation for motion mask (0 to disable)
+    morph_close_size: int = 5  # MORPH_CLOSE kernel size (0 to disable)
+    morph_open_size: int = 5  # MORPH_OPEN kernel size (0 to disable)
 
 
 @dataclass
@@ -157,6 +166,10 @@ class MarkitConfig:
             debug_visualization=getattr(args, "debug_flow", False),
             processing_scale=getattr(args, "flow_scale", 0.5),
             track_max_age=getattr(args, "track_max_age", 10),
+            mask_mode=getattr(args, "flow_mask_mode", "or"),
+            dilate_kernel_size=getattr(args, "flow_dilate_size", 5),
+            morph_close_size=getattr(args, "flow_morph_close", 5),
+            morph_open_size=getattr(args, "flow_morph_open", 5),
         )
 
         # IoU-based conflict resolution configuration

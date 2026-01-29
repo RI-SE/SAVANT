@@ -886,12 +886,16 @@ class OpticalFlowEngine(BaseDetectionEngine):
                         motion_mask = (magnitude > self.params.motion_threshold).astype(
                             np.uint8
                         ) * 255
-                        dilate_kernel = cv2.getStructuringElement(
-                            cv2.MORPH_ELLIPSE, (5, 5)
-                        )
-                        motion_mask = cv2.dilate(
-                            motion_mask, dilate_kernel, iterations=1
-                        )
+
+                        # Apply dilation to motion mask (configurable)
+                        if self.params.dilate_kernel_size > 0:
+                            dilate_kernel = cv2.getStructuringElement(
+                                cv2.MORPH_ELLIPSE,
+                                (self.params.dilate_kernel_size, self.params.dilate_kernel_size),
+                            )
+                            motion_mask = cv2.dilate(
+                                motion_mask, dilate_kernel, iterations=1
+                            )
 
                         # Cache motion mask for debug visualization
                         if self.params.debug_visualization:
@@ -902,19 +906,36 @@ class OpticalFlowEngine(BaseDetectionEngine):
                     logger.warning(f"Optical flow calculation failed: {e}")
                     self.optical_flow_available = False
 
-            # 3. Combine masks (if optical flow is available) or use background subtraction only
+            # 3. Combine masks based on mask_mode parameter
             if self.optical_flow_available and self.prev_gray is not None:
-                combined_mask = cv2.bitwise_or(fg_mask, motion_mask)
+                if self.params.mask_mode == "or":
+                    combined_mask = cv2.bitwise_or(fg_mask, motion_mask)
+                elif self.params.mask_mode == "and":
+                    combined_mask = cv2.bitwise_and(fg_mask, motion_mask)
+                elif self.params.mask_mode == "flow_only":
+                    combined_mask = motion_mask
+                elif self.params.mask_mode == "bg_only":
+                    combined_mask = fg_mask
+                else:
+                    # Fallback to "or" for unknown modes
+                    combined_mask = cv2.bitwise_or(fg_mask, motion_mask)
             else:
                 combined_mask = fg_mask
 
-            # 4. Clean up and find contours
-            kernel = cv2.getStructuringElement(
-                cv2.MORPH_ELLIPSE,
-                (self.params.morph_kernel_size, self.params.morph_kernel_size),
-            )
-            combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
-            combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
+            # 4. Clean up with morphological operations (independently configurable)
+            if self.params.morph_close_size > 0:
+                close_kernel = cv2.getStructuringElement(
+                    cv2.MORPH_ELLIPSE,
+                    (self.params.morph_close_size, self.params.morph_close_size),
+                )
+                combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, close_kernel)
+
+            if self.params.morph_open_size > 0:
+                open_kernel = cv2.getStructuringElement(
+                    cv2.MORPH_ELLIPSE,
+                    (self.params.morph_open_size, self.params.morph_open_size),
+                )
+                combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, open_kernel)
 
             contours, _ = cv2.findContours(
                 combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
