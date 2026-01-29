@@ -321,9 +321,22 @@ class GapFillingPass(PostprocessingPass):
 
 
 class DuplicateRemovalPass(PostprocessingPass):
-    """Remove duplicate bounding boxes based on IOU threshold."""
+    """Remove duplicate bounding boxes based on IOU threshold.
 
-    def __init__(self, avg_iou_threshold: float = 0.7, min_iou_threshold: float = 0.3):
+    Detects objects that overlap significantly across multiple frames and removes
+    the lower-priority one. Priority order: yolo > aruco > oflow > unknown.
+    """
+
+    # Source engine priority (higher = keep)
+    ENGINE_PRIORITY = {
+        "yolo": 3,
+        "aruco": 2,
+        "oflow": 1,
+        "optical_flow": 1,
+        "unknown": 0,
+    }
+
+    def __init__(self, avg_iou_threshold: float = 0.3, min_iou_threshold: float = 0.2):
         self.objects_deleted = 0
         self.duplicate_pairs_found = 0
         self.frames_modified = 0
@@ -374,10 +387,14 @@ class DuplicateRemovalPass(PostprocessingPass):
                     objects_to_delete.add(obj_to_delete)
 
                     frames_list = sorted(object_frame_map[obj_to_delete])
+                    engine_deleted = self._get_source_engine(obj_to_delete, object_frame_map, frames)
+                    engine_kept = self._get_source_engine(obj_to_keep, object_frame_map, frames)
                     self.deletion_details.append(
                         {
                             "deleted_object": obj_to_delete,
                             "kept_object": obj_to_keep,
+                            "deleted_engine": engine_deleted,
+                            "kept_engine": engine_kept,
                             "frame_start": frames_list[0] if frames_list else None,
                             "frame_end": frames_list[-1] if frames_list else None,
                         }
@@ -396,8 +413,9 @@ class DuplicateRemovalPass(PostprocessingPass):
 
         for detail in self.deletion_details:
             logger.info(
-                f"Deleted object {detail['deleted_object']} (duplicate of {detail['kept_object']}) "
-                f"from frames {detail['frame_start']}-{detail['frame_end']}"
+                f"Deleted object {detail['deleted_object']} ({detail['deleted_engine']}) "
+                f"as duplicate of {detail['kept_object']} ({detail['kept_engine']}) "
+                f"in frames {detail['frame_start']}-{detail['frame_end']}"
             )
 
         return openlabel_data
@@ -483,6 +501,56 @@ class DuplicateRemovalPass(PostprocessingPass):
             logger.debug(f"Failed to extract bbox: {e}")
             return None
 
+    def _get_source_engine(
+        self,
+        obj_id: str,
+        object_frame_map: Dict[str, List[int]],
+        frames: Dict[str, Any],
+    ) -> str:
+        """Get the source engine for an object (from first non-gap frame).
+
+        Args:
+            obj_id: Object ID
+            object_frame_map: Mapping of object IDs to frame lists
+            frames: Frame data
+
+        Returns:
+            Source engine name (yolo, oflow, aruco, or unknown)
+        """
+        import re
+
+        for frame_idx in object_frame_map.get(obj_id, []):
+            frame_str = str(frame_idx)
+            frame_objects = frames[frame_str].get("objects", {})
+
+            if obj_id not in frame_objects:
+                continue
+
+            try:
+                vec_list = frame_objects[obj_id]["object_data"]["vec"]
+                for vec_item in vec_list:
+                    if vec_item.get("name") == "annotator":
+                        annotators = vec_item.get("val", [])
+                        # Look for detector (skip housekeeping entries)
+                        for ann in reversed(annotators):
+                            if "markit_housekeeping" in ann:
+                                # Check if it's a gap-only frame
+                                match = re.match(r"markit_housekeeping\(([^)]*)\)", ann)
+                                if match and match.group(1) == "gap":
+                                    continue  # Skip gap-only frames
+                                continue
+                            if "yolo" in ann.lower():
+                                return "yolo"
+                            elif "oflow" in ann.lower() or "optical_flow" in ann.lower():
+                                return "oflow"
+                            elif "aruco" in ann.lower():
+                                return "aruco"
+                        break
+            except (KeyError, IndexError):
+                pass
+
+        return "unknown"
+
     def _choose_object_to_delete(
         self,
         obj_a: str,
@@ -491,6 +559,11 @@ class DuplicateRemovalPass(PostprocessingPass):
         frames: Dict[str, Any],
     ) -> str:
         """Choose which object to delete from a duplicate pair.
+
+        Priority order:
+        1. Source engine (yolo > aruco > oflow)
+        2. Frame count (keep longer sequence)
+        3. Confidence (keep higher confidence)
 
         Args:
             obj_a: First object ID
@@ -501,12 +574,24 @@ class DuplicateRemovalPass(PostprocessingPass):
         Returns:
             Object ID to delete
         """
+        # 1. Check source engine priority
+        engine_a = self._get_source_engine(obj_a, object_frame_map, frames)
+        engine_b = self._get_source_engine(obj_b, object_frame_map, frames)
+        priority_a = self.ENGINE_PRIORITY.get(engine_a, 0)
+        priority_b = self.ENGINE_PRIORITY.get(engine_b, 0)
+
+        if priority_a != priority_b:
+            # Delete the lower priority one
+            return obj_a if priority_a < priority_b else obj_b
+
+        # 2. Check frame count (keep longer sequence)
         frames_a = len(object_frame_map.get(obj_a, []))
         frames_b = len(object_frame_map.get(obj_b, []))
 
         if frames_a != frames_b:
             return obj_a if frames_a < frames_b else obj_b
 
+        # 3. Check average confidence
         conf_a = self._calculate_average_confidence(obj_a, object_frame_map, frames)
         conf_b = self._calculate_average_confidence(obj_b, object_frame_map, frames)
 

@@ -44,8 +44,8 @@ Conflict Resolution:
 
 Postprocessing (Housekeeping):
     --housekeeping       Enable postprocessing passes (gap detection, filling, duplicate removal, etc.)
-    --duplicate-avg-iou  Average IOU threshold for duplicate detection (default: 0.7)
-    --duplicate-min-iou  Minimum IOU threshold for duplicate detection (default: 0.3)
+    --duplicate-avg-iou  Average IOU threshold for duplicate detection (default: 0.3)
+    --duplicate-min-iou  Minimum IOU threshold for duplicate detection (default: 0.2)
     --rotation-threshold Rotation angle threshold in radians for adjustment (default: 0.1)
     --min-movement-pixels Minimum movement in pixels for rotation calculation (default: 5.0)
     --temporal-smoothing Temporal smoothing factor for rotation, 0-1 (default: 0.3)
@@ -366,14 +366,14 @@ Examples:
     postproc.add_argument(
         "--duplicate-avg-iou",
         type=float,
-        default=0.5,
-        help="Average IOU threshold for duplicate detection (default: 0.5)",
+        default=0.3,
+        help="Average IOU threshold for duplicate detection (default: 0.3)",
     )
     postproc.add_argument(
         "--duplicate-min-iou",
         type=float,
-        default=0.3,
-        help="Minimum IOU threshold for duplicate detection (default: 0.3)",
+        default=0.2,
+        help="Minimum IOU threshold for duplicate detection (default: 0.2)",
     )
     postproc.add_argument(
         "--rotation-threshold",
