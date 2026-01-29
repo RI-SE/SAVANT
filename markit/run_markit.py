@@ -715,20 +715,10 @@ def main():
             # Run after outlier filter so smoothing works on clean data
             postprocessing_pipeline.add_pass(BboxSmoothingPass())
 
-            # 6. Duplicate removal - runs AFTER size outlier filter and smoothing
-            # so that IoU calculations are based on consistent bbox sizes
-            postprocessing_pipeline.add_pass(
-                DuplicateRemovalPass(
-                    avg_iou_threshold=config.duplicate_avg_iou,
-                    min_iou_threshold=config.duplicate_min_iou,
-                )
-            )
-
-            # 7. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
-            # Run BEFORE RotationAdjustmentPass so jumps are fixed before temporal smoothing
+            # 6. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
             postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
 
-            # 8. Adjust rotation based on movement direction
+            # 7. Adjust rotation based on movement direction
             postprocessing_pipeline.add_pass(
                 RotationAdjustmentPass(
                     rotation_threshold=config.rotation_threshold,
@@ -736,6 +726,16 @@ def main():
                     min_total_movement=config.min_total_movement,
                     temporal_smoothing=config.temporal_smoothing,
                     max_rotation_change=config.max_rotation_change,
+                )
+            )
+
+            # 8. Duplicate removal - runs AFTER all rotation fixes so IoU is accurate
+            # (optical flow minAreaRect has 90° ambiguity, and rotation adjustment
+            # can change angles by up to 30°, both affecting IoU calculation)
+            postprocessing_pipeline.add_pass(
+                DuplicateRemovalPass(
+                    avg_iou_threshold=config.duplicate_avg_iou,
+                    min_iou_threshold=config.duplicate_min_iou,
                 )
             )
 
@@ -756,7 +756,7 @@ def main():
             # Final pipeline order:
             # 1. GapDetection → 2. GapFilling → 3. StaticObjectRemoval →
             # 4. FirstDetectionRefinement → 5. SizeOutlierFilter → 6. BboxSmoothing →
-            # 7. DuplicateRemoval → 8. Rotation90JumpFix → 9. RotationAdjustment →
+            # 7. Rotation90JumpFix → 8. RotationAdjustment → 9. DuplicateRemoval →
             # 10. Sudden → 11. SizeStepDetection →
             # 12. FrameInterval → 13. AngleNormalization
 
