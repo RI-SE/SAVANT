@@ -583,6 +583,21 @@ class OpticalFlowEngine(BaseDetectionEngine):
         self.last_motion_mask: Optional[np.ndarray] = None
         self.last_flow: Optional[np.ndarray] = None
 
+        # Load exclusion mask if provided
+        self.exclusion_mask: Optional[np.ndarray] = None
+        self._exclusion_mask_original: Optional[np.ndarray] = None
+        if self.params.exclusion_mask:
+            try:
+                mask_img = cv2.imread(self.params.exclusion_mask, cv2.IMREAD_GRAYSCALE)
+                if mask_img is not None:
+                    # Will be resized to processing scale when first frame is processed
+                    self._exclusion_mask_original = mask_img
+                    logger.info(f"Loaded exclusion mask: {self.params.exclusion_mask}")
+                else:
+                    logger.warning(f"Could not load exclusion mask: {self.params.exclusion_mask}")
+            except Exception as e:
+                logger.warning(f"Error loading exclusion mask: {e}")
+
         if self.optical_flow_available:
             logger.info(
                 f"Optical flow engine initialized with {self.optical_flow_method}, "
@@ -855,6 +870,13 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
             proc_height, proc_width = proc_frame.shape[:2]
 
+            # Resize exclusion mask to processing scale (once, on first frame)
+            if self._exclusion_mask_original is not None and self.exclusion_mask is None:
+                self.exclusion_mask = cv2.resize(
+                    self._exclusion_mask_original, (proc_width, proc_height), interpolation=cv2.INTER_NEAREST
+                )
+                logger.info(f"Resized exclusion mask to processing scale: {proc_width}x{proc_height}")
+
             # Scale min_area and max_area with processing_scale² (settings are for full resolution)
             scale_sq = scale * scale
             effective_min_area = int(self.params.min_area * scale_sq)
@@ -947,6 +969,17 @@ class OpticalFlowEngine(BaseDetectionEngine):
                 if contour_area < effective_min_area:
                     continue
 
+                # Skip detections in excluded regions (black areas of mask)
+                if self.exclusion_mask is not None:
+                    M = cv2.moments(contour)
+                    if M["m00"] > 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                        # Bounds check
+                        if 0 <= cy < self.exclusion_mask.shape[0] and 0 <= cx < self.exclusion_mask.shape[1]:
+                            if self.exclusion_mask[cy, cx] < 128:  # Black/dark = excluded
+                                continue
+
                 # Get minimum area rectangle (OBB)
                 rect = cv2.minAreaRect(contour)
                 box = cv2.boxPoints(rect)
@@ -1032,6 +1065,8 @@ class OpticalFlowEngine(BaseDetectionEngine):
         self.last_magnitude = None
         self.last_motion_mask = None
         self.last_flow = None
+        self.exclusion_mask = None
+        self._exclusion_mask_original = None
 
 
 class ArUcoGPSData:

@@ -73,6 +73,7 @@ class OpticalFlowParams:
         dilate_kernel_size: Dilation kernel size for motion mask (0 to disable).
         morph_close_size: MORPH_CLOSE kernel size (0 to disable).
         morph_open_size: MORPH_OPEN kernel size (0 to disable).
+        exclusion_mask: Path to mask image for excluding regions from detection (black areas = excluded).
     """
 
     motion_threshold: float = 1.0  # Increased from 0.5 for drone footage
@@ -93,6 +94,7 @@ class OpticalFlowParams:
     dilate_kernel_size: int = 0  # Dilation for motion mask (0 to disable)
     morph_close_size: int = 3  # MORPH_CLOSE kernel size (0 to disable)
     morph_open_size: int = 5  # MORPH_OPEN kernel size (0 to disable)
+    exclusion_mask: Optional[str] = None  # Path to mask image for excluding regions from detection
 
 
 @dataclass
@@ -167,6 +169,7 @@ class MarkitConfig:
             dilate_kernel_size=getattr(args, "flow_dilate_size", 5),
             morph_close_size=getattr(args, "flow_morph_close", 5),
             morph_open_size=getattr(args, "flow_morph_open", 5),
+            exclusion_mask=getattr(args, "exclusion_mask", None),
         )
 
         # IoU-based conflict resolution configuration

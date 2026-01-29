@@ -336,6 +336,13 @@ Examples:
         default=5,
         help="MORPH_OPEN kernel size, 0 to disable (default: 5)",
     )
+    detection.add_argument(
+        "--exclusion-mask",
+        dest="exclusion_mask",
+        type=str,
+        default=None,
+        help="Path to mask image for excluding regions from optical flow detection (black areas = excluded)",
+    )
 
     # Conflict resolution
     conflict = parser.add_argument_group("Conflict Resolution")
