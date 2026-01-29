@@ -59,7 +59,6 @@ class OpticalFlowParams:
         motion_threshold: Threshold for motion magnitude detection.
         min_area: Minimum contour area in pixels at full resolution (scaled with processing_scale²).
         max_area: Maximum contour area in pixels at full resolution (scaled with processing_scale², 0 to disable).
-        morph_kernel_size: Kernel size for morphological operations (legacy, used if morph_close/open not set).
         algorithm: Optical flow algorithm - "dis", "farneback", or "lucas_kanade".
         temporal_smoothing: Weight for exponential moving average smoothing (0=no smoothing, 1=full).
         pyramid_levels: Number of pyramid levels for Farneback algorithm.
@@ -81,7 +80,6 @@ class OpticalFlowParams:
     track_min_iou: float = 0.1  # Minimum IoU for track association (prevents track merging)
     min_area: int = 2000  # For full resolution, scaled down with processing_scale²
     max_area: int = 30000  # For full resolution, scaled down with processing_scale² (0 to disable)
-    morph_kernel_size: int = 5  # Legacy: used if morph_close/open not explicitly set
     algorithm: str = "dis"
     temporal_smoothing: float = 0.3
     pyramid_levels: int = 7
@@ -91,9 +89,9 @@ class OpticalFlowParams:
     debug_visualization: bool = False
     processing_scale: float = 0.5  # Downscale factor for flow computation (0.25 = 1/4 res)
     # Mask combination and morphological tuning parameters
-    mask_mode: str = "or"  # "or", "and", "flow_only", "bg_only"
-    dilate_kernel_size: int = 5  # Dilation for motion mask (0 to disable)
-    morph_close_size: int = 5  # MORPH_CLOSE kernel size (0 to disable)
+    mask_mode: str = "flow_only"  # "or", "and", "flow_only", "bg_only"
+    dilate_kernel_size: int = 0  # Dilation for motion mask (0 to disable)
+    morph_close_size: int = 3  # MORPH_CLOSE kernel size (0 to disable)
     morph_open_size: int = 5  # MORPH_OPEN kernel size (0 to disable)
 
 
@@ -156,7 +154,6 @@ class MarkitConfig:
             motion_threshold=args.motion_threshold,
             min_area=args.min_object_area,
             max_area=getattr(args, "max_object_area", 30000),
-            morph_kernel_size=getattr(args, "morph_kernel_size", 5),
             algorithm=getattr(args, "flow_algorithm", "dis"),
             temporal_smoothing=getattr(args, "flow_temporal_smoothing", 0.3),
             pyramid_levels=getattr(args, "flow_pyramid_levels", 7),

@@ -21,6 +21,82 @@ from ..utils import (
 
 logger = logging.getLogger(__name__)
 
+# Confidence value used for all housekeeping operations
+HOUSEKEEPING_CONFIDENCE = 0.8888
+
+
+def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
+    """Update annotator field to add a housekeeping tag.
+
+    Combines all housekeeping tags into a single entry: markit_housekeeping(rot,90fix,smooth)
+    Only adds confidence value when creating the housekeeping entry (first tag).
+
+    Args:
+        obj_data: Object data dictionary containing object_data.vec
+        tag: Short tag to add (e.g., "rot", "90fix", "smooth")
+    """
+    import re
+
+    vec_list = obj_data.get("object_data", {}).get("vec", [])
+    if not vec_list:
+        # No vec list, create one with housekeeping entry
+        obj_data.setdefault("object_data", {})["vec"] = [
+            {"name": "annotator", "val": [f"markit_housekeeping({tag})"]},
+            {"name": "confidence", "val": [HOUSEKEEPING_CONFIDENCE]},
+        ]
+        return
+
+    # Find annotator and confidence entries
+    annotator_item = None
+    confidence_item = None
+    for vec_item in vec_list:
+        if vec_item.get("name") == "annotator":
+            annotator_item = vec_item
+        elif vec_item.get("name") == "confidence":
+            confidence_item = vec_item
+
+    if annotator_item is None:
+        # No annotator field, add new housekeeping entry at beginning
+        vec_list.insert(0, {"name": "annotator", "val": [f"markit_housekeeping({tag})"]})
+        if confidence_item:
+            confidence_item["val"].insert(0, HOUSEKEEPING_CONFIDENCE)
+        else:
+            vec_list.insert(1, {"name": "confidence", "val": [HOUSEKEEPING_CONFIDENCE]})
+        return
+
+    # Look for existing markit_housekeeping(...) entry
+    annotator_vals = annotator_item.get("val", [])
+    housekeeping_idx = None
+    housekeeping_tags = []
+
+    for i, val in enumerate(annotator_vals):
+        match = re.match(r"markit_housekeeping\(([^)]*)\)", val)
+        if match:
+            housekeeping_idx = i
+            existing_tags = match.group(1)
+            if existing_tags:
+                housekeeping_tags = [t.strip() for t in existing_tags.split(",")]
+            break
+
+    if housekeeping_idx is not None:
+        # Found existing housekeeping entry - add tag if not present
+        if tag not in housekeeping_tags:
+            housekeeping_tags.append(tag)
+            annotator_vals[housekeeping_idx] = f"markit_housekeeping({','.join(housekeeping_tags)})"
+        # Don't add confidence - it was already added when housekeeping was created
+    else:
+        # No housekeeping entry yet - create one at position 0
+        annotator_vals.insert(0, f"markit_housekeeping({tag})")
+        # Add corresponding confidence at position 0
+        if confidence_item:
+            confidence_item["val"].insert(0, HOUSEKEEPING_CONFIDENCE)
+        else:
+            # Find annotator position to insert confidence after it
+            for i, vec_item in enumerate(vec_list):
+                if vec_item.get("name") == "annotator":
+                    vec_list.insert(i + 1, {"name": "confidence", "val": [HOUSEKEEPING_CONFIDENCE]})
+                    break
+
 
 class GapDetectionPass(PostprocessingPass):
     """Detect gaps in object ID frame sequences."""
@@ -221,7 +297,7 @@ class GapFillingPass(PostprocessingPass):
                     ],
                     "vec": [
                         {"name": "annotator", "val": ["markit_housekeeping(gap)"]},
-                        {"name": "confidence", "val": [0.6666]},
+                        {"name": "confidence", "val": [HOUSEKEEPING_CONFIDENCE]},
                     ],
                 }
             }
@@ -890,10 +966,16 @@ class RotationAdjustmentPass(PostprocessingPass):
         Returns:
             True if frame was gap-filled, False otherwise
         """
+        import re
+
         vec_list = frame_obj_data.get("object_data", {}).get("vec", [])
         for vec_item in vec_list:
             if vec_item.get("name") == "annotator":
-                return "markit_housekeeping(gap)" in vec_item.get("val", [])
+                for val in vec_item.get("val", []):
+                    # Check for gap tag in combined format: markit_housekeeping(gap,rot,...)
+                    match = re.match(r"markit_housekeeping\(([^)]*)\)", val)
+                    if match and "gap" in match.group(1).split(","):
+                        return True
         return False
 
     def _apply_rotation_adjustment(
@@ -916,25 +998,7 @@ class RotationAdjustmentPass(PostprocessingPass):
         # Update only rotation - width/height are semantic and don't swap
         rbbox[4] = adjusted_rotation
 
-        vec_list = frame_obj_data["object_data"]["vec"]
-        annotator_found = False
-        confidence_found = False
-
-        for vec_item in vec_list:
-            if vec_item.get("name") == "annotator":
-                vec_item["val"].insert(0, "markit_housekeeping(rot)")
-                annotator_found = True
-            elif vec_item.get("name") == "confidence":
-                vec_item["val"].insert(0, 0.8888)
-                confidence_found = True
-
-        if not annotator_found:
-            vec_list.insert(
-                0, {"name": "annotator", "val": ["markit_housekeeping(rot)"]}
-            )
-
-        if not confidence_found:
-            vec_list.append({"name": "confidence", "val": [0.8888]})
+        update_housekeeping_annotator(frame_obj_data, "rot")
 
     def _apply_temporal_smoothing(self, prev_angle: float, curr_angle: float) -> float:
         """Apply temporal smoothing with maximum per-frame rotation limit.
@@ -1760,7 +1824,7 @@ class BboxSmoothingPass(PostprocessingPass):
             rbbox[2] = smoothed_w
             rbbox[3] = smoothed_h
 
-            self._update_annotator(frames[frame_str]["objects"][obj_id])
+            update_housekeeping_annotator(frames[frame_str]["objects"][obj_id], "smooth")
             self.frames_smoothed += 1
 
     def _is_near_edge(self, x: float, y: float) -> bool:
@@ -1779,23 +1843,6 @@ class BboxSmoothingPass(PostprocessingPass):
             or y < self.edge_margin
             or y > self.frame_height - self.edge_margin
         )
-
-    def _update_annotator(self, obj_data: Dict[str, Any]) -> None:
-        """Update annotator field to indicate smoothing was applied.
-
-        Args:
-            obj_data: Object data dictionary
-        """
-        vec_list = obj_data["object_data"]["vec"]
-        for vec_item in vec_list:
-            if vec_item.get("name") == "annotator":
-                # Only add if not already present
-                if "markit_housekeeping(smooth)" not in vec_item["val"]:
-                    vec_item["val"].insert(0, "markit_housekeeping(smooth)")
-                return
-
-        # No annotator field found, add one
-        vec_list.insert(0, {"name": "annotator", "val": ["markit_housekeeping(smooth)"]})
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get bbox smoothing statistics.
@@ -1947,18 +1994,8 @@ class SizeOutlierFilterPass(PostprocessingPass):
             rbbox[2] = median_w
             rbbox[3] = median_h
 
-            self._update_annotator(frames[frame_str]["objects"][obj_id])
+            update_housekeeping_annotator(frames[frame_str]["objects"][obj_id], "outlier")
             self.outliers_fixed += 1
-
-    def _update_annotator(self, obj_data: Dict[str, Any]) -> None:
-        """Update annotator field to indicate outlier fix was applied."""
-        vec_list = obj_data["object_data"]["vec"]
-        for vec_item in vec_list:
-            if vec_item.get("name") == "annotator":
-                if "markit_housekeeping(outlier)" not in vec_item["val"]:
-                    vec_item["val"].insert(0, "markit_housekeeping(outlier)")
-                return
-        vec_list.insert(0, {"name": "annotator", "val": ["markit_housekeeping(outlier)"]})
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get size outlier filter statistics."""
@@ -2280,11 +2317,11 @@ class Rotation90JumpFixPass(PostprocessingPass):
                 rbbox_first[4] = r_90
                 self.jumps_fixed += 1
                 self.wh_swaps += 1
-                self._update_annotator(frames[first_frame_str]["objects"][obj_id])
+                update_housekeeping_annotator(frames[first_frame_str]["objects"][obj_id], "90fix")
             elif diff_180 < abs_diff:
                 rbbox_first[4] = r_180
                 self.jumps_180_fixed += 1
-                self._update_annotator(frames[first_frame_str]["objects"][obj_id])
+                update_housekeeping_annotator(frames[first_frame_str]["objects"][obj_id], "90fix")
 
     def _try_fix_jump(
         self,
@@ -2335,25 +2372,15 @@ class Rotation90JumpFixPass(PostprocessingPass):
             rbbox[4] = r_90
             self.jumps_fixed += 1
             self.wh_swaps += 1
-            self._update_annotator(frames[frame_str]["objects"][obj_id])
+            update_housekeeping_annotator(frames[frame_str]["objects"][obj_id], "90fix")
             return r_90, h, w
         elif diff_180 < abs_diff:
             rbbox[4] = r_180
             self.jumps_180_fixed += 1
-            self._update_annotator(frames[frame_str]["objects"][obj_id])
+            update_housekeeping_annotator(frames[frame_str]["objects"][obj_id], "90fix")
             return r_180, w, h
 
         return r, w, h
-
-    def _update_annotator(self, obj_data: Dict[str, Any]) -> None:
-        """Update annotator field to indicate 90° jump fix was applied."""
-        vec_list = obj_data["object_data"]["vec"]
-        for vec_item in vec_list:
-            if vec_item.get("name") == "annotator":
-                if "markit_housekeeping(90fix)" not in vec_item["val"]:
-                    vec_item["val"].insert(0, "markit_housekeeping(90fix)")
-                return
-        vec_list.insert(0, {"name": "annotator", "val": ["markit_housekeeping(90fix)"]})
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get rotation jump fix statistics."""
@@ -2452,21 +2479,11 @@ class RotationTemporalSmoothingPass(PostprocessingPass):
                     smoothed_rotation = smoothed_rotation + self.smoothing_factor * diff
                     rbbox[4] = smoothed_rotation
                     self.rotations_smoothed += 1
-                    self._update_annotator(frames[frame_str]["objects"][obj_id])
+                    update_housekeeping_annotator(frames[frame_str]["objects"][obj_id], "rotsmooth")
                 else:
                     # Large change - accept it (might be real)
                     smoothed_rotation = current_rotation
                     self.rotations_kept += 1
-
-    def _update_annotator(self, obj_data: Dict[str, Any]) -> None:
-        """Update annotator field to indicate smoothing was applied."""
-        vec_list = obj_data["object_data"]["vec"]
-        for vec_item in vec_list:
-            if vec_item.get("name") == "annotator":
-                if "markit_housekeeping(rotsmooth)" not in vec_item["val"]:
-                    vec_item["val"].insert(0, "markit_housekeeping(rotsmooth)")
-                return
-        vec_list.insert(0, {"name": "annotator", "val": ["markit_housekeeping(rotsmooth)"]})
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get rotation smoothing statistics."""

@@ -172,11 +172,14 @@ class VideoProcessor:
             return False, None
         return self.cap.read()
 
-    def process_frame(self, frame: np.ndarray) -> List[DetectionResult]:
+    def process_frame(
+        self, frame: np.ndarray, frame_idx: Optional[int] = None
+    ) -> List[DetectionResult]:
         """Process frame with all engines and resolve conflicts.
 
         Args:
             frame: Input frame
+            frame_idx: Optional frame index for logging
 
         Returns:
             Merged detection results with conflicts resolved
@@ -193,7 +196,9 @@ class VideoProcessor:
 
         # Resolve conflicts if multiple engines and conflict resolution enabled
         if self.conflict_resolver and len(all_results) > 1:
-            resolved_results = self.conflict_resolver.resolve_conflicts(all_results)
+            resolved_results = self.conflict_resolver.resolve_conflicts(
+                all_results, frame_idx=frame_idx
+            )
             return resolved_results
 
         return all_results

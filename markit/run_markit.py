@@ -231,12 +231,6 @@ Examples:
         help="Maximum object area in pixels at full resolution, scaled with flow-scale² (0 to disable, default: 30000)",
     )
     detection.add_argument(
-        "--morph-kernel-size",
-        type=int,
-        default=5,
-        help="Morphological kernel size for noise removal (smaller = tighter bboxes, default: 5)",
-    )
-    detection.add_argument(
         "--track-max-age",
         type=int,
         default=10,
@@ -318,22 +312,22 @@ Examples:
         "--flow-mask-mode",
         dest="flow_mask_mode",
         choices=["or", "and", "flow_only", "bg_only"],
-        default="or",
-        help="Mask combination mode: 'or' (union), 'and' (intersection), 'flow_only', 'bg_only' (default: or)",
+        default="flow_only",
+        help="Mask combination mode: 'or' (union), 'and' (intersection), 'flow_only', 'bg_only' (default: flow_only)",
     )
     detection.add_argument(
         "--flow-dilate-size",
         dest="flow_dilate_size",
         type=int,
-        default=5,
-        help="Dilation kernel size for motion mask, 0 to disable (default: 5)",
+        default=0,
+        help="Dilation kernel size for motion mask, 0 to disable (default: 0)",
     )
     detection.add_argument(
         "--flow-morph-close",
         dest="flow_morph_close",
         type=int,
-        default=5,
-        help="MORPH_CLOSE kernel size, 0 to disable (default: 5)",
+        default=3,
+        help="MORPH_CLOSE kernel size, 0 to disable (default: 3)",
     )
     detection.add_argument(
         "--flow-morph-open",
@@ -550,7 +544,7 @@ def process_video(
                 break
 
             # Process frame with all configured engines
-            detection_results = video_processor.process_frame(frame)
+            detection_results = video_processor.process_frame(frame, frame_idx=frame_idx)
 
             # Add to OpenLabel structure
             openlabel_handler.add_frame_objects(
