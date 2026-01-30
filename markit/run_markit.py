@@ -54,6 +54,18 @@ Postprocessing (Housekeeping):
     --edge-distance      Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)
     --static-threshold   Movement threshold in pixels for static object removal (default: 20, negative disables)
     --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
+    --no-gap-detection   Disable gap detection pass
+    --no-gap-filling     Disable gap filling pass
+    --no-first-detection-refinement  Disable first detection refinement pass
+    --no-size-outlier-filter  Disable size outlier filter pass
+    --no-bbox-smoothing  Disable bounding box smoothing pass
+    --no-rotation-jump-fix  Disable 90°/180° rotation jump fix pass
+    --no-rotation-adjustment  Disable rotation adjustment pass
+    --no-duplicate-removal  Disable duplicate removal pass
+    --no-sudden-detection  Disable sudden appear/disappear detection pass
+    --no-size-step-detection  Disable size step detection pass
+    --no-frame-intervals  Disable frame intervals pass
+    --no-angle-normalization  Disable angle normalization pass
 
 VLM Scene Analysis:
     --vlm                Enable VLM-based scene analysis for scenario tagging
@@ -368,7 +380,7 @@ Examples:
     postproc.add_argument(
         "--housekeeping",
         action="store_true",
-        help="Enable postprocessing passes (gap detection and filling)",
+        help="Enable postprocessing passes",
     )
     postproc.add_argument(
         "--duplicate-avg-iou",
@@ -428,6 +440,54 @@ Examples:
         "--static-mark",
         action="store_true",
         help='Mark static objects instead of removing them (adds "staticdynamic" annotation)',
+    )
+    postproc.add_argument(
+        "--no-gap-detection", action="store_true",
+        help="Disable gap detection pass",
+    )
+    postproc.add_argument(
+        "--no-gap-filling", action="store_true",
+        help="Disable gap filling pass",
+    )
+    postproc.add_argument(
+        "--no-first-detection-refinement", action="store_true",
+        help="Disable first detection refinement pass",
+    )
+    postproc.add_argument(
+        "--no-size-outlier-filter", action="store_true",
+        help="Disable size outlier filter pass",
+    )
+    postproc.add_argument(
+        "--no-bbox-smoothing", action="store_true",
+        help="Disable bounding box smoothing pass",
+    )
+    postproc.add_argument(
+        "--no-rotation-jump-fix", action="store_true",
+        help="Disable 90°/180° rotation jump fix pass",
+    )
+    postproc.add_argument(
+        "--no-rotation-adjustment", action="store_true",
+        help="Disable rotation adjustment pass",
+    )
+    postproc.add_argument(
+        "--no-duplicate-removal", action="store_true",
+        help="Disable duplicate removal pass",
+    )
+    postproc.add_argument(
+        "--no-sudden-detection", action="store_true",
+        help="Disable sudden appear/disappear detection pass",
+    )
+    postproc.add_argument(
+        "--no-size-step-detection", action="store_true",
+        help="Disable size step detection pass",
+    )
+    postproc.add_argument(
+        "--no-frame-intervals", action="store_true",
+        help="Disable frame intervals pass",
+    )
+    postproc.add_argument(
+        "--no-angle-normalization", action="store_true",
+        help="Disable angle normalization pass",
     )
 
     # Logging and debug
@@ -500,6 +560,17 @@ def build_arguments_string(args: argparse.Namespace) -> str:
         parts.append(f"--static-threshold {args.static_threshold}")
         if args.static_mark:
             parts.append("--static-mark")
+        # Record disabled passes
+        for flag in [
+            "no_gap_detection", "no_gap_filling",
+            "no_first_detection_refinement", "no_size_outlier_filter",
+            "no_bbox_smoothing", "no_rotation_jump_fix",
+            "no_rotation_adjustment", "no_duplicate_removal",
+            "no_sudden_detection", "no_size_step_detection",
+            "no_frame_intervals", "no_angle_normalization",
+        ]:
+            if getattr(args, flag, False):
+                parts.append(f"--{flag.replace('_', '-')}")
     if args.output_video:
         parts.append(f"--output_video {args.output_video}")
     if args.aruco_csv:
@@ -686,12 +757,14 @@ def main():
             )
             postprocessing_pipeline.set_ontology_path(config.ontology_path)
 
-            # Pipeline order:
+            # Pipeline order (each pass can be disabled individually via --no-* flags):
             # 1. Gap detection and filling
-            postprocessing_pipeline.add_pass(GapDetectionPass())
-            postprocessing_pipeline.add_pass(GapFillingPass())
+            if not config.no_gap_detection:
+                postprocessing_pipeline.add_pass(GapDetectionPass())
+            if not config.no_gap_filling:
+                postprocessing_pipeline.add_pass(GapFillingPass())
 
-            # 2. Static object removal (if enabled)
+            # 2. Static object removal (if enabled via threshold)
             if config.static_threshold >= 0:
                 postprocessing_pipeline.add_pass(
                     StaticObjectRemovalPass(
@@ -701,64 +774,65 @@ def main():
                 )
 
             # 3. Refine initial detection angles using lookahead
-            postprocessing_pipeline.add_pass(
-                FirstDetectionRefinementPass(
-                    lookahead_frames=5, min_movement_pixels=5.0
+            if not config.no_first_detection_refinement:
+                postprocessing_pipeline.add_pass(
+                    FirstDetectionRefinementPass(
+                        lookahead_frames=5, min_movement_pixels=5.0
+                    )
                 )
-            )
 
             # 4. Filter size outliers (motion streaks, sudden elongation)
             # Run BEFORE smoothing to detect raw spikes before EMA blends them
-            postprocessing_pipeline.add_pass(SizeOutlierFilterPass())
+            if not config.no_size_outlier_filter:
+                postprocessing_pipeline.add_pass(SizeOutlierFilterPass())
 
             # 5. Size smoothing (position NOT smoothed - raw is acceptable)
             # Run after outlier filter so smoothing works on clean data
-            postprocessing_pipeline.add_pass(BboxSmoothingPass())
+            if not config.no_bbox_smoothing:
+                postprocessing_pipeline.add_pass(BboxSmoothingPass())
 
             # 6. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
-            postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
+            if not config.no_rotation_jump_fix:
+                postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
 
             # 7. Adjust rotation based on movement direction
-            postprocessing_pipeline.add_pass(
-                RotationAdjustmentPass(
-                    rotation_threshold=config.rotation_threshold,
-                    min_movement_pixels=config.min_movement_pixels,
-                    min_total_movement=config.min_total_movement,
-                    temporal_smoothing=config.temporal_smoothing,
-                    max_rotation_change=config.max_rotation_change,
+            if not config.no_rotation_adjustment:
+                postprocessing_pipeline.add_pass(
+                    RotationAdjustmentPass(
+                        rotation_threshold=config.rotation_threshold,
+                        min_movement_pixels=config.min_movement_pixels,
+                        min_total_movement=config.min_total_movement,
+                        temporal_smoothing=config.temporal_smoothing,
+                        max_rotation_change=config.max_rotation_change,
+                    )
                 )
-            )
 
             # 8. Duplicate removal - runs AFTER all rotation fixes so IoU is accurate
-            # (optical flow minAreaRect has 90° ambiguity, and rotation adjustment
-            # can change angles by up to 30°, both affecting IoU calculation)
-            postprocessing_pipeline.add_pass(
-                DuplicateRemovalPass(
-                    avg_iou_threshold=config.duplicate_avg_iou,
-                    min_iou_threshold=config.duplicate_min_iou,
+            if not config.no_duplicate_removal:
+                postprocessing_pipeline.add_pass(
+                    DuplicateRemovalPass(
+                        avg_iou_threshold=config.duplicate_avg_iou,
+                        min_iou_threshold=config.duplicate_min_iou,
+                    )
                 )
-            )
 
             # 9. Detect sudden appear/disappear events
-            postprocessing_pipeline.add_pass(
-                SuddenPass(edge_distance=config.edge_distance)
-            )
+            if not config.no_sudden_detection:
+                postprocessing_pipeline.add_pass(
+                    SuddenPass(edge_distance=config.edge_distance)
+                )
 
             # 10. Detect persistent size changes (step changes) for manual review
-            postprocessing_pipeline.add_pass(SizeStepDetectionPass())
+            if not config.no_size_step_detection:
+                postprocessing_pipeline.add_pass(SizeStepDetectionPass())
 
             # 11. Add frame intervals
-            postprocessing_pipeline.add_pass(FrameIntervalPass())
+            if not config.no_frame_intervals:
+                postprocessing_pipeline.add_pass(FrameIntervalPass())
 
             # 12. Normalize all angles to [0, 2π) for OpenLabel output
-            postprocessing_pipeline.add_pass(AngleNormalizationPass())
-
-            # Final pipeline order:
-            # 1. GapDetection → 2. GapFilling → 3. StaticObjectRemoval →
-            # 4. FirstDetectionRefinement → 5. SizeOutlierFilter → 6. BboxSmoothing →
-            # 7. Rotation90JumpFix → 8. RotationAdjustment → 9. DuplicateRemoval →
-            # 10. Sudden → 11. SizeStepDetection →
-            # 12. FrameInterval → 13. AngleNormalization
+            if not config.no_angle_normalization:
+                postprocessing_pipeline.add_pass(AngleNormalizationPass())
 
             openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
                 openlabel_handler.openlabel_data

@@ -190,6 +190,20 @@ class MarkitConfig:
         self.static_threshold = args.static_threshold
         self.static_mark = args.static_mark
 
+        # Individual pass toggles (only relevant when housekeeping is enabled)
+        self.no_gap_detection = getattr(args, "no_gap_detection", False)
+        self.no_gap_filling = getattr(args, "no_gap_filling", False)
+        self.no_first_detection_refinement = getattr(args, "no_first_detection_refinement", False)
+        self.no_size_outlier_filter = getattr(args, "no_size_outlier_filter", False)
+        self.no_bbox_smoothing = getattr(args, "no_bbox_smoothing", False)
+        self.no_rotation_jump_fix = getattr(args, "no_rotation_jump_fix", False)
+        self.no_rotation_adjustment = getattr(args, "no_rotation_adjustment", False)
+        self.no_duplicate_removal = getattr(args, "no_duplicate_removal", False)
+        self.no_sudden_detection = getattr(args, "no_sudden_detection", False)
+        self.no_size_step_detection = getattr(args, "no_size_step_detection", False)
+        self.no_frame_intervals = getattr(args, "no_frame_intervals", False)
+        self.no_angle_normalization = getattr(args, "no_angle_normalization", False)
+
         # Logging configuration
         self.verbose = args.verbose if hasattr(args, "verbose") else False
 
