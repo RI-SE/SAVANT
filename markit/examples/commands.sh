@@ -7,14 +7,25 @@ INPUT_DIR="../../TestVids/Saro_roundabout"
 INPUT="${INPUT_DIR}/Saro_roundabout.mp4"
 MASK="${INPUT_DIR}/Saro_roundabout_mask.png"
 
+recompress() {
+  ffmpeg -y -i "$1" -c:v hevc_nvenc -cq 28 -c:a copy "${1%.mp4}_tmp.mp4"
+  mv "${1%.mp4}_tmp.mp4" "$1"
+}
+
 # Yolo only
 markit --input "$INPUT" --output_video Saro_yolo.mp4 --output_json Saro_yolo.json --detection-method yolo
+recompress Saro_yolo.mp4
 markit --input "$INPUT" --output_video Saro_yolo_hk.mp4 --output_json Saro_yolo_hk.json --detection-method yolo --housekeeping
+recompress Saro_yolo_hk.mp4
 
 # Optical flow only
 markit --input "$INPUT" --output_video Saro_of.mp4 --output_json Saro_of.json --detection-method optical_flow --debug-flow --exclusion-mask "$MASK"
+recompress Saro_of.mp4
 markit --input "$INPUT" --output_video Saro_of_hk.mp4 --output_json Saro_of_hk.json --detection-method optical_flow --housekeeping --debug-flow --exclusion-mask "$MASK"
+recompress Saro_of_hk.mp4
 
 # Yolo and optical flow
 markit --input "$INPUT" --output_video Saro_both.mp4 --output_json Saro_both.json --detection-method both --housekeeping --debug-flow --exclusion-mask "$MASK"
+recompress Saro_both.mp4
 markit --input "$INPUT" --output_video Saro_both_hk.mp4 --output_json Saro_both_hk.json --detection-method both --housekeeping --debug-flow --exclusion-mask "$MASK"
+recompress Saro_both_hk.mp4
