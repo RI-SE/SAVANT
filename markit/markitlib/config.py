@@ -183,7 +183,7 @@ class MarkitConfig:
         self.duplicate_min_iou = args.duplicate_min_iou
         self.rotation_threshold = args.rotation_threshold
         self.min_movement_pixels = args.min_movement_pixels
-        self.temporal_smoothing = args.temporal_smoothing
+        self.rotation_smoothing = args.rotation_smoothing
         self.min_total_movement = args.min_total_movement
         self.max_rotation_change = args.max_rotation_change
         self.edge_distance = args.edge_distance

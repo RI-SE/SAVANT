@@ -95,7 +95,7 @@ class TestOpticalFlowParams:
         """Test custom algorithm-related parameters."""
         params = OpticalFlowParams(
             algorithm="farneback",
-            temporal_smoothing=0.5,
+            rotation_smoothing=0.5,
             pyramid_levels=5,
             window_size=21,
             iterations=3,
@@ -155,7 +155,7 @@ class TestMarkitConfig:
             duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -192,7 +192,7 @@ class TestMarkitConfig:
             duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -228,7 +228,7 @@ class TestMarkitConfig:
             duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -265,7 +265,7 @@ class TestMarkitConfig:
             duplicate_min_iou=0.4,
             rotation_threshold=0.2,
             min_movement_pixels=10.0,
-            temporal_smoothing=0.5,
+            rotation_smoothing=0.5,
             edge_distance=150,
             static_threshold=3,
             static_mark=True,
@@ -278,7 +278,7 @@ class TestMarkitConfig:
         assert config.duplicate_min_iou == 0.4
         assert config.rotation_threshold == 0.2
         assert config.min_movement_pixels == 10.0
-        assert config.temporal_smoothing == 0.5
+        assert config.rotation_smoothing == 0.5
         assert config.edge_distance == 150
         assert config.static_threshold == 3
         assert config.static_mark is True
@@ -306,7 +306,7 @@ class TestMarkitConfig:
             duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -338,7 +338,7 @@ class TestMarkitConfig:
             duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -370,7 +370,7 @@ class TestMarkitConfig:
             duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -405,7 +405,7 @@ class TestMarkitConfig:
             duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,

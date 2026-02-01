@@ -202,7 +202,7 @@ SuddenDetection → FrameInterval → AngleNormalization
 |-----------|---------|-------------|
 | `rotation_threshold` | 0.1 | Minimum angle difference (radians) to trigger adjustment |
 | `min_movement_pixels` | 5.0 | Minimum movement to consider for rotation calculation |
-| `temporal_smoothing` | 0.3 | EMA factor for rotation smoothing (0-1, higher = smoother) |
+| `rotation_smoothing` | 0.5 | EMA factor for rotation smoothing (0-1, higher = smoother) |
 
 **Annotator:** Adjusted frames are marked with `markit_housekeeping(rot)` and confidence `0.8888`.
 
@@ -291,7 +291,7 @@ Each pass that modifies data adds an annotator marker to track provenance:
 - For stationary vehicles, the velocity-adaptive smoothing automatically increases smoothing
 
 ### Reducing Rotation Jitter
-- Increase `temporal_smoothing` in RotationAdjustmentPass (try 0.4-0.5)
+- Increase `rotation_smoothing` in RotationAdjustmentPass (try 0.6-0.7)
 - Increase `min_movement_pixels` to ignore small movements
 
 ### Edge Artifacts

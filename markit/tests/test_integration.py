@@ -66,7 +66,7 @@ class TestEndToEndPipeline:
             duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,

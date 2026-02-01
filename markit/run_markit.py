@@ -48,7 +48,7 @@ Postprocessing (Housekeeping):
     --duplicate-min-iou  Minimum IOU threshold for duplicate detection (default: 0.2)
     --rotation-threshold Rotation angle threshold in radians for adjustment (default: 0.1)
     --min-movement-pixels Minimum movement in pixels for rotation calculation (default: 5.0)
-    --temporal-smoothing Temporal smoothing factor for rotation, 0-1 (default: 0.3)
+    --rotation-smoothing Temporal smoothing factor for rotation, 0-1 (default: 0.5)
     --min-total-movement Minimum cumulative movement to trust direction (default: 30.0)
     --max-rotation-change Maximum rotation change per frame in radians (default: 0.524 ≈ 30°)
     --edge-distance      Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)
@@ -407,10 +407,10 @@ Examples:
         help="Minimum movement in pixels for rotation calculation (default: 5.0)",
     )
     postproc.add_argument(
-        "--temporal-smoothing",
+        "--rotation-smoothing",
         type=float,
-        default=0.3,
-        help="Temporal smoothing factor for rotation (0-1, higher = more smoothing, default: 0.3)",
+        default=0.5,
+        help="Temporal smoothing factor for rotation (0-1, higher = more smoothing, default: 0.5)",
     )
     postproc.add_argument(
         "--min-total-movement",
@@ -553,7 +553,7 @@ def build_arguments_string(args: argparse.Namespace) -> str:
         parts.append(f"--duplicate-min-iou {args.duplicate_min_iou}")
         parts.append(f"--rotation-threshold {args.rotation_threshold}")
         parts.append(f"--min-movement-pixels {args.min_movement_pixels}")
-        parts.append(f"--temporal-smoothing {args.temporal_smoothing}")
+        parts.append(f"--rotation-smoothing {args.rotation_smoothing}")
         parts.append(f"--min-total-movement {args.min_total_movement}")
         parts.append(f"--max-rotation-change {args.max_rotation_change}")
         parts.append(f"--edge-distance {args.edge_distance}")
@@ -802,7 +802,7 @@ def main():
                         rotation_threshold=config.rotation_threshold,
                         min_movement_pixels=config.min_movement_pixels,
                         min_total_movement=config.min_total_movement,
-                        temporal_smoothing=config.temporal_smoothing,
+                        temporal_smoothing=config.rotation_smoothing,
                         max_rotation_change=config.max_rotation_change,
                     )
                 )
