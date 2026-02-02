@@ -336,7 +336,20 @@ class DuplicateRemovalPass(PostprocessingPass):
         "unknown": 0,
     }
 
-    def __init__(self, avg_iou_threshold: float = 0.3, min_iou_threshold: float = 0.2):
+    def __init__(
+        self,
+        avg_iou_threshold: float = 0.5,
+        min_iou_threshold: float = 0.3,
+        min_shared_ratio: float = 0.5,
+    ):
+        """Initialize duplicate removal pass.
+
+        Args:
+            avg_iou_threshold: Average IoU across shared frames to consider duplicate.
+            min_iou_threshold: Minimum IoU in any shared frame to consider duplicate.
+            min_shared_ratio: Minimum ratio of shared frames to the shorter object's
+                total frames. Prevents removing objects that only briefly overlap.
+        """
         self.objects_deleted = 0
         self.duplicate_pairs_found = 0
         self.frames_modified = 0
@@ -344,6 +357,7 @@ class DuplicateRemovalPass(PostprocessingPass):
         self.deletion_details = []
         self.avg_iou_threshold = avg_iou_threshold
         self.min_iou_threshold = min_iou_threshold
+        self.min_shared_ratio = min_shared_ratio
 
     def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
         """Remove duplicate objects based on IOU analysis.
@@ -443,6 +457,11 @@ class DuplicateRemovalPass(PostprocessingPass):
         shared_frames = frames_a.intersection(frames_b)
 
         if len(shared_frames) == 0:
+            return False
+
+        # Require shared frames to be a significant portion of the shorter object
+        shorter_length = min(len(frames_a), len(frames_b))
+        if len(shared_frames) < self.min_shared_ratio * shorter_length:
             return False
 
         ious = []
@@ -1742,11 +1761,12 @@ class StaticObjectRemovalPass(PostprocessingPass):
 
 
 class BboxSmoothingPass(PostprocessingPass):
-    """Apply temporal smoothing to bbox size parameters (w, h) only.
+    """Apply temporal smoothing to bbox parameters using bidirectional EMA.
 
-    Position (x, y) is NOT smoothed - raw positions are acceptable and smoothing
-    can actually increase jitter in some cases. Size smoothing uses bidirectional
-    EMA with special handling for objects near frame edges.
+    Smooths size (w, h) always. Position (x, y) smoothing is velocity-adaptive:
+    low-velocity objects get more smoothing (OF centroid noise is worst when
+    stationary), high-velocity objects get less (preserve responsive tracking).
+    Bidirectional EMA (forward + backward + average) eliminates lag.
     """
 
     def __init__(
@@ -1754,6 +1774,9 @@ class BboxSmoothingPass(PostprocessingPass):
         smoothing_factor: float = 0.7,
         edge_margin: int = 100,
         edge_size_mode: str = "freeze",
+        smooth_position: bool = True,
+        min_velocity: float = 2.0,
+        max_velocity: float = 20.0,
     ):
         """Initialize bbox smoothing pass.
 
@@ -1764,10 +1787,17 @@ class BboxSmoothingPass(PostprocessingPass):
                 Default 0.7 provides good noise rejection while tracking real movement.
             edge_margin: Pixels from frame edge for special handling (default: 100)
             edge_size_mode: How to handle size near edges - "freeze" or "normal" (default: "freeze")
+            smooth_position: Whether to smooth position (x, y) in addition to size.
+                Uses velocity-adaptive factor to avoid over-smoothing fast objects.
+            min_velocity: Below this velocity (px/frame), use maximum position smoothing.
+            max_velocity: Above this velocity (px/frame), use minimum position smoothing.
         """
         self.smoothing_factor = smoothing_factor
         self.edge_margin = edge_margin
         self.edge_size_mode = edge_size_mode
+        self.smooth_position = smooth_position
+        self.min_velocity = min_velocity
+        self.max_velocity = max_velocity
 
         # Statistics
         self.objects_smoothed = 0
@@ -1806,12 +1836,34 @@ class BboxSmoothingPass(PostprocessingPass):
             self._smooth_object_trajectory(frames, obj_id, frame_list_sorted)
             self.objects_smoothed += 1
 
+        pos_status = "enabled" if self.smooth_position else "disabled"
         logger.info(
             f"BboxSmoothing: Smoothed {self.objects_smoothed} objects, "
-            f"{self.frames_smoothed} frames, {self.edge_frames_handled} edge frames handled"
+            f"{self.frames_smoothed} frames, {self.edge_frames_handled} edge frames handled "
+            f"(position smoothing: {pos_status})"
         )
 
         return openlabel_data
+
+    def _velocity_adaptive_factor(self, velocity: float) -> float:
+        """Calculate position smoothing factor based on velocity.
+
+        Low velocity → high smoothing (stationary/slow objects benefit most from denoising).
+        High velocity → low smoothing (preserve responsive tracking for fast objects).
+
+        Args:
+            velocity: Object velocity in pixels/frame.
+
+        Returns:
+            Smoothing factor in [factor*0.5, factor*1.0] range.
+        """
+        if velocity <= self.min_velocity:
+            return self.smoothing_factor  # Full smoothing
+        if velocity >= self.max_velocity:
+            return self.smoothing_factor * 0.5  # Reduced smoothing
+        # Linear interpolation between full and reduced
+        t = (velocity - self.min_velocity) / (self.max_velocity - self.min_velocity)
+        return self.smoothing_factor * (1.0 - 0.5 * t)
 
     def _smooth_object_trajectory(
         self,
@@ -1819,9 +1871,10 @@ class BboxSmoothingPass(PostprocessingPass):
         obj_id: str,
         frame_list: List[int],
     ) -> None:
-        """Smooth size (w, h) of a single object using bidirectional EMA.
+        """Smooth bbox parameters of a single object using bidirectional EMA.
 
-        Position (x, y) is NOT smoothed - raw positions are acceptable.
+        Size (w, h) is always smoothed with a fixed factor. Position (x, y) is
+        optionally smoothed with a velocity-adaptive factor.
 
         Bidirectional smoothing eliminates lag by:
         1. Forward pass: EMA from start to end
@@ -1854,23 +1907,21 @@ class BboxSmoothingPass(PostprocessingPass):
         if n == 0:
             return
 
-        # Forward pass (size only)
+        factor = self.smoothing_factor
+
+        # --- Size smoothing (bidirectional EMA, fixed factor) ---
         forward_w = [0.0] * n
         forward_h = [0.0] * n
-
         forward_w[0] = raw_values[0]["w"]
         forward_h[0] = raw_values[0]["h"]
 
-        factor = self.smoothing_factor
         for i in range(1, n):
             w, h = raw_values[i]["w"], raw_values[i]["h"]
             forward_w[i] = factor * forward_w[i-1] + (1 - factor) * w
             forward_h[i] = factor * forward_h[i-1] + (1 - factor) * h
 
-        # Backward pass (size only)
         backward_w = [0.0] * n
         backward_h = [0.0] * n
-
         backward_w[n-1] = raw_values[n-1]["w"]
         backward_h[n-1] = raw_values[n-1]["h"]
 
@@ -1879,7 +1930,37 @@ class BboxSmoothingPass(PostprocessingPass):
             backward_w[i] = factor * backward_w[i+1] + (1 - factor) * w
             backward_h[i] = factor * backward_h[i+1] + (1 - factor) * h
 
-        # First pass to find interior sizes for edge handling
+        # --- Position smoothing (bidirectional EMA, velocity-adaptive factor) ---
+        forward_x = [0.0] * n
+        forward_y = [0.0] * n
+        backward_x = [0.0] * n
+        backward_y = [0.0] * n
+
+        if self.smooth_position:
+            # Calculate per-frame velocities for adaptive factor
+            velocities = [0.0] * n
+            for i in range(1, n):
+                dx = raw_values[i]["x"] - raw_values[i-1]["x"]
+                dy = raw_values[i]["y"] - raw_values[i-1]["y"]
+                velocities[i] = (dx**2 + dy**2) ** 0.5
+
+            # Forward pass
+            forward_x[0] = raw_values[0]["x"]
+            forward_y[0] = raw_values[0]["y"]
+            for i in range(1, n):
+                pf = self._velocity_adaptive_factor(velocities[i])
+                forward_x[i] = pf * forward_x[i-1] + (1 - pf) * raw_values[i]["x"]
+                forward_y[i] = pf * forward_y[i-1] + (1 - pf) * raw_values[i]["y"]
+
+            # Backward pass
+            backward_x[n-1] = raw_values[n-1]["x"]
+            backward_y[n-1] = raw_values[n-1]["y"]
+            for i in range(n-2, -1, -1):
+                pf = self._velocity_adaptive_factor(velocities[i+1])
+                backward_x[i] = pf * backward_x[i+1] + (1 - pf) * raw_values[i]["x"]
+                backward_y[i] = pf * backward_y[i+1] + (1 - pf) * raw_values[i]["y"]
+
+        # Interior sizes for edge handling
         interior_sizes = []
         for i in range(n):
             avg_w = (forward_w[i] + backward_w[i]) / 2
@@ -1887,14 +1968,15 @@ class BboxSmoothingPass(PostprocessingPass):
             if not raw_values[i]["is_near_edge"]:
                 interior_sizes.append((i, avg_w, avg_h))
 
-        # Apply smoothed size values (position unchanged)
+        # Apply smoothed values
         for i in range(n):
             frame_idx = raw_values[i]["frame_idx"]
             frame_str = str(frame_idx)
             rbbox = frames[frame_str]["objects"][obj_id]["object_data"]["rbbox"][0]["val"]
             is_near_edge = raw_values[i]["is_near_edge"]
 
-            # Get original values
+            original_x = raw_values[i]["x"]
+            original_y = raw_values[i]["y"]
             original_w = raw_values[i]["w"]
             original_h = raw_values[i]["h"]
 
@@ -1904,13 +1986,27 @@ class BboxSmoothingPass(PostprocessingPass):
 
             # Handle size near edges - use nearest interior size
             if is_near_edge and self.edge_size_mode == "freeze" and interior_sizes:
-                # Find nearest interior frame
                 nearest = min(interior_sizes, key=lambda x: abs(x[0] - i))
                 smoothed_w, smoothed_h = nearest[1], nearest[2]
                 self.edge_frames_handled += 1
 
+            # Position smoothing (average bidirectional)
+            smoothed_x = original_x
+            smoothed_y = original_y
+            if self.smooth_position:
+                smoothed_x = (forward_x[i] + backward_x[i]) / 2
+                smoothed_y = (forward_y[i] + backward_y[i]) / 2
+
             # Only update and tag if values actually changed (> 0.1 pixel threshold)
-            if abs(smoothed_w - original_w) > 0.1 or abs(smoothed_h - original_h) > 0.1:
+            changed = (
+                abs(smoothed_w - original_w) > 0.1
+                or abs(smoothed_h - original_h) > 0.1
+                or abs(smoothed_x - original_x) > 0.1
+                or abs(smoothed_y - original_y) > 0.1
+            )
+            if changed:
+                rbbox[0] = smoothed_x
+                rbbox[1] = smoothed_y
                 rbbox[2] = smoothed_w
                 rbbox[3] = smoothed_h
                 update_housekeeping_annotator(frames[frame_str]["objects"][obj_id], "smooth")

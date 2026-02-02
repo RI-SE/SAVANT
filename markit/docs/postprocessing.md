@@ -60,17 +60,19 @@ SuddenDetection → FrameInterval → AngleNormalization
 
 **Algorithm:**
 1. For each pair of objects, find frames where both appear
-2. Calculate IoU for each shared frame
-3. Objects are duplicates if:
-   - Average IoU > `avg_iou_threshold` (default: 0.7)
+2. Check shared-frame ratio: shared frames must be ≥ `min_shared_ratio` × shorter object's length
+3. Calculate IoU for each shared frame
+4. Objects are duplicates if:
+   - Average IoU > `avg_iou_threshold` (default: 0.5)
    - Minimum IoU > `min_iou_threshold` (default: 0.3)
-4. Delete the object with fewer frames (or lower average confidence if tied)
+5. Delete the object with fewer frames (or lower average confidence if tied)
 
 **Parameters:**
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `avg_iou_threshold` | 0.7 | Average IoU across shared frames to consider duplicate |
+| `avg_iou_threshold` | 0.5 | Average IoU across shared frames to consider duplicate |
 | `min_iou_threshold` | 0.3 | Minimum IoU in any shared frame |
+| `min_shared_ratio` | 0.5 | Minimum ratio of shared frames to shorter object's total frames |
 
 **Statistics:**
 - `duplicate_pairs_found`: Number of duplicate pairs identified
@@ -136,30 +138,32 @@ SuddenDetection → FrameInterval → AngleNormalization
 
 **Algorithm:**
 
-1. **Exponential Moving Average (EMA):**
-   ```
-   smoothed[t] = factor * smoothed[t-1] + (1 - factor) * raw[t]
-   ```
+1. **Bidirectional EMA** (eliminates lag):
+   - Forward pass: EMA from start to end
+   - Backward pass: EMA from end to start
+   - Average the two passes for each frame
 
-2. **Velocity-Adaptive Smoothing:**
+2. **Size smoothing** (w, h): Uses fixed smoothing factor.
+
+3. **Position smoothing** (x, y): Uses velocity-adaptive factor:
    - Calculate velocity: `v = sqrt((x[t] - x[t-1])² + (y[t] - y[t-1])²)`
-   - Adjust smoothing factor based on velocity:
-     - `v < min_velocity`: factor × 1.5 (more smoothing when stationary)
-     - `v > max_velocity`: factor × 0.5 (less smoothing when fast)
-     - Between: linear interpolation
+   - `v < min_velocity`: full smoothing factor (maximum denoising for stationary/slow objects)
+   - `v > max_velocity`: factor × 0.5 (reduced smoothing for fast objects)
+   - Between: linear interpolation
+   - Can be disabled with `--no-position-smoothing`
 
-3. **Edge-Aware Size Handling:**
+4. **Edge-Aware Size Handling:**
    - Detect when object center is near frame edge (within `edge_margin` pixels)
-   - In "freeze" mode: use last interior (non-edge) size values
+   - In "freeze" mode: use nearest interior (non-edge) size values
    - Prevents size jumps as objects enter/leave the frame
 
 **Parameters:**
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `smoothing_factor` | 0.3 | Base EMA factor (0-1, higher = smoother) |
-| `velocity_adaptive` | true | Adjust smoothing based on velocity |
-| `min_velocity` | 2.0 | Below this velocity (px/frame), use maximum smoothing |
-| `max_velocity` | 20.0 | Above this velocity (px/frame), use minimum smoothing |
+| `smoothing_factor` | 0.7 | Base EMA retention factor (0-1, higher = smoother) |
+| `smooth_position` | true | Enable velocity-adaptive position smoothing (disable with `--no-position-smoothing`) |
+| `min_velocity` | 2.0 | Below this velocity (px/frame), use maximum position smoothing |
+| `max_velocity` | 20.0 | Above this velocity (px/frame), use minimum position smoothing |
 | `edge_margin` | 100 | Pixels from frame edge for special handling |
 | `edge_size_mode` | "freeze" | Edge size handling: "freeze" or "normal" |
 

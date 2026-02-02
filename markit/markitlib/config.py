@@ -101,7 +101,7 @@ class OpticalFlowParams:
 class ConflictResolutionConfig:
     """Configuration for detection conflict resolution using IoU."""
 
-    iou_threshold: float = 0.3  # IoU threshold for conflict detection (0.0-1.0)
+    iou_threshold: float = 0.5  # IoU threshold for conflict detection (0.0-1.0)
     yolo_precedence: bool = True  # YOLO takes precedence over optical flow
     enable_logging: bool = False  # Log conflicts for debugging
 
@@ -181,6 +181,8 @@ class MarkitConfig:
         self.enable_housekeeping = args.housekeeping
         self.duplicate_avg_iou = args.duplicate_avg_iou
         self.duplicate_min_iou = args.duplicate_min_iou
+        self.duplicate_min_shared_ratio = getattr(args, "duplicate_min_shared_ratio", 0.5)
+        self.smooth_position = not getattr(args, "no_position_smoothing", False)
         self.rotation_threshold = args.rotation_threshold
         self.min_movement_pixels = args.min_movement_pixels
         self.rotation_smoothing = args.rotation_smoothing

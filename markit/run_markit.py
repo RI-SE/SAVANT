@@ -361,8 +361,8 @@ Examples:
     conflict.add_argument(
         "--iou-threshold",
         type=float,
-        default=0.3,
-        help="IoU threshold for conflict resolution (default: 0.3)",
+        default=0.5,
+        help="IoU threshold for conflict resolution (default: 0.5)",
     )
     conflict.add_argument(
         "--verbose-conflicts",
@@ -385,14 +385,20 @@ Examples:
     postproc.add_argument(
         "--duplicate-avg-iou",
         type=float,
-        default=0.3,
-        help="Average IOU threshold for duplicate detection (default: 0.3)",
+        default=0.5,
+        help="Average IOU threshold for duplicate detection (default: 0.5)",
     )
     postproc.add_argument(
         "--duplicate-min-iou",
         type=float,
-        default=0.2,
-        help="Minimum IOU threshold for duplicate detection (default: 0.2)",
+        default=0.3,
+        help="Minimum IOU threshold for duplicate detection (default: 0.3)",
+    )
+    postproc.add_argument(
+        "--duplicate-min-shared-ratio",
+        type=float,
+        default=0.5,
+        help="Minimum ratio of shared frames to shorter object's length for duplicate detection (default: 0.5)",
     )
     postproc.add_argument(
         "--rotation-threshold",
@@ -460,6 +466,11 @@ Examples:
     postproc.add_argument(
         "--no-bbox-smoothing", action="store_true",
         help="Disable bounding box smoothing pass",
+    )
+    postproc.add_argument(
+        "--no-position-smoothing", action="store_true",
+        dest="no_position_smoothing",
+        help="Disable position (x, y) smoothing in bbox smoothing pass (size smoothing still applied)",
     )
     postproc.add_argument(
         "--no-rotation-jump-fix", action="store_true",
@@ -786,10 +797,12 @@ def main():
             if not config.no_size_outlier_filter:
                 postprocessing_pipeline.add_pass(SizeOutlierFilterPass())
 
-            # 5. Size smoothing (position NOT smoothed - raw is acceptable)
+            # 5. Bbox smoothing (size always smoothed; position smoothed by default)
             # Run after outlier filter so smoothing works on clean data
             if not config.no_bbox_smoothing:
-                postprocessing_pipeline.add_pass(BboxSmoothingPass())
+                postprocessing_pipeline.add_pass(
+                    BboxSmoothingPass(smooth_position=config.smooth_position)
+                )
 
             # 6. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
             if not config.no_rotation_jump_fix:
@@ -813,6 +826,7 @@ def main():
                     DuplicateRemovalPass(
                         avg_iou_threshold=config.duplicate_avg_iou,
                         min_iou_threshold=config.duplicate_min_iou,
+                        min_shared_ratio=config.duplicate_min_shared_ratio,
                     )
                 )
 

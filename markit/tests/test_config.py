@@ -71,9 +71,9 @@ class TestOpticalFlowParams:
         assert params.motion_threshold == 1.0  # Increased for drone footage
         assert params.min_area == 2000  # For full resolution, scaled with processing_scale²
         assert params.max_area == 30000  # For full resolution, scaled with processing_scale²
-        assert params.morph_kernel_size == 5  # Reduced from 9 for tighter bboxes
+        assert params.morph_close_size == 3
+        assert params.morph_open_size == 5
         assert params.track_max_age == 10  # Frames before track expires
-        # New algorithm parameters
         assert params.algorithm == "dis"
         assert params.temporal_smoothing == 0.3
         assert params.pyramid_levels == 7
@@ -85,17 +85,17 @@ class TestOpticalFlowParams:
     def test_custom_values(self):
         """Test custom optical flow parameters."""
         params = OpticalFlowParams(
-            motion_threshold=0.7, min_area=300, morph_kernel_size=11
+            motion_threshold=0.7, min_area=300, morph_close_size=11
         )
         assert params.motion_threshold == 0.7
         assert params.min_area == 300
-        assert params.morph_kernel_size == 11
+        assert params.morph_close_size == 11
 
     def test_custom_algorithm_params(self):
         """Test custom algorithm-related parameters."""
         params = OpticalFlowParams(
             algorithm="farneback",
-            rotation_smoothing=0.5,
+            temporal_smoothing=0.5,
             pyramid_levels=5,
             window_size=21,
             iterations=3,
@@ -115,7 +115,7 @@ class TestConflictResolutionConfig:
     def test_default_values(self):
         """Test default conflict resolution config."""
         config = ConflictResolutionConfig()
-        assert config.iou_threshold == 0.3
+        assert config.iou_threshold == 0.5
         assert config.yolo_precedence is True
         assert config.enable_logging is False
 
@@ -156,6 +156,8 @@ class TestMarkitConfig:
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
             rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -193,6 +195,8 @@ class TestMarkitConfig:
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
             rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -229,6 +233,8 @@ class TestMarkitConfig:
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
             rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -266,6 +272,8 @@ class TestMarkitConfig:
             rotation_threshold=0.2,
             min_movement_pixels=10.0,
             rotation_smoothing=0.5,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=150,
             static_threshold=3,
             static_mark=True,
@@ -307,6 +315,8 @@ class TestMarkitConfig:
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
             rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -339,6 +349,8 @@ class TestMarkitConfig:
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
             rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -371,6 +383,8 @@ class TestMarkitConfig:
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
             rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -406,6 +420,8 @@ class TestMarkitConfig:
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
             rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
