@@ -63,15 +63,15 @@ SuddenDetection → FrameInterval → AngleNormalization
 2. Check shared-frame ratio: shared frames must be ≥ `min_shared_ratio` × shorter object's length
 3. Calculate IoU for each shared frame
 4. Objects are duplicates if:
-   - Average IoU > `avg_iou_threshold` (default: 0.5)
-   - Minimum IoU > `min_iou_threshold` (default: 0.3)
+   - Average IoU > `avg_iou_threshold` (default: 0.3)
+   - Minimum IoU > `min_iou_threshold` (default: 0.2)
 5. Delete the object with fewer frames (or lower average confidence if tied)
 
 **Parameters:**
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `avg_iou_threshold` | 0.5 | Average IoU across shared frames to consider duplicate |
-| `min_iou_threshold` | 0.3 | Minimum IoU in any shared frame |
+| `avg_iou_threshold` | 0.3 | Average IoU across shared frames to consider duplicate |
+| `min_iou_threshold` | 0.2 | Minimum IoU in any shared frame |
 | `min_shared_ratio` | 0.5 | Minimum ratio of shared frames to shorter object's total frames |
 
 **Statistics:**

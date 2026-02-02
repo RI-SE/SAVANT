@@ -3,8 +3,10 @@
 # Run from markit/examples/.
 #
 # Usage:
-#   ./create_examples_ekas.sh            # JSON output only
-#   ./create_examples_ekas.sh --videos   # JSON + annotated video output (recompressed with HEVC)
+#   ./create_examples_ekas.sh                    # JSON output only
+#   ./create_examples_ekas.sh --videos           # JSON + annotated video output (recompressed with HEVC)
+#   ./create_examples_ekas.sh --debug            # JSON + verbose/debug logging saved to <dir>/debug.log
+#   ./create_examples_ekas.sh --videos --debug   # Both
 set -euo pipefail
 
 INPUT_DIR="../../TestVids/Ekas_T"
@@ -12,9 +14,14 @@ INPUT="${INPUT_DIR}/Ekas_T.mp4"
 MASK="${INPUT_DIR}/Ekas_T_mask.png"
 
 VIDEOS=false
-if [[ "${1:-}" == "--videos" ]]; then
-  VIDEOS=true
-fi
+DEBUG=false
+for arg in "$@"; do
+  case "$arg" in
+    --videos) VIDEOS=true ;;
+    --debug)  DEBUG=true ;;
+    *) echo "Unknown argument: $arg"; exit 1 ;;
+  esac
+done
 
 recompress() {
   ffmpeg -y -i "$1" -c:v hevc_nvenc -cq 28 -c:a copy "${1%.mp4}_tmp.mp4"
@@ -25,11 +32,25 @@ run_markit() {
   local dir="$1"
   shift
   mkdir -p "$dir"
+
+  local debug_flags=()
+  if $DEBUG; then
+    debug_flags=(--verbose --verbose-conflicts)
+  fi
+
   if $VIDEOS; then
-    markit --output_video "$dir/$dir.mp4" "$@"
+    if $DEBUG; then
+      markit --output_video "$dir/$dir.mp4" "${debug_flags[@]}" "$@" 2>&1 | tee "$dir/debug.log"
+    else
+      markit --output_video "$dir/$dir.mp4" "$@"
+    fi
     recompress "$dir/$dir.mp4"
   else
-    markit "$@"
+    if $DEBUG; then
+      markit "${debug_flags[@]}" "$@" 2>&1 | tee "$dir/debug.log"
+    else
+      markit "$@"
+    fi
   fi
 }
 

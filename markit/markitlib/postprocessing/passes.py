@@ -338,8 +338,8 @@ class DuplicateRemovalPass(PostprocessingPass):
 
     def __init__(
         self,
-        avg_iou_threshold: float = 0.5,
-        min_iou_threshold: float = 0.3,
+        avg_iou_threshold: float = 0.3,
+        min_iou_threshold: float = 0.2,
         min_shared_ratio: float = 0.5,
     ):
         """Initialize duplicate removal pass.
@@ -450,7 +450,7 @@ class DuplicateRemovalPass(PostprocessingPass):
             frames: Frame data
 
         Returns:
-            True if objects are duplicates (avg IOU > 0.8 and min IOU > 0.5)
+            True if objects are duplicates based on configured IoU thresholds
         """
         frames_a = set(object_frame_map.get(obj_a, []))
         frames_b = set(object_frame_map.get(obj_b, []))
@@ -461,7 +461,15 @@ class DuplicateRemovalPass(PostprocessingPass):
 
         # Require shared frames to be a significant portion of the shorter object
         shorter_length = min(len(frames_a), len(frames_b))
-        if len(shared_frames) < self.min_shared_ratio * shorter_length:
+        shared_ratio = len(shared_frames) / shorter_length if shorter_length > 0 else 0
+        if shared_ratio < self.min_shared_ratio:
+            engine_a = self._get_source_engine(obj_a, object_frame_map, frames)
+            engine_b = self._get_source_engine(obj_b, object_frame_map, frames)
+            logger.debug(
+                f"DuplicateRemoval: {obj_a} ({engine_a}) vs {obj_b} ({engine_b}): "
+                f"shared={len(shared_frames)}/{shorter_length} ({shared_ratio:.0%}) "
+                f"-> SKIP (below min_shared_ratio {self.min_shared_ratio})"
+            )
             return False
 
         ious = []
@@ -486,7 +494,17 @@ class DuplicateRemovalPass(PostprocessingPass):
         avg_iou = sum(ious) / len(ious)
         min_iou = min(ious)
 
-        return avg_iou > self.avg_iou_threshold and min_iou > self.min_iou_threshold
+        is_duplicate = avg_iou > self.avg_iou_threshold and min_iou > self.min_iou_threshold
+        engine_a = self._get_source_engine(obj_a, object_frame_map, frames)
+        engine_b = self._get_source_engine(obj_b, object_frame_map, frames)
+        result_str = "DUPLICATE" if is_duplicate else "KEEP"
+        logger.debug(
+            f"DuplicateRemoval: {obj_a} ({engine_a}) vs {obj_b} ({engine_b}): "
+            f"shared={len(shared_frames)}/{shorter_length} ({shared_ratio:.0%}), "
+            f"avg_iou={avg_iou:.2f}, min_iou={min_iou:.2f} -> {result_str}"
+        )
+
+        return is_duplicate
 
     def _extract_bbox(self, object_data: Dict[str, Any]) -> Optional[np.ndarray]:
         """Extract bounding box from object data and convert to corner points.

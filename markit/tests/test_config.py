@@ -115,7 +115,7 @@ class TestConflictResolutionConfig:
     def test_default_values(self):
         """Test default conflict resolution config."""
         config = ConflictResolutionConfig()
-        assert config.iou_threshold == 0.5
+        assert config.iou_threshold == 0.3
         assert config.yolo_precedence is True
         assert config.enable_logging is False
 

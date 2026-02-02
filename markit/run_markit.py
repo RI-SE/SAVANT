@@ -361,8 +361,8 @@ Examples:
     conflict.add_argument(
         "--iou-threshold",
         type=float,
-        default=0.5,
-        help="IoU threshold for conflict resolution (default: 0.5)",
+        default=0.3,
+        help="IoU threshold for conflict resolution (default: 0.3)",
     )
     conflict.add_argument(
         "--verbose-conflicts",
@@ -385,14 +385,14 @@ Examples:
     postproc.add_argument(
         "--duplicate-avg-iou",
         type=float,
-        default=0.5,
-        help="Average IOU threshold for duplicate detection (default: 0.5)",
+        default=0.3,
+        help="Average IOU threshold for duplicate detection (default: 0.3)",
     )
     postproc.add_argument(
         "--duplicate-min-iou",
         type=float,
-        default=0.3,
-        help="Minimum IOU threshold for duplicate detection (default: 0.3)",
+        default=0.2,
+        help="Minimum IOU threshold for duplicate detection (default: 0.2)",
     )
     postproc.add_argument(
         "--duplicate-min-shared-ratio",

@@ -101,7 +101,7 @@ class OpticalFlowParams:
 class ConflictResolutionConfig:
     """Configuration for detection conflict resolution using IoU."""
 
-    iou_threshold: float = 0.5  # IoU threshold for conflict detection (0.0-1.0)
+    iou_threshold: float = 0.3  # IoU threshold for conflict detection (0.0-1.0)
     yolo_precedence: bool = True  # YOLO takes precedence over optical flow
     enable_logging: bool = False  # Log conflicts for debugging
 
