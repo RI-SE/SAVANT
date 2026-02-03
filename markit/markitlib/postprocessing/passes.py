@@ -353,6 +353,7 @@ class DuplicateRemovalPass(PostprocessingPass):
         self.objects_deleted = 0
         self.duplicate_pairs_found = 0
         self.frames_modified = 0
+        self.frames_merged = 0
         self.iou_calculator = BBoxOverlapCalculator()
         self.deletion_details = []
         self.avg_iou_threshold = avg_iou_threshold
@@ -415,21 +416,49 @@ class DuplicateRemovalPass(PostprocessingPass):
                     )
 
         for obj_id in objects_to_delete:
-            if obj_id in objects:
-                del objects[obj_id]
-                self.objects_deleted += 1
+            # Find which object this duplicate should merge into
+            detail = next(
+                (d for d in self.deletion_details if d["deleted_object"] == obj_id),
+                None,
+            )
+            obj_to_keep = detail["kept_object"] if detail else None
 
-            for frame_idx_str, frame_data in frames.items():
-                frame_objects = frame_data.get("objects", {})
+            kept_frames = set(object_frame_map.get(obj_to_keep, [])) if obj_to_keep else set()
+            deleted_frames = set(object_frame_map.get(obj_id, []))
+            exclusive_frames = deleted_frames - kept_frames
+
+            # Transfer exclusive frames to the kept object
+            for frame_idx in exclusive_frames:
+                frame_str = str(frame_idx)
+                frame_objects = frames.get(frame_str, {}).get("objects", {})
+                if obj_id in frame_objects:
+                    frame_objects[obj_to_keep] = frame_objects.pop(obj_id)
+                    self.frames_merged += 1
+
+            # Delete from shared frames (where both objects exist)
+            for frame_idx in (deleted_frames - exclusive_frames):
+                frame_str = str(frame_idx)
+                frame_objects = frames.get(frame_str, {}).get("objects", {})
                 if obj_id in frame_objects:
                     del frame_objects[obj_id]
                     self.frames_modified += 1
 
+            # Delete the duplicate's object entry
+            if obj_id in objects:
+                del objects[obj_id]
+                self.objects_deleted += 1
+
         for detail in self.deletion_details:
+            # Count how many frames were exclusive to the deleted object
+            kept_frames = set(object_frame_map.get(detail["kept_object"], []))
+            deleted_frames = set(object_frame_map.get(detail["deleted_object"], []))
+            merged_count = len(deleted_frames - kept_frames)
+            shared_count = len(deleted_frames & kept_frames)
             logger.info(
-                f"Deleted object {detail['deleted_object']} ({detail['deleted_engine']}) "
-                f"as duplicate of {detail['kept_object']} ({detail['kept_engine']}) "
-                f"in frames {detail['frame_start']}-{detail['frame_end']}"
+                f"Removed duplicate {detail['deleted_object']} ({detail['deleted_engine']}) "
+                f"-> merged into {detail['kept_object']} ({detail['kept_engine']}): "
+                f"{merged_count} frames transferred, {shared_count} shared frames dropped "
+                f"(range {detail['frame_start']}-{detail['frame_end']})"
             )
 
         return openlabel_data
@@ -681,6 +710,7 @@ class DuplicateRemovalPass(PostprocessingPass):
             "objects_deleted": self.objects_deleted,
             "duplicate_pairs_found": self.duplicate_pairs_found,
             "frames_modified": self.frames_modified,
+            "frames_merged": self.frames_merged,
         }
 
 

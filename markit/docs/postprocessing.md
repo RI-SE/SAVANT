@@ -56,7 +56,7 @@ SuddenDetection → FrameInterval → AngleNormalization
 
 ### DuplicateRemovalPass
 
-**Purpose:** Removes duplicate objects that represent the same physical entity (e.g., when both YOLO and optical flow detect the same vehicle).
+**Purpose:** Removes duplicate objects that represent the same physical entity (e.g., when both YOLO and optical flow detect the same vehicle). Exclusive frames from the deleted object are merged into the kept object to preserve tracking continuity.
 
 **Algorithm:**
 1. For each pair of objects, find frames where both appear
@@ -65,7 +65,9 @@ SuddenDetection → FrameInterval → AngleNormalization
 4. Objects are duplicates if:
    - Average IoU > `avg_iou_threshold` (default: 0.3)
    - Minimum IoU > `min_iou_threshold` (default: 0.2)
-5. Delete the object with fewer frames (or lower average confidence if tied)
+5. The lower-priority object is selected for removal (priority: yolo > aruco > oflow; ties broken by frame count then confidence)
+6. **Merge:** Frames where only the deleted object exists (no overlap with the kept object) are re-keyed to the kept object's ID, preserving tracking through gaps
+7. **Delete:** Frames where both objects exist are cleaned up by removing the duplicate
 
 **Parameters:**
 | Parameter | Default | Description |
@@ -77,7 +79,8 @@ SuddenDetection → FrameInterval → AngleNormalization
 **Statistics:**
 - `duplicate_pairs_found`: Number of duplicate pairs identified
 - `objects_deleted`: Objects removed
-- `frames_modified`: Frame entries cleaned up
+- `frames_modified`: Shared frame entries cleaned up
+- `frames_merged`: Exclusive frames transferred from deleted to kept object
 
 ---
 
