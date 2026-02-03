@@ -57,6 +57,7 @@ Postprocessing (Housekeeping):
     --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
     --no-gap-detection   Disable gap detection pass
     --no-gap-filling     Disable gap filling pass
+    --max-gap-size       Maximum gap size in frames to interpolate (default: 30)
     --no-first-detection-refinement  Disable first detection refinement pass
     --no-size-outlier-filter  Disable size outlier filter pass
     --no-bbox-smoothing  Disable bounding box smoothing pass
@@ -464,6 +465,13 @@ Examples:
         help="Disable gap filling pass",
     )
     postproc.add_argument(
+        "--max-gap-size",
+        type=int,
+        default=30,
+        help="Maximum gap size in frames to interpolate (default: 30). "
+        "Gaps larger than this are left unfilled.",
+    )
+    postproc.add_argument(
         "--no-first-detection-refinement", action="store_true",
         help="Disable first detection refinement pass",
     )
@@ -781,7 +789,9 @@ def main():
             if not config.no_gap_detection:
                 postprocessing_pipeline.add_pass(GapDetectionPass())
             if not config.no_gap_filling:
-                postprocessing_pipeline.add_pass(GapFillingPass())
+                postprocessing_pipeline.add_pass(GapFillingPass(
+                    max_gap_size=config.max_gap_size,
+                ))
 
             # 2. Static object removal (if enabled via threshold)
             if config.static_threshold >= 0:

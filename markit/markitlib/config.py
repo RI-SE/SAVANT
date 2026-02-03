@@ -196,6 +196,7 @@ class MarkitConfig:
         # Individual pass toggles (only relevant when housekeeping is enabled)
         self.no_gap_detection = getattr(args, "no_gap_detection", False)
         self.no_gap_filling = getattr(args, "no_gap_filling", False)
+        self.max_gap_size = getattr(args, "max_gap_size", 30)
         self.no_first_detection_refinement = getattr(args, "no_first_detection_refinement", False)
         self.no_size_outlier_filter = getattr(args, "no_size_outlier_filter", False)
         self.no_bbox_smoothing = getattr(args, "no_bbox_smoothing", False)

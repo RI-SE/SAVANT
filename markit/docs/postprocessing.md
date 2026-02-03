@@ -39,10 +39,16 @@ SuddenDetection → FrameInterval → AngleNormalization
 **Purpose:** Fills gaps by linearly interpolating bbox parameters between the frames before and after each gap.
 
 **Algorithm:**
-1. For each gap, extract rbbox values from boundary frames
-2. Calculate deltas: `delta = (after - before) / (gap_size + 1)`
-3. For each missing frame, interpolate: `value = before + delta * step`
-4. Create new frame entries with interpolated rbbox values
+1. For each gap, skip if gap size exceeds `max_gap_size` (likely a separate tracking segment)
+2. Extract rbbox values from boundary frames
+3. Calculate deltas: `delta = (after - before) / (gap_size + 1)`
+4. For each missing frame, interpolate: `value = before + delta * step`
+5. Create new frame entries with interpolated rbbox values
+
+**Parameters:**
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `max_gap_size` | 30 | Maximum gap size in frames to fill. Larger gaps are skipped. |
 
 **Interpolated Parameters:** x, y, w, h, r (all five bbox parameters)
 
@@ -50,6 +56,7 @@ SuddenDetection → FrameInterval → AngleNormalization
 
 **Statistics:**
 - `gaps_filled`: Number of gaps filled
+- `gaps_skipped`: Number of gaps exceeding `max_gap_size`
 - `frames_added`: Total interpolated frames created
 
 ---

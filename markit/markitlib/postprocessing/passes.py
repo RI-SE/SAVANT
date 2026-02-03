@@ -184,8 +184,17 @@ class GapDetectionPass(PostprocessingPass):
 class GapFillingPass(PostprocessingPass):
     """Fill gaps in object ID frame sequences by interpolating positions."""
 
-    def __init__(self):
+    def __init__(self, max_gap_size: int = 30):
+        """Initialize gap filling pass.
+
+        Args:
+            max_gap_size: Maximum gap size (in frames) to fill. Gaps larger than
+                this are left unfilled — they likely represent separate tracking
+                segments rather than brief detection dropouts.
+        """
+        self.max_gap_size = max_gap_size
         self.gaps_filled = 0
+        self.gaps_skipped = 0
         self.frames_added = 0
         self.objects_processed = set()
 
@@ -221,6 +230,14 @@ class GapFillingPass(PostprocessingPass):
                 gap_size = frame_after - frame_before - 1
 
                 if gap_size > 0:
+                    if gap_size > self.max_gap_size:
+                        logger.debug(
+                            f"GapFilling: skipping {obj_id} gap frames "
+                            f"{frame_before}->{frame_after} ({gap_size} frames "
+                            f"> max {self.max_gap_size})"
+                        )
+                        self.gaps_skipped += 1
+                        continue
                     self._fill_gap(
                         openlabel_data, obj_id, frame_before, frame_after, gap_size
                     )
@@ -316,6 +333,7 @@ class GapFillingPass(PostprocessingPass):
         return {
             "objects_processed": len(self.objects_processed),
             "gaps_filled": self.gaps_filled,
+            "gaps_skipped": self.gaps_skipped,
             "frames_added": self.frames_added,
         }
 
@@ -386,15 +404,31 @@ class DuplicateRemovalPass(PostprocessingPass):
             for obj_id_str in frame_objects.keys():
                 object_frame_map[obj_id_str].append(frame_idx)
 
+        # Precompute frame ranges for fast temporal overlap check
+        object_frame_range = {}
+        for obj_id, frame_list in object_frame_map.items():
+            if frame_list:
+                object_frame_range[obj_id] = (min(frame_list), max(frame_list))
+
         objects_to_delete = set()
         object_ids = list(objects.keys())
+        n_objects = len(object_ids)
+        logger.info(f"DuplicateRemoval: checking {n_objects * (n_objects - 1) // 2} pairs from {n_objects} objects")
 
-        for i in range(len(object_ids)):
-            for j in range(i + 1, len(object_ids)):
+        for i in range(n_objects):
+            for j in range(i + 1, n_objects):
                 obj_a = object_ids[i]
                 obj_b = object_ids[j]
 
                 if obj_a in objects_to_delete or obj_b in objects_to_delete:
+                    continue
+
+                # Skip pairs with no temporal overlap
+                range_a = object_frame_range.get(obj_a)
+                range_b = object_frame_range.get(obj_b)
+                if not range_a or not range_b:
+                    continue
+                if range_a[1] < range_b[0] or range_b[1] < range_a[0]:
                     continue
 
                 if self._are_duplicates(obj_a, obj_b, object_frame_map, frames):
