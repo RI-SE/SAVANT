@@ -342,6 +342,73 @@ class TestDuplicateRemovalPass:
         assert dup_pass.frames_modified == 3  # shared frames 3,4,5
         assert dup_pass.objects_deleted == 1
 
+    def test_iomin_detects_containment_duplicate(self):
+        """Test that IoMin catches a large bbox enveloping a smaller one.
+
+        When a large oflow bbox fully contains a smaller yolo bbox, IoU is low
+        (suppressed by the large union) but IoMin is high. The IoMin criterion
+        should flag them as duplicates.
+        """
+        # obj_yolo: small bbox (50x30)
+        # obj_oflow: large bbox (200x150) at same center — contains yolo entirely
+        # IoU ≈ (50*30) / (200*150) ≈ 0.05, but IoMin ≈ 1.0
+        frames = {}
+        for i in range(5):
+            frames[str(i)] = {
+                "objects": {
+                    "obj_yolo": _make_frame_object("yolo", x=200, y=200, w=50, h=30),
+                    "obj_oflow": _make_frame_object("oflow", x=200, y=200, w=200, h=150),
+                }
+            }
+
+        data = {
+            "openlabel": {
+                "frames": frames,
+                "objects": {
+                    "obj_yolo": {"name": "obj_yolo", "type": "car"},
+                    "obj_oflow": {"name": "obj_oflow", "type": "car"},
+                },
+            }
+        }
+
+        dup_pass = DuplicateRemovalPass(iomin_threshold=0.7)
+        result = dup_pass.process(data)
+
+        # oflow should be removed as duplicate (lower priority engine)
+        assert "obj_yolo" in result["openlabel"]["objects"]
+        assert "obj_oflow" not in result["openlabel"]["objects"]
+        assert dup_pass.duplicate_pairs_found == 1
+
+    def test_iomin_no_false_positive_on_partial_overlap(self):
+        """Test that IoMin doesn't flag objects with only partial overlap."""
+        # Two bboxes side by side with small overlap — IoMin should be below threshold
+        frames = {}
+        for i in range(5):
+            frames[str(i)] = {
+                "objects": {
+                    "obj_a": _make_frame_object("yolo", x=100, y=100, w=50, h=30),
+                    "obj_b": _make_frame_object("oflow", x=140, y=100, w=50, h=30),
+                }
+            }
+
+        data = {
+            "openlabel": {
+                "frames": frames,
+                "objects": {
+                    "obj_a": {"name": "obj_a", "type": "car"},
+                    "obj_b": {"name": "obj_b", "type": "car"},
+                },
+            }
+        }
+
+        dup_pass = DuplicateRemovalPass(iomin_threshold=0.7)
+        result = dup_pass.process(data)
+
+        # Both should survive — partial overlap is not containment
+        assert "obj_a" in result["openlabel"]["objects"]
+        assert "obj_b" in result["openlabel"]["objects"]
+        assert dup_pass.duplicate_pairs_found == 0
+
     def test_merge_statistics_in_get_statistics(self):
         """Test that frames_merged appears in statistics output."""
         dup_pass = DuplicateRemovalPass()

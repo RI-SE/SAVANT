@@ -341,6 +341,7 @@ class DuplicateRemovalPass(PostprocessingPass):
         avg_iou_threshold: float = 0.3,
         min_iou_threshold: float = 0.2,
         min_shared_ratio: float = 0.5,
+        iomin_threshold: float = 0.7,
     ):
         """Initialize duplicate removal pass.
 
@@ -349,6 +350,9 @@ class DuplicateRemovalPass(PostprocessingPass):
             min_iou_threshold: Minimum IoU in any shared frame to consider duplicate.
             min_shared_ratio: Minimum ratio of shared frames to the shorter object's
                 total frames. Prevents removing objects that only briefly overlap.
+            iomin_threshold: Average intersection-over-minimum-area threshold.
+                Detects containment where a large bbox envelops a smaller one,
+                which suppresses IoU despite being the same object.
         """
         self.objects_deleted = 0
         self.duplicate_pairs_found = 0
@@ -359,6 +363,7 @@ class DuplicateRemovalPass(PostprocessingPass):
         self.avg_iou_threshold = avg_iou_threshold
         self.min_iou_threshold = min_iou_threshold
         self.min_shared_ratio = min_shared_ratio
+        self.iomin_threshold = iomin_threshold
 
     def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
         """Remove duplicate objects based on IOU analysis.
@@ -502,6 +507,7 @@ class DuplicateRemovalPass(PostprocessingPass):
             return False
 
         ious = []
+        iomins = []
 
         for frame_idx in shared_frames:
             frame_str = str(frame_idx)
@@ -516,21 +522,33 @@ class DuplicateRemovalPass(PostprocessingPass):
                     bbox_a, bbox_b
                 )
                 ious.append(iou)
+                iomin = self.iou_calculator.calculate_intersection_over_min(
+                    bbox_a, bbox_b
+                )
+                iomins.append(iomin)
 
         if len(ious) == 0:
             return False
 
         avg_iou = sum(ious) / len(ious)
         min_iou = min(ious)
+        avg_iomin = sum(iomins) / len(iomins)
 
-        is_duplicate = avg_iou > self.avg_iou_threshold and min_iou > self.min_iou_threshold
+        by_iou = avg_iou > self.avg_iou_threshold and min_iou > self.min_iou_threshold
+        by_iomin = avg_iomin > self.iomin_threshold
+        is_duplicate = by_iou or by_iomin
+
         engine_a = self._get_source_engine(obj_a, object_frame_map, frames)
         engine_b = self._get_source_engine(obj_b, object_frame_map, frames)
         result_str = "DUPLICATE" if is_duplicate else "KEEP"
+        reason = ""
+        if is_duplicate:
+            reason = " (by IoU)" if by_iou else " (by IoMin)"
         logger.debug(
             f"DuplicateRemoval: {obj_a} ({engine_a}) vs {obj_b} ({engine_b}): "
             f"shared={len(shared_frames)}/{shorter_length} ({shared_ratio:.0%}), "
-            f"avg_iou={avg_iou:.2f}, min_iou={min_iou:.2f} -> {result_str}"
+            f"avg_iou={avg_iou:.2f}, min_iou={min_iou:.2f}, "
+            f"avg_iomin={avg_iomin:.2f} -> {result_str}{reason}"
         )
 
         return is_duplicate

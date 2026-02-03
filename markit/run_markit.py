@@ -46,6 +46,7 @@ Postprocessing (Housekeeping):
     --housekeeping       Enable postprocessing passes (gap detection, filling, duplicate removal, etc.)
     --duplicate-avg-iou  Average IOU threshold for duplicate detection (default: 0.3)
     --duplicate-min-iou  Minimum IOU threshold for duplicate detection (default: 0.2)
+    --duplicate-iomin    IoMin threshold for containment-based duplicate detection (default: 0.7)
     --rotation-threshold Rotation angle threshold in radians for adjustment (default: 0.1)
     --min-movement-pixels Minimum movement in pixels for rotation calculation (default: 5.0)
     --rotation-smoothing Temporal smoothing factor for rotation, 0-1 (default: 0.5)
@@ -399,6 +400,13 @@ Examples:
         type=float,
         default=0.5,
         help="Minimum ratio of shared frames to shorter object's length for duplicate detection (default: 0.5)",
+    )
+    postproc.add_argument(
+        "--duplicate-iomin",
+        type=float,
+        default=0.7,
+        help="IoMin (intersection-over-minimum-area) threshold for duplicate detection. "
+        "Catches containment where a large bbox envelops a smaller one (default: 0.7)",
     )
     postproc.add_argument(
         "--rotation-threshold",
@@ -827,6 +835,7 @@ def main():
                         avg_iou_threshold=config.duplicate_avg_iou,
                         min_iou_threshold=config.duplicate_min_iou,
                         min_shared_ratio=config.duplicate_min_shared_ratio,
+                        iomin_threshold=config.duplicate_iomin,
                     )
                 )
 

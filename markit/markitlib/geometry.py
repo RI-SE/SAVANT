@@ -64,6 +64,50 @@ class BBoxOverlapCalculator:
             return 0.0
 
     @staticmethod
+    def calculate_intersection_over_min(
+        bbox1: np.ndarray, bbox2: np.ndarray
+    ) -> float:
+        """Calculate intersection-over-minimum-area between two oriented bounding boxes.
+
+        Useful for detecting containment where one bbox is much larger than the other,
+        which suppresses IoU despite being the same object.
+
+        Args:
+            bbox1: First OBB as 4 corner points [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+            bbox2: Second OBB as 4 corner points [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+
+        Returns:
+            IoMin value between 0 and 1
+        """
+        try:
+            pts1 = np.array(bbox1, dtype=np.float32).reshape(-1, 2)
+            pts2 = np.array(bbox2, dtype=np.float32).reshape(-1, 2)
+
+            area1 = BBoxOverlapCalculator._polygon_area(pts1)
+            area2 = BBoxOverlapCalculator._polygon_area(pts2)
+
+            if area1 <= 0 or area2 <= 0:
+                return 0.0
+
+            intersection_points = BBoxOverlapCalculator._sutherland_hodgman_clip(
+                pts1, pts2
+            )
+
+            if len(intersection_points) < 3:
+                return 0.0
+
+            intersection_area = BBoxOverlapCalculator._polygon_area(intersection_points)
+
+            if intersection_area <= 0:
+                return 0.0
+
+            return intersection_area / min(area1, area2)
+
+        except Exception as e:
+            logger.debug(f"IoMin calculation failed: {e}")
+            return 0.0
+
+    @staticmethod
     def _polygon_area(points: np.ndarray) -> float:
         """Calculate polygon area using the shoelace formula.
 

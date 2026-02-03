@@ -182,6 +182,7 @@ class MarkitConfig:
         self.duplicate_avg_iou = args.duplicate_avg_iou
         self.duplicate_min_iou = args.duplicate_min_iou
         self.duplicate_min_shared_ratio = getattr(args, "duplicate_min_shared_ratio", 0.5)
+        self.duplicate_iomin = getattr(args, "duplicate_iomin", 0.7)
         self.smooth_position = not getattr(args, "no_position_smoothing", False)
         self.rotation_threshold = args.rotation_threshold
         self.min_movement_pixels = args.min_movement_pixels

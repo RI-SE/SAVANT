@@ -62,9 +62,9 @@ SuddenDetection → FrameInterval → AngleNormalization
 1. For each pair of objects, find frames where both appear
 2. Check shared-frame ratio: shared frames must be ≥ `min_shared_ratio` × shorter object's length
 3. Calculate IoU for each shared frame
-4. Objects are duplicates if:
-   - Average IoU > `avg_iou_threshold` (default: 0.3)
-   - Minimum IoU > `min_iou_threshold` (default: 0.2)
+4. Objects are duplicates if **either** condition is met:
+   - **IoU criterion:** Average IoU > `avg_iou_threshold` AND minimum IoU > `min_iou_threshold`
+   - **IoMin criterion:** Average intersection-over-minimum-area > `iomin_threshold` (catches containment where a large bbox envelops a smaller one)
 5. The lower-priority object is selected for removal (priority: yolo > aruco > oflow; ties broken by frame count then confidence)
 6. **Merge:** Frames where only the deleted object exists (no overlap with the kept object) are re-keyed to the kept object's ID, preserving tracking through gaps
 7. **Delete:** Frames where both objects exist are cleaned up by removing the duplicate
@@ -75,6 +75,7 @@ SuddenDetection → FrameInterval → AngleNormalization
 | `avg_iou_threshold` | 0.3 | Average IoU across shared frames to consider duplicate |
 | `min_iou_threshold` | 0.2 | Minimum IoU in any shared frame |
 | `min_shared_ratio` | 0.5 | Minimum ratio of shared frames to shorter object's total frames |
+| `iomin_threshold` | 0.7 | Average IoMin across shared frames — detects containment duplicates |
 
 **Statistics:**
 - `duplicate_pairs_found`: Number of duplicate pairs identified
