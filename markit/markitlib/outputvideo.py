@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 import cv2
 import numpy as np
 
-from .config import Constants, DetectionResult, MarkitConfig, OpticalFlowParams
+from .config import Constants, DetectionResult, MarkitConfig
 from .processing import FrameAnnotator, OpticalFlowEngine
 
 logger = logging.getLogger(__name__)

@@ -307,7 +307,7 @@ class TrackingService:
 
             # Check if bbox is still within frame bounds
             if (new_cx - width / 2 < 0 or new_cx + width / 2 > frame_w or
-                new_cy - height / 2 < 0 or new_cy + height / 2 > frame_h):
+                    new_cy - height / 2 < 0 or new_cy + height / 2 > frame_h):
                 logger.info(
                     f"Tracking stopped at frame {current_frame}: "
                     f"bbox out of bounds (cx={new_cx:.1f}, cy={new_cy:.1f})"
