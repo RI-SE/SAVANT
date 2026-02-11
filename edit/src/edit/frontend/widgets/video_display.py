@@ -9,6 +9,7 @@ from edit.frontend.states.annotation_state import AnnotationState
 class VideoDisplay(QLabel):
     pan_changed = pyqtSignal(float, float)
     bbox_drawn = pyqtSignal(AnnotationState)
+    zoom_rect_selected = pyqtSignal(QRectF)
 
     def __init__(self):
         super().__init__()
@@ -28,6 +29,12 @@ class VideoDisplay(QLabel):
         self.end_point = QPointF()
         self.current_annotation_state: Optional[AnnotationState] = None
 
+        # Zoom-rect state
+        self._zoom_rect_mode = False
+        self._zoom_rect_drawing = False
+        self._zoom_rect_start = QPointF()
+        self._zoom_rect_end = QPointF()
+
         self._pixmap = None
         self._zoom = 1.0
         self._pan = QPointF(0.0, 0.0)
@@ -37,13 +44,35 @@ class VideoDisplay(QLabel):
         self._pan_via_ctrl = False
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
+    def start_zoom_rect_mode(self):
+        """Enter rectangle-zoom mode. LMB drag draws a zoom rectangle."""
+        self._zoom_rect_mode = True
+        self.setCursor(Qt.CursorShape.CrossCursor)
+
+    def cancel_zoom_rect_mode(self):
+        """Cancel rectangle-zoom mode and reset all related state."""
+        self._zoom_rect_mode = False
+        self._zoom_rect_drawing = False
+        self._zoom_rect_start = QPointF()
+        self._zoom_rect_end = QPointF()
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+        self.update()
+
     def start_drawing_mode(self, annotation_state: AnnotationState):
         """Enable bounding box drawing mode for specific object type."""
         self.current_annotation_state = annotation_state
         self.setCursor(Qt.CursorShape.CrossCursor)
 
     def mousePressEvent(self, e: QMouseEvent):
-        """Unified mouse press handler for both drawing and panning."""
+        """Unified mouse press handler for drawing, zoom-rect, and panning."""
+        if self._zoom_rect_mode and e.button() == Qt.MouseButton.LeftButton:
+            self._zoom_rect_drawing = True
+            self._zoom_rect_start = e.position()
+            self._zoom_rect_end = e.position()
+            self.grabMouse()
+            self.update()
+            return
+
         if self.current_annotation_state and e.button() == Qt.MouseButton.LeftButton:
 
             self._handle_drawing_press(e)
@@ -61,7 +90,11 @@ class VideoDisplay(QLabel):
         super().mousePressEvent(e)
 
     def mouseMoveEvent(self, e: QMouseEvent):
-        """Route to drawing or panning if active; otherwise bubble up."""
+        """Route to zoom-rect, drawing, or panning if active; otherwise bubble up."""
+        if self._zoom_rect_drawing:
+            self._zoom_rect_end = e.position()
+            self.update()
+            return
         if self.drawing:
             self._handle_drawing_move(e)
             return
@@ -79,7 +112,17 @@ class VideoDisplay(QLabel):
         super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e: QMouseEvent):
-        """End drawing/panning when appropriate; otherwise bubble up."""
+        """End zoom-rect/drawing/panning when appropriate; otherwise bubble up."""
+        if self._zoom_rect_drawing and e.button() == Qt.MouseButton.LeftButton:
+            self._zoom_rect_drawing = False
+            self.releaseMouse()
+            rect = QRectF(self._zoom_rect_start, self._zoom_rect_end).normalized()
+            self._zoom_rect_mode = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            if rect.width() > 10 and rect.height() > 10:
+                self.zoom_rect_selected.emit(rect)
+            self.update()
+            return
         if self.drawing and e.button() == Qt.MouseButton.LeftButton:
             self._handle_drawing_release(e)
             return
@@ -324,7 +367,29 @@ class VideoDisplay(QLabel):
             rect = QRectF(self.start_point, self.end_point)
             p.drawRect(rect)
 
+        # Draw zoom rectangle if in zoom-rect drawing mode
+        if self._zoom_rect_drawing:
+            pen = QPen(Qt.GlobalColor.cyan, 2, Qt.PenStyle.DashLine)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRect(QRectF(self._zoom_rect_start, self._zoom_rect_end))
+
         p.end()
+
+    def keyPressEvent(self, event):
+        """Handle Z to toggle zoom-rect mode, Escape to cancel."""
+        if event.key() == Qt.Key.Key_Z and not event.modifiers():
+            if self._zoom_rect_mode:
+                self.cancel_zoom_rect_mode()
+            else:
+                self.start_zoom_rect_mode()
+            event.accept()
+            return
+        if event.key() == Qt.Key.Key_Escape and self._zoom_rect_mode:
+            self.cancel_zoom_rect_mode()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def resizeEvent(self, e):
         super().resizeEvent(e)

@@ -258,6 +258,16 @@ class Overlay(QWidget):
             ev.ignore()
             return
 
+        # Let zoom-rect clicks fall through to the video display
+        parent = self.parent()
+        if (
+            ev.button() == Qt.MouseButton.LeftButton
+            and hasattr(parent, "_zoom_rect_mode")
+            and parent._zoom_rect_mode
+        ):
+            ev.ignore()
+            return
+
         if not self._interactive or ev.button() != Qt.MouseButton.LeftButton:
             # If we have cascade components visible, hide them when clicking outside
             if (
@@ -941,6 +951,28 @@ class Overlay(QWidget):
 
     def on_arrow_key_press(self, event):
         if self._selected_idx is None:
+            # When zoomed in with no bbox selected, arrow keys pan the view
+            if self._zoom > 1.0 and event.key() in (
+                Qt.Key.Key_Up,
+                Qt.Key.Key_Down,
+                Qt.Key.Key_Left,
+                Qt.Key.Key_Right,
+            ):
+                pan_step = 50.0
+                parent = self.parent()
+                if hasattr(parent, "set_pan") and hasattr(parent, "_pan"):
+                    dx, dy = 0.0, 0.0
+                    if event.key() == Qt.Key.Key_Up:
+                        dy = pan_step
+                    elif event.key() == Qt.Key.Key_Down:
+                        dy = -pan_step
+                    elif event.key() == Qt.Key.Key_Left:
+                        dx = pan_step
+                    elif event.key() == Qt.Key.Key_Right:
+                        dx = -pan_step
+                    parent.set_pan(parent._pan.x() + dx, parent._pan.y() + dy)
+                    event.accept()
+                    return
             return super().keyPressEvent(event)
 
         movement_step = get_movement_sensitivity()

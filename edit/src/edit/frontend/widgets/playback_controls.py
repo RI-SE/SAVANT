@@ -31,6 +31,7 @@ class PlaybackControls(QWidget):
     skip_forward_clicked = pyqtSignal(int)
     prev_issue_clicked = pyqtSignal()
     next_issue_clicked = pyqtSignal()
+    reset_view_clicked = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -70,6 +71,10 @@ class PlaybackControls(QWidget):
         self.btn_next_issue.clicked.connect(self.next_issue_clicked.emit)
 
         self.btn_play.clicked.connect(self.play_clicked.emit)
+
+        # Reset view button
+        self.btn_reset_view = make_btn("reset_view.svg", "Reset View (Ctrl+0)")
+        self.btn_reset_view.clicked.connect(self.reset_view_clicked.emit)
 
         apply_issue_navigation_button_style(self.btn_prev_issue)
         apply_issue_navigation_button_style(self.btn_next_issue)
@@ -167,6 +172,7 @@ class PlaybackControls(QWidget):
         controls_layout.addWidget(self.btn_skip_forward)
         controls_layout.addWidget(self.btn_next_frame)
         controls_layout.addWidget(self.btn_next_issue)
+        controls_layout.addWidget(self.btn_reset_view)
         controls_layout.addStretch(1)
 
         # Add the widgets to the main horizontal layout

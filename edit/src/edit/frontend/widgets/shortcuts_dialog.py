@@ -26,11 +26,12 @@ _SHORTCUTS: list[tuple[str, str]] = [
     ("", "Zoom"),
     ("Ctrl++", "Zoom in"),
     ("Ctrl+-", "Zoom out"),
-    ("Ctrl+0", "Fit to default zoom"),
+    ("Ctrl+0", "Reset view (fit to default zoom)"),
     ("Ctrl+Scroll", "Zoom in / out"),
+    ("Z", "Toggle rectangle zoom mode"),
     # -- Annotation editing --
     ("", "Annotation Editing"),
-    ("Arrow keys", "Move selected bounding box"),
+    ("Arrow keys", "Move selected bounding box / pan view when zoomed in"),
     ("Shift+Left / Right", "Rotate selected bounding box"),
     ("Delete", "Delete selected bounding box or frame tag"),
     # -- Seek bar --
