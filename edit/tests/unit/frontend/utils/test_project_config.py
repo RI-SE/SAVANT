@@ -120,15 +120,19 @@ def test_bookmark_toggle():
 
 
 def test_bookmark_persistence_round_trip(tmp_path):
-    """Verify bookmarks are saved to disk and re-applied correctly."""
-    settings_store.set_bookmarks([100, 200, 50])
+    """Verify bookmarks with notes are saved to disk and re-applied correctly."""
+    settings_store.set_bookmarks({100: "note A", 200: "", 50: "note B"})
 
     project_config.set_active_project_dir(tmp_path)
     project_config.persist_current_settings()
 
     config_path = tmp_path / project_config.PROJECT_CONFIG_FILENAME
     payload = json.loads(config_path.read_text(encoding="utf-8"))
-    assert payload["settings"]["bookmarks"] == [50, 100, 200]
+    assert payload["settings"]["bookmarks"] == {
+        "50": "note B",
+        "100": "note A",
+        "200": "",
+    }
 
     # Clear in-memory bookmarks and re-apply from disk
     settings_store.set_bookmarks([])
@@ -138,3 +142,25 @@ def test_bookmark_persistence_round_trip(tmp_path):
     project_config.apply_project_settings(loaded)
 
     assert settings_store.get_bookmarks() == [50, 100, 200]
+    assert settings_store.get_bookmark_notes() == {50: "note B", 100: "note A", 200: ""}
+
+
+def test_bookmark_legacy_list_format_loading(tmp_path):
+    """Verify old projects with bookmarks stored as a list still load correctly."""
+    settings_store.set_bookmarks([10, 20])
+
+    project_config.set_active_project_dir(tmp_path)
+    project_config.persist_current_settings()
+
+    # Overwrite the config file with the legacy list format
+    config_path = tmp_path / project_config.PROJECT_CONFIG_FILENAME
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    payload["settings"]["bookmarks"] = [20, 10]
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    settings_store.set_bookmarks([])
+    loaded = project_config.load_project_config(tmp_path)
+    project_config.apply_project_settings(loaded)
+
+    assert settings_store.get_bookmarks() == [10, 20]
+    assert settings_store.get_bookmark_notes() == {10: "", 20: ""}

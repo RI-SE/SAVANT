@@ -430,7 +430,10 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
     else:
         prompt_for_annotator = getattr(main_window, "prompt_for_annotator", None)
         if callable(prompt_for_annotator):
-            selected_annotator = prompt_for_annotator(available_annotators)
+            last_annotator = config.last_annotator or ""
+            selected_annotator = prompt_for_annotator(
+                available_annotators, default=last_annotator
+            )
 
     if selected_annotator:
         if state is not None:

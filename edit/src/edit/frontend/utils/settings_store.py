@@ -29,7 +29,7 @@ _movement_sensitivity: float = 1.0  # default 1.0x
 _rotation_sensitivity: float = 0.1  # default 0.1
 _zoom_rate: float = 1.0
 _frame_history_count: int = 50
-_bookmarks: list[int] = []
+_bookmarks: dict[int, str] = {}  # frame -> note
 _DEFAULT_ONTOLOGY_FILES = ("1.3.1.ttl",)
 
 
@@ -265,14 +265,41 @@ def get_enabled_tag_frames() -> dict[str, list[int]]:
 
 
 def get_bookmarks() -> list[int]:
-    """Return a sorted copy of the bookmarked frame indices."""
-    return list(_bookmarks)
+    """Return a sorted list of bookmarked frame indices."""
+    return sorted(_bookmarks.keys())
 
 
-def set_bookmarks(frames: list[int]) -> None:
-    """Replace all bookmarks with the given sorted frame indices."""
+def get_bookmark_notes() -> dict[int, str]:
+    """Return a copy of the bookmarks dict mapping frame index to note."""
+    return dict(_bookmarks)
+
+
+def set_bookmarks(frames) -> None:
+    """Replace all bookmarks.
+
+    Accepts either a list of frame indices (legacy, notes default to "")
+    or a dict mapping frame index to note string.
+    """
     global _bookmarks
-    _bookmarks = sorted({int(f) for f in frames if isinstance(f, (int, float)) and int(f) >= 0})
+    if isinstance(frames, dict):
+        _bookmarks = {
+            int(f): str(n)
+            for f, n in frames.items()
+            if isinstance(f, (int, float, str)) and int(f) >= 0
+        }
+    else:
+        _bookmarks = {
+            int(f): ""
+            for f in (frames or [])
+            if isinstance(f, (int, float)) and int(f) >= 0
+        }
+
+
+def set_bookmark_note(frame: int, note: str) -> None:
+    """Update the note for an existing bookmark."""
+    frame = int(frame)
+    if frame in _bookmarks:
+        _bookmarks[frame] = str(note)
 
 
 def toggle_bookmark(frame: int) -> bool:
@@ -280,9 +307,9 @@ def toggle_bookmark(frame: int) -> bool:
     global _bookmarks
     frame = int(frame)
     if frame in _bookmarks:
-        _bookmarks = [f for f in _bookmarks if f != frame]
+        del _bookmarks[frame]
         return False
-    _bookmarks = sorted(_bookmarks + [frame])
+    _bookmarks[frame] = ""
     return True
 
 

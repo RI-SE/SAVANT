@@ -18,7 +18,9 @@ class AppMenu:
         on_interpolate,
         on_create_relationship,
         on_change_annotator,
+        on_bookmarks,
         on_vlm_analysis,
+        on_shortcuts,
         on_about,
     ):
 
@@ -64,16 +66,28 @@ class AppMenu:
 
         # View menu
         view_menu = mb.addMenu("View")
+        self.bookmarks_action = QAction("Bookmarks...", window)
+        self.bookmarks_action.triggered.connect(on_bookmarks)
+        view_menu.addAction(self.bookmarks_action)
+
         self.vlm_analysis_action = QAction("VLM Analysis...", window)
         self.vlm_analysis_action.triggered.connect(on_vlm_analysis)
         self.vlm_analysis_action.setEnabled(False)  # Disabled until VLM data loaded
         view_menu.addAction(self.vlm_analysis_action)
 
-        # Add the "About" action directly to the menubar
+        # Help menu
+        help_menu = mb.addMenu("Help")
+        self.shortcuts_action = QAction("Keyboard Shortcuts...", window)
+        self.shortcuts_action.triggered.connect(on_shortcuts)
+        help_menu.addAction(self.shortcuts_action)
+
+        help_menu.addSeparator()
+
         about_action = QAction("About", window)
         about_action.triggered.connect(on_about)
-        mb.addAction(about_action)
+        help_menu.addAction(about_action)
 
         # expose menus if you want to add more later
         self.file_menu = file_menu
         self.view_menu = view_menu
+        self.help_menu = help_menu

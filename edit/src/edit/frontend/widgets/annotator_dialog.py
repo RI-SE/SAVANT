@@ -17,11 +17,13 @@ class AnnotatorDialog(QDialog):
         self,
         parent=None,
         annotator_names: Sequence[str] | None = None,
+        default: str = "",
     ):
         super().__init__(parent)
         self.annotator_name = None
         self._has_centered = False
         self._annotator_names = list(annotator_names or [])
+        self._default = (default or "").strip()
         self.init_ui()
 
     def init_ui(self):
@@ -44,7 +46,14 @@ class AnnotatorDialog(QDialog):
             line_edit.setPlaceholderText("Enter your name or choose from list")
             line_edit.returnPressed.connect(self.accept_input)
         self._populate_annotator_options(self._annotator_names)
-        self.name_input.setCurrentIndex(-1)
+        if self._default:
+            idx = self.name_input.findText(self._default)
+            if idx >= 0:
+                self.name_input.setCurrentIndex(idx)
+            else:
+                self.name_input.setEditText(self._default)
+        else:
+            self.name_input.setCurrentIndex(-1)
         layout.addWidget(self.name_input)
 
         # OK button

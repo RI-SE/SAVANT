@@ -17,6 +17,7 @@ from edit.frontend.exceptions import (
 )
 from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
+    get_bookmark_notes,
     get_bookmarks,
     get_error_range,
     get_frame_history_count,
@@ -50,12 +51,16 @@ class ProjectConfig:
 
     settings: Dict[str, Any] = field(default_factory=dict)
     annotators: List[str] = field(default_factory=list)
+    last_annotator: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result: Dict[str, Any] = {
             "settings": dict(self.settings or {}),
             "annotators": list(self.annotators or []),
         }
+        if self.last_annotator:
+            result["last_annotator"] = self.last_annotator
+        return result
 
 
 _active_project_dir: Path | None = None
@@ -93,9 +98,11 @@ def _read_config(path: Path) -> ProjectConfig:
         raise FileOperationError(f"Failed to read project config '{path}': {exc}")
     settings = raw.get("settings")
     annotators = raw.get("annotators")
+    last_annotator = raw.get("last_annotator", "")
     normalized = ProjectConfig(
         settings=dict(settings or {}),
         annotators=_normalize_annotators(annotators),
+        last_annotator=str(last_annotator or "").strip(),
     )
     return normalized
 
@@ -142,7 +149,7 @@ def _snapshot_settings() -> Dict[str, Any]:
         "show_warnings": get_show_warnings(),
         "error_range": tuple(get_error_range()),
         "show_errors": get_show_errors(),
-        "bookmarks": get_bookmarks(),
+        "bookmarks": get_bookmark_notes(),
     }
 
 
@@ -256,7 +263,7 @@ def apply_project_settings(config: ProjectConfig | None) -> None:
         set_show_errors(bool(show_errors))
 
     bookmarks = settings.get("bookmarks")
-    if isinstance(bookmarks, list):
+    if isinstance(bookmarks, (list, dict)):
         set_bookmarks(bookmarks)
 
 
@@ -286,7 +293,8 @@ def record_annotator_login(name: str, project_dir: Path | None = None) -> None:
     if normalized.lower() not in lowered:
         annotators.append(normalized)
         config.annotators = annotators
-        _write_config(_config_path(project_dir), config)
+    config.last_annotator = normalized
+    _write_config(_config_path(project_dir), config)
 
 
 def _normalize_annotators(annotators: Any) -> List[str]:
