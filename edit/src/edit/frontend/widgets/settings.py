@@ -9,6 +9,7 @@ from edit.frontend.theme.forms import style_checkbox
 # get_ontology_path,  # manual ontology picker; set_ontology_path,  # Manual ontology picker
 from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
+    get_bbox_zoom_padding,
     get_error_range,
     get_movement_sensitivity,
     get_ontology_namespace,
@@ -118,6 +119,19 @@ class SettingsDialog(QDialog):
         general_form.addRow(
             "Annotation Rotation sensitivity:", self.rotation_sensitivity_spin
         )
+
+        # BBox zoom padding
+        self.bbox_zoom_padding_spin = QDoubleSpinBox()
+        self.bbox_zoom_padding_spin.setRange(1.0, 10.0)
+        self.bbox_zoom_padding_spin.setDecimals(1)
+        self.bbox_zoom_padding_spin.setSingleStep(0.1)
+        self.bbox_zoom_padding_spin.setSuffix(" X")
+        self.bbox_zoom_padding_spin.setValue(float(get_bbox_zoom_padding()))
+        self.bbox_zoom_padding_spin.setToolTip(
+            "Padding multiplier when zooming to a bounding box. "
+            "Higher values show more context around the bbox."
+        )
+        general_form.addRow("BBox zoom padding:", self.bbox_zoom_padding_spin)
 
         form.addRow(general_group)
 
@@ -359,6 +373,7 @@ class SettingsDialog(QDialog):
             "previous_frame_count": int(self.frame_count_spin.value()),
             "movement_sensitivity": float(self.movement_sensitivity_spin.value()),
             "rotation_sensitivity": float(self.rotation_sensitivity_spin.value()),
+            "bbox_zoom_padding": float(self.bbox_zoom_padding_spin.value()),
             "warning_range": (
                 float(self.warning_min_spin.value()),
                 float(self.warning_max_spin.value()),

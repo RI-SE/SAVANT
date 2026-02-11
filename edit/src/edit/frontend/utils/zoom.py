@@ -1,7 +1,7 @@
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QKeySequence, QShortcut
 
-from edit.frontend.utils.settings_store import get_zoom_rate
+from edit.frontend.utils.settings_store import get_bbox_zoom_padding, get_zoom_rate
 
 
 def wire(main_window, initial: float | None = None):
@@ -127,9 +127,43 @@ def wire(main_window, initial: float | None = None):
     ):
         main_window.playback_controls.reset_view_clicked.connect(zoom_fit)
 
+    def zoom_to_bbox(bbox):
+        """Zoom and pan so a BBoxData (video coords) fills the viewport with padding."""
+        vw = main_window.video_widget
+        if not vw._pixmap or vw._pixmap.isNull():
+            return
+        viewport_w = vw.width()
+        viewport_h = vw.height()
+        if bbox.width <= 0 or bbox.height <= 0:
+            return
+
+        PADDING = get_bbox_zoom_padding()
+
+        base_scale = vw._fit_scale()
+        padded_w = bbox.width * PADDING
+        padded_h = bbox.height * PADDING
+
+        new_zoom = _clamp(min(
+            viewport_w / (padded_w * base_scale),
+            viewport_h / (padded_h * base_scale),
+        ))
+
+        new_scale = base_scale * new_zoom
+        new_draw_w = vw._pixmap.width() * new_scale
+        new_draw_h = vw._pixmap.height() * new_scale
+        centered_off_x = (viewport_w - new_draw_w) / 2
+        centered_off_y = (viewport_h - new_draw_h) / 2
+
+        pan_x = viewport_w / 2 - (centered_off_x + bbox.center_x * new_scale)
+        pan_y = viewport_h / 2 - (centered_off_y + bbox.center_y * new_scale)
+
+        _apply_zoom(new_zoom)
+        vw.set_pan(pan_x, pan_y)
+
     main_window.zoom_in = zoom_in
     main_window.zoom_out = zoom_out
     main_window.zoom_fit = zoom_fit
+    main_window.zoom_to_bbox = zoom_to_bbox
     main_window.set_default_zoom = lambda value, *, apply=False: _set_default_zoom(
         value, apply=apply
     )

@@ -33,6 +33,9 @@ _SHORTCUTS: list[tuple[str, str]] = [
     ("", "Annotation Editing"),
     ("Arrow keys", "Move selected bounding box / pan view when zoomed in"),
     ("Shift+Left / Right", "Rotate selected bounding box"),
+    ("Shift+Click", "Select and zoom to bounding box (sidebar list)"),
+    ("Tab", "Cycle to next bounding box (zoomed)"),
+    ("Shift+Tab", "Cycle to previous bounding box (zoomed)"),
     ("Delete", "Delete selected bounding box or frame tag"),
     # -- Seek bar --
     ("", "Seek Bar"),

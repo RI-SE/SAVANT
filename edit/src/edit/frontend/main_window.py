@@ -32,6 +32,7 @@ from edit.frontend.utils.settings_store import (
     set_tag_option_states,
     set_frame_history_count,
     set_zoom_rate,
+    set_bbox_zoom_padding,
 )
 from edit.frontend.utils import (
     annotation_ops,
@@ -320,6 +321,7 @@ class MainWindow(QMainWindow):
             set_zoom_rate(vals.get("zoom_rate", get_zoom_rate()))
             if hasattr(self, "set_default_zoom"):
                 self.set_default_zoom(get_zoom_rate(), apply=True)
+            set_bbox_zoom_padding(vals.get("bbox_zoom_padding", 2.5))
             set_frame_history_count(vals["previous_frame_count"])
             self.sidebar_state.historic_obj_frame_count = get_frame_history_count()
             self.sidebar.refresh_confidence_issue_list()

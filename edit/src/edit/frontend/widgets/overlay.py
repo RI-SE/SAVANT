@@ -2,7 +2,7 @@ import math
 from dataclasses import replace
 from typing import List, Tuple
 
-from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import QWidget
 
@@ -48,6 +48,7 @@ class Overlay(QWidget):
     bounding_box_selected = pyqtSignal(object)  # (object_id)
 
     deletePressed = pyqtSignal()
+    cycle_bbox_requested = pyqtSignal(int)  # +1 next, -1 prev
     cascadeApplyAll = pyqtSignal(
         str, object, object, object, object, object, object
     )  # (object_id, center_x, center_y, width, height, theta, direction).
@@ -937,6 +938,16 @@ class Overlay(QWidget):
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
+
+    def event(self, ev):
+        if ev.type() == QEvent.Type.KeyPress:
+            if ev.key() == Qt.Key.Key_Tab:
+                self.cycle_bbox_requested.emit(1)
+                return True
+            elif ev.key() == Qt.Key.Key_Backtab:
+                self.cycle_bbox_requested.emit(-1)
+                return True
+        return super().event(ev)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Delete and not (

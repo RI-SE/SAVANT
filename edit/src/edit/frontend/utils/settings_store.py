@@ -28,6 +28,7 @@ _tag_frames: dict[str, dict[str, list[int]]] = {"frame": {}, "object": {}}
 _movement_sensitivity: float = 1.0  # default 1.0x
 _rotation_sensitivity: float = 0.1  # default 0.1
 _zoom_rate: float = 1.0
+_bbox_zoom_padding: float = 2.5
 _frame_history_count: int = 50
 _bookmarks: dict[int, str] = {}  # frame -> note
 _DEFAULT_ONTOLOGY_FILES = ("1.3.1.ttl",)
@@ -160,6 +161,17 @@ def set_rotation_sensitivity(value: float) -> None:
     float_value = float(value)
 
     _rotation_sensitivity = float_value
+
+
+def get_bbox_zoom_padding() -> float:
+    """Return the padding multiplier used when zooming to a bounding box."""
+    return float(_bbox_zoom_padding)
+
+
+def set_bbox_zoom_padding(value: float) -> None:
+    """Update the bbox zoom padding multiplier."""
+    global _bbox_zoom_padding
+    _bbox_zoom_padding = max(1.0, float(value))
 
 
 def get_zoom_rate() -> float:

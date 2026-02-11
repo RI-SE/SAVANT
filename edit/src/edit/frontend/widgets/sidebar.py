@@ -13,6 +13,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -85,6 +86,7 @@ class Sidebar(QWidget):
     object_selected = pyqtSignal(str)  # New signal for selection changes
     object_details_changed = pyqtSignal()
     create_relationship = pyqtSignal()  # Signal for creating relationships
+    zoom_to_selected_object = pyqtSignal(str)
 
     def __init__(
         self,
@@ -331,6 +333,8 @@ class Sidebar(QWidget):
         self._selected_annotation_object_id = object_id
         self.highlight_selected_object.emit(object_id)
         self.show_object_editor(object_id, expand=False)
+        if QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier:
+            self.zoom_to_selected_object.emit(object_id)
 
     def select_active_object_by_id(self, object_id: str):
         """Select the active object in the list by its ID."""

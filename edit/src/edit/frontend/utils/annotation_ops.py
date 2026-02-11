@@ -75,6 +75,16 @@ def wire(main_window, frontend_state: FrontendState):
             lambda object_id: highlight_selected_object(main_window, object_id)
         )
 
+    if hasattr(main_window.sidebar, "zoom_to_selected_object"):
+        main_window.sidebar.zoom_to_selected_object.connect(
+            lambda object_id: _zoom_to_object(main_window, object_id)
+        )
+
+    if hasattr(main_window.overlay, "cycle_bbox_requested"):
+        main_window.overlay.cycle_bbox_requested.connect(
+            lambda direction: _cycle_bbox(main_window, direction)
+        )
+
     if hasattr(main_window.video_widget, "bbox_drawn"):
         main_window.video_widget.bbox_drawn.connect(
             lambda annotation: _call_with_annotator(
@@ -214,6 +224,43 @@ def _apply_geometry_update(
 def highlight_selected_object(main_window, object_id: str):
     """Highlight the selected object in the overlay."""
     main_window.overlay.select_box_by_obj_id(object_id)
+
+
+def _zoom_to_object(main_window, object_id: str):
+    """Select the bbox in the overlay and zoom to it."""
+    bbox = main_window.overlay._get_box_by_obj_id(object_id)
+    if bbox is None:
+        return
+    main_window.overlay.select_box_by_obj_id(object_id)
+    if hasattr(main_window, "zoom_to_bbox"):
+        main_window.zoom_to_bbox(bbox)
+
+
+def _cycle_bbox(main_window, direction: int):
+    """Cycle to the next (+1) or previous (-1) bbox and zoom to it.
+
+    Wraps around at list boundaries. If no bbox is selected, selects
+    the first (direction=+1) or last (direction=-1) bbox.
+    """
+    overlay = main_window.overlay
+    boxes = overlay._boxes
+    if not boxes:
+        return
+
+    count = len(boxes)
+    current_idx = overlay._selected_idx
+
+    if current_idx is None:
+        new_idx = 0 if direction > 0 else count - 1
+    else:
+        new_idx = (current_idx + direction) % count
+
+    bbox = boxes[new_idx]
+    overlay.select_box_by_obj_id(bbox.object_id)
+    overlay.bounding_box_selected.emit(bbox.object_id)
+
+    if hasattr(main_window, "zoom_to_bbox"):
+        main_window.zoom_to_bbox(bbox)
 
 
 def highlight_active_obj_list(main_window, object_id: str):
