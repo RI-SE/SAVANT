@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from edit.frontend.utils import render
 from edit.frontend.utils.settings_store import (
+    get_bookmarks,
     get_enabled_tag_frames,
     get_error_range,
     get_show_errors,
@@ -140,3 +141,11 @@ def update_issue_info(main_window) -> None:
         )
 
     playback_controls.display_issue_details(entries)
+
+
+def apply_bookmark_markers(main_window) -> None:
+    """Push bookmarked frame indices from the settings store to the seek bar."""
+    seek_bar = getattr(main_window, "seek_bar", None)
+    if seek_bar is None:
+        return
+    seek_bar.set_bookmark_frames(get_bookmarks())

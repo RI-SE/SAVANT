@@ -17,6 +17,7 @@ from edit.frontend.exceptions import (
 )
 from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
+    get_bookmarks,
     get_error_range,
     get_frame_history_count,
     get_movement_sensitivity,
@@ -28,6 +29,7 @@ from edit.frontend.utils.settings_store import (
     get_warning_range,
     get_zoom_rate,
     set_action_interval_offset,
+    set_bookmarks,
     set_frame_history_count,
     set_movement_sensitivity,
     set_ontology_namespace,
@@ -140,6 +142,7 @@ def _snapshot_settings() -> Dict[str, Any]:
         "show_warnings": get_show_warnings(),
         "error_range": tuple(get_error_range()),
         "show_errors": get_show_errors(),
+        "bookmarks": get_bookmarks(),
     }
 
 
@@ -251,6 +254,10 @@ def apply_project_settings(config: ProjectConfig | None) -> None:
         set_show_warnings(bool(show_warnings))
     if show_errors is not None:
         set_show_errors(bool(show_errors))
+
+    bookmarks = settings.get("bookmarks")
+    if isinstance(bookmarks, list):
+        set_bookmarks(bookmarks)
 
 
 def restore_tag_option_states(project_dir: Path | None = None) -> None:

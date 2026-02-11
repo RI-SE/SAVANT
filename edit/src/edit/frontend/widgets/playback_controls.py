@@ -43,6 +43,7 @@ class PlaybackControls(QWidget):
             btn.setIconSize(icon_size)
             btn.setToolTip(tooltip)
             btn.setFlat(True)
+            btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             return btn
 
         self.btn_prev_frame = make_btn("skip_backward.svg", "Skip -30")

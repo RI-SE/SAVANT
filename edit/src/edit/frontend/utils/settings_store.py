@@ -29,6 +29,7 @@ _movement_sensitivity: float = 1.0  # default 1.0x
 _rotation_sensitivity: float = 0.1  # default 0.1
 _zoom_rate: float = 1.0
 _frame_history_count: int = 50
+_bookmarks: list[int] = []
 _DEFAULT_ONTOLOGY_FILES = ("1.3.1.ttl",)
 
 
@@ -261,6 +262,28 @@ def get_enabled_tag_frames() -> dict[str, list[int]]:
             frames.update(frame_map.get(name, []))
         result[category] = sorted(frames)
     return result
+
+
+def get_bookmarks() -> list[int]:
+    """Return a sorted copy of the bookmarked frame indices."""
+    return list(_bookmarks)
+
+
+def set_bookmarks(frames: list[int]) -> None:
+    """Replace all bookmarks with the given sorted frame indices."""
+    global _bookmarks
+    _bookmarks = sorted({int(f) for f in frames if isinstance(f, (int, float)) and int(f) >= 0})
+
+
+def toggle_bookmark(frame: int) -> bool:
+    """Add or remove a bookmark for the given frame. Returns True if added."""
+    global _bookmarks
+    frame = int(frame)
+    if frame in _bookmarks:
+        _bookmarks = [f for f in _bookmarks if f != frame]
+        return False
+    _bookmarks = sorted(_bookmarks + [frame])
+    return True
 
 
 def get_default_ontology_path() -> Optional[Path]:

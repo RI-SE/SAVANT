@@ -1,13 +1,17 @@
 # edit/frontend/utils/playback.py
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QKeySequence, QShortcut
 
 from edit.frontend.types import BBoxData, BBoxDimensionData
 from edit.frontend.utils.settings_store import (
+    get_bookmarks,
     get_enabled_tag_frames,
     get_show_errors,
     get_show_warnings,
+    toggle_bookmark,
 )
 
+from .confidence_ops import apply_bookmark_markers
 from .render import show_frame
 
 
@@ -81,6 +85,33 @@ def wire(main_window):
                 main_window.playback_controls, bbox_data
             ),
         )
+
+    # --- Keyboard shortcuts ---
+    QShortcut(
+        QKeySequence(Qt.Key.Key_Space),
+        main_window,
+        activated=lambda: _step_once(main_window, direction=+1),
+    )
+    QShortcut(
+        QKeySequence("Ctrl+G"),
+        main_window,
+        activated=lambda: main_window.seek_bar.activate_frame_input(),
+    )
+    QShortcut(
+        QKeySequence("Ctrl+B"),
+        main_window,
+        activated=lambda: _toggle_bookmark(main_window),
+    )
+    QShortcut(
+        QKeySequence("Ctrl+Shift+N"),
+        main_window,
+        activated=lambda: _jump_to_bookmark(main_window, direction=+1),
+    )
+    QShortcut(
+        QKeySequence("Ctrl+Shift+P"),
+        main_window,
+        activated=lambda: _jump_to_bookmark(main_window, direction=-1),
+    )
 
 
 def _safe_connect(signal, slot):
@@ -185,6 +216,35 @@ def _jump_to_issue_frame(main_window, direction: int):
     except Exception:
         _stop(main_window)
         raise
+
+
+def _toggle_bookmark(main_window):
+    """Toggle a bookmark on the current frame and refresh seek bar markers."""
+    try:
+        frame = int(main_window.video_controller.current_index())
+    except Exception:
+        return
+    toggle_bookmark(frame)
+    apply_bookmark_markers(main_window)
+
+
+def _jump_to_bookmark(main_window, direction: int):
+    """Jump to the next or previous bookmarked frame."""
+    bookmarks = get_bookmarks()
+    if not bookmarks:
+        return
+    try:
+        current = int(main_window.video_controller.current_index())
+    except Exception:
+        return
+    target = _select_issue_frame(bookmarks, current, direction)
+    if target is None or target == current:
+        return
+    try:
+        pixmap, idx = main_window.video_controller.jump_to_frame(target)
+        show_frame(main_window, pixmap, idx)
+    except Exception:
+        pass
 
 
 def _collect_visible_issue_frames(main_window) -> list[int]:
