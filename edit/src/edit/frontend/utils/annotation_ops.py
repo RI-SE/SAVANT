@@ -451,6 +451,35 @@ def _frames_to_ranges(frames: list[int]) -> str:
     return ", ".join(range_strs)
 
 
+def _cascade_property_description(center_x, center_y, width, height, rotation) -> str:
+    """Build a human-readable list of properties being cascaded."""
+    parts = []
+    if center_x is not None or center_y is not None:
+        parts.append("position")
+    if width is not None or height is not None:
+        parts.append("size")
+    if rotation is not None:
+        parts.append("rotation")
+    return ", ".join(parts) or "properties"
+
+
+def _confirm_cascade(main_window, object_id, property_desc, frame_range_str) -> bool:
+    """Show a confirmation dialog before executing a cascade operation."""
+    result = QMessageBox.warning(
+        main_window,
+        "Cascade Operation",
+        f"This will overwrite the <b>{property_desc}</b> of object "
+        f"'{object_id}' on frames {frame_range_str} with values from "
+        f"the current frame.\n\n"
+        f"Existing per-frame adjustments (e.g. from tracking) on those "
+        f"frames will be lost.\n\n"
+        f"Continue?",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    return result == QMessageBox.StandardButton.Yes
+
+
 def _apply_cascade_all_frames(
     main_window,
     object_id: str,
@@ -472,6 +501,14 @@ def _apply_cascade_all_frames(
     else:  # backwards
         start_frame = 0
         end_frame = current_frame
+
+    prop_desc = _cascade_property_description(
+        center_x, center_y, new_width, new_height, new_rotation
+    )
+    if not _confirm_cascade(
+        main_window, object_id, prop_desc, f"{start_frame}–{end_frame}"
+    ):
+        return
 
     command = CascadeBBoxCommand(
         object_id=str(object_id),
@@ -551,6 +588,14 @@ def _apply_cascade_next_frames(
     else:  # backwards
         start_frame = current_frame - num_frames
         end_frame = current_frame - 1
+
+    prop_desc = _cascade_property_description(
+        center_x, center_y, width, height, rotation
+    )
+    if not _confirm_cascade(
+        main_window, object_id, prop_desc, f"{start_frame}–{end_frame}"
+    ):
+        return
 
     command = CascadeBBoxCommand(
         object_id=str(object_id),

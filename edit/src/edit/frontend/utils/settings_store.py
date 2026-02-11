@@ -316,7 +316,7 @@ def set_bookmark_note(frame: int, note: str) -> None:
 
 def toggle_bookmark(frame: int) -> bool:
     """Add or remove a bookmark for the given frame. Returns True if added."""
-    global _bookmarks
+    global _bookmarks  # noqa: F824 (del and item assignment need global)
     frame = int(frame)
     if frame in _bookmarks:
         del _bookmarks[frame]

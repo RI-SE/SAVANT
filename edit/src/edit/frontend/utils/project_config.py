@@ -18,7 +18,6 @@ from edit.frontend.exceptions import (
 from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
     get_bookmark_notes,
-    get_bookmarks,
     get_error_range,
     get_frame_history_count,
     get_movement_sensitivity,

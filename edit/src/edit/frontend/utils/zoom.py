@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QPointF, Qt
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeySequence, QShortcut
 
 from edit.frontend.utils.settings_store import get_bbox_zoom_padding, get_zoom_rate
