@@ -151,10 +151,13 @@ markit --input video.mp4 --output_json output.json --housekeeping
 | Gap Filling | Interpolates detections across small gaps |
 | Duplicate Removal | Removes overlapping detections using IoU thresholds |
 | First Detection Refinement | Refines initial detection angles using lookahead |
+| Bbox Smoothing | Applies temporal smoothing to position and size (reduces jitter) |
 | Rotation Adjustment | Smooths rotation using movement direction |
 | Sudden Detection | Flags objects appearing/disappearing far from frame edges |
 | Frame Interval | Calculates frame intervals for each object |
 | Static Object Removal | Removes or marks objects that don't move |
+
+For detailed algorithm descriptions and tuning guidelines, see [Postprocessing Technical Reference](docs/postprocessing.md).
 
 ### Postprocessing Options
 
@@ -164,7 +167,7 @@ markit --input video.mp4 --output_json output.json --housekeeping \
        --duplicate-min-iou 0.3 \
        --rotation-threshold 0.1 \
        --min-movement-pixels 5.0 \
-       --temporal-smoothing 0.3 \
+       --rotation-smoothing 0.5 \
        --edge-distance 200 \
        --static-threshold 20 \
        --static-mark  # Mark instead of remove
@@ -567,7 +570,7 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--duplicate-min-iou` | `0.3` | Minimum IoU for duplicate detection |
 | `--rotation-threshold` | `0.1` | Rotation adjustment threshold (radians) |
 | `--min-movement-pixels` | `5.0` | Minimum movement for rotation calculation |
-| `--temporal-smoothing` | `0.3` | Temporal smoothing factor (0-1) |
+| `--rotation-smoothing` | `0.5` | Rotation temporal smoothing factor (0-1) |
 | `--edge-distance` | `200` | Edge distance for sudden detection (pixels) |
 | `--static-threshold` | `20` | Static object movement threshold (pixels) |
 | `--static-mark` | false | Mark static objects instead of removing |

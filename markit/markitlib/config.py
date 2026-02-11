@@ -20,7 +20,7 @@ from . import __version__
 class Constants:
     """Constants used throughout the application."""
 
-    MP4V_FOURCC = "mp4v"
+    MP4V_FOURCC = "mp4v"  # MPEG-4 Part 2 (widely supported; H.264 tried first if available)
     SCHEMA_VERSION = "1.1"
     ANNOTATOR_NAME = f"SAVANT markit v{__version__}"
     # Fallback class map used when ontology file cannot be loaded
@@ -53,11 +53,48 @@ class DetectionResult:
 
 @dataclass
 class OpticalFlowParams:
-    """Parameters for optical flow detection."""
+    """Parameters for optical flow detection.
 
-    motion_threshold: float = 0.5
-    min_area: int = 200
-    morph_kernel_size: int = 9
+    Attributes:
+        motion_threshold: Threshold for motion magnitude detection.
+        min_area: Minimum contour area in pixels at full resolution (scaled with processing_scale²).
+        max_area: Maximum contour area in pixels at full resolution (scaled with processing_scale², 0 to disable).
+        algorithm: Optical flow algorithm - "dis", "farneback", or "lucas_kanade".
+        temporal_smoothing: Weight for exponential moving average smoothing (0=no smoothing, 1=full).
+        pyramid_levels: Number of pyramid levels for Farneback algorithm.
+        window_size: Averaging window size for Farneback algorithm.
+        iterations: Iterations per pyramid level for Farneback algorithm.
+        median_filter_size: Median filter kernel size (0 to disable).
+        debug_visualization: Enable caching of intermediate data for visualization.
+        processing_scale: Scale factor for frame downscaling before flow computation (0.25-1.0).
+        track_max_age: Maximum frames a track can be unmatched before expiring.
+        track_min_iou: Minimum IoU overlap for track association (prevents merging nearby vehicles).
+        mask_mode: How to combine bg subtraction and optical flow masks ("or", "and", "flow_only", "bg_only").
+        dilate_kernel_size: Dilation kernel size for motion mask (0 to disable).
+        morph_close_size: MORPH_CLOSE kernel size (0 to disable).
+        morph_open_size: MORPH_OPEN kernel size (0 to disable).
+        exclusion_mask: Path to mask image for excluding regions from detection (black areas = excluded).
+    """
+
+    motion_threshold: float = 1.0  # Increased from 0.5 for drone footage
+    track_max_age: int = 10  # Frames before track expires (prevents ID reuse)
+    track_min_iou: float = 0.1  # Minimum IoU for track association (prevents track merging)
+    min_area: int = 2000  # For full resolution, scaled down with processing_scale²
+    max_area: int = 30000  # For full resolution, scaled down with processing_scale² (0 to disable)
+    algorithm: str = "dis"
+    temporal_smoothing: float = 0.3
+    pyramid_levels: int = 7
+    window_size: int = 25
+    iterations: int = 5
+    median_filter_size: int = 5
+    debug_visualization: bool = False
+    processing_scale: float = 0.5  # Downscale factor for flow computation (0.25 = 1/4 res)
+    # Mask combination and morphological tuning parameters
+    mask_mode: str = "flow_only"  # "or", "and", "flow_only", "bg_only"
+    dilate_kernel_size: int = 0  # Dilation for motion mask (0 to disable)
+    morph_close_size: int = 3  # MORPH_CLOSE kernel size (0 to disable)
+    morph_open_size: int = 5  # MORPH_OPEN kernel size (0 to disable)
+    exclusion_mask: Optional[str] = None  # Path to mask image for excluding regions from detection
 
 
 @dataclass
@@ -116,7 +153,23 @@ class MarkitConfig:
 
         # Optical flow parameters
         self.optical_flow_params = OpticalFlowParams(
-            motion_threshold=args.motion_threshold, min_area=args.min_object_area
+            motion_threshold=args.motion_threshold,
+            min_area=args.min_object_area,
+            max_area=getattr(args, "max_object_area", 30000),
+            algorithm=getattr(args, "flow_algorithm", "dis"),
+            temporal_smoothing=getattr(args, "flow_temporal_smoothing", 0.3),
+            pyramid_levels=getattr(args, "flow_pyramid_levels", 7),
+            window_size=getattr(args, "flow_window_size", 25),
+            iterations=getattr(args, "flow_iterations", 5),
+            median_filter_size=getattr(args, "flow_median_filter", 5),
+            debug_visualization=getattr(args, "debug_flow", False),
+            processing_scale=getattr(args, "flow_scale", 0.5),
+            track_max_age=getattr(args, "track_max_age", 10),
+            mask_mode=getattr(args, "flow_mask_mode", "or"),
+            dilate_kernel_size=getattr(args, "flow_dilate_size", 5),
+            morph_close_size=getattr(args, "flow_morph_close", 5),
+            morph_open_size=getattr(args, "flow_morph_open", 5),
+            exclusion_mask=getattr(args, "exclusion_mask", None),
         )
 
         # IoU-based conflict resolution configuration
@@ -128,12 +181,32 @@ class MarkitConfig:
         self.enable_housekeeping = args.housekeeping
         self.duplicate_avg_iou = args.duplicate_avg_iou
         self.duplicate_min_iou = args.duplicate_min_iou
+        self.duplicate_min_shared_ratio = getattr(args, "duplicate_min_shared_ratio", 0.5)
+        self.duplicate_iomin = getattr(args, "duplicate_iomin", 0.7)
+        self.smooth_position = not getattr(args, "no_position_smoothing", False)
         self.rotation_threshold = args.rotation_threshold
         self.min_movement_pixels = args.min_movement_pixels
-        self.temporal_smoothing = args.temporal_smoothing
+        self.rotation_smoothing = args.rotation_smoothing
+        self.min_total_movement = args.min_total_movement
+        self.max_rotation_change = args.max_rotation_change
         self.edge_distance = args.edge_distance
         self.static_threshold = args.static_threshold
         self.static_mark = args.static_mark
+
+        # Individual pass toggles (only relevant when housekeeping is enabled)
+        self.no_gap_detection = getattr(args, "no_gap_detection", False)
+        self.no_gap_filling = getattr(args, "no_gap_filling", False)
+        self.max_gap_size = getattr(args, "max_gap_size", 30)
+        self.no_first_detection_refinement = getattr(args, "no_first_detection_refinement", False)
+        self.no_size_outlier_filter = getattr(args, "no_size_outlier_filter", False)
+        self.no_bbox_smoothing = getattr(args, "no_bbox_smoothing", False)
+        self.no_rotation_jump_fix = getattr(args, "no_rotation_jump_fix", False)
+        self.no_rotation_adjustment = getattr(args, "no_rotation_adjustment", False)
+        self.no_duplicate_removal = getattr(args, "no_duplicate_removal", False)
+        self.no_sudden_detection = getattr(args, "no_sudden_detection", False)
+        self.no_size_step_detection = getattr(args, "no_size_step_detection", False)
+        self.no_frame_intervals = getattr(args, "no_frame_intervals", False)
+        self.no_angle_normalization = getattr(args, "no_angle_normalization", False)
 
         # Logging configuration
         self.verbose = args.verbose if hasattr(args, "verbose") else False

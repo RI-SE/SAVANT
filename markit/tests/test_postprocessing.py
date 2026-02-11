@@ -8,6 +8,7 @@ from markit.markitlib.postprocessing import (
     PostprocessingPipeline,
     GapDetectionPass,
     AngleNormalizationPass,
+    DuplicateRemovalPass,
     FrameIntervalPass,
 )
 
@@ -215,3 +216,202 @@ class TestFrameIntervalPass:
 
         assert isinstance(stats, dict)
         assert "intervals_added" in stats
+
+
+def _make_frame_object(annotator, x=100, y=100, w=50, h=30, r=0.0, conf=0.9):
+    """Helper to create a frame object entry with annotator and bbox."""
+    return {
+        "object_data": {
+            "rbbox": [{"name": "shape", "val": [x, y, w, h, r]}],
+            "vec": [
+                {"name": "annotator", "val": [annotator]},
+                {"name": "confidence", "val": [conf]},
+            ],
+        }
+    }
+
+
+class TestDuplicateRemovalPass:
+    """Tests for DuplicateRemovalPass, including frame transfer on merge."""
+
+    def test_duplicate_removal_initialization(self):
+        """Test duplicate removal pass initialization."""
+        dup_pass = DuplicateRemovalPass()
+        assert dup_pass.objects_deleted == 0
+        assert dup_pass.frames_merged == 0
+
+    def test_duplicate_blanket_delete_shared_frames(self):
+        """Test that shared frames are deleted from the duplicate, not transferred."""
+        # obj_a (yolo): frames 0-4
+        # obj_b (oflow): frames 0-4  (complete overlap)
+        # Result: obj_b deleted, no frames transferred (all shared)
+        frames = {}
+        for i in range(5):
+            frames[str(i)] = {
+                "objects": {
+                    "obj_a": _make_frame_object("yolo", x=100 + i),
+                    "obj_b": _make_frame_object("oflow", x=101 + i),
+                }
+            }
+
+        data = {
+            "openlabel": {
+                "frames": frames,
+                "objects": {
+                    "obj_a": {"name": "obj_a", "type": "car"},
+                    "obj_b": {"name": "obj_b", "type": "car"},
+                },
+            }
+        }
+
+        dup_pass = DuplicateRemovalPass()
+        result = dup_pass.process(data)
+
+        result_objects = result["openlabel"]["objects"]
+        assert "obj_a" in result_objects
+        assert "obj_b" not in result_objects
+        assert dup_pass.frames_merged == 0
+        assert dup_pass.frames_modified == 5
+
+    def test_exclusive_frames_transferred_to_kept_object(self):
+        """Test that frames exclusive to the deleted object are merged into the kept object.
+
+        Simulates the Ekas_both_hk scenario:
+        - obj_yolo (yolo): frames 0-5
+        - obj_oflow (oflow): frames 3-9  (overlaps 3-5, exclusive 6-9)
+
+        After duplicate removal, obj_yolo should own frames 0-9,
+        with frames 6-9 transferred from obj_oflow.
+        """
+        frames = {}
+        # Frames 0-2: only yolo
+        for i in range(3):
+            frames[str(i)] = {
+                "objects": {
+                    "obj_yolo": _make_frame_object("yolo", x=100 + i * 5),
+                }
+            }
+        # Frames 3-5: both yolo and oflow (shared, high IoU)
+        for i in range(3, 6):
+            frames[str(i)] = {
+                "objects": {
+                    "obj_yolo": _make_frame_object("yolo", x=100 + i * 5),
+                    "obj_oflow": _make_frame_object("oflow", x=101 + i * 5),
+                }
+            }
+        # Frames 6-9: only oflow (exclusive to deleted object)
+        for i in range(6, 10):
+            frames[str(i)] = {
+                "objects": {
+                    "obj_oflow": _make_frame_object("oflow", x=101 + i * 5),
+                }
+            }
+
+        data = {
+            "openlabel": {
+                "frames": frames,
+                "objects": {
+                    "obj_yolo": {"name": "obj_yolo", "type": "car"},
+                    "obj_oflow": {"name": "obj_oflow", "type": "car"},
+                },
+            }
+        }
+
+        dup_pass = DuplicateRemovalPass()
+        result = dup_pass.process(data)
+
+        result_objects = result["openlabel"]["objects"]
+        result_frames = result["openlabel"]["frames"]
+
+        # oflow object entry should be deleted
+        assert "obj_oflow" not in result_objects
+        assert "obj_yolo" in result_objects
+
+        # Exclusive frames 6-9 should now belong to obj_yolo
+        for i in range(6, 10):
+            frame_objs = result_frames[str(i)]["objects"]
+            assert "obj_yolo" in frame_objs, f"Frame {i}: obj_yolo missing after merge"
+            assert "obj_oflow" not in frame_objs, f"Frame {i}: obj_oflow not removed"
+
+        # Original yolo frames 0-5 should still be there
+        for i in range(6):
+            assert "obj_yolo" in result_frames[str(i)]["objects"]
+
+        # Verify statistics
+        assert dup_pass.frames_merged == 4  # frames 6,7,8,9
+        assert dup_pass.frames_modified == 3  # shared frames 3,4,5
+        assert dup_pass.objects_deleted == 1
+
+    def test_iomin_detects_containment_duplicate(self):
+        """Test that IoMin catches a large bbox enveloping a smaller one.
+
+        When a large oflow bbox fully contains a smaller yolo bbox, IoU is low
+        (suppressed by the large union) but IoMin is high. The IoMin criterion
+        should flag them as duplicates.
+        """
+        # obj_yolo: small bbox (50x30)
+        # obj_oflow: large bbox (200x150) at same center — contains yolo entirely
+        # IoU ≈ (50*30) / (200*150) ≈ 0.05, but IoMin ≈ 1.0
+        frames = {}
+        for i in range(5):
+            frames[str(i)] = {
+                "objects": {
+                    "obj_yolo": _make_frame_object("yolo", x=200, y=200, w=50, h=30),
+                    "obj_oflow": _make_frame_object("oflow", x=200, y=200, w=200, h=150),
+                }
+            }
+
+        data = {
+            "openlabel": {
+                "frames": frames,
+                "objects": {
+                    "obj_yolo": {"name": "obj_yolo", "type": "car"},
+                    "obj_oflow": {"name": "obj_oflow", "type": "car"},
+                },
+            }
+        }
+
+        dup_pass = DuplicateRemovalPass(iomin_threshold=0.7)
+        result = dup_pass.process(data)
+
+        # oflow should be removed as duplicate (lower priority engine)
+        assert "obj_yolo" in result["openlabel"]["objects"]
+        assert "obj_oflow" not in result["openlabel"]["objects"]
+        assert dup_pass.duplicate_pairs_found == 1
+
+    def test_iomin_no_false_positive_on_partial_overlap(self):
+        """Test that IoMin doesn't flag objects with only partial overlap."""
+        # Two bboxes side by side with small overlap — IoMin should be below threshold
+        frames = {}
+        for i in range(5):
+            frames[str(i)] = {
+                "objects": {
+                    "obj_a": _make_frame_object("yolo", x=100, y=100, w=50, h=30),
+                    "obj_b": _make_frame_object("oflow", x=140, y=100, w=50, h=30),
+                }
+            }
+
+        data = {
+            "openlabel": {
+                "frames": frames,
+                "objects": {
+                    "obj_a": {"name": "obj_a", "type": "car"},
+                    "obj_b": {"name": "obj_b", "type": "car"},
+                },
+            }
+        }
+
+        dup_pass = DuplicateRemovalPass(iomin_threshold=0.7)
+        result = dup_pass.process(data)
+
+        # Both should survive — partial overlap is not containment
+        assert "obj_a" in result["openlabel"]["objects"]
+        assert "obj_b" in result["openlabel"]["objects"]
+        assert dup_pass.duplicate_pairs_found == 0
+
+    def test_merge_statistics_in_get_statistics(self):
+        """Test that frames_merged appears in statistics output."""
+        dup_pass = DuplicateRemovalPass()
+        stats = dup_pass.get_statistics()
+        assert "frames_merged" in stats
+        assert stats["frames_merged"] == 0

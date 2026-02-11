@@ -40,6 +40,12 @@ from savant_common.openlabel import (
     normalize_angle_to_2pi_range,
 )
 
+from savant_common.resources import (
+    get_ontology_path,
+    get_schema_path,
+    get_weights_path,
+)
+
 __all__ = [
     # Ontology
     'read_ontology_classes',
@@ -60,4 +66,8 @@ __all__ = [
     'NumpyEncoder',
     # Utilities
     'normalize_angle_to_2pi_range',
+    # Resource path resolution
+    'get_ontology_path',
+    'get_schema_path',
+    'get_weights_path',
 ]

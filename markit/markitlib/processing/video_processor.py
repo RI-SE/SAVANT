@@ -172,11 +172,14 @@ class VideoProcessor:
             return False, None
         return self.cap.read()
 
-    def process_frame(self, frame: np.ndarray) -> List[DetectionResult]:
+    def process_frame(
+        self, frame: np.ndarray, frame_idx: Optional[int] = None
+    ) -> List[DetectionResult]:
         """Process frame with all engines and resolve conflicts.
 
         Args:
             frame: Input frame
+            frame_idx: Optional frame index for logging
 
         Returns:
             Merged detection results with conflicts resolved
@@ -193,7 +196,9 @@ class VideoProcessor:
 
         # Resolve conflicts if multiple engines and conflict resolution enabled
         if self.conflict_resolver and len(all_results) > 1:
-            resolved_results = self.conflict_resolver.resolve_conflicts(all_results)
+            resolved_results = self.conflict_resolver.resolve_conflicts(
+                all_results, frame_idx=frame_idx
+            )
             return resolved_results
 
         return all_results
@@ -256,17 +261,12 @@ class FrameAnnotator:
         if class_map is None:
             class_map = Constants.DEFAULT_CLASS_MAP
 
-        # Color map for different engines
+        # Color map for detection engines only
         color_map = {
             "yolo": (0, 255, 0),  # Green
             "optical_flow": (255, 0, 0),  # Blue
             "aruco": (0, 165, 255),  # Orange
-            "postprocessed_gap": (
-                255,
-                0,
-                255,
-            ),  # Magenta (gap filling - higher priority)
-            "postprocessed_rot": (255, 255, 0),  # Cyan (rotation adjustment)
+            "gap": (255, 0, 255),  # Magenta for gap-filled (interpolated) frames
         }
 
         for detection in detection_results:
@@ -304,7 +304,14 @@ class FrameAnnotator:
                 )
                 label_parts.append(f"{class_name}")
                 label_parts.append(f"{detection.confidence:.2f}")
-                label_parts.append(f"[{detection.source_engine}]")
+
+                # Add source engine with optional housekeeping tags
+                # Format: [yolo](rot,90fix) or just [yolo] if no housekeeping
+                engine_label = f"[{detection.source_engine}]"
+                housekeeping_tags = getattr(detection, "housekeeping_tags", [])
+                if housekeeping_tags:
+                    engine_label += f"({','.join(housekeeping_tags)})"
+                label_parts.append(engine_label)
 
                 label = " ".join(label_parts)
 

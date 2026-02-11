@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "savant"
-version = "2.0.3"
+version = "2.1.0"
 description = "SAVANT - Semi-automated video annotation toolkit for UAV object detection"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -31,7 +31,7 @@ markit = [
     "pydantic>=2.0",
     "rdflib",
     "httpx>=0.24.0",
-    "dataprov @ git+https://github.com/RI-SE/dataprov.git",
+    "dataprov>=3.0.2",
     "PyQt6>=6.5.0",
     "matplotlib>=3.7.0",
 ]
@@ -46,7 +46,7 @@ trainit = [
 ]
 edit = [
     "pyqt6<=6.9.1",
-    "opencv-python>=4.10.0",
+    "opencv-contrib-python>=4.10.0",
     "numpy>=1.26.0",
     "pydantic>=2.11.7",
     "appdirs>=1.4.4",
@@ -72,6 +72,10 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["savant_common", "markit", "trainit", "utils", "edit/src/edit"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"ontology" = "savant_common/ontology"
+"schema" = "savant_common/schema"
 
 [tool.pytest.ini_options]
 testpaths = ["markit/tests", "edit/tests", "trainit/tests"]

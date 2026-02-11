@@ -29,12 +29,13 @@ class DetectionConflictResolver:
             )
 
     def resolve_conflicts(
-        self, detection_results: List[DetectionResult]
+        self, detection_results: List[DetectionResult], frame_idx: int = None
     ) -> List[DetectionResult]:
         """Resolve conflicts between detection results using IoU with YOLO precedence.
 
         Args:
             detection_results: List of detection results from all engines
+            frame_idx: Optional frame index for logging
 
         Returns:
             Filtered list with conflicts resolved
@@ -58,18 +59,13 @@ class DetectionConflictResolver:
 
         # Filter optical flow results that conflict with YOLO
         filtered_optical_flow = self._filter_conflicting_detections_iou(
-            primary_detections=yolo_results, secondary_detections=optical_flow_results
+            primary_detections=yolo_results,
+            secondary_detections=optical_flow_results,
+            frame_idx=frame_idx,
         )
 
         final_results.extend(filtered_optical_flow)
         final_results.extend(other_results)
-
-        if self.config.enable_logging:
-            conflicts = len(optical_flow_results) - len(filtered_optical_flow)
-            if conflicts > 0:
-                logger.info(
-                    f"Resolved {conflicts} conflicts using IoU threshold {self.config.iou_threshold:.2f}"
-                )
 
         return final_results
 
@@ -77,12 +73,14 @@ class DetectionConflictResolver:
         self,
         primary_detections: List[DetectionResult],
         secondary_detections: List[DetectionResult],
+        frame_idx: int = None,
     ) -> List[DetectionResult]:
         """Filter secondary detections that conflict with primary detections using IoU.
 
         Args:
             primary_detections: High-priority detections (e.g., YOLO)
             secondary_detections: Lower-priority detections (e.g., optical flow)
+            frame_idx: Optional frame index for logging
 
         Returns:
             Filtered secondary detections with IoU conflicts removed
@@ -114,9 +112,12 @@ class DetectionConflictResolver:
             else:
                 self.conflicts_resolved += 1
                 if self.config.enable_logging:
-                    logger.debug(
-                        f"Conflict resolved: {secondary_det.source_engine} "
-                        f"(IoU={max_iou:.3f}) dropped in favor of {conflicting_primary.source_engine}"
+                    frame_str = f"frame {frame_idx}: " if frame_idx is not None else ""
+                    secondary_id = secondary_det.object_id or "?"
+                    primary_id = conflicting_primary.object_id or "?"
+                    logger.info(
+                        f"{frame_str}conflict resolved: "
+                        f"optical_flow obj {secondary_id} dropped (IoU={max_iou:.2f} with yolo obj {primary_id})"
                     )
 
         return filtered_results

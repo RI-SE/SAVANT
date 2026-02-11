@@ -24,8 +24,17 @@ Optional Arguments:
 
 Detection Configuration:
     --detection-method   Detection method: yolo, optical_flow, or both (default: yolo)
-    --motion-threshold   Optical flow motion threshold (default: 0.5)
-    --min-object-area    Minimum object area for optical flow detection (default: 200)
+    --motion-threshold   Optical flow motion threshold (default: 1.0)
+    --min-object-area    Minimum object area at full resolution (default: 2000)
+    --max-object-area    Maximum object area at full resolution (default: 30000, 0 to disable)
+    --flow-scale         Scale factor for optical flow processing (default: 0.5)
+    --flow-algorithm     Optical flow algorithm: dis, farneback, lucas_kanade (default: dis)
+    --flow-temporal-smoothing  Temporal smoothing factor (0-1, default: 0.3)
+    --flow-pyramid-levels      Pyramid levels for Farneback (default: 7)
+    --flow-window-size         Window size for Farneback (default: 25)
+    --flow-iterations          Iterations for Farneback (default: 5)
+    --flow-median-filter       Median filter size for noise reduction (default: 5, 0 to disable)
+    --debug-flow         Enable optical flow visualization in output video (magnitude heatmap)
     --aruco-dict         ArUco dictionary type (default: DICT_4X4_50)
 
 Conflict Resolution:
@@ -35,14 +44,30 @@ Conflict Resolution:
 
 Postprocessing (Housekeeping):
     --housekeeping       Enable postprocessing passes (gap detection, filling, duplicate removal, etc.)
-    --duplicate-avg-iou  Average IOU threshold for duplicate detection (default: 0.7)
-    --duplicate-min-iou  Minimum IOU threshold for duplicate detection (default: 0.3)
+    --duplicate-avg-iou  Average IOU threshold for duplicate detection (default: 0.3)
+    --duplicate-min-iou  Minimum IOU threshold for duplicate detection (default: 0.2)
+    --duplicate-iomin    IoMin threshold for containment-based duplicate detection (default: 0.7)
     --rotation-threshold Rotation angle threshold in radians for adjustment (default: 0.1)
     --min-movement-pixels Minimum movement in pixels for rotation calculation (default: 5.0)
-    --temporal-smoothing Temporal smoothing factor for rotation, 0-1 (default: 0.3)
+    --rotation-smoothing Temporal smoothing factor for rotation, 0-1 (default: 0.5)
+    --min-total-movement Minimum cumulative movement to trust direction (default: 30.0)
+    --max-rotation-change Maximum rotation change per frame in radians (default: 0.524 ≈ 30°)
     --edge-distance      Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)
     --static-threshold   Movement threshold in pixels for static object removal (default: 20, negative disables)
     --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
+    --no-gap-detection   Disable gap detection pass
+    --no-gap-filling     Disable gap filling pass
+    --max-gap-size       Maximum gap size in frames to interpolate (default: 30)
+    --no-first-detection-refinement  Disable first detection refinement pass
+    --no-size-outlier-filter  Disable size outlier filter pass
+    --no-bbox-smoothing  Disable bounding box smoothing pass
+    --no-rotation-jump-fix  Disable 90°/180° rotation jump fix pass
+    --no-rotation-adjustment  Disable rotation adjustment pass
+    --no-duplicate-removal  Disable duplicate removal pass
+    --no-sudden-detection  Disable sudden appear/disappear detection pass
+    --no-size-step-detection  Disable size step detection pass
+    --no-frame-intervals  Disable frame intervals pass
+    --no-angle-normalization  Disable angle normalization pass
 
 VLM Scene Analysis:
     --vlm                Enable VLM-based scene analysis for scenario tagging
@@ -82,6 +107,7 @@ from ultralytics import __version__ as ultralytics_version
 
 # Import from markitlib package
 from markit.markitlib import MarkitConfig, __version__
+from savant_common.resources import get_ontology_path, get_schema_path, get_weights_path
 from markit.markitlib.processing import VideoProcessor
 from markit.markitlib.openlabel import OpenLabelHandler
 from markit.markitlib.outputvideo import render_output_video
@@ -91,6 +117,10 @@ from markit.markitlib.postprocessing import (
     GapFillingPass,
     DuplicateRemovalPass,
     FirstDetectionRefinementPass,
+    BboxSmoothingPass,
+    SizeOutlierFilterPass,
+    SizeStepDetectionPass,
+    Rotation90JumpFixPass,
     RotationAdjustmentPass,
     SuddenPass,
     FrameIntervalPass,
@@ -154,18 +184,18 @@ Examples:
     optional = parser.add_argument_group("Optional Arguments")
     optional.add_argument(
         "--weights",
-        default="markit_yolo.pt",
-        help="Path to YOLO weights file (.pt) (default: markit_yolo.pt)",
+        default=None,
+        help="Path to YOLO weights file (.pt) (auto-downloads if not found)",
     )
     optional.add_argument(
         "--schema",
-        default="../schema/savant_openlabel_subset.schema.json",
-        help="Path to OpenLabel JSON schema file (default: ../schema/savant_openlabel_subset.schema.json)",
+        default=None,
+        help="Path to OpenLabel JSON schema file (uses package default if not specified)",
     )
     optional.add_argument(
         "--ontology",
-        default="../ontology/savant.ttl",
-        help="Path to SAVANT ontology file for class mapping (default: ../ontology/savant.ttl)",
+        default=None,
+        help="Path to SAVANT ontology file for class mapping (uses package default if not specified)",
     )
     optional.add_argument(
         "--ontology-uri",
@@ -199,14 +229,73 @@ Examples:
     detection.add_argument(
         "--motion-threshold",
         type=float,
-        default=0.5,
-        help="Optical flow motion threshold (default: 0.5)",
+        default=1.0,
+        help="Optical flow motion threshold (default: 1.0)",
     )
     detection.add_argument(
         "--min-object-area",
         type=int,
-        default=200,
-        help="Minimum object area for optical flow detection (default: 200)",
+        default=2000,
+        help="Minimum object area in pixels at full resolution, scaled with flow-scale² (default: 2000)",
+    )
+    detection.add_argument(
+        "--max-object-area",
+        type=int,
+        default=30000,
+        help="Maximum object area in pixels at full resolution, scaled with flow-scale² (0 to disable, default: 30000)",
+    )
+    detection.add_argument(
+        "--track-max-age",
+        type=int,
+        default=10,
+        help="Maximum frames a track can be unmatched before expiring (default: 10)",
+    )
+    detection.add_argument(
+        "--flow-algorithm",
+        choices=["dis", "farneback", "lucas_kanade"],
+        default="dis",
+        help="Optical flow algorithm: dis (faster, recommended), farneback, lucas_kanade (default: dis)",
+    )
+    detection.add_argument(
+        "--flow-temporal-smoothing",
+        type=float,
+        default=0.3,
+        help="Temporal smoothing for flow (0=no smoothing, 1=full smoothing, default: 0.3)",
+    )
+    detection.add_argument(
+        "--flow-pyramid-levels",
+        type=int,
+        default=7,
+        help="Pyramid levels for Farneback algorithm (default: 7)",
+    )
+    detection.add_argument(
+        "--flow-window-size",
+        type=int,
+        default=25,
+        help="Window size for Farneback algorithm (default: 25)",
+    )
+    detection.add_argument(
+        "--flow-iterations",
+        type=int,
+        default=5,
+        help="Iterations per pyramid level for Farneback (default: 5)",
+    )
+    detection.add_argument(
+        "--flow-median-filter",
+        type=int,
+        default=5,
+        help="Median filter size for flow noise reduction (0 to disable, default: 5)",
+    )
+    detection.add_argument(
+        "--debug-flow",
+        action="store_true",
+        help="Enable optical flow visualization in output video (magnitude heatmap overlay)",
+    )
+    detection.add_argument(
+        "--flow-scale",
+        type=float,
+        default=0.5,
+        help="Scale factor for optical flow processing (0.25-1.0, default: 0.5). Lower = faster but less precise.",
     )
     detection.add_argument(
         "--aruco-dict",
@@ -233,6 +322,41 @@ Examples:
         ],
         help="ArUco dictionary type (default: DICT_4X4_50)",
     )
+    detection.add_argument(
+        "--flow-mask-mode",
+        dest="flow_mask_mode",
+        choices=["or", "and", "flow_only", "bg_only"],
+        default="flow_only",
+        help="Mask combination mode: 'or' (union), 'and' (intersection), 'flow_only', 'bg_only' (default: flow_only)",
+    )
+    detection.add_argument(
+        "--flow-dilate-size",
+        dest="flow_dilate_size",
+        type=int,
+        default=0,
+        help="Dilation kernel size for motion mask, 0 to disable (default: 0)",
+    )
+    detection.add_argument(
+        "--flow-morph-close",
+        dest="flow_morph_close",
+        type=int,
+        default=3,
+        help="MORPH_CLOSE kernel size, 0 to disable (default: 3)",
+    )
+    detection.add_argument(
+        "--flow-morph-open",
+        dest="flow_morph_open",
+        type=int,
+        default=5,
+        help="MORPH_OPEN kernel size, 0 to disable (default: 5)",
+    )
+    detection.add_argument(
+        "--exclusion-mask",
+        dest="exclusion_mask",
+        type=str,
+        default=None,
+        help="Path to mask image for excluding regions from optical flow detection (black areas = excluded)",
+    )
 
     # Conflict resolution
     conflict = parser.add_argument_group("Conflict Resolution")
@@ -258,19 +382,32 @@ Examples:
     postproc.add_argument(
         "--housekeeping",
         action="store_true",
-        help="Enable postprocessing passes (gap detection and filling)",
+        help="Enable postprocessing passes",
     )
     postproc.add_argument(
         "--duplicate-avg-iou",
         type=float,
-        default=0.7,
-        help="Average IOU threshold for duplicate detection (default: 0.7)",
+        default=0.3,
+        help="Average IOU threshold for duplicate detection (default: 0.3)",
     )
     postproc.add_argument(
         "--duplicate-min-iou",
         type=float,
-        default=0.3,
-        help="Minimum IOU threshold for duplicate detection (default: 0.3)",
+        default=0.2,
+        help="Minimum IOU threshold for duplicate detection (default: 0.2)",
+    )
+    postproc.add_argument(
+        "--duplicate-min-shared-ratio",
+        type=float,
+        default=0.5,
+        help="Minimum ratio of shared frames to shorter object's length for duplicate detection (default: 0.5)",
+    )
+    postproc.add_argument(
+        "--duplicate-iomin",
+        type=float,
+        default=0.7,
+        help="IoMin (intersection-over-minimum-area) threshold for duplicate detection. "
+        "Catches containment where a large bbox envelops a smaller one (default: 0.7)",
     )
     postproc.add_argument(
         "--rotation-threshold",
@@ -285,10 +422,22 @@ Examples:
         help="Minimum movement in pixels for rotation calculation (default: 5.0)",
     )
     postproc.add_argument(
-        "--temporal-smoothing",
+        "--rotation-smoothing",
         type=float,
-        default=0.3,
-        help="Temporal smoothing factor for rotation (0-1, higher = more smoothing, default: 0.3)",
+        default=0.5,
+        help="Temporal smoothing factor for rotation (0-1, higher = more smoothing, default: 0.5)",
+    )
+    postproc.add_argument(
+        "--min-total-movement",
+        type=float,
+        default=30.0,
+        help="Minimum cumulative movement in pixels to trust direction (default: 30.0)",
+    )
+    postproc.add_argument(
+        "--max-rotation-change",
+        type=float,
+        default=0.524,
+        help="Maximum rotation change per frame in radians (default: 0.524 ≈ 30°)",
     )
     postproc.add_argument(
         "--edge-distance",
@@ -306,6 +455,66 @@ Examples:
         "--static-mark",
         action="store_true",
         help='Mark static objects instead of removing them (adds "staticdynamic" annotation)',
+    )
+    postproc.add_argument(
+        "--no-gap-detection", action="store_true",
+        help="Disable gap detection pass",
+    )
+    postproc.add_argument(
+        "--no-gap-filling", action="store_true",
+        help="Disable gap filling pass",
+    )
+    postproc.add_argument(
+        "--max-gap-size",
+        type=int,
+        default=30,
+        help="Maximum gap size in frames to interpolate (default: 30). "
+        "Gaps larger than this are left unfilled.",
+    )
+    postproc.add_argument(
+        "--no-first-detection-refinement", action="store_true",
+        help="Disable first detection refinement pass",
+    )
+    postproc.add_argument(
+        "--no-size-outlier-filter", action="store_true",
+        help="Disable size outlier filter pass",
+    )
+    postproc.add_argument(
+        "--no-bbox-smoothing", action="store_true",
+        help="Disable bounding box smoothing pass",
+    )
+    postproc.add_argument(
+        "--no-position-smoothing", action="store_true",
+        dest="no_position_smoothing",
+        help="Disable position (x, y) smoothing in bbox smoothing pass (size smoothing still applied)",
+    )
+    postproc.add_argument(
+        "--no-rotation-jump-fix", action="store_true",
+        help="Disable 90°/180° rotation jump fix pass",
+    )
+    postproc.add_argument(
+        "--no-rotation-adjustment", action="store_true",
+        help="Disable rotation adjustment pass",
+    )
+    postproc.add_argument(
+        "--no-duplicate-removal", action="store_true",
+        help="Disable duplicate removal pass",
+    )
+    postproc.add_argument(
+        "--no-sudden-detection", action="store_true",
+        help="Disable sudden appear/disappear detection pass",
+    )
+    postproc.add_argument(
+        "--no-size-step-detection", action="store_true",
+        help="Disable size step detection pass",
+    )
+    postproc.add_argument(
+        "--no-frame-intervals", action="store_true",
+        help="Disable frame intervals pass",
+    )
+    postproc.add_argument(
+        "--no-angle-normalization", action="store_true",
+        help="Disable angle normalization pass",
     )
 
     # Logging and debug
@@ -371,11 +580,24 @@ def build_arguments_string(args: argparse.Namespace) -> str:
         parts.append(f"--duplicate-min-iou {args.duplicate_min_iou}")
         parts.append(f"--rotation-threshold {args.rotation_threshold}")
         parts.append(f"--min-movement-pixels {args.min_movement_pixels}")
-        parts.append(f"--temporal-smoothing {args.temporal_smoothing}")
+        parts.append(f"--rotation-smoothing {args.rotation_smoothing}")
+        parts.append(f"--min-total-movement {args.min_total_movement}")
+        parts.append(f"--max-rotation-change {args.max_rotation_change}")
         parts.append(f"--edge-distance {args.edge_distance}")
         parts.append(f"--static-threshold {args.static_threshold}")
         if args.static_mark:
             parts.append("--static-mark")
+        # Record disabled passes
+        for flag in [
+            "no_gap_detection", "no_gap_filling",
+            "no_first_detection_refinement", "no_size_outlier_filter",
+            "no_bbox_smoothing", "no_rotation_jump_fix",
+            "no_rotation_adjustment", "no_duplicate_removal",
+            "no_sudden_detection", "no_size_step_detection",
+            "no_frame_intervals", "no_angle_normalization",
+        ]:
+            if getattr(args, flag, False):
+                parts.append(f"--{flag.replace('_', '-')}")
     if args.output_video:
         parts.append(f"--output_video {args.output_video}")
     if args.aruco_csv:
@@ -384,6 +606,20 @@ def build_arguments_string(args: argparse.Namespace) -> str:
     if args.detection_method in ["optical_flow", "both"]:
         parts.append(f"--motion-threshold {args.motion_threshold}")
         parts.append(f"--min-object-area {args.min_object_area}")
+        parts.append(f"--max-object-area {args.max_object_area}")
+        parts.append(f"--flow-algorithm {args.flow_algorithm}")
+        parts.append(f"--flow-temporal-smoothing {args.flow_temporal_smoothing}")
+        parts.append(f"--flow-scale {args.flow_scale}")
+        parts.append(f"--flow-mask-mode {args.flow_mask_mode}")
+        parts.append(f"--flow-dilate-size {args.flow_dilate_size}")
+        parts.append(f"--flow-morph-close {args.flow_morph_close}")
+        parts.append(f"--flow-morph-open {args.flow_morph_open}")
+        if args.flow_algorithm == "farneback":
+            parts.append(f"--flow-pyramid-levels {args.flow_pyramid_levels}")
+            parts.append(f"--flow-window-size {args.flow_window_size}")
+            parts.append(f"--flow-iterations {args.flow_iterations}")
+        if args.flow_median_filter > 0:
+            parts.append(f"--flow-median-filter {args.flow_median_filter}")
     if args.detection_method == "both" and not args.disable_conflict_resolution:
         parts.append(f"--iou-threshold {args.iou_threshold}")
     return " ".join(parts)
@@ -413,7 +649,7 @@ def process_video(
                 break
 
             # Process frame with all configured engines
-            detection_results = video_processor.process_frame(frame)
+            detection_results = video_processor.process_frame(frame, frame_idx=frame_idx)
 
             # Add to OpenLabel structure
             openlabel_handler.add_frame_objects(
@@ -493,6 +729,12 @@ def main():
             f"Library versions: OpenCV {cv2.__version__}, NumPy {np.__version__}, Ultralytics {ultralytics_version}"
         )
 
+        # Resolve resource paths (package data or fallbacks)
+        args.ontology = args.ontology or get_ontology_path()
+        args.schema = args.schema or get_schema_path()
+        if args.detection_method in ["yolo", "both"]:
+            args.weights = args.weights or get_weights_path()
+
         # Create configuration
         config = MarkitConfig(args)
 
@@ -541,14 +783,17 @@ def main():
                 video_processor.fps,
             )
             postprocessing_pipeline.set_ontology_path(config.ontology_path)
-            postprocessing_pipeline.add_pass(GapDetectionPass())
-            postprocessing_pipeline.add_pass(GapFillingPass())
-            postprocessing_pipeline.add_pass(
-                DuplicateRemovalPass(
-                    avg_iou_threshold=config.duplicate_avg_iou,
-                    min_iou_threshold=config.duplicate_min_iou,
-                )
-            )
+
+            # Pipeline order (each pass can be disabled individually via --no-* flags):
+            # 1. Gap detection and filling
+            if not config.no_gap_detection:
+                postprocessing_pipeline.add_pass(GapDetectionPass())
+            if not config.no_gap_filling:
+                postprocessing_pipeline.add_pass(GapFillingPass(
+                    max_gap_size=config.max_gap_size,
+                ))
+
+            # 2. Static object removal (if enabled via threshold)
             if config.static_threshold >= 0:
                 postprocessing_pipeline.add_pass(
                     StaticObjectRemovalPass(
@@ -556,26 +801,71 @@ def main():
                         mark_only=config.static_mark,
                     )
                 )
-            # MANDATORY: Refine initial detection angles using lookahead
-            postprocessing_pipeline.add_pass(
-                FirstDetectionRefinementPass(
-                    lookahead_frames=5, min_movement_pixels=5.0
+
+            # 3. Refine initial detection angles using lookahead
+            if not config.no_first_detection_refinement:
+                postprocessing_pipeline.add_pass(
+                    FirstDetectionRefinementPass(
+                        lookahead_frames=5, min_movement_pixels=5.0
+                    )
                 )
-            )
-            # OPTIONAL: Further refine rotation using movement direction
-            postprocessing_pipeline.add_pass(
-                RotationAdjustmentPass(
-                    rotation_threshold=config.rotation_threshold,
-                    min_movement_pixels=config.min_movement_pixels,
-                    temporal_smoothing=config.temporal_smoothing,
+
+            # 4. Filter size outliers (motion streaks, sudden elongation)
+            # Run BEFORE smoothing to detect raw spikes before EMA blends them
+            if not config.no_size_outlier_filter:
+                postprocessing_pipeline.add_pass(SizeOutlierFilterPass())
+
+            # 5. Bbox smoothing (size always smoothed; position smoothed by default)
+            # Run after outlier filter so smoothing works on clean data
+            if not config.no_bbox_smoothing:
+                postprocessing_pipeline.add_pass(
+                    BboxSmoothingPass(smooth_position=config.smooth_position)
                 )
-            )
-            postprocessing_pipeline.add_pass(
-                SuddenPass(edge_distance=config.edge_distance)
-            )
-            postprocessing_pipeline.add_pass(FrameIntervalPass())
-            # MANDATORY FINAL PASS: Normalize all angles to [0, 2π) for OpenLabel output
-            postprocessing_pipeline.add_pass(AngleNormalizationPass())
+
+            # 6. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
+            if not config.no_rotation_jump_fix:
+                postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
+
+            # 7. Adjust rotation based on movement direction
+            if not config.no_rotation_adjustment:
+                postprocessing_pipeline.add_pass(
+                    RotationAdjustmentPass(
+                        rotation_threshold=config.rotation_threshold,
+                        min_movement_pixels=config.min_movement_pixels,
+                        min_total_movement=config.min_total_movement,
+                        temporal_smoothing=config.rotation_smoothing,
+                        max_rotation_change=config.max_rotation_change,
+                    )
+                )
+
+            # 8. Duplicate removal - runs AFTER all rotation fixes so IoU is accurate
+            if not config.no_duplicate_removal:
+                postprocessing_pipeline.add_pass(
+                    DuplicateRemovalPass(
+                        avg_iou_threshold=config.duplicate_avg_iou,
+                        min_iou_threshold=config.duplicate_min_iou,
+                        min_shared_ratio=config.duplicate_min_shared_ratio,
+                        iomin_threshold=config.duplicate_iomin,
+                    )
+                )
+
+            # 9. Detect sudden appear/disappear events
+            if not config.no_sudden_detection:
+                postprocessing_pipeline.add_pass(
+                    SuddenPass(edge_distance=config.edge_distance)
+                )
+
+            # 10. Detect persistent size changes (step changes) for manual review
+            if not config.no_size_step_detection:
+                postprocessing_pipeline.add_pass(SizeStepDetectionPass())
+
+            # 11. Add frame intervals
+            if not config.no_frame_intervals:
+                postprocessing_pipeline.add_pass(FrameIntervalPass())
+
+            # 12. Normalize all angles to [0, 2π) for OpenLabel output
+            if not config.no_angle_normalization:
+                postprocessing_pipeline.add_pass(AngleNormalizationPass())
 
             openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
                 openlabel_handler.openlabel_data

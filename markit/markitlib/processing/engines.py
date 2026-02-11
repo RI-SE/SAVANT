@@ -321,43 +321,99 @@ class YOLOEngine(BaseDetectionEngine):
 
 
 class SimpleTracker:
-    """Simple object tracker for optical flow detections."""
+    """Simple object tracker for optical flow detections with track expiration.
+
+    Uses center distance and optional IoU overlap for track association.
+    """
 
     def __init__(
-        self, max_distance: float = 50.0, id_manager: Optional["ObjectIDManager"] = None
+        self,
+        max_distance: float = 50.0,
+        max_age: int = 10,
+        min_iou: float = 0.1,
+        id_manager: Optional["ObjectIDManager"] = None,
     ):
+        """Initialize tracker.
+
+        Args:
+            max_distance: Maximum distance in pixels to match a detection to existing track
+            max_age: Maximum frames a track can be unmatched before expiring
+            min_iou: Minimum IoU overlap for track association (default: 0.1)
+            id_manager: Optional ID manager for unified sequential IDs
+        """
         self.max_distance = max_distance
-        self.tracks = {}  # Maps remapped_id -> center position
+        self.max_age = max_age
+        self.min_iou = min_iou
+        # Maps remapped_id -> {'center': (x, y), 'last_seen': frame, 'bbox': corners}
+        self.tracks: Dict[int, Dict] = {}
         self.id_manager = id_manager
+        self._current_frame = 0
         # Local tracking ID for ID manager lookup (sequential per tracker)
         self._next_local_id = 1
         # Fallback for legacy mode without ID manager
         self._next_legacy_id = 1000001
 
-    def get_id(self, center: Tuple[float, float]) -> int:
-        """Get object ID for center position.
+    def get_id(
+        self,
+        center: Tuple[float, float],
+        frame_idx: int = None,
+        bbox: Optional[np.ndarray] = None,
+    ) -> int:
+        """Get object ID for center position, optionally using bbox for IoU matching.
 
         Args:
             center: Object center position (x, y)
+            frame_idx: Current frame index (for track age management)
+            bbox: Optional bbox corner points for IoU matching (4x2 array)
 
         Returns:
             Object ID (remapped if ID manager available)
         """
-        min_distance = float("inf")
+        if frame_idx is not None:
+            self._current_frame = frame_idx
+
+        best_score = float("inf")
         best_track_id = None
 
-        # Find closest existing track
-        for track_id, track_center in self.tracks.items():
+        # Find best matching track (lowest score = best match)
+        for track_id, track_data in list(self.tracks.items()):
+            # Skip expired tracks
+            age = self._current_frame - track_data["last_seen"]
+            if age > self.max_age:
+                continue
+
+            track_center = track_data["center"]
             distance = np.sqrt(
                 (center[0] - track_center[0]) ** 2 + (center[1] - track_center[1]) ** 2
             )
-            if distance < min_distance and distance < self.max_distance:
-                min_distance = distance
+
+            # Must be within max distance
+            if distance >= self.max_distance:
+                continue
+
+            # Check IoU if both bboxes available
+            iou = 0.0
+            track_bbox = track_data.get("bbox")
+            if bbox is not None and track_bbox is not None and self.min_iou > 0:
+                iou = self._calculate_iou(bbox, track_bbox)
+                # Must meet minimum IoU threshold
+                if iou < self.min_iou:
+                    continue
+
+            # Score: lower is better (distance-based, IoU as bonus)
+            # Distance contributes positively, IoU contributes negatively (higher IoU = lower score)
+            score = distance / (iou + 0.1)
+
+            if score < best_score:
+                best_score = score
                 best_track_id = track_id
 
         if best_track_id is not None:
             # Update existing track
-            self.tracks[best_track_id] = center
+            self.tracks[best_track_id]["center"] = center
+            self.tracks[best_track_id]["last_seen"] = self._current_frame
+            if bbox is not None:
+                self.tracks[best_track_id]["bbox"] = bbox.copy()
             return best_track_id
         else:
             # Create new track with remapped ID
@@ -371,8 +427,128 @@ class SimpleTracker:
                 new_id = self._next_legacy_id
                 self._next_legacy_id += 1
 
-            self.tracks[new_id] = center
+            self.tracks[new_id] = {
+                "center": center,
+                "last_seen": self._current_frame,
+                "bbox": bbox.copy() if bbox is not None else None,
+            }
             return new_id
+
+    def _calculate_iou(self, bbox1: np.ndarray, bbox2: np.ndarray) -> float:
+        """Calculate IoU between two rotated bboxes.
+
+        Uses the Sutherland-Hodgman algorithm for polygon intersection.
+
+        Args:
+            bbox1: First bbox as 4 corner points (4x2 array)
+            bbox2: Second bbox as 4 corner points (4x2 array)
+
+        Returns:
+            IoU value between 0 and 1
+        """
+        try:
+            # Ensure correct format
+            pts1 = np.array(bbox1, dtype=np.float32).reshape(-1, 2)
+            pts2 = np.array(bbox2, dtype=np.float32).reshape(-1, 2)
+
+            # Calculate areas using the shoelace formula
+            area1 = self._polygon_area(pts1)
+            area2 = self._polygon_area(pts2)
+
+            if area1 <= 0 or area2 <= 0:
+                return 0.0
+
+            # Find intersection using Sutherland-Hodgman clipping
+            intersection_pts = self._sutherland_hodgman_clip(pts1, pts2)
+
+            if len(intersection_pts) < 3:
+                return 0.0
+
+            intersection_area = self._polygon_area(intersection_pts)
+            if intersection_area <= 0:
+                return 0.0
+
+            union_area = area1 + area2 - intersection_area
+            if union_area <= 0:
+                return 0.0
+
+            return intersection_area / union_area
+
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def _polygon_area(points: np.ndarray) -> float:
+        """Calculate polygon area using the shoelace formula."""
+        if len(points) < 3:
+            return 0.0
+        x = points[:, 0]
+        y = points[:, 1]
+        return 0.5 * abs(
+            sum(
+                x[i] * y[(i + 1) % len(x)] - x[(i + 1) % len(x)] * y[i]
+                for i in range(len(x))
+            )
+        )
+
+    @staticmethod
+    def _sutherland_hodgman_clip(
+        subject_polygon: np.ndarray, clip_polygon: np.ndarray
+    ) -> np.ndarray:
+        """Clip subject polygon against clip polygon."""
+
+        def _is_inside(point, edge_start, edge_end):
+            edge_vec = edge_end - edge_start
+            point_vec = point - edge_start
+            return (edge_vec[0] * point_vec[1] - edge_vec[1] * point_vec[0]) >= 0
+
+        def _intersection_point(p1, p2, edge_start, edge_end):
+            d1 = edge_end - edge_start
+            d2 = p2 - p1
+            denominator = d1[0] * d2[1] - d1[1] * d2[0]
+            if abs(denominator) < 1e-10:
+                return p1
+            p1_vec = p1 - edge_start
+            t = (p1_vec[0] * d2[1] - p1_vec[1] * d2[0]) / denominator
+            return edge_start + t * d1
+
+        output_list = subject_polygon.tolist()
+
+        for i in range(len(clip_polygon)):
+            if not output_list:
+                break
+
+            edge_start = clip_polygon[i]
+            edge_end = clip_polygon[(i + 1) % len(clip_polygon)]
+            input_list = output_list
+            output_list = []
+
+            if not input_list:
+                continue
+
+            s = np.array(input_list[-1])
+            for vertex in input_list:
+                e = np.array(vertex)
+                if _is_inside(e, edge_start, edge_end):
+                    if not _is_inside(s, edge_start, edge_end):
+                        output_list.append(_intersection_point(s, e, edge_start, edge_end).tolist())
+                    output_list.append(e.tolist())
+                elif _is_inside(s, edge_start, edge_end):
+                    output_list.append(_intersection_point(s, e, edge_start, edge_end).tolist())
+                s = e
+
+        return np.array(output_list) if output_list else np.array([])
+
+    def end_frame(self) -> None:
+        """Called at end of frame processing to clean up expired tracks."""
+        # Remove tracks that have been expired for a while (2x max_age)
+        expired = [
+            track_id
+            for track_id, track_data in self.tracks.items()
+            if self._current_frame - track_data["last_seen"] > self.max_age * 2
+        ]
+        for track_id in expired:
+            del self.tracks[track_id]
 
 
 class OpticalFlowEngine(BaseDetectionEngine):
@@ -391,12 +567,42 @@ class OpticalFlowEngine(BaseDetectionEngine):
         self.id_manager = id_manager
         self.back_sub = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
         self.prev_gray = None
-        self.object_tracker = SimpleTracker(id_manager=id_manager)
+        self.prev_flow = None  # For temporal smoothing
+        self.object_tracker = SimpleTracker(
+            max_age=params.track_max_age,
+            min_iou=params.track_min_iou,
+            id_manager=id_manager,
+        )
+        self._frame_idx = 0  # Frame counter for track age management
         self.optical_flow_method = None  # Will be set by availability check
+        self.dis_instance = None  # Cached DIS optical flow instance
         self.optical_flow_available = self._check_optical_flow_availability()
 
+        # Debug visualization cache (only populated when debug_visualization=True)
+        self.last_magnitude: Optional[np.ndarray] = None
+        self.last_motion_mask: Optional[np.ndarray] = None
+        self.last_flow: Optional[np.ndarray] = None
+
+        # Load exclusion mask if provided
+        self.exclusion_mask: Optional[np.ndarray] = None
+        self._exclusion_mask_original: Optional[np.ndarray] = None
+        if self.params.exclusion_mask:
+            try:
+                mask_img = cv2.imread(self.params.exclusion_mask, cv2.IMREAD_GRAYSCALE)
+                if mask_img is not None:
+                    # Will be resized to processing scale when first frame is processed
+                    self._exclusion_mask_original = mask_img
+                    logger.info(f"Loaded exclusion mask: {self.params.exclusion_mask}")
+                else:
+                    logger.warning(f"Could not load exclusion mask: {self.params.exclusion_mask}")
+            except Exception as e:
+                logger.warning(f"Error loading exclusion mask: {e}")
+
         if self.optical_flow_available:
-            logger.info("Optical flow engine initialized with motion detection")
+            logger.info(
+                f"Optical flow engine initialized with {self.optical_flow_method}, "
+                f"temporal_smoothing={params.temporal_smoothing:.2f}"
+            )
         else:
             logger.warning(
                 "Optical flow not available - using background subtraction only"
@@ -405,24 +611,37 @@ class OpticalFlowEngine(BaseDetectionEngine):
     def _check_optical_flow_availability(self) -> bool:
         """Check if optical flow functions are available in OpenCV.
 
+        Respects params.algorithm preference, falling back to other methods if unavailable.
+
         Returns:
             True if optical flow is available, False otherwise
         """
         # Log OpenCV version for diagnostics
         logger.info(f"OpenCV version: {cv2.__version__}")
 
-        # Try multiple optical flow methods in order of preference
-        optical_flow_methods = [
-            ("calcOpticalFlowPyrFarneback", self._test_farneback),
-            ("calcOpticalFlowPyrLK", self._test_lucas_kanade),
-            ("optflow.calcOpticalFlowSF", self._test_simple_flow),
-        ]
+        # Define all available methods with their test functions
+        all_methods = {
+            "dis": ("DISOpticalFlow", self._test_dis),
+            "farneback": ("calcOpticalFlowPyrFarneback", self._test_farneback),
+            "lucas_kanade": ("calcOpticalFlowPyrLK", self._test_lucas_kanade),
+            "simple_flow": ("optflow.calcOpticalFlowSF", self._test_simple_flow),
+        }
 
-        for method_name, test_func in optical_flow_methods:
+        # Build priority order based on user preference
+        preferred = self.params.algorithm.lower()
+        if preferred in all_methods:
+            # Try preferred method first, then fallbacks
+            method_order = [preferred] + [m for m in all_methods if m != preferred]
+        else:
+            # Default order: DIS > Farneback > Lucas-Kanade > SimpleFlow
+            method_order = ["dis", "farneback", "lucas_kanade", "simple_flow"]
+
+        for method_key in method_order:
+            method_name, test_func = all_methods[method_key]
             try:
                 if test_func():
                     logger.info(f"Optical flow available using: {method_name}")
-                    self.optical_flow_method = method_name
+                    self.optical_flow_method = method_key
                     return True
             except Exception as e:
                 logger.debug(f"{method_name} not available: {e}")
@@ -432,13 +651,35 @@ class OpticalFlowEngine(BaseDetectionEngine):
         logger.info("Install with: pip install opencv-contrib-python>=4.5.0")
         return False
 
+    def _test_dis(self) -> bool:
+        """Test DIS (Dense Inverse Search) optical flow method."""
+        try:
+            # Check if DISOpticalFlow exists
+            if not hasattr(cv2, "DISOpticalFlow_create"):
+                return False
+
+            # Create DIS instance with medium preset for balance of speed/quality
+            dis = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
+            # DIS requires images >= 12 pixels in both dimensions
+            dummy1 = np.zeros((16, 16), dtype=np.uint8)
+            dummy2 = np.zeros((16, 16), dtype=np.uint8)
+            flow = dis.calc(dummy1, dummy2, None)
+
+            # Cache the instance for reuse
+            self.dis_instance = cv2.DISOpticalFlow_create(
+                cv2.DISOPTICAL_FLOW_PRESET_MEDIUM
+            )
+            return flow is not None
+        except Exception:
+            return False
+
     def _test_farneback(self) -> bool:
         """Test Farneback optical flow method."""
         if not hasattr(cv2, "calcOpticalFlowPyrFarneback"):
             return False
 
-        dummy1 = np.zeros((10, 10), dtype=np.uint8)
-        dummy2 = np.zeros((10, 10), dtype=np.uint8)
+        dummy1 = np.zeros((16, 16), dtype=np.uint8)
+        dummy2 = np.zeros((16, 16), dtype=np.uint8)
         flow = cv2.calcOpticalFlowPyrFarneback(
             dummy1, dummy2, None, 0.5, 3, 15, 3, 5, 1.2, 0
         )
@@ -449,10 +690,10 @@ class OpticalFlowEngine(BaseDetectionEngine):
         if not hasattr(cv2, "calcOpticalFlowPyrLK"):
             return False
 
-        dummy1 = np.zeros((10, 10), dtype=np.uint8)
-        dummy2 = np.zeros((10, 10), dtype=np.uint8)
+        dummy1 = np.zeros((16, 16), dtype=np.uint8)
+        dummy2 = np.zeros((16, 16), dtype=np.uint8)
         # Need some points for LK
-        points = np.array([[5.0, 5.0]], dtype=np.float32).reshape(-1, 1, 2)
+        points = np.array([[8.0, 8.0]], dtype=np.float32).reshape(-1, 1, 2)
         new_points, status, error = cv2.calcOpticalFlowPyrLK(
             dummy1, dummy2, points, None
         )
@@ -462,8 +703,8 @@ class OpticalFlowEngine(BaseDetectionEngine):
         """Test SimpleFlow optical flow method (contrib module)."""
         try:
             if hasattr(cv2, "optflow") and hasattr(cv2.optflow, "calcOpticalFlowSF"):
-                dummy1 = np.zeros((10, 10), dtype=np.uint8)
-                dummy2 = np.zeros((10, 10), dtype=np.uint8)
+                dummy1 = np.zeros((16, 16), dtype=np.uint8)
+                dummy2 = np.zeros((16, 16), dtype=np.uint8)
                 flow = cv2.optflow.calcOpticalFlowSF(dummy1, dummy2, 3, 2, 4)
                 return flow is not None
         except Exception:
@@ -475,6 +716,9 @@ class OpticalFlowEngine(BaseDetectionEngine):
     ) -> Optional[np.ndarray]:
         """Calculate optical flow magnitude using the available method.
 
+        Applies temporal smoothing and median filtering based on params.
+        When debug_visualization is enabled, caches flow field for visualization.
+
         Args:
             prev_gray: Previous frame (grayscale)
             curr_gray: Current frame (grayscale)
@@ -483,74 +727,125 @@ class OpticalFlowEngine(BaseDetectionEngine):
             Magnitude array or None if calculation fails
         """
         try:
-            if self.optical_flow_method == "calcOpticalFlowPyrFarneback":
-                flow = cv2.calcOpticalFlowPyrFarneback(
-                    prev_gray, curr_gray, None, 0.5, 5, 21, 3, 7, 1.5, 0
-                )
-                magnitude, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
-                return magnitude
-
-            elif self.optical_flow_method == "calcOpticalFlowPyrLK":
-                # For Lucas-Kanade, we need feature points
-                # Use goodFeaturesToTrack to find points
-                points = cv2.goodFeaturesToTrack(
-                    prev_gray,
-                    maxCorners=100,
-                    qualityLevel=0.3,
-                    minDistance=7,
-                    blockSize=7,
-                )
-                if points is not None and len(points) > 0:
-                    new_points, status, error = cv2.calcOpticalFlowPyrLK(
-                        prev_gray, curr_gray, points, None
-                    )
-
-                    # Create magnitude map from point movements
-                    magnitude = np.zeros_like(prev_gray, dtype=np.float32)
-                    good_points = status.ravel() == 1
-
-                    if np.any(good_points):
-                        old_pts = points[good_points].reshape(-1, 2)
-                        new_pts = new_points[good_points].reshape(-1, 2)
-
-                        # Calculate point displacements
-                        displacements = np.linalg.norm(new_pts - old_pts, axis=1)
-
-                        # Map displacements to image
-                        for i, (pt, disp) in enumerate(
-                            zip(old_pts.astype(int), displacements)
-                        ):
-                            if (
-                                0 <= pt[1] < magnitude.shape[0]
-                                and 0 <= pt[0] < magnitude.shape[1]
-                            ):
-                                magnitude[pt[1], pt[0]] = disp
-
-                        # Dilate to spread motion information
-                        kernel = np.ones((15, 15), np.uint8)
-                        magnitude = cv2.dilate(magnitude, kernel, iterations=1)
-
-                    return magnitude
-                else:
-                    return np.zeros_like(prev_gray, dtype=np.float32)
-
-            elif self.optical_flow_method == "optflow.calcOpticalFlowSF":
-                flow = cv2.optflow.calcOpticalFlowSF(prev_gray, curr_gray, 3, 2, 4)
-                magnitude, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
-                return magnitude
-
-            else:
-                logger.warning(
-                    f"Unknown optical flow method: {self.optical_flow_method}"
-                )
+            flow = self._compute_raw_flow(prev_gray, curr_gray)
+            if flow is None:
                 return None
+
+            # Apply median filtering to reduce noise on the flow field
+            if self.params.median_filter_size > 0:
+                ksize = self.params.median_filter_size
+                # Ensure kernel size is odd
+                if ksize % 2 == 0:
+                    ksize += 1
+                flow_x = cv2.medianBlur(flow[..., 0].astype(np.float32), ksize)
+                flow_y = cv2.medianBlur(flow[..., 1].astype(np.float32), ksize)
+                flow = np.stack([flow_x, flow_y], axis=-1)
+
+            # Apply temporal smoothing via exponential moving average
+            if self.params.temporal_smoothing > 0 and self.prev_flow is not None:
+                alpha = self.params.temporal_smoothing
+                # Only smooth if shapes match (handles resolution changes)
+                if self.prev_flow.shape == flow.shape:
+                    flow = alpha * flow + (1 - alpha) * self.prev_flow
+
+            # Store for next frame's temporal smoothing
+            self.prev_flow = flow.copy()
+
+            # Cache flow field for debug visualization
+            if self.params.debug_visualization:
+                self.last_flow = flow.copy()
+
+            # Compute magnitude from (possibly smoothed) flow
+            magnitude, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+            return magnitude
 
         except Exception as e:
             logger.error(f"Optical flow calculation failed: {e}")
             return None
 
+    def _compute_raw_flow(
+        self, prev_gray: np.ndarray, curr_gray: np.ndarray
+    ) -> Optional[np.ndarray]:
+        """Compute raw optical flow field using the selected algorithm.
+
+        Args:
+            prev_gray: Previous frame (grayscale)
+            curr_gray: Current frame (grayscale)
+
+        Returns:
+            Flow field (H, W, 2) or None if calculation fails
+        """
+        if self.optical_flow_method == "dis":
+            # DIS (Dense Inverse Search) - faster and more robust than Farneback
+            if self.dis_instance is None:
+                self.dis_instance = cv2.DISOpticalFlow_create(
+                    cv2.DISOPTICAL_FLOW_PRESET_MEDIUM
+                )
+            return self.dis_instance.calc(prev_gray, curr_gray, None)
+
+        elif self.optical_flow_method == "farneback":
+            # Farneback with tuned parameters for drone footage
+            return cv2.calcOpticalFlowPyrFarneback(
+                prev_gray,
+                curr_gray,
+                None,
+                0.5,  # pyr_scale: pyramid scale factor
+                self.params.pyramid_levels,  # levels: more levels for larger motions
+                self.params.window_size,  # winsize: larger for smoother estimates
+                self.params.iterations,  # iterations: more for better convergence
+                7,  # poly_n: polynomial expansion neighborhood
+                1.5,  # poly_sigma: Gaussian smoothing for derivatives
+                cv2.OPTFLOW_FARNEBACK_GAUSSIAN,  # Use Gaussian filter
+            )
+
+        elif self.optical_flow_method == "lucas_kanade":
+            # Sparse Lucas-Kanade - convert to dense flow representation
+            points = cv2.goodFeaturesToTrack(
+                prev_gray,
+                maxCorners=100,
+                qualityLevel=0.3,
+                minDistance=7,
+                blockSize=7,
+            )
+            if points is None or len(points) == 0:
+                return np.zeros((*prev_gray.shape, 2), dtype=np.float32)
+
+            new_points, status, _ = cv2.calcOpticalFlowPyrLK(
+                prev_gray, curr_gray, points, None
+            )
+
+            # Create dense flow map from sparse point movements
+            flow = np.zeros((*prev_gray.shape, 2), dtype=np.float32)
+            good_points = status.ravel() == 1
+
+            if np.any(good_points):
+                old_pts = points[good_points].reshape(-1, 2)
+                new_pts = new_points[good_points].reshape(-1, 2)
+                displacements = new_pts - old_pts
+
+                for pt, disp in zip(old_pts.astype(int), displacements):
+                    if 0 <= pt[1] < flow.shape[0] and 0 <= pt[0] < flow.shape[1]:
+                        flow[pt[1], pt[0]] = disp
+
+                # Dilate to spread flow information from sparse points
+                kernel = np.ones((15, 15), np.uint8)
+                flow[..., 0] = cv2.dilate(flow[..., 0], kernel, iterations=1)
+                flow[..., 1] = cv2.dilate(flow[..., 1], kernel, iterations=1)
+
+            return flow
+
+        elif self.optical_flow_method == "simple_flow":
+            return cv2.optflow.calcOpticalFlowSF(prev_gray, curr_gray, 3, 2, 4)
+
+        else:
+            logger.warning(f"Unknown optical flow method: {self.optical_flow_method}")
+            return None
+
     def process_frame(self, frame: np.ndarray) -> List[DetectionResult]:
         """Process frame with optical flow + background subtraction.
+
+        Optionally downscales frame before processing for performance, then
+        upscales results back to original resolution.
 
         Args:
             frame: Input frame
@@ -560,12 +855,45 @@ class OpticalFlowEngine(BaseDetectionEngine):
         """
         try:
             results = []
+            orig_height, orig_width = frame.shape[:2]
+            scale = self.params.processing_scale
+            self._frame_idx += 1  # Increment frame counter for track age
+
+            # Downscale frame if processing_scale < 1.0
+            if scale < 1.0:
+                new_width = int(orig_width * scale)
+                new_height = int(orig_height * scale)
+                proc_frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            else:
+                proc_frame = frame
+                scale = 1.0  # Ensure scale is exactly 1.0 for coordinate scaling
+
+            proc_height, proc_width = proc_frame.shape[:2]
+
+            # Resize exclusion mask to processing scale (once, on first frame)
+            if self._exclusion_mask_original is not None and self.exclusion_mask is None:
+                self.exclusion_mask = cv2.resize(
+                    self._exclusion_mask_original, (proc_width, proc_height), interpolation=cv2.INTER_NEAREST
+                )
+                logger.info(f"Resized exclusion mask to processing scale: {proc_width}x{proc_height}")
+
+            # Scale min_area and max_area with processing_scale² (settings are for full resolution)
+            scale_sq = scale * scale
+            effective_min_area = int(self.params.min_area * scale_sq)
+            effective_max_area = int(self.params.max_area * scale_sq) if self.params.max_area > 0 else 0
+
+            # Log effective area limits on first frame
+            if self.prev_gray is None:
+                logger.info(
+                    f"Optical flow area limits: min={effective_min_area}, max={effective_max_area} "
+                    f"(scale={scale:.2f}, orig min={self.params.min_area}, orig max={self.params.max_area})"
+                )
 
             # 1. Background subtraction
-            fg_mask = self.back_sub.apply(frame)
+            fg_mask = self.back_sub.apply(proc_frame)
 
             # 2. Optical flow (if available and previous frame exists)
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(proc_frame, cv2.COLOR_BGR2GRAY)
             gray = cv2.GaussianBlur(gray, (5, 5), 0)
             motion_mask = np.zeros_like(fg_mask)
 
@@ -573,34 +901,63 @@ class OpticalFlowEngine(BaseDetectionEngine):
                 try:
                     magnitude = self._calculate_optical_flow(self.prev_gray, gray)
                     if magnitude is not None:
+                        # Cache magnitude for debug visualization
+                        if self.params.debug_visualization:
+                            self.last_magnitude = magnitude.copy()
+
                         motion_mask = (magnitude > self.params.motion_threshold).astype(
                             np.uint8
                         ) * 255
-                        dilate_kernel = cv2.getStructuringElement(
-                            cv2.MORPH_ELLIPSE, (5, 5)
-                        )
-                        motion_mask = cv2.dilate(
-                            motion_mask, dilate_kernel, iterations=1
-                        )
+
+                        # Apply dilation to motion mask (configurable)
+                        if self.params.dilate_kernel_size > 0:
+                            dilate_kernel = cv2.getStructuringElement(
+                                cv2.MORPH_ELLIPSE,
+                                (self.params.dilate_kernel_size, self.params.dilate_kernel_size),
+                            )
+                            motion_mask = cv2.dilate(
+                                motion_mask, dilate_kernel, iterations=1
+                            )
+
+                        # Cache motion mask for debug visualization
+                        if self.params.debug_visualization:
+                            self.last_motion_mask = motion_mask.copy()
                     else:
                         self.optical_flow_available = False
                 except Exception as e:
                     logger.warning(f"Optical flow calculation failed: {e}")
                     self.optical_flow_available = False
 
-            # 3. Combine masks (if optical flow is available) or use background subtraction only
+            # 3. Combine masks based on mask_mode parameter
             if self.optical_flow_available and self.prev_gray is not None:
-                combined_mask = cv2.bitwise_or(fg_mask, motion_mask)
+                if self.params.mask_mode == "or":
+                    combined_mask = cv2.bitwise_or(fg_mask, motion_mask)
+                elif self.params.mask_mode == "and":
+                    combined_mask = cv2.bitwise_and(fg_mask, motion_mask)
+                elif self.params.mask_mode == "flow_only":
+                    combined_mask = motion_mask
+                elif self.params.mask_mode == "bg_only":
+                    combined_mask = fg_mask
+                else:
+                    # Fallback to "or" for unknown modes
+                    combined_mask = cv2.bitwise_or(fg_mask, motion_mask)
             else:
                 combined_mask = fg_mask
 
-            # 4. Clean up and find contours
-            kernel = cv2.getStructuringElement(
-                cv2.MORPH_ELLIPSE,
-                (self.params.morph_kernel_size, self.params.morph_kernel_size),
-            )
-            combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
-            combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
+            # 4. Clean up with morphological operations (independently configurable)
+            if self.params.morph_close_size > 0:
+                close_kernel = cv2.getStructuringElement(
+                    cv2.MORPH_ELLIPSE,
+                    (self.params.morph_close_size, self.params.morph_close_size),
+                )
+                combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, close_kernel)
+
+            if self.params.morph_open_size > 0:
+                open_kernel = cv2.getStructuringElement(
+                    cv2.MORPH_ELLIPSE,
+                    (self.params.morph_open_size, self.params.morph_open_size),
+                )
+                combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, open_kernel)
 
             contours, _ = cv2.findContours(
                 combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
@@ -608,52 +965,108 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
             # 5. Generate oriented bounding boxes
             for contour in contours:
-                if cv2.contourArea(contour) > self.params.min_area:
-                    # Get minimum area rectangle (OBB)
-                    rect = cv2.minAreaRect(contour)
-                    box = cv2.boxPoints(rect)
-                    box = np.array(box, dtype=np.int32)
+                contour_area = cv2.contourArea(contour)
+                if contour_area < effective_min_area:
+                    continue
 
-                    # Calculate center and angle
-                    (center_x, center_y), (width, height), angle = rect
+                # Skip detections in excluded regions (black areas of mask)
+                if self.exclusion_mask is not None:
+                    M = cv2.moments(contour)
+                    if M["m00"] > 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                        # Bounds check
+                        if 0 <= cy < self.exclusion_mask.shape[0] and 0 <= cx < self.exclusion_mask.shape[1]:
+                            if self.exclusion_mask[cy, cx] < 128:  # Black/dark = excluded
+                                continue
 
-                    # Assign object ID (simple tracking)
-                    obj_id = self.object_tracker.get_id((center_x, center_y))
+                # Get minimum area rectangle (OBB)
+                rect = cv2.minAreaRect(contour)
+                box = cv2.boxPoints(rect)
+                box = np.array(box, dtype=np.float32)
 
-                    # Calculate confidence based on contour area (normalized)
-                    area = cv2.contourArea(contour)
-                    confidence = min(
-                        0.9, max(0.3, area / 10000.0)
-                    )  # Simple area-based confidence
+                # Calculate center and angle
+                (center_x, center_y), (width, height), angle = rect
 
-                    # Convert angle from degrees to radians (cv2.minAreaRect returns degrees)
-                    angle_rad = np.radians(angle)
+                # Check bounding box area (not contour area) against max limit
+                bbox_area = width * height
+                if effective_max_area > 0 and bbox_area > effective_max_area:
+                    continue
 
-                    results.append(
-                        DetectionResult(
-                            object_id=obj_id,
-                            class_id=0,  # Generic "moving object" class
-                            confidence=confidence,
-                            oriented_bbox=box.astype(np.float32),
-                            center=(center_x, center_y),
-                            angle=angle_rad,
-                            source_engine="optical_flow",
-                            width=float(width),
-                            height=float(height),
-                        )
+                # Scale coordinates back to original resolution if downscaled
+                if scale < 1.0:
+                    inv_scale = 1.0 / scale
+                    box = box * inv_scale
+                    center_x *= inv_scale
+                    center_y *= inv_scale
+                    width *= inv_scale
+                    height *= inv_scale
+
+                # Assign object ID (simple tracking with IoU) - use original resolution coords
+                obj_id = self.object_tracker.get_id(
+                    (center_x, center_y), self._frame_idx, bbox=box
+                )
+
+                # Calculate confidence based on bbox area (normalized)
+                # Scale area-based confidence threshold with processing scale
+                confidence = min(
+                    0.9, max(0.3, bbox_area / (10000.0 * scale_sq))
+                )
+
+                # Convert angle from degrees to radians (cv2.minAreaRect returns degrees)
+                angle_rad = np.radians(angle)
+
+                results.append(
+                    DetectionResult(
+                        object_id=obj_id,
+                        class_id=0,  # Generic "moving object" class
+                        confidence=confidence,
+                        oriented_bbox=box.astype(np.float32),
+                        center=(center_x, center_y),
+                        angle=angle_rad,
+                        source_engine="optical_flow",
+                        width=float(width),
+                        height=float(height),
                     )
+                )
 
             self.prev_gray = gray.copy()
+            self.object_tracker.end_frame()  # Clean up expired tracks
             return results
 
         except Exception as e:
             logger.error(f"Error processing frame with optical flow: {e}")
             return []
 
+    def get_debug_visualization(self) -> Optional[Dict[str, np.ndarray]]:
+        """Return cached intermediate data for visualization.
+
+        Only returns data when debug_visualization is enabled and data is available.
+
+        Returns:
+            Dict with 'magnitude', 'motion_mask', 'flow' arrays, or None if unavailable
+        """
+        if not self.params.debug_visualization:
+            return None
+        if self.last_magnitude is None:
+            return None
+        return {
+            "magnitude": self.last_magnitude,
+            "motion_mask": self.last_motion_mask,
+            "flow": self.last_flow,
+        }
+
     def cleanup(self) -> None:
         """Clean up optical flow engine resources."""
         self.back_sub = None
         self.prev_gray = None
+        self.prev_flow = None
+        self.dis_instance = None
+        self.last_magnitude = None
+        self.last_motion_mask = None
+        self.last_flow = None
+        self.exclusion_mask = None
+        self._exclusion_mask_original = None
 
 
 class ArUcoGPSData:

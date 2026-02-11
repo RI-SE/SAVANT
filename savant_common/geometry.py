@@ -1,23 +1,25 @@
-"""
-geometry - Geometric calculations and utilities
+"""Geometric calculations and utilities.
 
 Contains IoU calculation and polygon clipping algorithms for oriented bounding boxes.
 """
 
 import logging
+import math
+from typing import Tuple
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
 class BBoxOverlapCalculator:
-    """Optimized utility class for calculating IoU between oriented bounding boxes."""
+    """Utility class for calculating IoU between oriented bounding boxes."""
 
     @staticmethod
     def calculate_intersection_over_union(
         bbox1: np.ndarray, bbox2: np.ndarray
     ) -> float:
-        """Calculate IoU between two oriented bounding boxes using OpenCV.
+        """Calculate IoU between two oriented bounding boxes.
 
         Args:
             bbox1: First OBB as 4 corner points [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
@@ -27,31 +29,27 @@ class BBoxOverlapCalculator:
             IoU value between 0 and 1
         """
         try:
-            # Ensure correct format
             pts1 = np.array(bbox1, dtype=np.float32).reshape(-1, 2)
             pts2 = np.array(bbox2, dtype=np.float32).reshape(-1, 2)
 
-            # Calculate areas using the shoelace formula
             area1 = BBoxOverlapCalculator._polygon_area(pts1)
             area2 = BBoxOverlapCalculator._polygon_area(pts2)
 
             if area1 <= 0 or area2 <= 0:
                 return 0.0
 
-            # Find intersection using Sutherland-Hodgman clipping
             intersection_points = BBoxOverlapCalculator._sutherland_hodgman_clip(
                 pts1, pts2
             )
 
             if len(intersection_points) < 3:
-                return 0.0  # No meaningful intersection
+                return 0.0
 
             intersection_area = BBoxOverlapCalculator._polygon_area(intersection_points)
 
             if intersection_area <= 0:
                 return 0.0
 
-            # Calculate IoU
             union_area = area1 + area2 - intersection_area
 
             if union_area <= 0:
@@ -61,50 +59,6 @@ class BBoxOverlapCalculator:
 
         except Exception as e:
             logger.debug(f"IoU calculation failed: {e}")
-            return 0.0
-
-    @staticmethod
-    def calculate_intersection_over_min(
-        bbox1: np.ndarray, bbox2: np.ndarray
-    ) -> float:
-        """Calculate intersection-over-minimum-area between two oriented bounding boxes.
-
-        Useful for detecting containment where one bbox is much larger than the other,
-        which suppresses IoU despite being the same object.
-
-        Args:
-            bbox1: First OBB as 4 corner points [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
-            bbox2: Second OBB as 4 corner points [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
-
-        Returns:
-            IoMin value between 0 and 1
-        """
-        try:
-            pts1 = np.array(bbox1, dtype=np.float32).reshape(-1, 2)
-            pts2 = np.array(bbox2, dtype=np.float32).reshape(-1, 2)
-
-            area1 = BBoxOverlapCalculator._polygon_area(pts1)
-            area2 = BBoxOverlapCalculator._polygon_area(pts2)
-
-            if area1 <= 0 or area2 <= 0:
-                return 0.0
-
-            intersection_points = BBoxOverlapCalculator._sutherland_hodgman_clip(
-                pts1, pts2
-            )
-
-            if len(intersection_points) < 3:
-                return 0.0
-
-            intersection_area = BBoxOverlapCalculator._polygon_area(intersection_points)
-
-            if intersection_area <= 0:
-                return 0.0
-
-            return intersection_area / min(area1, area2)
-
-        except Exception as e:
-            logger.debug(f"IoMin calculation failed: {e}")
             return 0.0
 
     @staticmethod
@@ -123,7 +77,6 @@ class BBoxOverlapCalculator:
         x = points[:, 0]
         y = points[:, 1]
 
-        # Shoelace formula
         area = 0.5 * abs(
             sum(
                 x[i] * y[(i + 1) % len(x)] - x[(i + 1) % len(x)] * y[i]
@@ -163,7 +116,7 @@ class BBoxOverlapCalculator:
 
             denominator = d1[0] * d2[1] - d1[1] * d2[0]
             if abs(denominator) < 1e-10:
-                return p1  # Lines are parallel
+                return p1
 
             p1_vec = p1 - edge_start
             t = (p1_vec[0] * d2[1] - p1_vec[1] * d2[0]) / denominator
@@ -171,7 +124,6 @@ class BBoxOverlapCalculator:
 
         output_list = subject_polygon.tolist()
 
-        # Process each edge of the clipping polygon
         for i in range(len(clip_polygon)):
             if not output_list:
                 break
@@ -193,17 +145,87 @@ class BBoxOverlapCalculator:
 
                     if _is_inside(e, edge_start, edge_end):
                         if not _is_inside(s, edge_start, edge_end):
-                            # Entering the clipping area
                             intersection = _intersection_point(
                                 s, e, edge_start, edge_end
                             )
                             output_list.append(intersection.tolist())
                         output_list.append(e.tolist())
                     elif _is_inside(s, edge_start, edge_end):
-                        # Leaving the clipping area
                         intersection = _intersection_point(s, e, edge_start, edge_end)
                         output_list.append(intersection.tolist())
 
                     s = e
 
         return np.array(output_list) if output_list else np.array([])
+
+
+def bbox_to_corners(
+    center_x: float,
+    center_y: float,
+    width: float,
+    height: float,
+    theta: float,
+) -> np.ndarray:
+    """Convert center-based bbox to corner points.
+
+    Args:
+        center_x: Center x coordinate
+        center_y: Center y coordinate
+        width: Box width
+        height: Box height
+        theta: Rotation angle in radians
+
+    Returns:
+        Array of 4 corner points [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+    """
+    cos_t = math.cos(theta)
+    sin_t = math.sin(theta)
+
+    half_w = width / 2
+    half_h = height / 2
+
+    # Local corner offsets (counter-clockwise from top-left)
+    local_corners = [
+        (-half_w, -half_h),
+        (half_w, -half_h),
+        (half_w, half_h),
+        (-half_w, half_h),
+    ]
+
+    corners = []
+    for lx, ly in local_corners:
+        # Rotate and translate
+        rx = lx * cos_t - ly * sin_t + center_x
+        ry = lx * sin_t + ly * cos_t + center_y
+        corners.append([rx, ry])
+
+    return np.array(corners, dtype=np.float32)
+
+
+def rotated_to_axis_aligned(
+    center_x: float,
+    center_y: float,
+    width: float,
+    height: float,
+    theta: float,
+) -> Tuple[float, float, float, float]:
+    """Convert a rotated bbox to its axis-aligned bounding rect.
+
+    Args:
+        center_x: Center x coordinate
+        center_y: Center y coordinate
+        width: Box width
+        height: Box height
+        theta: Rotation angle in radians
+
+    Returns:
+        Tuple of (x, y, w, h) for axis-aligned bounding rect (x, y is top-left)
+    """
+    corners = bbox_to_corners(center_x, center_y, width, height, theta)
+
+    min_x = corners[:, 0].min()
+    max_x = corners[:, 0].max()
+    min_y = corners[:, 1].min()
+    max_y = corners[:, 1].max()
+
+    return (min_x, min_y, max_x - min_x, max_y - min_y)

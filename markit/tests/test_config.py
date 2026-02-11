@@ -19,7 +19,7 @@ class TestConstants:
 
     def test_constants_have_expected_values(self):
         """Verify constants have expected values."""
-        assert Constants.MP4V_FOURCC == "mp4v"
+        assert Constants.MP4V_FOURCC == "mp4v"  # Fallback codec (H.264 tried first)
         assert Constants.SCHEMA_VERSION == "1.1"
         assert "SAVANT markit" in Constants.ANNOTATOR_NAME
 
@@ -68,18 +68,45 @@ class TestOpticalFlowParams:
     def test_default_values(self):
         """Test default optical flow parameters."""
         params = OpticalFlowParams()
-        assert params.motion_threshold == 0.5
-        assert params.min_area == 200
-        assert params.morph_kernel_size == 9
+        assert params.motion_threshold == 1.0  # Increased for drone footage
+        assert params.min_area == 2000  # For full resolution, scaled with processing_scale²
+        assert params.max_area == 30000  # For full resolution, scaled with processing_scale²
+        assert params.morph_close_size == 3
+        assert params.morph_open_size == 5
+        assert params.track_max_age == 10  # Frames before track expires
+        assert params.algorithm == "dis"
+        assert params.temporal_smoothing == 0.3
+        assert params.pyramid_levels == 7
+        assert params.window_size == 25
+        assert params.iterations == 5
+        assert params.median_filter_size == 5
+        assert params.processing_scale == 0.5  # Downscale for faster processing
 
     def test_custom_values(self):
         """Test custom optical flow parameters."""
         params = OpticalFlowParams(
-            motion_threshold=0.7, min_area=300, morph_kernel_size=11
+            motion_threshold=0.7, min_area=300, morph_close_size=11
         )
         assert params.motion_threshold == 0.7
         assert params.min_area == 300
-        assert params.morph_kernel_size == 11
+        assert params.morph_close_size == 11
+
+    def test_custom_algorithm_params(self):
+        """Test custom algorithm-related parameters."""
+        params = OpticalFlowParams(
+            algorithm="farneback",
+            temporal_smoothing=0.5,
+            pyramid_levels=5,
+            window_size=21,
+            iterations=3,
+            median_filter_size=0,  # Disabled
+        )
+        assert params.algorithm == "farneback"
+        assert params.temporal_smoothing == 0.5
+        assert params.pyramid_levels == 5
+        assert params.window_size == 21
+        assert params.iterations == 3
+        assert params.median_filter_size == 0
 
 
 class TestConflictResolutionConfig:
@@ -124,11 +151,13 @@ class TestMarkitConfig:
             verbose_conflicts=False,
             disable_conflict_resolution=False,
             housekeeping=False,
-            duplicate_avg_iou=0.7,
-            duplicate_min_iou=0.3,
+            duplicate_avg_iou=0.3,
+            duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -161,11 +190,13 @@ class TestMarkitConfig:
             verbose_conflicts=False,
             disable_conflict_resolution=False,
             housekeeping=False,
-            duplicate_avg_iou=0.7,
-            duplicate_min_iou=0.3,
+            duplicate_avg_iou=0.3,
+            duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -197,11 +228,13 @@ class TestMarkitConfig:
             verbose_conflicts=True,
             disable_conflict_resolution=False,
             housekeeping=False,
-            duplicate_avg_iou=0.7,
-            duplicate_min_iou=0.3,
+            duplicate_avg_iou=0.3,
+            duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -238,7 +271,9 @@ class TestMarkitConfig:
             duplicate_min_iou=0.4,
             rotation_threshold=0.2,
             min_movement_pixels=10.0,
-            temporal_smoothing=0.5,
+            rotation_smoothing=0.5,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=150,
             static_threshold=3,
             static_mark=True,
@@ -251,7 +286,7 @@ class TestMarkitConfig:
         assert config.duplicate_min_iou == 0.4
         assert config.rotation_threshold == 0.2
         assert config.min_movement_pixels == 10.0
-        assert config.temporal_smoothing == 0.5
+        assert config.rotation_smoothing == 0.5
         assert config.edge_distance == 150
         assert config.static_threshold == 3
         assert config.static_mark is True
@@ -275,11 +310,13 @@ class TestMarkitConfig:
             verbose_conflicts=False,
             disable_conflict_resolution=False,
             housekeeping=False,
-            duplicate_avg_iou=0.7,
-            duplicate_min_iou=0.3,
+            duplicate_avg_iou=0.3,
+            duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -307,11 +344,13 @@ class TestMarkitConfig:
             verbose_conflicts=False,
             disable_conflict_resolution=False,
             housekeeping=False,
-            duplicate_avg_iou=0.7,
-            duplicate_min_iou=0.3,
+            duplicate_avg_iou=0.3,
+            duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -339,11 +378,13 @@ class TestMarkitConfig:
             verbose_conflicts=False,
             disable_conflict_resolution=False,
             housekeeping=False,
-            duplicate_avg_iou=0.7,
-            duplicate_min_iou=0.3,
+            duplicate_avg_iou=0.3,
+            duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,
@@ -374,11 +415,13 @@ class TestMarkitConfig:
             verbose_conflicts=False,
             disable_conflict_resolution=False,
             housekeeping=False,
-            duplicate_avg_iou=0.7,
-            duplicate_min_iou=0.3,
+            duplicate_avg_iou=0.3,
+            duplicate_min_iou=0.2,
             rotation_threshold=0.1,
             min_movement_pixels=5.0,
-            temporal_smoothing=0.3,
+            rotation_smoothing=0.3,
+            min_total_movement=30.0,
+            max_rotation_change=0.524,
             edge_distance=200,
             static_threshold=5,
             static_mark=False,

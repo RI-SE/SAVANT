@@ -3,16 +3,17 @@ outputvideo - Output video rendering from postprocessed OpenLabel data
 
 Handles rendering of annotated video from final postprocessed OpenLabel data,
 with support for detecting and highlighting postprocessing modifications.
+Includes optional optical flow debug visualization (magnitude heatmap, motion mask).
 """
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import cv2
 import numpy as np
 
 from .config import Constants, DetectionResult, MarkitConfig
-from .processing import FrameAnnotator
+from .processing import FrameAnnotator, OpticalFlowEngine
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,8 @@ def _openlabel_to_detections(
     Returns:
         List of DetectionResult objects
     """
+    import re
+
     detection_results = []
 
     for obj_id, obj_frame_data in frame_data.get("objects", {}).items():
@@ -140,38 +143,43 @@ def _openlabel_to_detections(
             vec_data = obj_frame_data.get("object_data", {}).get("vec", [])
             confidence = 1.0
             source_engine = "yolo"
-
-            # Check for postprocessing markers and extract metadata
-            has_gap = False
-            has_rot = False
+            housekeeping_tags = []
 
             for vec in vec_data:
                 if vec.get("name") == "confidence":
                     conf_vals = vec.get("val", [1.0])
+                    # Use last confidence (detector confidence, not housekeeping)
                     confidence = conf_vals[-1] if conf_vals else 1.0
                 elif vec.get("name") == "annotator":
                     annotators = vec.get("val", [""])
-                    # Check for specific postprocessing types
-                    for ann in annotators:
-                        if "gap" in ann:
-                            has_gap = True
-                        elif "rot" in ann:
-                            has_rot = True
 
-                    # Determine source engine (gap takes priority over rot)
-                    if has_gap:
-                        source_engine = "postprocessed_gap"
-                    elif has_rot:
-                        source_engine = "postprocessed_rot"
-                    else:
-                        # Use the last/most recent annotator for engine detection
-                        annotator = annotators[-1] if annotators else ""
-                        if "yolo" in annotator:
+                    # Extract housekeeping tags from markit_housekeeping(...) entry
+                    for ann in annotators:
+                        match = re.match(r"markit_housekeeping\(([^)]*)\)", ann)
+                        if match and match.group(1):
+                            housekeeping_tags = [t.strip() for t in match.group(1).split(",")]
+
+                    # Determine source engine from detector annotator (not housekeeping)
+                    # Search from last to first for a detector entry
+                    for ann in reversed(annotators):
+                        if "markit_housekeeping" in ann:
+                            continue  # Skip housekeeping entries
+                        if "yolo" in ann:
                             source_engine = "yolo"
-                        elif "oflow" in annotator:
+                            break
+                        elif "optical_flow" in ann or "oflow" in ann:
                             source_engine = "optical_flow"
-                        elif "aruco" in annotator:
+                            break
+                        elif "aruco" in ann:
                             source_engine = "aruco"
+                            break
+                    else:
+                        # No detector found - likely gap-filled frame
+                        # Use "gap" as source if gap tag present, else default
+                        if "gap" in housekeeping_tags:
+                            source_engine = "gap"
+                        else:
+                            source_engine = "unknown"
 
             # Get class from objects data
             obj_meta = objects_data.get(obj_id, {})
@@ -193,12 +201,55 @@ def _openlabel_to_detections(
                 source_engine=source_engine,
                 object_id=int(obj_id),
             )
+            # Attach housekeeping tags for label rendering
+            detection.housekeeping_tags = housekeeping_tags
             detection_results.append(detection)
 
         except Exception as e:
             logger.error(f"Error converting OpenLabel object {obj_id}: {e}")
 
     return detection_results
+
+
+def draw_optical_flow_debug(
+    frame: np.ndarray,
+    debug_data: Dict[str, np.ndarray],
+    alpha: float = 0.5,
+) -> np.ndarray:
+    """Overlay optical flow visualization on frame.
+
+    Draws a magnitude heatmap showing motion intensity (blue=no motion, red=high motion).
+
+    Args:
+        frame: BGR image
+        debug_data: Dict with 'magnitude', 'motion_mask', 'flow' arrays
+        alpha: Blend factor for overlay (0=original only, 1=heatmap only)
+
+    Returns:
+        Annotated frame with flow visualization
+    """
+    if debug_data is None:
+        return frame
+
+    magnitude = debug_data.get("magnitude")
+    if magnitude is None:
+        return frame
+
+    # Normalize magnitude to 0-255 for colormap
+    mag_normalized = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX)
+    mag_uint8 = mag_normalized.astype(np.uint8)
+
+    # Apply JET colormap: blue (low) -> green -> red (high)
+    heatmap = cv2.applyColorMap(mag_uint8, cv2.COLORMAP_JET)
+
+    # Resize heatmap to match frame size if needed (when processing_scale < 1.0)
+    if heatmap.shape[:2] != frame.shape[:2]:
+        heatmap = cv2.resize(heatmap, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_LINEAR)
+
+    # Blend heatmap with original frame
+    result = cv2.addWeighted(frame, 1 - alpha, heatmap, alpha, 0)
+
+    return result
 
 
 def render_output_video(
@@ -223,6 +274,15 @@ def render_output_video(
             "Verbose mode: Drawing YOLO boxes (red) and OpenLabel boxes (green/colors)"
         )
 
+    # Check if optical flow debug visualization is enabled
+    flow_debug_enabled = config.optical_flow_params.debug_visualization
+    flow_engine: Optional[OpticalFlowEngine] = None
+
+    if flow_debug_enabled:
+        logger.info("Optical flow debug visualization enabled (magnitude heatmap)")
+        # Create a dedicated optical flow engine for visualization
+        flow_engine = OpticalFlowEngine(config.optical_flow_params)
+
     # Open input video
     cap = cv2.VideoCapture(config.video_path)
     if not cap.isOpened():
@@ -234,11 +294,31 @@ def render_output_video(
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
 
-    # Setup video writer
-    fourcc = cv2.VideoWriter_fourcc(*Constants.MP4V_FOURCC)
-    out = cv2.VideoWriter(
-        config.output_video_path, fourcc, fps, (frame_width, frame_height)
-    )
+    # Setup video writer - try H.264 first for better compression, fall back to mp4v
+    # H.264 requires libx264; if unavailable, mp4v (MPEG-4 Part 2) is used
+    codec_chain = ["avc1", Constants.MP4V_FOURCC]
+    out = None
+    used_codec = None
+
+    for codec in codec_chain:
+        fourcc = cv2.VideoWriter_fourcc(*codec)
+        out = cv2.VideoWriter(
+            config.output_video_path, fourcc, fps, (frame_width, frame_height)
+        )
+        if out.isOpened():
+            used_codec = codec
+            break
+        out.release()
+
+    if used_codec is None or not out.isOpened():
+        logger.error("Failed to open video writer with any available codec")
+        cap.release()
+        return
+
+    if used_codec == "avc1":
+        logger.info("Using H.264 codec for output video")
+    elif used_codec != "avc1":
+        logger.debug(f"H.264 not available, using '{used_codec}' codec")
 
     frame_idx = 0
     frames_data = openlabel_data.get("openlabel", {}).get("frames", {})
@@ -250,11 +330,22 @@ def render_output_video(
             if not success:
                 break
 
+            annotated_frame = frame.copy()
+
+            # Draw optical flow debug visualization (heatmap) if enabled
+            if flow_engine is not None:
+                # Process frame to get optical flow debug data
+                flow_engine.process_frame(frame)
+                flow_debug_data = flow_engine.get_debug_visualization()
+                if flow_debug_data is not None:
+                    annotated_frame = draw_optical_flow_debug(
+                        annotated_frame, flow_debug_data, alpha=0.5
+                    )
+
             # Get detections for this frame from OpenLabel data
             frame_str = str(frame_idx)
             if frame_str in frames_data:
                 # If verbose, draw original YOLO boxes first (in red)
-                annotated_frame = frame.copy()
                 if config.verbose:
                     annotated_frame = _draw_raw_yolo_boxes(
                         annotated_frame, frame_idx, debug_data
@@ -267,9 +358,8 @@ def render_output_video(
                 annotated_frame = FrameAnnotator.annotate_frame(
                     annotated_frame, detection_results, config.class_map
                 )
-                out.write(annotated_frame)
-            else:
-                out.write(frame)  # No detections, write original frame
+
+            out.write(annotated_frame)
 
             frame_idx += 1
             if frame_idx % 100 == 0:
@@ -278,5 +368,7 @@ def render_output_video(
     finally:
         cap.release()
         out.release()
+        if flow_engine is not None:
+            flow_engine.cleanup()
 
     logger.info(f"Output video rendered: {config.output_video_path}")

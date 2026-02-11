@@ -532,3 +532,57 @@ class UpdateVLMTagCommand:
         if gateway is None:
             raise RuntimeError("No VLM gateway configured.")
         gateway.update_tag(self.tag_id, self.before.tag_data)
+
+
+@dataclass
+class TrackObjectCommand:
+    """Undoable command that adds multiple bboxes from object tracking.
+
+    This command wraps all tracked frames into a single undoable operation,
+    allowing the user to undo/redo all tracking results at once.
+    """
+
+    object_id: str
+    tracked_frames: List  # List of TrackedFrame objects
+    annotator: str
+    description: str = "Track object"
+    _snapshots: List[FrameObjectSnapshot] = field(
+        default_factory=list, init=False, repr=False
+    )
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+
+        if not self._snapshots:
+            # First execution: create bboxes and capture snapshots
+            for tf in self.tracked_frames:
+                coordinates = (
+                    tf.center_x,
+                    tf.center_y,
+                    tf.width,
+                    tf.height,
+                    tf.theta,
+                )
+                bbox_info = {
+                    "object_id": self.object_id,
+                    "coordinates": coordinates,
+                }
+                snapshots = gateway.add_bbox_to_existing_object(
+                    frame_number=tf.frame_idx,
+                    bbox_info=bbox_info,
+                    annotator=self.annotator,
+                )
+                if snapshots:
+                    self._snapshots.extend(snapshots)
+        else:
+            # Redo: restore from snapshots
+            for snapshot in self._snapshots:
+                gateway.restore_bbox(snapshot)
+
+    def undo(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+        for tf in self.tracked_frames:
+            gateway.delete_bbox(
+                frame_number=tf.frame_idx,
+                object_id=self.object_id,
+            )
