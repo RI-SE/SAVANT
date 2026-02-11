@@ -2,7 +2,7 @@ import math
 from dataclasses import replace
 from typing import List, Tuple
 
-from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import QWidget
 
@@ -48,6 +48,7 @@ class Overlay(QWidget):
     bounding_box_selected = pyqtSignal(object)  # (object_id)
 
     deletePressed = pyqtSignal()
+    cycle_bbox_requested = pyqtSignal(int)  # +1 next, -1 prev
     cascadeApplyAll = pyqtSignal(
         str, object, object, object, object, object, object
     )  # (object_id, center_x, center_y, width, height, theta, direction).
@@ -254,6 +255,16 @@ class Overlay(QWidget):
         if ev.button() in (Qt.MouseButton.MiddleButton,) or (
             ev.button() == Qt.MouseButton.LeftButton
             and (ev.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        ):
+            ev.ignore()
+            return
+
+        # Let zoom-rect clicks fall through to the video display
+        parent = self.parent()
+        if (
+            ev.button() == Qt.MouseButton.LeftButton
+            and hasattr(parent, "_zoom_rect_mode")
+            and parent._zoom_rect_mode
         ):
             ev.ignore()
             return
@@ -928,6 +939,16 @@ class Overlay(QWidget):
             Qt.TransformationMode.SmoothTransformation,
         )
 
+    def event(self, ev):
+        if ev.type() == QEvent.Type.KeyPress:
+            if ev.key() == Qt.Key.Key_Tab:
+                self.cycle_bbox_requested.emit(1)
+                return True
+            elif ev.key() == Qt.Key.Key_Backtab:
+                self.cycle_bbox_requested.emit(-1)
+                return True
+        return super().event(ev)
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Delete and not (
             event.modifiers() & Qt.KeyboardModifier.ControlModifier
@@ -941,6 +962,28 @@ class Overlay(QWidget):
 
     def on_arrow_key_press(self, event):
         if self._selected_idx is None:
+            # When zoomed in with no bbox selected, arrow keys pan the view
+            if self._zoom > 1.0 and event.key() in (
+                Qt.Key.Key_Up,
+                Qt.Key.Key_Down,
+                Qt.Key.Key_Left,
+                Qt.Key.Key_Right,
+            ):
+                pan_step = 50.0
+                parent = self.parent()
+                if hasattr(parent, "set_pan") and hasattr(parent, "_pan"):
+                    dx, dy = 0.0, 0.0
+                    if event.key() == Qt.Key.Key_Up:
+                        dy = pan_step
+                    elif event.key() == Qt.Key.Key_Down:
+                        dy = -pan_step
+                    elif event.key() == Qt.Key.Key_Left:
+                        dx = pan_step
+                    elif event.key() == Qt.Key.Key_Right:
+                        dx = -pan_step
+                    parent.set_pan(parent._pan.x() + dx, parent._pan.y() + dy)
+                    event.accept()
+                    return
             return super().keyPressEvent(event)
 
         movement_step = get_movement_sensitivity()

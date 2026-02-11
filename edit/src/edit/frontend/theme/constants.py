@@ -10,6 +10,7 @@ from edit.frontend.utils.assets import asset_path
 SEEK_BAR_MARKER_THICKNESS = 2
 SEEK_BAR_WARNING_MARKER_COLOR = QColor("#ffbb00")
 SEEK_BAR_ERROR_MARKER_COLOR = QColor("#ff1500")
+SEEK_BAR_BOOKMARK_MARKER_COLOR = QColor("#00aaff")
 
 # Sidebar warning/error highlight colours
 SIDEBAR_WARNING_HIGHLIGHT = QColor("#ebc139")

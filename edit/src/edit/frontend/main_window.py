@@ -32,6 +32,7 @@ from edit.frontend.utils.settings_store import (
     set_tag_option_states,
     set_frame_history_count,
     set_zoom_rate,
+    set_bbox_zoom_padding,
 )
 from edit.frontend.utils import (
     annotation_ops,
@@ -52,6 +53,8 @@ from edit.frontend.utils.undo import (
     UndoRedoManager,
 )
 from edit.frontend.widgets.about_dialog import AboutDialog
+from edit.frontend.widgets.bookmark_dialog import BookmarkManagerDialog
+from edit.frontend.widgets.shortcuts_dialog import ShortcutsDialog
 from edit.frontend.widgets.menu import AppMenu
 from edit.frontend.widgets.vlm_analysis_dialog import VLMAnalysisDialog
 from edit.frontend.widgets.overlay import Overlay
@@ -118,7 +121,9 @@ class MainWindow(QMainWindow):
             on_interpolate=self.open_interpolation_dialog,
             on_create_relationship=self.open_relationship_dialog,
             on_change_annotator=self.change_current_annotator,
+            on_bookmarks=self.open_bookmark_manager,
             on_vlm_analysis=self.open_vlm_analysis,
+            on_shortcuts=self.open_shortcuts,
             on_about=self.open_about,
         )
 
@@ -221,10 +226,12 @@ class MainWindow(QMainWindow):
         self._add_annotator_suggestion(annotator_name or "")
 
     def prompt_for_annotator(
-        self, annotator_names: Sequence[str] | None = None
+        self,
+        annotator_names: Sequence[str] | None = None,
+        default: str = "",
     ) -> str | None:
         suggestions = list(annotator_names or self._annotator_suggestions or [])
-        dialog = AnnotatorDialog(self, annotator_names=suggestions)
+        dialog = AnnotatorDialog(self, annotator_names=suggestions, default=default)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return dialog.get_annotator_name()
         return None
@@ -243,6 +250,10 @@ class MainWindow(QMainWindow):
         self.state.set_current_annotator(selected)
         self.add_known_annotator(selected)
         record_annotator_login(selected)
+
+    def open_shortcuts(self):
+        """Open dialog listing all keyboard shortcuts."""
+        ShortcutsDialog(parent=self).exec()
 
     def open_about(self):
         # Determine current theme based on the window's palette
@@ -273,6 +284,18 @@ class MainWindow(QMainWindow):
         )
         dialog.exec()
 
+    def open_bookmark_manager(self):
+        """Open dialog for viewing, jumping to, and deleting bookmarks."""
+        dialog = BookmarkManagerDialog(parent=self)
+        dialog.exec()
+        # Refresh seek bar markers regardless of how the dialog was closed,
+        # since bookmarks may have been deleted.
+        confidence_ops.apply_bookmark_markers(self)
+        if dialog.selected_frame is not None:
+            from edit.frontend.utils.navigation import on_seek
+
+            on_seek(self, dialog.selected_frame)
+
     def update_vlm_menu_state(self):
         """Enable/disable VLM Analysis menu item based on data availability."""
         contexts = self.project_state_controller.get_vlm_contexts()
@@ -298,6 +321,7 @@ class MainWindow(QMainWindow):
             set_zoom_rate(vals.get("zoom_rate", get_zoom_rate()))
             if hasattr(self, "set_default_zoom"):
                 self.set_default_zoom(get_zoom_rate(), apply=True)
+            set_bbox_zoom_padding(vals.get("bbox_zoom_padding", 2.5))
             set_frame_history_count(vals["previous_frame_count"])
             self.sidebar_state.historic_obj_frame_count = get_frame_history_count()
             self.sidebar.refresh_confidence_issue_list()

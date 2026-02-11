@@ -45,14 +45,14 @@ The release binaries ship with the bundled assets used by the UI. When a new tag
 
 - **Project onboarding**: folder scanner, guided video/config import, OpenLabel template generator, and automatic ontology fallback.
 - **Annotator awareness**: login prompt, quick annotator switching, and per-project history so previous names autofill.
-- **Video playback & navigation**: instant seek jumps, skip/play controls with FPS-aware playback, and next/previous issue jumps.
-- **Bounding box editing**: rotated boxes with drag handles, keyboard nudging, zoom/pan, cascade edits, undo/redo, and Delete-to-remove.
+- **Video playback & navigation**: instant seek jumps, skip/play controls with FPS-aware playback, spacebar frame advance, go-to-frame (`Ctrl+G`), bookmarks with notes, and next/previous issue jumps.
+- **Bounding box editing**: rotated boxes with drag handles, keyboard nudging, zoom/pan, rectangle zoom, bbox review cycling, cascade edits, undo/redo, right-click context actions, and Delete-to-remove.
 - **Object management**: Active Objects list, object name/type editing, relationship viewer, and link-to-existing-ID workflow for both dynamic and static objects.
 - **Interpolation & relationships**: frame-range interpolation wizard plus ontology-backed relationship creation, deletion, restoration, and overlay visualisation.
 - **Tagging**: ontology-powered frame tags with configurable default ranges, object tag discovery, tag toggles that surface as markers and status notes, and Delete to remove tags.
 - **Confidence controls**: configurable warning/error thresholds, seek-bar/overlay markers, sortable issue list with “Mark as resolved,” and playback issue summaries.
-- **Saving & persistence**: quick save with validation, per-project settings snapshot (zoom, thresholds, tag toggles, ontology namespace), and automatic restoration on reopen.
-- **Settings & theming**: zoom defaults, movement/rotation sensitivity, frame history depth, ontology namespace, action interval offset, tag toggles, and warning/error visibility toggles.
+- **Saving & persistence**: quick save with validation, per-project settings snapshot (zoom, thresholds, tag toggles, bookmarks, ontology namespace), and automatic restoration on reopen.
+- **Settings & theming**: zoom defaults, movement/rotation sensitivity, bbox zoom padding, frame history depth, ontology namespace, action interval offset, tag toggles, and warning/error visibility toggles.
 - **Logging & error handling**: on-screen dialogs for user errors plus rotating log files for deeper troubleshooting.
 
 ---
@@ -72,19 +72,24 @@ The release binaries ship with the bundled assets used by the UI. When a new tag
 ## 4. Working in the Editor
 
 ### 4.1 Navigation & Playback
-- Click anywhere on the seek bar to jump to that frame instantly. Warning/error markers (and any enabled tag markers) sit below the slider for quick reference.
-- Use the playback bar to step one frame (`◀`, `▶`), skip ±30 frames, play/pause, or jump between the next/previous flagged issue.
+- Click anywhere on the seek bar to jump to that frame instantly. Warning/error markers, bookmark markers, and any enabled tag markers sit below the slider for quick reference.
+- Use the playback bar to step one frame (`◀`, `▶`), skip ±30 frames, play/pause, or jump between the next/previous flagged issue. Press `Space` to advance one frame.
+- `Ctrl+G` opens a go-to-frame dialog for direct frame number entry.
+- **Bookmarks**: `Ctrl+B` toggles a bookmark on the current frame. `Ctrl+Shift+N` / `Ctrl+Shift+P` jump to the next/previous bookmark. Each bookmark can carry an editable text note. Open `View → Bookmarks` to manage all bookmarks and their notes.
 - The right side of the control bar shows live center/size/rotation values for the active bounding box so you can see how edits affect it.
 
 ### 4.2 Bounding Boxes & Object Details
 - `New BBox` lets you:
   - Create a **new** object type using the ontology labels.
   - Link a **bounding box to an existing ID**. Pick from recent dynamic objects or all static objects, or type an ID.
-- The **Active Objects** list shows everything on the current frame. Selecting one highlights it, unlocks the **Object details** panel (rename, change type, view relationships), and synchronises the relationship list with the overlay.
+- The **Active Objects** list shows everything on the current frame. Selecting one highlights it, unlocks the **Object details** panel (rename, change type, view relationships), and synchronises the relationship list with the overlay. `Shift+click` an item to select it **and** zoom in to its bounding box.
 - Overlay controls:
   - Drag handles/edges to resize, drag the box to move, drag the rotation handle to rotate.
-  - Arrow keys nudge the box; hold `Shift` with ←/→ to rotate in small steps.
-  - `Delete` removes the selected box (undo restores it). `Ctrl` + mouse wheel zooms; `Ctrl` + drag pans when zoomed. `Ctrl+0` resets to the default zoom.
+  - Arrow keys nudge the box; hold `Shift` with ←/→ to rotate in small steps. When no box is selected and the view is zoomed in, arrow keys pan the view.
+  - `Tab` / `Shift+Tab` cycles to the next/previous bounding box and zooms in to it, letting you review each bbox in turn without manual panning. `Ctrl+0` zooms back out.
+  - `Delete` removes the selected box (undo restores it).
+  - **Zoom & pan**: `Ctrl` + mouse wheel zooms at the cursor position. Middle-click drag or `Ctrl` + left-click drag pans. `Z` toggles rectangle zoom mode (draw a rectangle to zoom into that area). `Ctrl+0` or the reset-view button resets to the default zoom.
+  - **Right-click context menu**: right-click a bbox for actions including delete, cascade delete, copy from previous frame, tracking, link IDs, and relationship management. Right-click empty space to copy a missing object's bbox from the previous frame.
 - Cascade edits: select a box, open the cascade dropdown, and choose whether to apply size, rotation, or center changes to all future frames or only a frame range for that object.
 - Undo/redo: `Ctrl+Z` / `Ctrl+Shift+Z` (or the Edit menu) reverses most actions, including bbox edits, tag changes, interpolation, linking, and relationship updates.
 
@@ -125,9 +130,12 @@ For details on confidence values and multi-annotator tracking, see the [Schema d
 
 For details on how confidence values are generated and what they mean for different annotator types (YOLO, VLM, human), see the [Schema documentation](../schema/README.md#annotator-and-confidence-fields).
 
-### 4.7 Saving Projects
+### 4.7 Keyboard Shortcuts
+Open `Help → Keyboard Shortcuts` to see a table of all available keyboard shortcuts.
+
+### 4.8 Saving Projects
 - `Ctrl+S`, `File → Save project`, or the Save toolbar icon writes the OpenLabel JSON back to disk. Before saving, the app validates action tags to ensure each interval has a valid start/end.
-- After saving annotations you are asked whether to store the current settings (zoom, warning ranges, tag toggles, namespace, etc.) inside `savant_project_config.json`. Choosing “Yes” means next time the project opens it will look exactly the same without further tweaks.
+- After saving annotations you are asked whether to store the current settings (zoom, warning ranges, tag toggles, namespace, bookmarks, etc.) inside `savant_project_config.json`. Choosing "Yes" means next time the project opens it will look exactly the same without further tweaks.
 
 ---
 
@@ -138,6 +146,7 @@ Open `File → Settings` to fine-tune the experience:
 - **Default zoom rate** – the rate at which the video is zoomed in to fit the video display area.
 - **Frame history** – how many earlier frames the “Link to existing ID” dialog inspects while suggesting dynamic objects.
 - **Movement/rotation sensitivity** – arrow-key increments for nudging and rotating.
+- **BBox zoom padding** – how much context to show around a bounding box when zooming to it (via `Shift+click` or `Tab`). Higher values show more surrounding area.
 - **Ontology namespace** – the namespace written when new entries are created.
 - **Action interval offset** – extends `New frame tag` start/end defaults equally before and after the current frame.
 - **Frame/Object tag toggles** – turn specific tags into seek-bar markers and playback notes.

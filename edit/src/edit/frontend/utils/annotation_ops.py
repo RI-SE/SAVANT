@@ -75,6 +75,16 @@ def wire(main_window, frontend_state: FrontendState):
             lambda object_id: highlight_selected_object(main_window, object_id)
         )
 
+    if hasattr(main_window.sidebar, "zoom_to_selected_object"):
+        main_window.sidebar.zoom_to_selected_object.connect(
+            lambda object_id: _zoom_to_object(main_window, object_id)
+        )
+
+    if hasattr(main_window.overlay, "cycle_bbox_requested"):
+        main_window.overlay.cycle_bbox_requested.connect(
+            lambda direction: _cycle_bbox(main_window, direction)
+        )
+
     if hasattr(main_window.video_widget, "bbox_drawn"):
         main_window.video_widget.bbox_drawn.connect(
             lambda annotation: _call_with_annotator(
@@ -214,6 +224,43 @@ def _apply_geometry_update(
 def highlight_selected_object(main_window, object_id: str):
     """Highlight the selected object in the overlay."""
     main_window.overlay.select_box_by_obj_id(object_id)
+
+
+def _zoom_to_object(main_window, object_id: str):
+    """Select the bbox in the overlay and zoom to it."""
+    bbox = main_window.overlay._get_box_by_obj_id(object_id)
+    if bbox is None:
+        return
+    main_window.overlay.select_box_by_obj_id(object_id)
+    if hasattr(main_window, "zoom_to_bbox"):
+        main_window.zoom_to_bbox(bbox)
+
+
+def _cycle_bbox(main_window, direction: int):
+    """Cycle to the next (+1) or previous (-1) bbox and zoom to it.
+
+    Wraps around at list boundaries. If no bbox is selected, selects
+    the first (direction=+1) or last (direction=-1) bbox.
+    """
+    overlay = main_window.overlay
+    boxes = overlay._boxes
+    if not boxes:
+        return
+
+    count = len(boxes)
+    current_idx = overlay._selected_idx
+
+    if current_idx is None:
+        new_idx = 0 if direction > 0 else count - 1
+    else:
+        new_idx = (current_idx + direction) % count
+
+    bbox = boxes[new_idx]
+    overlay.select_box_by_obj_id(bbox.object_id)
+    overlay.bounding_box_selected.emit(bbox.object_id)
+
+    if hasattr(main_window, "zoom_to_bbox"):
+        main_window.zoom_to_bbox(bbox)
 
 
 def highlight_active_obj_list(main_window, object_id: str):
@@ -404,6 +451,35 @@ def _frames_to_ranges(frames: list[int]) -> str:
     return ", ".join(range_strs)
 
 
+def _cascade_property_description(center_x, center_y, width, height, rotation) -> str:
+    """Build a human-readable list of properties being cascaded."""
+    parts = []
+    if center_x is not None or center_y is not None:
+        parts.append("position")
+    if width is not None or height is not None:
+        parts.append("size")
+    if rotation is not None:
+        parts.append("rotation")
+    return ", ".join(parts) or "properties"
+
+
+def _confirm_cascade(main_window, object_id, property_desc, frame_range_str) -> bool:
+    """Show a confirmation dialog before executing a cascade operation."""
+    result = QMessageBox.warning(
+        main_window,
+        "Cascade Operation",
+        f"This will overwrite the <b>{property_desc}</b> of object "
+        f"'{object_id}' on frames {frame_range_str} with values from "
+        f"the current frame.\n\n"
+        f"Existing per-frame adjustments (e.g. from tracking) on those "
+        f"frames will be lost.\n\n"
+        f"Continue?",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    return result == QMessageBox.StandardButton.Yes
+
+
 def _apply_cascade_all_frames(
     main_window,
     object_id: str,
@@ -425,6 +501,14 @@ def _apply_cascade_all_frames(
     else:  # backwards
         start_frame = 0
         end_frame = current_frame
+
+    prop_desc = _cascade_property_description(
+        center_x, center_y, new_width, new_height, new_rotation
+    )
+    if not _confirm_cascade(
+        main_window, object_id, prop_desc, f"{start_frame}–{end_frame}"
+    ):
+        return
 
     command = CascadeBBoxCommand(
         object_id=str(object_id),
@@ -505,6 +589,14 @@ def _apply_cascade_next_frames(
         start_frame = current_frame - num_frames
         end_frame = current_frame - 1
 
+    prop_desc = _cascade_property_description(
+        center_x, center_y, width, height, rotation
+    )
+    if not _confirm_cascade(
+        main_window, object_id, prop_desc, f"{start_frame}–{end_frame}"
+    ):
+        return
+
     command = CascadeBBoxCommand(
         object_id=str(object_id),
         frame_start=start_frame,
@@ -555,6 +647,9 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
     bbox_index, _ = overlay_widget.hit_test(click_position)
 
     if bbox_index is None:
+        _on_overlay_empty_space_context_menu(
+            main_window, frontend_state, overlay_widget, click_position
+        )
         return
 
     overlay_widget._selected_idx = bbox_index
@@ -611,6 +706,21 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
     if obj_id and available_ids:
         link_ids_action = context_menu.addAction("Link object IDs")
 
+    action_copy_prev = None
+    current_frame = int(main_window.video_controller.current_index())
+    if obj_id and current_frame > 0:
+        try:
+            prev_bbox = main_window.annotation_controller.get_bbox(
+                current_frame - 1, obj_id
+            )
+            if prev_bbox:
+                context_menu.addSeparator()
+                action_copy_prev = context_menu.addAction(
+                    "Copy from previous frame"
+                )
+        except Exception:
+            pass
+
     selected_action = context_menu.exec(overlay_widget.mapToGlobal(click_position))
     if selected_action is None:
         return
@@ -647,6 +757,8 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
         _start_tracking(main_window, obj_id, "forward", frontend_state)
     elif selected_action == action_track_backward:
         _start_tracking(main_window, obj_id, "backward", frontend_state)
+    elif selected_action == action_copy_prev:
+        _copy_bbox_from_previous_frame(main_window, obj_id, frontend_state)
 
 
 def _apply_to_all_empty_frames(
@@ -845,6 +957,93 @@ def _start_tracking(
         "Tracking Complete",
         f"Added bboxes to {len(tracked_frames)} frames: {frame_ranges_str}",
     )
+
+
+def _on_overlay_empty_space_context_menu(
+    main_window, frontend_state, overlay_widget, click_position
+):
+    """Show a context menu on empty space listing objects from the previous frame
+    that are absent on the current frame, allowing the user to copy one."""
+    current_frame = int(main_window.video_controller.current_index())
+    if current_frame <= 0:
+        return
+    try:
+        prev_objects = main_window.annotation_controller.get_active_objects(
+            current_frame - 1
+        )
+        cur_objects = main_window.annotation_controller.get_active_objects(
+            current_frame
+        )
+    except Exception:
+        return
+    cur_ids = {o["id"] for o in cur_objects}
+    missing = [o for o in prev_objects if o["id"] not in cur_ids]
+    if not missing:
+        return
+    context_menu = QMenu(overlay_widget)
+    actions = {}
+    for obj in missing:
+        label = f"Copy {obj['id']} ({obj['type']}) from prev frame"
+        actions[context_menu.addAction(label)] = obj["id"]
+    selected_action = context_menu.exec(overlay_widget.mapToGlobal(click_position))
+    if selected_action and selected_action in actions:
+        _create_bbox_from_previous_frame(
+            main_window, actions[selected_action], frontend_state
+        )
+
+
+def _copy_bbox_from_previous_frame(main_window, object_id, frontend_state):
+    """Overwrite the current bbox geometry with values from the previous frame."""
+    annotator = frontend_state.require_current_annotator()
+    if not annotator:
+        return
+    current_frame = int(main_window.video_controller.current_index())
+    prev_bbox = main_window.annotation_controller.get_bbox(
+        current_frame - 1, object_id
+    )
+    if not prev_bbox:
+        return
+
+    def snapshot_builder(before):
+        return BBoxGeometrySnapshot(
+            center_x=prev_bbox.x_center,
+            center_y=prev_bbox.y_center,
+            width=prev_bbox.width,
+            height=prev_bbox.height,
+            rotation=prev_bbox.rotation,
+        )
+
+    _apply_geometry_update(main_window, object_id, annotator, snapshot_builder)
+
+
+def _create_bbox_from_previous_frame(main_window, object_id, frontend_state):
+    """Create a bbox on the current frame using geometry from the previous frame."""
+    annotator = frontend_state.require_current_annotator()
+    if not annotator:
+        return
+    current_frame = int(main_window.video_controller.current_index())
+    prev_bbox = main_window.annotation_controller.get_bbox(
+        current_frame - 1, object_id
+    )
+    if not prev_bbox:
+        return
+    bbox_info = {
+        "object_id": object_id,
+        "coordinates": (
+            prev_bbox.x_center,
+            prev_bbox.y_center,
+            prev_bbox.width,
+            prev_bbox.height,
+            prev_bbox.rotation,
+        ),
+    }
+    command = CreateExistingObjectBBoxCommand(
+        frame_number=current_frame,
+        bbox_info=bbox_info,
+        annotator=annotator,
+    )
+    main_window.execute_undoable_command(command)
+    _refresh_after_annotation_change(main_window)
 
 
 def _get_selected_object_relationships(

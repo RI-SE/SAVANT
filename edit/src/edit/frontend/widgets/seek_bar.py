@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
     QSlider,
     QHBoxLayout,
     QLabel,
+    QSpinBox,
     QStyle,
     QStyleOptionSlider,
 )
@@ -13,6 +14,7 @@ from edit.frontend.theme.constants import (
     SEEK_BAR_MARKER_THICKNESS,
     SEEK_BAR_WARNING_MARKER_COLOR,
     SEEK_BAR_ERROR_MARKER_COLOR,
+    SEEK_BAR_BOOKMARK_MARKER_COLOR,
 )
 
 
@@ -23,8 +25,10 @@ class SeekSlider(QSlider):
         super().__init__(*args, **kwargs)
         self._warning_frames: list[int] = []
         self._error_frames: list[int] = []
+        self._bookmark_frames: list[int] = []
         self._show_warnings: bool = True
         self._show_errors: bool = True
+        self._show_bookmarks: bool = True
 
     def mousePressEvent(self, event):
         """
@@ -114,6 +118,15 @@ class SeekSlider(QSlider):
     def show_errors(self) -> bool:
         return bool(self._show_errors)
 
+    def set_bookmark_frames(self, frames: list[int]):
+        self._bookmark_frames = self._normalize_frames(frames)
+        self.update()
+
+    def set_show_bookmarks(self, show: bool) -> None:
+        if self._show_bookmarks != bool(show):
+            self._show_bookmarks = bool(show)
+            self.update()
+
     def paintEvent(self, event):
         super().paintEvent(event)
         if self.maximum() < self.minimum():
@@ -188,6 +201,8 @@ class SeekSlider(QSlider):
             draw_markers(self._warning_frames, SEEK_BAR_WARNING_MARKER_COLOR)
         if self._show_errors:
             draw_markers(self._error_frames, SEEK_BAR_ERROR_MARKER_COLOR)
+        if self._show_bookmarks:
+            draw_markers(self._bookmark_frames, SEEK_BAR_BOOKMARK_MARKER_COLOR)
         painter.end()
 
     def _normalize_frames(self, frames) -> list[int]:
@@ -236,14 +251,24 @@ class SeekBar(QWidget):
         self.slider.setTracking(False)
 
         self.label = QLabel("0 / 0")
+        self.label.mousePressEvent = lambda _event: self.activate_frame_input()
+
+        self.frame_input = QSpinBox()
+        self.frame_input.setMinimum(0)
+        self.frame_input.setMaximum(max(0, frame_count - 1))
+        self.frame_input.setVisible(False)
+        self.frame_input.setKeyboardTracking(False)
+        self.frame_input.editingFinished.connect(self._on_frame_input_finished)
 
         layout = QHBoxLayout(self)
         layout.addWidget(self.slider, stretch=1)
         layout.addWidget(self.label)
+        layout.addWidget(self.frame_input)
 
         self.slider.valueChanged.connect(self._on_value_changed)
         self._warning_frames_raw: list[int] = []
         self._error_frames_raw: list[int] = []
+        self._bookmark_frames_raw: list[int] = []
         self._warning_frames: list[int] = []
         self._error_frames: list[int] = []
         self._show_warnings: bool = True
@@ -274,6 +299,7 @@ class SeekBar(QWidget):
         self.slider.setMaximum(max(0, frame_count - 1))
         self.slider.setValue(0)
         self.slider.blockSignals(False)
+        self.frame_input.setMaximum(max(0, frame_count - 1))
         self.label.setText(f"0 / {frame_count}")
         self._apply_marker_frames()
 
@@ -335,11 +361,43 @@ class SeekBar(QWidget):
     def error_visibility(self) -> bool:
         return bool(self._show_errors)
 
+    def set_bookmark_frames(self, frames: list[int]):
+        """Update the bookmark marker frames displayed on the slider."""
+        self._bookmark_frames_raw = self._normalize_source_frames(frames)
+        self._apply_marker_frames()
+
+    def activate_frame_input(self):
+        """Show the frame number input spinbox, hiding the label."""
+        self.frame_input.setMaximum(self.slider.maximum())
+        self.frame_input.setValue(self.slider.value())
+        self.label.setVisible(False)
+        self.frame_input.setVisible(True)
+        self.frame_input.setFocus()
+        self.frame_input.selectAll()
+
+    def _on_frame_input_finished(self):
+        """Jump to the frame entered in the spinbox and swap back to the label."""
+        value = self.frame_input.value()
+        self.frame_input.setVisible(False)
+        self.label.setVisible(True)
+        self.slider.setValue(value)
+        self.frame_changed.emit(value)
+
+    def keyPressEvent(self, event):
+        """Cancel frame input on Escape."""
+        if event.key() == Qt.Key.Key_Escape and self.frame_input.isVisible():
+            self.frame_input.setVisible(False)
+            self.label.setVisible(True)
+            return
+        super().keyPressEvent(event)
+
     def _apply_marker_frames(self):
         filtered_warnings = self._filter_frames_for_range(self._warning_frames_raw)
         filtered_errors = self._filter_frames_for_range(self._error_frames_raw)
+        filtered_bookmarks = self._filter_frames_for_range(self._bookmark_frames_raw)
         self.slider.set_warning_frames(filtered_warnings)
         self.slider.set_error_frames(filtered_errors)
+        self.slider.set_bookmark_frames(filtered_bookmarks)
         self._warning_frames = self.slider.warning_frames()
         self._error_frames = self.slider.error_frames()
 

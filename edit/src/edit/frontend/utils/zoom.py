@@ -1,7 +1,7 @@
-from PyQt6.QtGui import QShortcut, QKeySequence
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QKeySequence, QShortcut
 
-from edit.frontend.utils.settings_store import get_zoom_rate
+from edit.frontend.utils.settings_store import get_bbox_zoom_padding, get_zoom_rate
 
 
 def wire(main_window, initial: float | None = None):
@@ -30,6 +30,7 @@ def wire(main_window, initial: float | None = None):
     def zoom_fit():
         target = getattr(main_window, "_default_zoom", None) or 1.0
         _apply_zoom(target)
+        main_window.video_widget.set_pan(0.0, 0.0)
 
     def _set_default_zoom(value: float, *, apply: bool = False):
         main_window._default_zoom = _clamp(value)
@@ -57,9 +58,59 @@ def wire(main_window, initial: float | None = None):
         else:
             event.ignore()
 
+    def _zoom_to_rect(rect):
+        """Zoom and pan so the given display-space rectangle fills the viewport."""
+        vw = main_window.video_widget
+        viewport_w = vw.width()
+        viewport_h = vw.height()
+        if rect.width() <= 0 or rect.height() <= 0:
+            return
+
+        # The rect is in widget coordinates at the current zoom level.
+        # Calculate how much to scale up to fill the viewport.
+        zoom_factor = min(viewport_w / rect.width(), viewport_h / rect.height())
+        new_zoom = _clamp(main_window._zoom * zoom_factor)
+
+        # Convert the rectangle's center from display coords to image coords
+        # at the OLD zoom level, then compute the pan needed at the NEW zoom.
+        base_scale = vw._fit_scale()
+        old_scale = base_scale * main_window._zoom
+        if old_scale <= 0:
+            return
+
+        draw_rect = vw._draw_rect()
+        # Image-space coordinates of the rectangle center
+        img_cx = (rect.center().x() - draw_rect.left()) / old_scale
+        img_cy = (rect.center().y() - draw_rect.top()) / old_scale
+
+        new_scale = base_scale * new_zoom
+        new_draw_w = vw._pixmap.width() * new_scale
+        new_draw_h = vw._pixmap.height() * new_scale
+        centered_off_x = (viewport_w - new_draw_w) / 2
+        centered_off_y = (viewport_h - new_draw_h) / 2
+
+        # We want img_cx/img_cy to appear at the viewport center
+        target_disp_x = viewport_w / 2
+        target_disp_y = viewport_h / 2
+        pan_x = target_disp_x - (centered_off_x + img_cx * new_scale)
+        pan_y = target_disp_y - (centered_off_y + img_cy * new_scale)
+
+        _apply_zoom(new_zoom)
+        vw.set_pan(pan_x, pan_y)
+
+    def _toggle_zoom_rect():
+        vw = main_window.video_widget
+        if vw._zoom_rect_mode:
+            vw.cancel_zoom_rect_mode()
+        else:
+            vw.start_zoom_rect_mode()
+
     if hasattr(main_window.video_widget, "setMouseTracking"):
         main_window.video_widget.setMouseTracking(True)
     main_window.video_widget.wheelEvent = _wheel_zoom
+
+    # Connect zoom-rect signal
+    main_window.video_widget.zoom_rect_selected.connect(_zoom_to_rect)
 
     QShortcut(
         QKeySequence(QKeySequence.StandardKey.ZoomIn), main_window, activated=zoom_in
@@ -68,10 +119,51 @@ def wire(main_window, initial: float | None = None):
         QKeySequence(QKeySequence.StandardKey.ZoomOut), main_window, activated=zoom_out
     )
     QShortcut(QKeySequence("Ctrl+0"), main_window, activated=zoom_fit)
+    QShortcut(QKeySequence("Z"), main_window, activated=_toggle_zoom_rect)
+
+    # Wire reset view button if present
+    if hasattr(main_window, "playback_controls") and hasattr(
+        main_window.playback_controls, "reset_view_clicked"
+    ):
+        main_window.playback_controls.reset_view_clicked.connect(zoom_fit)
+
+    def zoom_to_bbox(bbox):
+        """Zoom and pan so a BBoxData (video coords) fills the viewport with padding."""
+        vw = main_window.video_widget
+        if not vw._pixmap or vw._pixmap.isNull():
+            return
+        viewport_w = vw.width()
+        viewport_h = vw.height()
+        if bbox.width <= 0 or bbox.height <= 0:
+            return
+
+        PADDING = get_bbox_zoom_padding()
+
+        base_scale = vw._fit_scale()
+        padded_w = bbox.width * PADDING
+        padded_h = bbox.height * PADDING
+
+        new_zoom = _clamp(min(
+            viewport_w / (padded_w * base_scale),
+            viewport_h / (padded_h * base_scale),
+        ))
+
+        new_scale = base_scale * new_zoom
+        new_draw_w = vw._pixmap.width() * new_scale
+        new_draw_h = vw._pixmap.height() * new_scale
+        centered_off_x = (viewport_w - new_draw_w) / 2
+        centered_off_y = (viewport_h - new_draw_h) / 2
+
+        pan_x = viewport_w / 2 - (centered_off_x + bbox.center_x * new_scale)
+        pan_y = viewport_h / 2 - (centered_off_y + bbox.center_y * new_scale)
+
+        _apply_zoom(new_zoom)
+        vw.set_pan(pan_x, pan_y)
 
     main_window.zoom_in = zoom_in
     main_window.zoom_out = zoom_out
     main_window.zoom_fit = zoom_fit
+    main_window.zoom_to_bbox = zoom_to_bbox
     main_window.set_default_zoom = lambda value, *, apply=False: _set_default_zoom(
         value, apply=apply
     )

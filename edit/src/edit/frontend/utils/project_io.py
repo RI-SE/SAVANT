@@ -32,6 +32,7 @@ from .project_config import (
     restore_tag_option_states,
     set_active_project_dir,
 )
+from .confidence_ops import apply_bookmark_markers
 from .playback import _stop as stop
 from .render import show_frame
 from edit.utils import read_json
@@ -367,6 +368,7 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
     config = ensure_project_config(contents.directory)
     available_annotators = list(config.annotators or [])
     apply_project_settings(config)
+    apply_bookmark_markers(main_window)
     set_known_annotators = getattr(main_window, "set_known_annotators", None)
     if callable(set_known_annotators):
         set_known_annotators(available_annotators)
@@ -428,7 +430,10 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
     else:
         prompt_for_annotator = getattr(main_window, "prompt_for_annotator", None)
         if callable(prompt_for_annotator):
-            selected_annotator = prompt_for_annotator(available_annotators)
+            last_annotator = config.last_annotator or ""
+            selected_annotator = prompt_for_annotator(
+                available_annotators, default=last_annotator
+            )
 
     if selected_annotator:
         if state is not None:

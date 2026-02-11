@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <!-- Four corner brackets representing "fit to view" -->
+  <g fill="none" stroke="#D9D9D9" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Top-left corner -->
+    <polyline points="4,16 4,4 16,4"/>
+    <!-- Top-right corner -->
+    <polyline points="34,4 46,4 46,16"/>
+    <!-- Bottom-right corner -->
+    <polyline points="46,34 46,46 34,46"/>
+    <!-- Bottom-left corner -->
+    <polyline points="16,46 4,46 4,34"/>
+  </g>
+</svg>

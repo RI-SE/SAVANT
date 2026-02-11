@@ -28,7 +28,9 @@ _tag_frames: dict[str, dict[str, list[int]]] = {"frame": {}, "object": {}}
 _movement_sensitivity: float = 1.0  # default 1.0x
 _rotation_sensitivity: float = 0.1  # default 0.1
 _zoom_rate: float = 1.0
+_bbox_zoom_padding: float = 2.5
 _frame_history_count: int = 50
+_bookmarks: dict[int, str] = {}  # frame -> note
 _DEFAULT_ONTOLOGY_FILES = ("1.3.1.ttl",)
 
 
@@ -161,6 +163,17 @@ def set_rotation_sensitivity(value: float) -> None:
     _rotation_sensitivity = float_value
 
 
+def get_bbox_zoom_padding() -> float:
+    """Return the padding multiplier used when zooming to a bounding box."""
+    return float(_bbox_zoom_padding)
+
+
+def set_bbox_zoom_padding(value: float) -> None:
+    """Update the bbox zoom padding multiplier."""
+    global _bbox_zoom_padding
+    _bbox_zoom_padding = max(1.0, float(value))
+
+
 def get_zoom_rate() -> float:
     """Return the configured default zoom multiplier."""
     return float(_zoom_rate)
@@ -261,6 +274,55 @@ def get_enabled_tag_frames() -> dict[str, list[int]]:
             frames.update(frame_map.get(name, []))
         result[category] = sorted(frames)
     return result
+
+
+def get_bookmarks() -> list[int]:
+    """Return a sorted list of bookmarked frame indices."""
+    return sorted(_bookmarks.keys())
+
+
+def get_bookmark_notes() -> dict[int, str]:
+    """Return a copy of the bookmarks dict mapping frame index to note."""
+    return dict(_bookmarks)
+
+
+def set_bookmarks(frames) -> None:
+    """Replace all bookmarks.
+
+    Accepts either a list of frame indices (legacy, notes default to "")
+    or a dict mapping frame index to note string.
+    """
+    global _bookmarks
+    if isinstance(frames, dict):
+        _bookmarks = {
+            int(f): str(n)
+            for f, n in frames.items()
+            if isinstance(f, (int, float, str)) and int(f) >= 0
+        }
+    else:
+        _bookmarks = {
+            int(f): ""
+            for f in (frames or [])
+            if isinstance(f, (int, float)) and int(f) >= 0
+        }
+
+
+def set_bookmark_note(frame: int, note: str) -> None:
+    """Update the note for an existing bookmark."""
+    frame = int(frame)
+    if frame in _bookmarks:
+        _bookmarks[frame] = str(note)
+
+
+def toggle_bookmark(frame: int) -> bool:
+    """Add or remove a bookmark for the given frame. Returns True if added."""
+    global _bookmarks  # noqa: F824 (del and item assignment need global)
+    frame = int(frame)
+    if frame in _bookmarks:
+        del _bookmarks[frame]
+        return False
+    _bookmarks[frame] = ""
+    return True
 
 
 def get_default_ontology_path() -> Optional[Path]:
