@@ -55,7 +55,7 @@ Postprocessing (Housekeeping):
     --edge-distance      Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)
     --static-threshold   Movement threshold in pixels for static object removal (default: 20, negative disables)
     --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
-    --min-duration       Delete OF-origin objects appearing for fewer than N frames (default: 0 = disabled)
+    --min-duration       Delete OF-origin objects appearing for fewer than N frames (default: 15; set to 0 to disable)
     --no-gap-detection   Disable gap detection pass
     --no-gap-filling     Disable gap filling pass
     --max-gap-size       Maximum gap size in frames to interpolate (default: 30)
@@ -461,9 +461,9 @@ Examples:
     postproc.add_argument(
         "--min-duration",
         type=int,
-        default=0,
+        default=15,
         dest="min_duration",
-        help="Delete OF-origin objects appearing for fewer than N frames (default: 0 = disabled)",
+        help="Delete OF-origin objects appearing for fewer than N frames (default: 15; set to 0 to disable)",
     )
     postproc.add_argument(
         "--no-gap-detection", action="store_true",

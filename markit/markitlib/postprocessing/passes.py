@@ -1903,11 +1903,14 @@ class ShortDurationPass(PostprocessingPass):
     visible for only a few frames at the edge of the scene).
     """
 
-    def __init__(self, min_frames: int = 5, oflow_only: bool = True):
+    def __init__(self, min_frames: int = 15, oflow_only: bool = True):
         """Initialize short duration pass.
 
         Args:
             min_frames: Objects with fewer than this many frames are deleted.
+                At 30 fps, 15 frames ≈ 0.5 s — a reasonable minimum for a real
+                object to be worth annotating. Noise tracks from optical flow
+                typically last fewer than 10 frames.
             oflow_only: If True, only remove optical-flow-origin objects (default: True).
                 Set to False to apply to all detection engines.
         """

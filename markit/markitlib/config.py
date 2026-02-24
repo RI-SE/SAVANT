@@ -199,7 +199,7 @@ class MarkitConfig:
         self.edge_distance = args.edge_distance
         self.static_threshold = args.static_threshold
         self.static_mark = args.static_mark
-        self.min_duration = getattr(args, "min_duration", 0)
+        self.min_duration = getattr(args, "min_duration", 15)
 
         # Individual pass toggles (only relevant when housekeeping is enabled)
         self.no_gap_detection = getattr(args, "no_gap_detection", False)
