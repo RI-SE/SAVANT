@@ -21,6 +21,7 @@ from .passes import (
     SuddenPass,
     FrameIntervalPass,
     StaticObjectRemovalPass,
+    ShortDurationPass,
     AngleNormalizationPass,
 )
 from .pipeline import PostprocessingPipeline
@@ -40,6 +41,7 @@ __all__ = [
     "SuddenPass",
     "FrameIntervalPass",
     "StaticObjectRemovalPass",
+    "ShortDurationPass",
     "AngleNormalizationPass",
     "PostprocessingPipeline",
 ]

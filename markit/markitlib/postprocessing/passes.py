@@ -338,6 +338,57 @@ class GapFillingPass(PostprocessingPass):
         }
 
 
+def _get_object_source_engine(
+    obj_id: str,
+    object_frame_map: Dict[str, List[int]],
+    frames: Dict[str, Any],
+) -> str:
+    """Get the source detection engine for an object from its first non-gap frame.
+
+    Inspects the annotator vec entry, skipping housekeeping/gap frames, to determine
+    whether the object originated from yolo, oflow, aruco, or is unknown.
+
+    Args:
+        obj_id: Object ID to look up.
+        object_frame_map: Mapping of object IDs to their frame index lists.
+        frames: Full frame data dictionary from OpenLabel.
+
+    Returns:
+        Source engine name: "yolo", "oflow", "aruco", or "unknown".
+    """
+    import re
+
+    for frame_idx in object_frame_map.get(obj_id, []):
+        frame_str = str(frame_idx)
+        frame_objects = frames[frame_str].get("objects", {})
+
+        if obj_id not in frame_objects:
+            continue
+
+        try:
+            vec_list = frame_objects[obj_id]["object_data"]["vec"]
+            for vec_item in vec_list:
+                if vec_item.get("name") == "annotator":
+                    annotators = vec_item.get("val", [])
+                    for ann in reversed(annotators):
+                        if "markit_housekeeping" in ann:
+                            match = re.match(r"markit_housekeeping\(([^)]*)\)", ann)
+                            if match and match.group(1) == "gap":
+                                continue
+                            continue
+                        if "yolo" in ann.lower():
+                            return "yolo"
+                        elif "oflow" in ann.lower() or "optical_flow" in ann.lower():
+                            return "oflow"
+                        elif "aruco" in ann.lower():
+                            return "aruco"
+                    break
+        except (KeyError, IndexError):
+            pass
+
+    return "unknown"
+
+
 class DuplicateRemovalPass(PostprocessingPass):
     """Remove duplicate bounding boxes based on IOU threshold.
 
@@ -635,39 +686,7 @@ class DuplicateRemovalPass(PostprocessingPass):
         Returns:
             Source engine name (yolo, oflow, aruco, or unknown)
         """
-        import re
-
-        for frame_idx in object_frame_map.get(obj_id, []):
-            frame_str = str(frame_idx)
-            frame_objects = frames[frame_str].get("objects", {})
-
-            if obj_id not in frame_objects:
-                continue
-
-            try:
-                vec_list = frame_objects[obj_id]["object_data"]["vec"]
-                for vec_item in vec_list:
-                    if vec_item.get("name") == "annotator":
-                        annotators = vec_item.get("val", [])
-                        # Look for detector (skip housekeeping entries)
-                        for ann in reversed(annotators):
-                            if "markit_housekeeping" in ann:
-                                # Check if it's a gap-only frame
-                                match = re.match(r"markit_housekeeping\(([^)]*)\)", ann)
-                                if match and match.group(1) == "gap":
-                                    continue  # Skip gap-only frames
-                                continue
-                            if "yolo" in ann.lower():
-                                return "yolo"
-                            elif "oflow" in ann.lower() or "optical_flow" in ann.lower():
-                                return "oflow"
-                            elif "aruco" in ann.lower():
-                                return "aruco"
-                        break
-            except (KeyError, IndexError):
-                pass
-
-        return "unknown"
+        return _get_object_source_engine(obj_id, object_frame_map, frames)
 
     def _choose_object_to_delete(
         self,
@@ -1763,27 +1782,47 @@ class StaticObjectRemovalPass(PostprocessingPass):
                     delta_x <= self.static_threshold
                     and delta_y <= self.static_threshold
                 ):
-                    objects_to_remove.append(obj_id)
-
                     # Store first frame for marking
                     first_frame = min(frame_list)
 
                     if self.mark_only:
-                        self.marking_details.append(
-                            {
-                                "object_id": obj_id,
-                                "type": obj_type,
-                                "delta_x": delta_x,
-                                "delta_y": delta_y,
-                                "frame_count": len(frame_list),
-                                "first_frame": first_frame,
-                            }
+                        # OF-origin statics are always deleted even in mark_only mode —
+                        # they are noise, not real objects that should be preserved.
+                        source_engine = _get_object_source_engine(
+                            obj_id, object_frame_map, frames
                         )
-                        logger.info(
-                            f"Marked static object {obj_id} (type: {obj_type}) - "
-                            f"movement: dx={delta_x}px, dy={delta_y}px, frames={len(frame_list)}"
-                        )
+                        if source_engine == "oflow":
+                            objects_to_remove.append(obj_id)
+                            self.removal_details.append(
+                                {
+                                    "object_id": obj_id,
+                                    "type": obj_type,
+                                    "delta_x": delta_x,
+                                    "delta_y": delta_y,
+                                    "frame_count": len(frame_list),
+                                }
+                            )
+                            logger.info(
+                                f"Removed static OF object {obj_id} (type: {obj_type}) - "
+                                f"movement: dx={delta_x}px, dy={delta_y}px, frames={len(frame_list)}"
+                            )
+                        else:
+                            self.marking_details.append(
+                                {
+                                    "object_id": obj_id,
+                                    "type": obj_type,
+                                    "delta_x": delta_x,
+                                    "delta_y": delta_y,
+                                    "frame_count": len(frame_list),
+                                    "first_frame": first_frame,
+                                }
+                            )
+                            logger.info(
+                                f"Marked static object {obj_id} (type: {obj_type}) - "
+                                f"movement: dx={delta_x}px, dy={delta_y}px, frames={len(frame_list)}"
+                            )
                     else:
+                        objects_to_remove.append(obj_id)
                         self.removal_details.append(
                             {
                                 "object_id": obj_id,
@@ -1804,9 +1843,8 @@ class StaticObjectRemovalPass(PostprocessingPass):
                 )
                 continue
 
-        # Mark or remove objects
+        # Mark non-oflow static objects (when mark_only=True)
         if self.mark_only:
-            # Mark objects by adding "staticdynamic" annotation
             for detail in self.marking_details:
                 obj_id = detail["object_id"]
                 first_frame = detail["first_frame"]
@@ -1824,20 +1862,18 @@ class StaticObjectRemovalPass(PostprocessingPass):
                 vec_list.append({"name": "staticdynamic", "val": [first_frame]})
 
                 self.objects_marked += 1
-        else:
-            # Remove objects
-            for obj_id in objects_to_remove:
-                # Remove from objects dictionary
-                if obj_id in objects:
-                    del objects[obj_id]
-                    self.objects_removed += 1
 
-                # Remove from all frames
-                for frame_idx_str, frame_data in frames.items():
-                    frame_objects = frame_data.get("objects", {})
-                    if obj_id in frame_objects:
-                        del frame_objects[obj_id]
-                        self.frames_modified += 1
+        # Remove static objects: always when mark_only=False; OF-origin only when mark_only=True
+        for obj_id in objects_to_remove:
+            if obj_id in objects:
+                del objects[obj_id]
+                self.objects_removed += 1
+
+            for frame_idx_str, frame_data in frames.items():
+                frame_objects = frame_data.get("objects", {})
+                if obj_id in frame_objects:
+                    del frame_objects[obj_id]
+                    self.frames_modified += 1
 
         return openlabel_data
 
@@ -1847,17 +1883,110 @@ class StaticObjectRemovalPass(PostprocessingPass):
         Returns:
             Dictionary with removal or marking statistics
         """
-        if self.mark_only:
-            return {
-                "objects_checked": self.objects_checked,
-                "objects_marked": self.objects_marked,
-            }
-        else:
-            return {
-                "objects_checked": self.objects_checked,
-                "objects_removed": self.objects_removed,
-                "frames_modified": self.frames_modified,
-            }
+        return {
+            "objects_checked": self.objects_checked,
+            "objects_removed": self.objects_removed,
+            "objects_marked": self.objects_marked,
+            "frames_modified": self.frames_modified,
+        }
+
+
+class ShortDurationPass(PostprocessingPass):
+    """Delete short-lived DynamicObjects that appear for fewer than a minimum number of frames.
+
+    Short-lived objects are typically noise from the optical flow engine: contours that
+    briefly appear and disappear without corresponding to a real physical object. Deleting
+    them before other passes reduces noise in the annotation and speeds up subsequent steps.
+
+    When oflow_only=True (default), only optical-flow-origin objects are candidates, which
+    avoids accidentally removing brief but legitimate YOLO detections (e.g. a vehicle
+    visible for only a few frames at the edge of the scene).
+    """
+
+    def __init__(self, min_frames: int = 5, oflow_only: bool = True):
+        """Initialize short duration pass.
+
+        Args:
+            min_frames: Objects with fewer than this many frames are deleted.
+            oflow_only: If True, only remove optical-flow-origin objects (default: True).
+                Set to False to apply to all detection engines.
+        """
+        self.min_frames = min_frames
+        self.oflow_only = oflow_only
+        self.objects_checked = 0
+        self.objects_removed = 0
+        self.frames_modified = 0
+        self.removal_details = []
+
+    def process(self, openlabel_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Remove objects that appear for fewer than min_frames frames.
+
+        Args:
+            openlabel_data: Complete OpenLabel data structure
+
+        Returns:
+            Modified OpenLabel data with short-duration objects removed
+        """
+        frames = openlabel_data.get("openlabel", {}).get("frames", {})
+        objects = openlabel_data.get("openlabel", {}).get("objects", {})
+
+        # Build object-to-frames mapping
+        object_frame_map: Dict[str, List[int]] = defaultdict(list)
+        for frame_idx_str, frame_data in frames.items():
+            frame_idx = int(frame_idx_str)
+            for obj_id_str in frame_data.get("objects", {}).keys():
+                object_frame_map[obj_id_str].append(frame_idx)
+
+        objects_to_remove = []
+
+        for obj_id in list(objects.keys()):
+            if self.oflow_only:
+                source_engine = _get_object_source_engine(obj_id, object_frame_map, frames)
+                if source_engine != "oflow":
+                    continue
+
+            self.objects_checked += 1
+            frame_count = len(object_frame_map.get(obj_id, []))
+
+            if frame_count < self.min_frames:
+                objects_to_remove.append(obj_id)
+                self.removal_details.append(
+                    {
+                        "object_id": obj_id,
+                        "type": objects[obj_id].get("type", ""),
+                        "frame_count": frame_count,
+                    }
+                )
+                logger.info(
+                    f"ShortDurationPass: Removing {obj_id} "
+                    f"(type: {objects[obj_id].get('type', '')}, "
+                    f"frames={frame_count} < {self.min_frames})"
+                )
+
+        for obj_id in objects_to_remove:
+            if obj_id in objects:
+                del objects[obj_id]
+                self.objects_removed += 1
+
+            for frame_idx_str, frame_data in frames.items():
+                frame_objects = frame_data.get("objects", {})
+                if obj_id in frame_objects:
+                    del frame_objects[obj_id]
+                    self.frames_modified += 1
+
+        return openlabel_data
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get short duration pass statistics.
+
+        Returns:
+            Dictionary with removal statistics
+        """
+        return {
+            "objects_checked": self.objects_checked,
+            "objects_removed": self.objects_removed,
+            "frames_modified": self.frames_modified,
+        }
 
 
 class BboxSmoothingPass(PostprocessingPass):

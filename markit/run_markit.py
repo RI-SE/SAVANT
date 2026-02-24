@@ -24,7 +24,7 @@ Optional Arguments:
 
 Detection Configuration:
     --detection-method   Detection method: yolo, optical_flow, or both (default: yolo)
-    --motion-threshold   Optical flow motion threshold (default: 1.0)
+    --motion-threshold   Optical flow motion threshold (default: 2.0)
     --min-object-area    Minimum object area at full resolution (default: 2000)
     --max-object-area    Maximum object area at full resolution (default: 30000, 0 to disable)
     --flow-scale         Scale factor for optical flow processing (default: 0.5)
@@ -55,6 +55,7 @@ Postprocessing (Housekeeping):
     --edge-distance      Distance in pixels from frame edge for sudden appear/disappear detection (default: 200)
     --static-threshold   Movement threshold in pixels for static object removal (default: 20, negative disables)
     --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
+    --min-duration       Delete OF-origin objects appearing for fewer than N frames (default: 0 = disabled)
     --no-gap-detection   Disable gap detection pass
     --no-gap-filling     Disable gap filling pass
     --max-gap-size       Maximum gap size in frames to interpolate (default: 30)
@@ -125,6 +126,7 @@ from markit.markitlib.postprocessing import (
     SuddenPass,
     FrameIntervalPass,
     StaticObjectRemovalPass,
+    ShortDurationPass,
     AngleNormalizationPass,
 )
 
@@ -229,8 +231,8 @@ Examples:
     detection.add_argument(
         "--motion-threshold",
         type=float,
-        default=1.0,
-        help="Optical flow motion threshold (default: 1.0)",
+        default=2.0,
+        help="Optical flow motion threshold (default: 2.0)",
     )
     detection.add_argument(
         "--min-object-area",
@@ -247,8 +249,8 @@ Examples:
     detection.add_argument(
         "--track-max-age",
         type=int,
-        default=10,
-        help="Maximum frames a track can be unmatched before expiring (default: 10)",
+        default=5,
+        help="Maximum frames a track can be unmatched before expiring (default: 5)",
     )
     detection.add_argument(
         "--flow-algorithm",
@@ -347,8 +349,8 @@ Examples:
         "--flow-morph-open",
         dest="flow_morph_open",
         type=int,
-        default=5,
-        help="MORPH_OPEN kernel size, 0 to disable (default: 5)",
+        default=9,
+        help="MORPH_OPEN kernel size, 0 to disable (default: 9)",
     )
     detection.add_argument(
         "--exclusion-mask",
@@ -455,6 +457,13 @@ Examples:
         "--static-mark",
         action="store_true",
         help='Mark static objects instead of removing them (adds "staticdynamic" annotation)',
+    )
+    postproc.add_argument(
+        "--min-duration",
+        type=int,
+        default=0,
+        dest="min_duration",
+        help="Delete OF-origin objects appearing for fewer than N frames (default: 0 = disabled)",
     )
     postproc.add_argument(
         "--no-gap-detection", action="store_true",
@@ -793,7 +802,13 @@ def main():
                     max_gap_size=config.max_gap_size,
                 ))
 
-            # 2. Static object removal (if enabled via threshold)
+            # 2. Short-duration object filter (runs before static removal to reduce noise early)
+            if config.min_duration > 0:
+                postprocessing_pipeline.add_pass(
+                    ShortDurationPass(min_frames=config.min_duration)
+                )
+
+            # 3. Static object removal (if enabled via threshold)
             if config.static_threshold >= 0:
                 postprocessing_pipeline.add_pass(
                     StaticObjectRemovalPass(
@@ -802,7 +817,7 @@ def main():
                     )
                 )
 
-            # 3. Refine initial detection angles using lookahead
+            # 4. Refine initial detection angles using lookahead
             if not config.no_first_detection_refinement:
                 postprocessing_pipeline.add_pass(
                     FirstDetectionRefinementPass(
@@ -810,23 +825,23 @@ def main():
                     )
                 )
 
-            # 4. Filter size outliers (motion streaks, sudden elongation)
+            # 5. Filter size outliers (motion streaks, sudden elongation)
             # Run BEFORE smoothing to detect raw spikes before EMA blends them
             if not config.no_size_outlier_filter:
                 postprocessing_pipeline.add_pass(SizeOutlierFilterPass())
 
-            # 5. Bbox smoothing (size always smoothed; position smoothed by default)
+            # 6. Bbox smoothing (size always smoothed; position smoothed by default)
             # Run after outlier filter so smoothing works on clean data
             if not config.no_bbox_smoothing:
                 postprocessing_pipeline.add_pass(
                     BboxSmoothingPass(smooth_position=config.smooth_position)
                 )
 
-            # 6. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
+            # 7. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
             if not config.no_rotation_jump_fix:
                 postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
 
-            # 7. Adjust rotation based on movement direction
+            # 8. Adjust rotation based on movement direction
             if not config.no_rotation_adjustment:
                 postprocessing_pipeline.add_pass(
                     RotationAdjustmentPass(
@@ -838,7 +853,7 @@ def main():
                     )
                 )
 
-            # 8. Duplicate removal - runs AFTER all rotation fixes so IoU is accurate
+            # 9. Duplicate removal - runs AFTER all rotation fixes so IoU is accurate
             if not config.no_duplicate_removal:
                 postprocessing_pipeline.add_pass(
                     DuplicateRemovalPass(
@@ -849,21 +864,21 @@ def main():
                     )
                 )
 
-            # 9. Detect sudden appear/disappear events
+            # 10. Detect sudden appear/disappear events
             if not config.no_sudden_detection:
                 postprocessing_pipeline.add_pass(
                     SuddenPass(edge_distance=config.edge_distance)
                 )
 
-            # 10. Detect persistent size changes (step changes) for manual review
+            # 11. Detect persistent size changes (step changes) for manual review
             if not config.no_size_step_detection:
                 postprocessing_pipeline.add_pass(SizeStepDetectionPass())
 
-            # 11. Add frame intervals
+            # 12. Add frame intervals
             if not config.no_frame_intervals:
                 postprocessing_pipeline.add_pass(FrameIntervalPass())
 
-            # 12. Normalize all angles to [0, 2π) for OpenLabel output
+            # 13. Normalize all angles to [0, 2π) for OpenLabel output
             if not config.no_angle_normalization:
                 postprocessing_pipeline.add_pass(AngleNormalizationPass())
 
