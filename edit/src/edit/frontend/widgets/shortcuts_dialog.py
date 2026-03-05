@@ -14,6 +14,7 @@ _SHORTCUTS: list[tuple[str, str]] = [
     # -- Playback & Navigation --
     ("", "Playback & Navigation"),
     ("Space", "Advance one frame"),
+    ("Shift+Space", "Go back one frame"),
     ("Ctrl+G", "Go to frame number"),
     ("Ctrl+B", "Toggle bookmark on current frame"),
     ("Ctrl+Shift+N", "Jump to next bookmark"),

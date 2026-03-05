@@ -118,6 +118,7 @@ class MainWindow(QMainWindow):
             on_load=self.load_project_flow,
             on_save=self.quick_save_project,
             on_settings=self.open_settings,
+            on_exit=self.close,
             on_new_bbox=self.create_new_bounding_box,
             on_new_frame_tag=self.create_new_frame_tag,
             on_interpolate=self.open_interpolation_dialog,
@@ -436,3 +437,25 @@ class MainWindow(QMainWindow):
 
     def redo_last_command(self):
         return self.undo_manager.redo(self.undo_context)
+
+    def closeEvent(self, event):
+        """Prompt to save unsaved work before exiting."""
+        if self.undo_manager.can_undo:
+            reply = QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                "You have unsaved changes. Save before exiting?",
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Save,
+            )
+            if reply == QMessageBox.StandardButton.Save:
+                self.quick_save_project()
+                event.accept()
+            elif reply == QMessageBox.StandardButton.Discard:
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()

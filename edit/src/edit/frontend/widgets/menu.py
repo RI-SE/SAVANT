@@ -13,6 +13,7 @@ class AppMenu:
         on_load,
         on_save,
         on_settings,
+        on_exit,
         on_new_bbox,
         on_new_frame_tag,
         on_interpolate,
@@ -45,6 +46,12 @@ class AppMenu:
         file_menu.addAction(self.load_action)
         file_menu.addAction(self.save_action)
         file_menu.addAction(self.settings_action)
+        file_menu.addSeparator()
+
+        self.exit_action = QAction("Exit", window)
+        self.exit_action.setShortcut("Ctrl+Q")
+        self.exit_action.triggered.connect(on_exit)
+        file_menu.addAction(self.exit_action)
 
         self.new_bbox_action = QAction("New bounding box", window)
         self.new_bbox_action.triggered.connect(on_new_bbox)
