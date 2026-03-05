@@ -64,6 +64,7 @@ class TrackingService:
             ("MOSSE", "TrackerMOSSE_create"),
             ("KCF", "TrackerKCF_create"),
             ("CSRT", "TrackerCSRT_create"),
+            ("MIL", "TrackerMIL_create"),
         ]
 
         for kind, create_func in tracker_types:
