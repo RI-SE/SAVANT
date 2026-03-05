@@ -30,6 +30,7 @@ _rotation_sensitivity: float = 0.1  # default 0.1
 _zoom_rate: float = 1.0
 _bbox_zoom_padding: float = 2.5
 _frame_history_count: int = 50
+_video_buffer_frames: int = 30  # chunk size for VideoReader frame cache
 _bookmarks: dict[int, str] = {}  # frame -> note
 _DEFAULT_ONTOLOGY_FILES = ("1.3.1.ttl",)
 
@@ -200,6 +201,20 @@ def set_frame_history_count(value: int) -> None:
     if count < 1:
         raise InvalidFrameHistoryCountError("Frame history must be at least 1 frame.")
     _frame_history_count = count
+
+
+def get_video_buffer_frames() -> int:
+    """Return the number of frames per chunk in the VideoReader cache."""
+    return int(_video_buffer_frames)
+
+
+def set_video_buffer_frames(value: int) -> None:
+    """Update the VideoReader chunk size."""
+    global _video_buffer_frames
+    count = int(value)
+    if count < 1:
+        raise InvalidFrameHistoryCountError("Video buffer must be at least 1 frame.")
+    _video_buffer_frames = count
 
 
 def update_tag_options(tag_data: dict[str, dict[str, Iterable[int]]]) -> None:

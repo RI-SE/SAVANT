@@ -33,6 +33,8 @@ from edit.frontend.utils.settings_store import (
     set_frame_history_count,
     set_zoom_rate,
     set_bbox_zoom_padding,
+    set_video_buffer_frames,
+    get_video_buffer_frames,
 )
 from edit.frontend.utils import (
     annotation_ops,
@@ -325,6 +327,9 @@ class MainWindow(QMainWindow):
             set_frame_history_count(vals["previous_frame_count"])
             self.sidebar_state.historic_obj_frame_count = get_frame_history_count()
             self.sidebar.refresh_confidence_issue_list()
+            new_buf = vals.get("video_buffer_frames", get_video_buffer_frames())
+            set_video_buffer_frames(new_buf)
+            self.video_controller.reader.chunk_size = get_video_buffer_frames()
             warning_vals = vals.get("warning_range", get_warning_range())
             error_vals = vals.get("error_range", get_error_range())
             warning_range = tuple(float(v) for v in warning_vals)
