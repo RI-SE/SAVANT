@@ -55,6 +55,12 @@ class Overlay(QWidget):
     cascadeApplyFrameRange = pyqtSignal(
         str, object, object, object, object, object, object
     )  # (object_id, center_x, center_y, width, height, theta, direction).
+    cascadeRotate90 = pyqtSignal(
+        str, bool, object
+    )  # (object_id, clockwise, direction)
+    cascadeRotate90FrameRange = pyqtSignal(
+        str, bool, object
+    )  # (object_id, clockwise, direction)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -134,6 +140,18 @@ class Overlay(QWidget):
         )
         self.cascade_dropdown.applyCenterToFrameRange.connect(
             self._on_cascade_center_to_frame_range
+        )
+        self.cascade_dropdown.applyRotate90CWToAll.connect(
+            self._on_cascade_rotate90cw_to_all
+        )
+        self.cascade_dropdown.applyRotate90CCWToAll.connect(
+            self._on_cascade_rotate90ccw_to_all
+        )
+        self.cascade_dropdown.applyRotate90CWToFrameRange.connect(
+            self._on_cascade_rotate90cw_to_frame_range
+        )
+        self.cascade_dropdown.applyRotate90CCWToFrameRange.connect(
+            self._on_cascade_rotate90ccw_to_frame_range
         )
         self.cascade_dropdown.cancelled.connect(self._on_cascade_cancel)
 
@@ -1146,6 +1164,26 @@ class Overlay(QWidget):
             None,
             direction,
         )
+
+    def _on_cascade_rotate90cw_to_all(self, direction: str):
+        """Handle rotate 90° CW to all frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeRotate90.emit(selected_bbox.object_id, True, direction)
+
+    def _on_cascade_rotate90ccw_to_all(self, direction: str):
+        """Handle rotate 90° CCW to all frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeRotate90.emit(selected_bbox.object_id, False, direction)
+
+    def _on_cascade_rotate90cw_to_frame_range(self, direction: str):
+        """Handle rotate 90° CW to next X frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeRotate90FrameRange.emit(selected_bbox.object_id, True, direction)
+
+    def _on_cascade_rotate90ccw_to_frame_range(self, direction: str):
+        """Handle rotate 90° CCW to next X frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeRotate90FrameRange.emit(selected_bbox.object_id, False, direction)
 
     def _on_cascade_cancel(self):
         """Handle cascade cancel."""

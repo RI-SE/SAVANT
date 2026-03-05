@@ -23,6 +23,10 @@ class CascadeDropdown(QWidget):
     applySizeToFrameRange = pyqtSignal(object)
     applyRotationToFrameRange = pyqtSignal(object)
     applyCenterToFrameRange = pyqtSignal(object)
+    applyRotate90CWToAll = pyqtSignal(object)
+    applyRotate90CCWToAll = pyqtSignal(object)
+    applyRotate90CWToFrameRange = pyqtSignal(object)
+    applyRotate90CCWToFrameRange = pyqtSignal(object)
     cancelled = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -86,6 +90,26 @@ class CascadeDropdown(QWidget):
         self.apply_center_to_next_btn.clicked.connect(self._on_apply_center_next_frame)
         layout.addWidget(self.apply_center_to_next_btn)
 
+        self.apply_rotate90cw_to_all_btn = QPushButton("Rotate 90° CW All Frames")
+        self.apply_rotate90cw_to_all_btn.clicked.connect(self._on_apply_rotate90cw_all)
+        layout.addWidget(self.apply_rotate90cw_to_all_btn)
+
+        self.apply_rotate90ccw_to_all_btn = QPushButton("Rotate 90° CCW All Frames")
+        self.apply_rotate90ccw_to_all_btn.clicked.connect(self._on_apply_rotate90ccw_all)
+        layout.addWidget(self.apply_rotate90ccw_to_all_btn)
+
+        self.apply_rotate90cw_to_next_btn = QPushButton("Rotate 90° CW Next X Frames")
+        self.apply_rotate90cw_to_next_btn.clicked.connect(
+            self._on_apply_rotate90cw_next_frame
+        )
+        layout.addWidget(self.apply_rotate90cw_to_next_btn)
+
+        self.apply_rotate90ccw_to_next_btn = QPushButton("Rotate 90° CCW Next X Frames")
+        self.apply_rotate90ccw_to_next_btn.clicked.connect(
+            self._on_apply_rotate90ccw_next_frame
+        )
+        layout.addWidget(self.apply_rotate90ccw_to_next_btn)
+
         # Store action buttons for easy access
         self._action_buttons = [
             self.apply_size_to_all_btn,
@@ -94,6 +118,10 @@ class CascadeDropdown(QWidget):
             self.apply_size_to_next_btn,
             self.apply_rotation_to_next_btn,
             self.apply_center_to_next_btn,
+            self.apply_rotate90cw_to_all_btn,
+            self.apply_rotate90ccw_to_all_btn,
+            self.apply_rotate90cw_to_next_btn,
+            self.apply_rotate90ccw_to_next_btn,
         ]
 
         # Cancel button (always visible)
@@ -153,6 +181,26 @@ class CascadeDropdown(QWidget):
         """Handle cascade center to next X frames button click."""
         self.hide()
         self.applyCenterToFrameRange.emit(self._current_direction)
+
+    def _on_apply_rotate90cw_all(self):
+        """Handle rotate 90° CW to all frames button click."""
+        self.hide()
+        self.applyRotate90CWToAll.emit(self._current_direction)
+
+    def _on_apply_rotate90ccw_all(self):
+        """Handle rotate 90° CCW to all frames button click."""
+        self.hide()
+        self.applyRotate90CCWToAll.emit(self._current_direction)
+
+    def _on_apply_rotate90cw_next_frame(self):
+        """Handle rotate 90° CW to next X frames button click."""
+        self.hide()
+        self.applyRotate90CWToFrameRange.emit(self._current_direction)
+
+    def _on_apply_rotate90ccw_next_frame(self):
+        """Handle rotate 90° CCW to next X frames button click."""
+        self.hide()
+        self.applyRotate90CCWToFrameRange.emit(self._current_direction)
 
     def _on_cancel(self):
         """Handle cancel button click."""

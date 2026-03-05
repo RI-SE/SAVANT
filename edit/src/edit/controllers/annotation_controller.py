@@ -115,6 +115,24 @@ class AnnotationController:
         )
 
     @error_handler
+    def rotate_90_cascade(
+        self,
+        frame_start: int,
+        object_key: Union[int, str],
+        frame_end: Optional[int],
+        annotator: str,
+        clockwise: bool = True,
+    ) -> list[int]:
+        """Rotate bboxes by 90° and swap w/h across a range of frames."""
+        return self.annotation_service.rotate_90_cascade(
+            frame_start=int(frame_start),
+            frame_end=frame_end,
+            annotator=annotator,
+            object_key=object_key,
+            clockwise=clockwise,
+        )
+
+    @error_handler
     def add_bbox_to_existing_object(
         self, frame_number: int, bbox_info: dict, annotator: str
     ) -> Optional[List[Tuple[int, FrameLevelObject]]]:

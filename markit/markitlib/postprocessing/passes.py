@@ -1206,8 +1206,9 @@ class RotationAdjustmentPass(PostprocessingPass):
     ) -> None:
         """Apply rotation adjustment and update annotator/confidence.
 
-        With the new semantic representation, width/height never swap.
-        Only the rotation value is updated.
+        Sets the rotation to r_new and normalizes the bbox so that
+        width >= height (the heading marker always points along the
+        long axis of elongated objects).
 
         Args:
             frame_obj_data: Frame object data
@@ -1218,8 +1219,13 @@ class RotationAdjustmentPass(PostprocessingPass):
         # Rebase angle if needed (only if |angle| > 2π)
         adjusted_rotation = rebase_angle_if_needed(r_new)
 
-        # Update only rotation - width/height are semantic and don't swap
+        # Update rotation
         rbbox[4] = adjusted_rotation
+
+        # Normalize: ensure width >= height so the heading marker
+        # (drawn along the width axis) points along the long dimension.
+        if rbbox[3] > rbbox[2]:  # h > w
+            rbbox[2], rbbox[3] = rbbox[3], rbbox[2]  # swap w and h
 
         update_housekeeping_annotator(frame_obj_data, "rot")
 
@@ -1428,20 +1434,11 @@ class RotationAdjustmentPass(PostprocessingPass):
 
         movement_direction = float(np.arctan2(avg_sin, avg_cos))
 
-        # Determine rotation based on aspect ratio
-        aspect_ratio = max(w_current, h_current) / max(min(w_current, h_current), 1.0)
-
-        if aspect_ratio > 1.5:  # Elongated object
-            if h_current > w_current:
-                # Height is long axis, add 90° to movement direction
-                correct_rotation = movement_direction + np.pi / 2
-            else:
-                # Width is long axis, use movement direction
-                correct_rotation = movement_direction
-        else:
-            correct_rotation = movement_direction
-
-        return correct_rotation
+        # The heading marker is drawn along the width axis (direction θ).
+        # Always set θ = movement_direction so the heading marker points
+        # in the direction of travel. The caller will swap w/h if needed
+        # to ensure the width axis is the long dimension.
+        return movement_direction
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get rotation adjustment statistics.

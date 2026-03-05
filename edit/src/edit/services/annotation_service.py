@@ -321,6 +321,69 @@ class AnnotationService:
 
         return edited_frames
 
+    def rotate_90_cascade(
+        self,
+        frame_start: int,
+        object_key: Union[int, str],
+        frame_end: Optional[int],
+        annotator: str,
+        *,
+        clockwise: bool = True,
+    ) -> List[int]:
+        """Rotate bboxes by 90° and swap w/h across a range of frames.
+
+        This keeps the visual box identical but shifts the heading direction
+        by 90°. Useful for correcting 90°-off heading annotations.
+
+        Args:
+            frame_start: First frame (inclusive).
+            object_key: Object identifier.
+            frame_end: Last frame (inclusive), or None for all.
+            annotator: Annotator tag.
+            clockwise: True for +90° (CW), False for -90° (CCW).
+
+        Returns:
+            List of modified frame numbers.
+        """
+        import math
+
+        frames_with_object = sorted(
+            int(frame_key)
+            for frame_key, frame_data in getattr(
+                self.project_state.annotation_config, "frames", {}
+            ).items()
+            if getattr(frame_data, "objects", None) and object_key in frame_data.objects
+        )
+        frames_with_object = [
+            f for f in frames_with_object
+            if f >= frame_start and (frame_end is None or f <= frame_end)
+        ]
+
+        if not frames_with_object:
+            return []
+
+        delta = math.pi / 2 if clockwise else -math.pi / 2
+        edited_frames = []
+        for frame_num in frames_with_object:
+            bbox = self.get_bbox(frame_key=frame_num, object_key=object_key)
+            if bbox is None:
+                continue
+            new_rotation = float(bbox.rotation) + delta
+            self.project_state.annotation_config.update_bbox(
+                frame_key=str(frame_num),
+                object_key=object_key,
+                bbox_index=0,
+                x_center=None,
+                y_center=None,
+                width=float(bbox.height),
+                height=float(bbox.width),
+                rotation=new_rotation,
+                annotator=annotator,
+            )
+            edited_frames.append(frame_num)
+
+        return edited_frames
+
     def delete_bbox(
         self, frame_key: int, object_key: str
     ) -> Optional[FrameLevelObject]:
