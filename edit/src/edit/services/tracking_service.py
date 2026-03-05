@@ -285,6 +285,7 @@ class TrackingService:
         # Track state
         prev_cx, prev_cy = center_x, center_y
         prev_theta = theta
+        prev_frame = frame
         frame_count = self.video_reader.project_state.video_metadata.frame_count
 
         current_frame = start_frame + direction
@@ -316,24 +317,22 @@ class TrackingService:
                 )
                 break
 
-            # Estimate rotation from movement direction
-            dx = new_cx - prev_cx
-            dy = new_cy - prev_cy
-            distance = math.hypot(dx, dy)
-
-            if distance >= self.MIN_MOVEMENT_FOR_ROTATION:
-                movement_angle = math.atan2(dy, dx)
-                # Adjust for aspect ratio: if height > width, object is "tall"
-                # and its forward direction is perpendicular to movement
-                if height > width:
-                    new_theta = movement_angle + math.pi / 2
+            # Estimate rotation via sparse optical flow over the bbox crop,
+            # falling back to movement-direction heuristic if flow fails.
+            new_theta = self._estimate_rotation_from_flow(
+                prev_frame, frame, prev_cx, prev_cy, width, height, prev_theta
+            )
+            if new_theta is None:
+                dx = new_cx - prev_cx
+                dy = new_cy - prev_cy
+                if math.hypot(dx, dy) >= self.MIN_MOVEMENT_FOR_ROTATION:
+                    movement_angle = math.atan2(dy, dx)
+                    if height > width:
+                        new_theta = (movement_angle + math.pi / 2) % (2 * math.pi)
+                    else:
+                        new_theta = movement_angle % (2 * math.pi)
                 else:
-                    new_theta = movement_angle
-                # Normalize to [0, 2pi)
-                new_theta = new_theta % (2 * math.pi)
-            else:
-                # Keep previous rotation for small movements
-                new_theta = prev_theta
+                    new_theta = prev_theta
 
             # Check overlap with existing bboxes in this frame
             tracked_corners = bbox_to_corners(new_cx, new_cy, width, height, new_theta)
@@ -371,6 +370,7 @@ class TrackingService:
 
             prev_cx, prev_cy = new_cx, new_cy
             prev_theta = new_theta
+            prev_frame = frame
             current_frame += direction
 
         logger.info(
@@ -378,6 +378,78 @@ class TrackingService:
             f"({'forward' if direction > 0 else 'backward'})"
         )
         return results
+
+    def _estimate_rotation_from_flow(
+        self,
+        prev_frame: np.ndarray,
+        curr_frame: np.ndarray,
+        cx: float,
+        cy: float,
+        width: float,
+        height: float,
+        prev_theta: float,
+        padding: float = 0.2,
+    ) -> Optional[float]:
+        """Estimate rotation by running sparse optical flow on the bbox crop.
+
+        The crop region is scaled relative to the bbox size, so it works for
+        both small and large objects.
+
+        Returns the new absolute theta (radians), or None if estimation failed.
+        """
+        fh, fw = prev_frame.shape[:2]
+
+        # Crop with relative padding around the bbox
+        half_w = width / 2 * (1 + padding)
+        half_h = height / 2 * (1 + padding)
+        x1 = int(max(0, cx - half_w))
+        y1 = int(max(0, cy - half_h))
+        x2 = int(min(fw, cx + half_w))
+        y2 = int(min(fh, cy + half_h))
+
+        if x2 - x1 < 4 or y2 - y1 < 4:
+            return None
+
+        # Convert crops to grayscale
+        prev_crop = prev_frame[y1:y2, x1:x2]
+        curr_crop = curr_frame[y1:y2, x1:x2]
+        if prev_crop.ndim == 3:
+            prev_gray = cv2.cvtColor(prev_crop, cv2.COLOR_BGR2GRAY)
+            curr_gray = cv2.cvtColor(curr_crop, cv2.COLOR_BGR2GRAY)
+        else:
+            prev_gray = prev_crop
+            curr_gray = curr_crop
+
+        # Detect good features in the previous crop
+        max_corners = 40
+        quality = 0.01
+        min_dist = max(3.0, min(width, height) * 0.05)  # relative to bbox size
+        pts = cv2.goodFeaturesToTrack(
+            prev_gray, maxCorners=max_corners, qualityLevel=quality,
+            minDistance=min_dist,
+        )
+        if pts is None or len(pts) < 4:
+            return None
+
+        # Track them with Lucas-Kanade
+        pts_curr, status, _ = cv2.calcOpticalFlowPyrLK(prev_gray, curr_gray, pts, None)
+        if pts_curr is None:
+            return None
+
+        good_prev = pts[status.ravel() == 1]
+        good_curr = pts_curr[status.ravel() == 1]
+        if len(good_prev) < 2:
+            return None
+
+        # Fit a partial affine (translation + rotation + uniform scale)
+        M, inliers = cv2.estimateAffinePartial2D(good_prev, good_curr, method=cv2.RANSAC)
+        if M is None or inliers is None or inliers.sum() < 2:
+            return None
+
+        # Extract rotation from the 2×2 part of the affine matrix
+        delta_theta = math.atan2(M[1, 0], M[0, 0])
+        new_theta = (prev_theta + delta_theta) % (2 * math.pi)
+        return new_theta
 
     def _check_overlap(
         self,
