@@ -123,7 +123,8 @@ class TrackingService:
                 tracker = factory()
                 logger.debug(f"Trying {kind} with rect={rect}")
                 success = tracker.init(frame, rect)
-                if success:
+                # OpenCV 4.11+ returns None (void); older versions return bool
+                if success is None or success:
                     logger.info(f"{kind} tracker initialized successfully")
                     return tracker, kind
                 else:

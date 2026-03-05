@@ -496,12 +496,10 @@ class AnnotationService:
 
     def _does_object_exist_in_frame(self, frame_number: int, object_id: str) -> bool:
         """Check if an object exists in a specific frame."""
-        try:
-            frame = self.project_state.annotation_config.frames[str(frame_number)]
-        except KeyError:
-            raise FrameNotFoundError(f"Frame number {frame_number} does not exist.")
-
-        return object_id in [key for key in frame.objects.keys()]
+        frame = self.project_state.annotation_config.frames.get(str(frame_number))
+        if frame is None:
+            return False
+        return object_id in frame.objects
 
     def _generate_new_object_id(self) -> str:
         """
