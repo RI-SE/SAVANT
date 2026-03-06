@@ -50,8 +50,11 @@ def show_frame(main_window, pixmap, frame_idx: int | None):
 def refresh_frame(main_window):
     """
     Re-render current frame without changing index (after edits/zoom/etc.).
+    No-op if no frame has been read yet (video not loaded or not yet navigated to).
     """
     idx = main_window.video_controller.current_index()
+    if idx < 0:
+        return
     pixmap, _ = main_window.video_controller.jump_to_frame(idx)
     show_frame(main_window, pixmap, idx)
 
