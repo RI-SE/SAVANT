@@ -36,7 +36,12 @@ def show_frame(main_window, pixmap, frame_idx: int | None):
     if frame_idx is not None and hasattr(main_window.seek_bar, "set_position"):
         main_window.seek_bar.set_position(int(frame_idx))
 
+    # Save selection before clear so set_rotated_boxes can restore it
+    overlay = getattr(main_window, "overlay", None)
+    _prev_selected_id = overlay.selected_object_id() if overlay is not None else None
     _clear_selection_for_frame_change(main_window, frame_idx)
+    if _prev_selected_id is not None and overlay is not None:
+        overlay._preserve_selection_id = _prev_selected_id
     _update_overlay_from_model(main_window)
     if hasattr(main_window, "update_issue_info"):
         main_window.update_issue_info()
@@ -146,4 +151,7 @@ def _clear_selection_for_frame_change(main_window, frame_idx: int | None) -> Non
 
     if last_index is None or last_index != new_index:
         overlay.clear_selection()
+        # Invalidate per-frame delta bases so revisiting a frame starts fresh.
+        if hasattr(main_window, "_delta_base"):
+            main_window._delta_base.clear()
     main_window._last_rendered_frame_idx = new_index

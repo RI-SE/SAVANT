@@ -142,6 +142,8 @@ class TrackingService:
         object_id: str,
         iou_threshold: float = 0.3,
         progress_callback: Optional[callable] = None,
+        stop_frame: Optional[int] = None,
+        skip_object_ids: Optional[set] = None,
     ) -> List[TrackedFrame]:
         """Track object forward from start_frame.
 
@@ -151,6 +153,8 @@ class TrackingService:
             object_id: ID of object being tracked
             iou_threshold: Stop tracking if IoU with existing bbox exceeds this
             progress_callback: Optional callback(current_frame, total_tracked) for progress updates
+            stop_frame: Optional frame index to stop tracking at (inclusive)
+            skip_object_ids: Optional set of object IDs to ignore during overlap check
 
         Returns:
             List of TrackedFrame results for successfully tracked frames
@@ -162,6 +166,8 @@ class TrackingService:
             iou_threshold=iou_threshold,
             direction=1,
             progress_callback=progress_callback,
+            stop_frame=stop_frame,
+            skip_object_ids=skip_object_ids,
         )
 
     def track_backward(
@@ -171,6 +177,8 @@ class TrackingService:
         object_id: str,
         iou_threshold: float = 0.3,
         progress_callback: Optional[callable] = None,
+        stop_frame: Optional[int] = None,
+        skip_object_ids: Optional[set] = None,
     ) -> List[TrackedFrame]:
         """Track object backward from start_frame.
 
@@ -180,6 +188,8 @@ class TrackingService:
             object_id: ID of object being tracked
             iou_threshold: Stop tracking if IoU with existing bbox exceeds this
             progress_callback: Optional callback(current_frame, total_tracked) for progress updates
+            stop_frame: Optional frame index to stop tracking at (inclusive)
+            skip_object_ids: Optional set of object IDs to ignore during overlap check
 
         Returns:
             List of TrackedFrame results for successfully tracked frames
@@ -191,6 +201,8 @@ class TrackingService:
             iou_threshold=iou_threshold,
             direction=-1,
             progress_callback=progress_callback,
+            stop_frame=stop_frame,
+            skip_object_ids=skip_object_ids,
         )
 
     def _track(
@@ -201,6 +213,8 @@ class TrackingService:
         iou_threshold: float,
         direction: int,
         progress_callback: Optional[callable] = None,
+        stop_frame: Optional[int] = None,
+        skip_object_ids: Optional[set] = None,
     ) -> List[TrackedFrame]:
         """Core tracking loop.
 
@@ -288,8 +302,22 @@ class TrackingService:
         prev_frame = frame
         frame_count = self.video_reader.project_state.video_metadata.frame_count
 
+        # Rolling position history for velocity-based exit prediction.
+        # When the object is about to exit the frame its predicted next
+        # position will be outside — we stop before the tracker can latch
+        # onto background features inside the frame.
+        from collections import deque
+        _pos_history: deque = deque(maxlen=5)
+        _pos_history.append((center_x, center_y))
+
         current_frame = start_frame + direction
         while 0 <= current_frame < frame_count:
+            # Stop at the boundary frame (inclusive) when re-tracking a range
+            if stop_frame is not None:
+                if direction == 1 and current_frame > stop_frame:
+                    break
+                if direction == -1 and current_frame < stop_frame:
+                    break
             # Get frame
             try:
                 frame = self.video_reader.get_frame(current_frame)
@@ -308,23 +336,29 @@ class TrackingService:
             new_cx = tx + tw / 2
             new_cy = ty + th / 2
 
-            # Check if bbox is still within frame bounds
-            if (new_cx - width / 2 < 0 or new_cx + width / 2 > frame_w or
-                    new_cy - height / 2 < 0 or new_cy + height / 2 > frame_h):
+            # Stop if the tracked box has mostly left the frame.
+            # Measure the fraction of the axis-aligned tracked rect that still
+            # overlaps the frame — this handles rotated/large objects correctly.
+            overlap_w = min(tx + tw, frame_w) - max(tx, 0)
+            overlap_h = min(ty + th, frame_h) - max(ty, 0)
+            overlap_area = max(0.0, overlap_w) * max(0.0, overlap_h)
+            tracked_area = tw * th
+            if tracked_area > 0 and overlap_area / tracked_area < 0.5:
                 logger.info(
                     f"Tracking stopped at frame {current_frame}: "
-                    f"bbox out of bounds (cx={new_cx:.1f}, cy={new_cy:.1f})"
+                    f"bbox mostly outside frame ({overlap_area/tracked_area:.1%} overlap)"
                 )
                 break
 
             # Estimate rotation via sparse optical flow over the bbox crop,
             # falling back to movement-direction heuristic if flow fails.
             new_theta = self._estimate_rotation_from_flow(
-                prev_frame, frame, prev_cx, prev_cy, width, height, prev_theta
+                prev_frame, frame, prev_cx, prev_cy, width, height, prev_theta,
+                direction=direction,
             )
             if new_theta is None:
-                dx = new_cx - prev_cx
-                dy = new_cy - prev_cy
+                dx = (new_cx - prev_cx) * direction
+                dy = (new_cy - prev_cy) * direction
                 if math.hypot(dx, dy) >= self.MIN_MOVEMENT_FOR_ROTATION:
                     movement_angle = math.atan2(dy, dx)
                     if height > width:
@@ -337,7 +371,7 @@ class TrackingService:
             # Check overlap with existing bboxes in this frame
             tracked_corners = bbox_to_corners(new_cx, new_cy, width, height, new_theta)
             overlaps = self._check_overlap(
-                current_frame, tracked_corners, iou_threshold
+                current_frame, tracked_corners, iou_threshold, skip_object_ids=skip_object_ids
             )
 
             if overlaps:
@@ -345,6 +379,27 @@ class TrackingService:
                     f"Tracking stopped at frame {current_frame} due to overlap"
                 )
                 break
+
+            # Velocity-based exit prediction: if we have enough history,
+            # compute rolling average velocity and project one step ahead.
+            # Stop (after recording the current frame) when the predicted
+            # center exits the frame — this fires before the tracker can
+            # latch onto in-frame background after the object has left.
+            _pos_history.append((new_cx, new_cy))
+            _will_exit = False
+            if len(_pos_history) >= 2:
+                pts = list(_pos_history)
+                avg_dx = sum(pts[i][0] - pts[i-1][0] for i in range(1, len(pts))) / (len(pts) - 1)
+                avg_dy = sum(pts[i][1] - pts[i-1][1] for i in range(1, len(pts))) / (len(pts) - 1)
+                pred_cx = new_cx + avg_dx
+                pred_cy = new_cy + avg_dy
+                if pred_cx < 0 or pred_cx >= frame_w or pred_cy < 0 or pred_cy >= frame_h:
+                    logger.info(
+                        f"Tracking stopped at frame {current_frame}: "
+                        f"predicted exit at ({pred_cx:.1f}, {pred_cy:.1f}) "
+                        f"velocity=({avg_dx:.1f}, {avg_dy:.1f})"
+                    )
+                    _will_exit = True
 
             # Add to results
             results.append(
@@ -357,6 +412,10 @@ class TrackingService:
                     theta=new_theta,
                 )
             )
+
+            # Stop after recording the current edge frame if exit is predicted
+            if _will_exit:
+                break
 
             # Call progress callback to keep UI responsive
             # If callback returns True, cancel tracking
@@ -389,11 +448,15 @@ class TrackingService:
         height: float,
         prev_theta: float,
         padding: float = 0.2,
+        direction: int = 1,
     ) -> Optional[float]:
         """Estimate rotation by running sparse optical flow on the bbox crop.
 
         The crop region is scaled relative to the bbox size, so it works for
         both small and large objects.
+
+        When tracking backward (direction=-1) the affine delta is negated so
+        the rotation accumulates in the correct direction.
 
         Returns the new absolute theta (radians), or None if estimation failed.
         """
@@ -446,8 +509,15 @@ class TrackingService:
         if M is None or inliers is None or inliers.sum() < 2:
             return None
 
-        # Extract rotation from the 2×2 part of the affine matrix
-        delta_theta = math.atan2(M[1, 0], M[0, 0])
+        # Extract rotation from the 2×2 part of the affine matrix.
+        # Negate when tracking backward so the delta applies in the correct direction.
+        delta_theta = math.atan2(M[1, 0], M[0, 0]) * direction
+        # Clamp to a realistic per-frame rotation limit (~10°).
+        # Optical flow on low-contrast backgrounds (e.g. dark car on asphalt)
+        # often picks up road texture rather than the vehicle, producing large
+        # spurious deltas that accumulate over many frames.
+        max_delta = math.radians(10.0)
+        delta_theta = max(-max_delta, min(max_delta, delta_theta))
         new_theta = (prev_theta + delta_theta) % (2 * math.pi)
         return new_theta
 
@@ -456,6 +526,7 @@ class TrackingService:
         frame_idx: int,
         tracked_corners: np.ndarray,
         iou_threshold: float,
+        skip_object_ids: Optional[set] = None,
     ) -> bool:
         """Check if tracked bbox overlaps with existing annotations.
 
@@ -463,6 +534,7 @@ class TrackingService:
             frame_idx: Frame to check
             tracked_corners: Corner points of tracked bbox
             iou_threshold: IoU threshold for overlap detection
+            skip_object_ids: Optional set of object IDs to ignore (e.g. the object being re-tracked)
 
         Returns:
             True if overlap detected above threshold (stops tracking to avoid overwriting)
@@ -480,6 +552,10 @@ class TrackingService:
 
         for obj in active_objects:
             obj_id = obj.get("id")  # Note: get_active_objects returns "id", not "object_id"
+
+            # Skip specified objects (e.g. the object being re-tracked)
+            if skip_object_ids and obj_id in skip_object_ids:
+                continue
 
             # Get the existing bbox
             try:

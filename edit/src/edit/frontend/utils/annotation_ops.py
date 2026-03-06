@@ -227,6 +227,7 @@ def _apply_geometry_update(
     annotator: str,
     snapshot_builder,
 ) -> None:
+    import math as _math
     frame_number = int(main_window.video_controller.current_index())
     gateway = main_window.undo_context.annotation_gateway
     before_snapshot = gateway.capture_geometry(frame_number, object_id)
@@ -239,12 +240,69 @@ def _apply_geometry_update(
         annotator=annotator,
     )
     main_window.execute_undoable_command(command)
+
+    # Store the compound delta for the "repeat last adjustment" shortcut (R).
+    # Use a base snapshot anchored to the first edit of this object in this frame,
+    # so that multiple edits (move, rotate, resize) accumulate into one replayable delta.
+    if hasattr(main_window, "last_bbox_deltas"):
+        base_key = (frame_number, object_id)
+        delta_base = getattr(main_window, "_delta_base", {})
+        if base_key not in delta_base:
+            delta_base[base_key] = before_snapshot
+            main_window._delta_base = delta_base
+        base = delta_base[base_key]
+        dcx = after_snapshot.center_x - base.center_x
+        dcy = after_snapshot.center_y - base.center_y
+        dw = after_snapshot.width - base.width
+        dh = after_snapshot.height - base.height
+        dtheta = ((after_snapshot.rotation - base.rotation + _math.pi) % (2 * _math.pi)) - _math.pi
+        main_window.last_bbox_deltas[object_id] = (dcx, dcy, dw, dh, dtheta)
+
     _refresh_after_annotation_change(main_window)
 
 
 def highlight_selected_object(main_window, object_id: str):
     """Highlight the selected object in the overlay."""
     main_window.overlay.select_box_by_obj_id(object_id)
+
+
+def repeat_last_adjustment(main_window) -> None:
+    """Re-apply the last geometry delta for the currently selected object.
+
+    If the user moved/resized/rotated object X in the previous frame,
+    pressing R in the next frame applies the same delta (dcx, dcy, dw, dh, dtheta)
+    to that object's bbox in the current frame.
+    """
+    import math as _math
+    from PyQt6.QtWidgets import QMessageBox
+
+    object_id = main_window.overlay.selected_object_id()
+    if not object_id:
+        return
+
+    last_deltas = getattr(main_window, "last_bbox_deltas", {})
+    delta = last_deltas.get(object_id)
+    if delta is None:
+        return  # No previous adjustment for this object — silently do nothing
+
+    dcx, dcy, dw, dh, dtheta = delta
+
+    annotator = main_window.state.require_current_annotator()
+    if not annotator:
+        return
+
+    def _builder(before):
+        from edit.frontend.utils.undo.snapshots import BBoxGeometrySnapshot
+        new_rotation = (before.rotation + dtheta) % (2 * _math.pi)
+        return BBoxGeometrySnapshot(
+            center_x=before.center_x + dcx,
+            center_y=before.center_y + dcy,
+            width=max(1.0, before.width + dw),
+            height=max(1.0, before.height + dh),
+            rotation=new_rotation,
+        )
+
+    _apply_geometry_update(main_window, object_id, annotator, _builder)
 
 
 def _zoom_to_object(main_window, object_id: str):

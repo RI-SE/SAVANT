@@ -89,6 +89,14 @@ class MainWindow(QMainWindow):
         self._annotator_suggestions: list[str] = []
 
         self.undo_manager = UndoRedoManager()
+
+        # Per-object last-adjustment deltas for the "repeat" shortcut (R).
+        # Stored as (dcx, dcy, dw, dh, dtheta) keyed by object_id.
+        # _delta_base tracks the bbox state before the *first* edit per (frame, object)
+        # so that multiple edits in one frame compound into a single replayable delta.
+        self.last_bbox_deltas: dict = {}
+        self._delta_base: dict = {}  # key: (frame_number, object_id) -> BBoxGeometrySnapshot
+
         self.undo_context = GatewayHolder(
             annotation_gateway=ControllerAnnotationGateway(
                 annotation_controller=self.annotation_controller,
@@ -195,6 +203,11 @@ class MainWindow(QMainWindow):
             QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Y),
             self,
             activated=lambda: annotation_ops.redo_last_action(self),
+        )
+        QShortcut(
+            QKeySequence(Qt.Key.Key_R),
+            self,
+            activated=lambda: annotation_ops.repeat_last_adjustment(self),
         )
 
         self.refresh_confidence_issues()
@@ -440,7 +453,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Prompt to save unsaved work before exiting."""
-        if self.undo_manager.can_undo:
+        if self.undo_manager.can_undo():
             reply = QMessageBox.question(
                 self,
                 "Unsaved Changes",

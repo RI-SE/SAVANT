@@ -24,7 +24,7 @@ class InterpolationDialog(QDialog):
         on_interpolate: Callable,
     ):
         super().__init__(parent)
-        self.setWindowTitle("Interpolate Annotations")
+        self.setWindowTitle("Interpolate / Re-track Annotations")
         self.setMinimumSize(400, 200)
         self.control_points: Dict[int, Dict] = {}  # {frame: bbox_data}
         self.on_interpolate = on_interpolate
@@ -62,13 +62,21 @@ class InterpolationDialog(QDialog):
 
         self.object_combo.setCurrentIndex(-1)  # No pre-selected item
 
+        # Method selection
+        self.method_combo = QComboBox()
+        self.method_combo.addItem("Linear interpolation", userData="linear")
+        self.method_combo.addItem("Re-track forward (start → end)", userData="retrack_forward")
+        self.method_combo.addItem("Re-track backward (end → start)", userData="retrack_backward")
+        self.method_combo.currentIndexChanged.connect(self._update_help_text)
+
         # Helper text
-        help_label = QLabel("Interpolate annotations between start and end frames")
-        help_label.setStyleSheet("font-style: italic; color: #666;")
-        help_label.setWordWrap(True)
+        self.help_label = QLabel()
+        self.help_label.setStyleSheet("font-style: italic; color: #666;")
+        self.help_label.setWordWrap(True)
 
         form.addRow(QLabel("Object ID:"), self.object_combo)
-        form.addRow(help_label)
+        form.addRow(QLabel("Method:"), self.method_combo)
+        form.addRow(self.help_label)
 
         # Frame selection
         self.start_frame_spin = QSpinBox()
@@ -84,7 +92,7 @@ class InterpolationDialog(QDialog):
         form.addRow(QLabel("End Frame:"), self.end_frame_spin)
 
         # Interpolate and cancel button
-        self.interpolate_btn = QPushButton("Interpolate")
+        self.interpolate_btn = QPushButton("Apply")
         self.interpolate_btn.clicked.connect(self._interpolate)
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
@@ -94,14 +102,26 @@ class InterpolationDialog(QDialog):
         layout.addWidget(cancel_btn)
         self.setLayout(layout)
 
+        self._validate_frames()
+        self._update_help_text()
+
+    def _update_help_text(self):
+        method = self.method_combo.currentData()
+        if method == "linear":
+            self.help_label.setText("Linearly interpolate bbox position/size between the two frames.")
+        elif method == "retrack_forward":
+            self.help_label.setText(
+                "Run the tracker forward from the lower frame to the upper frame, overwriting intermediate frames."
+            )
+        elif method == "retrack_backward":
+            self.help_label.setText(
+                "Run the tracker backward from the upper frame toward the lower frame, overwriting intermediate frames."
+            )
+
     def _validate_frames(self):
         start = self.start_frame_spin.value()
         end = self.end_frame_spin.value()
-
-        if start >= end:
-            self.interpolate_btn.setEnabled(False)
-        else:
-            self.interpolate_btn.setEnabled(True)
+        self.interpolate_btn.setEnabled(start != end)
 
     def _interpolate(self):
         object_id = self.object_combo.currentData()
@@ -113,25 +133,32 @@ class InterpolationDialog(QDialog):
                 )
                 return
 
-        start_frame = self.start_frame_spin.value()
-        end_frame = self.end_frame_spin.value()
+        frame_a = self.start_frame_spin.value()
+        frame_b = self.end_frame_spin.value()
+        method = self.method_combo.currentData()
 
-        # Verify object exists in start frame
-        active_objs = self.parent().annotation_controller.get_active_objects(
-            start_frame
-        )
-        if not any(obj["id"] == object_id for obj in active_objs):
-            QMessageBox.warning(
+        # Normalize so start_frame <= end_frame for all methods
+        start_frame = min(frame_a, frame_b)
+        end_frame = max(frame_a, frame_b)
+
+        # Verify object exists in both boundary frames
+        for check_frame in (start_frame, end_frame):
+            active_objs = self.parent().annotation_controller.get_active_objects(check_frame)
+            if not any(obj["id"] == object_id for obj in active_objs):
+                QMessageBox.warning(
+                    self,
+                    "Object Not Found",
+                    f"Object {object_id} not found in frame {check_frame}",
+                )
+                return
+
+        self.on_interpolate(object_id, start_frame, end_frame, method)
+        # For re-track methods the sidebar provides its own messaging;
+        # only show the completion dialog for linear interpolation.
+        if method == "linear":
+            QMessageBox.information(
                 self,
-                "Object Not Found",
-                f"Object {object_id} not found in frame {start_frame}",
+                "Interpolation Complete",
+                f"Interpolated {object_id} from frame {start_frame} to {end_frame}.",
             )
-            return
-
-        self.on_interpolate(object_id, start_frame, end_frame)
-        QMessageBox.information(
-            self,
-            "Interpolation Complete",
-            f"Interpolated {object_id} from frame {start_frame} to {end_frame}",
-        )
         self.accept()

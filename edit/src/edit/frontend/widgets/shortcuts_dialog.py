@@ -38,6 +38,7 @@ _SHORTCUTS: list[tuple[str, str]] = [
     ("Tab", "Cycle to next bounding box (zoomed)"),
     ("Shift+Tab", "Cycle to previous bounding box (zoomed)"),
     ("Delete", "Delete selected bounding box or frame tag"),
+    ("R", "Repeat last adjustment (re-apply same position/size/rotation delta)"),
     # -- Seek bar --
     ("", "Seek Bar"),
     ("Escape", "Cancel frame number input"),

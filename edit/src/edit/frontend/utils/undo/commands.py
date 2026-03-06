@@ -657,3 +657,53 @@ class TrackObjectCommand:
                 frame_number=tf.frame_idx,
                 object_id=self.object_id,
             )
+
+
+@dataclass
+class RetrackRangeCommand:
+    """Undoable command that overwrites a range of frames using the tracker.
+
+    Unlike TrackObjectCommand (which only adds to empty frames), this command
+    overwrites existing annotations in the tracked range, allowing the user to
+    improve bad annotations by re-running the tracker.
+    """
+
+    object_id: str
+    tracked_frames: List  # List of TrackedFrame from TrackingService
+    annotator: str
+    description: str = "Re-track range"
+    _before_snapshots: Dict[int, Optional[FrameObjectSnapshot]] = field(
+        default_factory=dict, init=False, repr=False
+    )
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+
+        if not self._before_snapshots:
+            # First execution: capture before-state
+            for tf in self.tracked_frames:
+                snapshot = gateway.capture_frame_object(tf.frame_idx, self.object_id)
+                self._before_snapshots[tf.frame_idx] = snapshot.clone() if snapshot else None
+
+        # Delete existing, then write tracked results (overwrite semantics)
+        for tf in self.tracked_frames:
+            gateway.delete_bbox(frame_number=tf.frame_idx, object_id=self.object_id)
+
+        for tf in self.tracked_frames:
+            coordinates = (tf.center_x, tf.center_y, tf.width, tf.height, tf.theta)
+            bbox_info = {"object_id": self.object_id, "coordinates": coordinates}
+            gateway.add_bbox_to_existing_object(
+                frame_number=tf.frame_idx,
+                bbox_info=bbox_info,
+                annotator=self.annotator,
+            )
+
+    def undo(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+        # Delete what was added by tracking
+        for tf in self.tracked_frames:
+            gateway.delete_bbox(frame_number=tf.frame_idx, object_id=self.object_id)
+        # Restore original state (None means the frame had no bbox before)
+        for frame_idx, snapshot in self._before_snapshots.items():
+            if snapshot is not None:
+                gateway.restore_bbox(snapshot.clone())

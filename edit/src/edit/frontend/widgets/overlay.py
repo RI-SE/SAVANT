@@ -172,12 +172,31 @@ class Overlay(QWidget):
         self.update()
 
     def set_rotated_boxes(self, boxes: List[BBoxData]):
-        """Set boxes as BBox instances in VIDEO coords."""
+        """Set boxes as BBox instances in VIDEO coords.
+
+        If a box was selected before the update and the same object ID exists
+        in the new set of boxes, the selection is automatically preserved.
+        """
+        # _preserve_selection_id is set by show_frame() before clear_selection()
+        prev_object_id = getattr(self, "_preserve_selection_id", None) or self.selected_object_id()
+        self._preserve_selection_id = None  # consume it
+
         self._boxes = []
         if boxes is not None:
             for box in boxes:
                 if isinstance(box, BBoxData):
                     self._boxes.append(box)
+
+        # Re-select the same object if it exists in the new frame
+        self._selected_idx = None
+        if prev_object_id is not None:
+            for i, box in enumerate(self._boxes):
+                if box.object_id == prev_object_id:
+                    self._selected_idx = i
+                    break
+            # Notify listeners that selection has been restored (or lost)
+            self.bounding_box_selected.emit(self.selected_object_id())
+
         self.update()
 
     def set_relationships(self, relationships: List[Relationship]):

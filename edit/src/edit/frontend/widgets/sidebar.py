@@ -66,6 +66,7 @@ from edit.frontend.utils.undo import (
     FrameTagSnapshot,
     InterpolateAnnotationsCommand,
     RemoveFrameTagCommand,
+    RetrackRangeCommand,
 )
 from edit.frontend.widgets.interpolation_dialog import InterpolationDialog
 from edit.frontend.widgets.new_project_dialog import NewProjectDialog
@@ -177,7 +178,7 @@ class Sidebar(QWidget):
         main_layout.addWidget(new_tag_btn)
 
         # --- Interpolation Button ---
-        self.interpolate_btn = QPushButton("Interpolate")
+        self.interpolate_btn = QPushButton("Fix Range")
         self.interpolate_btn.setEnabled(True)  # Enable now that we have implementation
         self.interpolate_btn.clicked.connect(self.open_interpolation_dialog)
         main_layout.addWidget(self.interpolate_btn)
@@ -1260,7 +1261,7 @@ class Sidebar(QWidget):
         )
         dialog.exec()
 
-    def on_interpolate(self, object_id: str, start_frame: int, end_frame: int):
+    def on_interpolate(self, object_id: str, start_frame: int, end_frame: int, method: str = "linear"):
         if end_frame - start_frame <= 1:
             QMessageBox.information(
                 self,
@@ -1274,18 +1275,25 @@ class Sidebar(QWidget):
             return
 
         host_window = self.window()
-        if host_window is not None and hasattr(host_window, "execute_undoable_command"):
-            command = InterpolateAnnotationsCommand(
-                object_id=str(object_id),
-                start_frame=int(start_frame),
-                end_frame=int(end_frame),
-                annotator=current_annotator,
+
+        if method in ("retrack_forward", "retrack_backward"):
+            self._run_retrack_range(
+                object_id, start_frame, end_frame, method, current_annotator, host_window
             )
-            host_window.execute_undoable_command(command)
         else:
-            self.annotation_controller.interpolate_annotations(
-                object_id, start_frame, end_frame, current_annotator
-            )
+            if host_window is not None and hasattr(host_window, "execute_undoable_command"):
+                command = InterpolateAnnotationsCommand(
+                    object_id=str(object_id),
+                    start_frame=int(start_frame),
+                    end_frame=int(end_frame),
+                    annotator=current_annotator,
+                )
+                host_window.execute_undoable_command(command)
+            else:
+                self.annotation_controller.interpolate_annotations(
+                    object_id, start_frame, end_frame, current_annotator
+                )
+
         if host_window is not None:
             try:
                 host_window.refresh_confidence_issues()
@@ -1299,6 +1307,157 @@ class Sidebar(QWidget):
         refresh_confidence_list = getattr(self, "refresh_confidence_issue_list", None)
         if callable(refresh_confidence_list):
             refresh_confidence_list(current_index)
+
+    def _run_retrack_range(
+        self,
+        object_id: str,
+        start_frame: int,
+        end_frame: int,
+        method: str,
+        annotator: str,
+        host_window,
+    ):
+        """Run the tracker over a range to overwrite existing annotations."""
+        from PyQt6.QtWidgets import QApplication, QProgressDialog
+        from PyQt6.QtCore import Qt
+
+        tracking_service = getattr(host_window, "tracking_service", None)
+        if tracking_service is None:
+            QMessageBox.warning(
+                self, "Re-track", "Tracking service not available."
+            )
+            return
+
+        # Determine seed frame and direction
+        if method == "retrack_forward":
+            seed_frame = start_frame
+            direction = "forward"
+            stop_frame = end_frame
+        else:
+            seed_frame = end_frame
+            direction = "backward"
+            stop_frame = start_frame
+
+        # Get the seed bbox
+        try:
+            seed_bbox = self.annotation_controller.get_bbox(seed_frame, object_id)
+        except Exception as e:
+            QMessageBox.warning(self, "Re-track", f"Could not get bbox at seed frame: {e}")
+            return
+        if seed_bbox is None:
+            QMessageBox.warning(self, "Re-track", f"No bbox for object {object_id} at frame {seed_frame}.")
+            return
+
+        # Wrap seed_bbox in a simple object that tracking_service expects
+        class _BBoxProxy:
+            def __init__(self, b):
+                self.center_x = b.x_center
+                self.center_y = b.y_center
+                self.width = b.width
+                self.height = b.height
+                self.theta = b.rotation
+
+        seed = _BBoxProxy(seed_bbox)
+
+        # Progress dialog
+        progress = QProgressDialog(
+            f"Re-tracking {direction}...", "Cancel", 0, 0, self
+        )
+        progress.setWindowTitle("Re-track Range")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+        progress.show()
+
+        def on_progress(current_frame_idx: int, total_tracked: int) -> bool:
+            progress.setLabelText(
+                f"Re-tracking {direction}... Frame {current_frame_idx} "
+                f"({total_tracked} frames tracked)"
+            )
+            QApplication.processEvents()
+            return progress.wasCanceled()
+
+        try:
+            if direction == "forward":
+                tracked_frames = tracking_service.track_forward(
+                    start_frame=seed_frame,
+                    bbox_data=seed,
+                    object_id=object_id,
+                    iou_threshold=0.3,
+                    progress_callback=on_progress,
+                    stop_frame=stop_frame,
+                    skip_object_ids={object_id},
+                )
+            else:
+                tracked_frames = tracking_service.track_backward(
+                    start_frame=seed_frame,
+                    bbox_data=seed,
+                    object_id=object_id,
+                    iou_threshold=0.3,
+                    progress_callback=on_progress,
+                    stop_frame=stop_frame,
+                    skip_object_ids={object_id},
+                )
+        except RuntimeError as e:
+            progress.close()
+            QMessageBox.warning(self, "Re-track Error", str(e))
+            return
+        finally:
+            progress.close()
+
+        if not tracked_frames:
+            QMessageBox.information(self, "Re-track", "Tracking stopped immediately — no frames updated.")
+            return
+
+        # Filter to only intermediate frames (don't overwrite start/end anchors)
+        intermediate_min = min(start_frame, end_frame) + 1
+        intermediate_max = max(start_frame, end_frame) - 1
+        tracked_frames = [tf for tf in tracked_frames if intermediate_min <= tf.frame_idx <= intermediate_max]
+
+        if not tracked_frames:
+            QMessageBox.information(self, "Re-track", "No intermediate frames were tracked.")
+            return
+
+        # Replace the accumulated (noisy) rotation with shortest-path linear
+        # interpolation between the two known anchor rotations.
+        # This avoids per-frame drift from optical flow on low-contrast objects.
+        try:
+            start_bbox = self.annotation_controller.get_bbox(start_frame, object_id)
+            end_bbox = self.annotation_controller.get_bbox(end_frame, object_id)
+        except Exception:
+            start_bbox = end_bbox = None
+
+        if start_bbox is not None and end_bbox is not None:
+            import math as _math
+            theta_start = start_bbox.rotation
+            theta_end = end_bbox.rotation
+            # Shortest-path angular difference (radians)
+            diff = ((theta_end - theta_start + _math.pi) % (2 * _math.pi)) - _math.pi
+            frame_range = end_frame - start_frame
+            interpolated = []
+            for tf in tracked_frames:
+                t = (tf.frame_idx - start_frame) / frame_range
+                interp_theta = (theta_start + t * diff) % (2 * _math.pi)
+                from edit.services.tracking_service import TrackedFrame
+                interpolated.append(TrackedFrame(
+                    frame_idx=tf.frame_idx,
+                    center_x=tf.center_x,
+                    center_y=tf.center_y,
+                    width=tf.width,
+                    height=tf.height,
+                    theta=interp_theta,
+                ))
+            tracked_frames = interpolated
+
+        command = RetrackRangeCommand(
+            object_id=object_id,
+            tracked_frames=tracked_frames,
+            annotator=annotator,
+        )
+        if host_window is not None and hasattr(host_window, "execute_undoable_command"):
+            host_window.execute_undoable_command(command)
+        else:
+            QMessageBox.warning(self, "Re-track", "Cannot execute command — host window unavailable.")
 
     def _open_relationship_dialog(self):
         """Open the relationship creation dialog."""
