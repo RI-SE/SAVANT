@@ -93,6 +93,11 @@ def wire(main_window):
         activated=lambda: _step_once(main_window, direction=+1),
     )
     QShortcut(
+        QKeySequence("Shift+Space"),
+        main_window,
+        activated=lambda: _step_once(main_window, direction=-1),
+    )
+    QShortcut(
         QKeySequence("Ctrl+G"),
         main_window,
         activated=lambda: main_window.seek_bar.activate_frame_input(),

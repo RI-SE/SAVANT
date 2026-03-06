@@ -33,6 +33,8 @@ from edit.frontend.utils.settings_store import (
     set_frame_history_count,
     set_zoom_rate,
     set_bbox_zoom_padding,
+    set_video_buffer_frames,
+    get_video_buffer_frames,
 )
 from edit.frontend.utils import (
     annotation_ops,
@@ -87,6 +89,14 @@ class MainWindow(QMainWindow):
         self._annotator_suggestions: list[str] = []
 
         self.undo_manager = UndoRedoManager()
+
+        # Per-object last-adjustment deltas for the "repeat" shortcut (R).
+        # Stored as (dcx, dcy, dw, dh, dtheta) keyed by object_id.
+        # _delta_base tracks the bbox state before the *first* edit per (frame, object)
+        # so that multiple edits in one frame compound into a single replayable delta.
+        self.last_bbox_deltas: dict = {}
+        self._delta_base: dict = {}  # key: (frame_number, object_id) -> BBoxGeometrySnapshot
+
         self.undo_context = GatewayHolder(
             annotation_gateway=ControllerAnnotationGateway(
                 annotation_controller=self.annotation_controller,
@@ -116,6 +126,9 @@ class MainWindow(QMainWindow):
             on_load=self.load_project_flow,
             on_save=self.quick_save_project,
             on_settings=self.open_settings,
+            on_exit=self.close,
+            on_undo=self.undo,
+            on_redo=self.redo,
             on_new_bbox=self.create_new_bounding_box,
             on_new_frame_tag=self.create_new_frame_tag,
             on_interpolate=self.open_interpolation_dialog,
@@ -192,6 +205,11 @@ class MainWindow(QMainWindow):
             QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_Y),
             self,
             activated=lambda: annotation_ops.redo_last_action(self),
+        )
+        QShortcut(
+            QKeySequence(Qt.Key.Key_R),
+            self,
+            activated=lambda: annotation_ops.repeat_last_adjustment(self),
         )
 
         self.refresh_confidence_issues()
@@ -325,6 +343,9 @@ class MainWindow(QMainWindow):
             set_frame_history_count(vals["previous_frame_count"])
             self.sidebar_state.historic_obj_frame_count = get_frame_history_count()
             self.sidebar.refresh_confidence_issue_list()
+            new_buf = vals.get("video_buffer_frames", get_video_buffer_frames())
+            set_video_buffer_frames(new_buf)
+            self.video_controller.reader.chunk_size = get_video_buffer_frames()
             warning_vals = vals.get("warning_range", get_warning_range())
             error_vals = vals.get("error_range", get_error_range())
             warning_range = tuple(float(v) for v in warning_vals)
@@ -425,9 +446,46 @@ class MainWindow(QMainWindow):
 
     def execute_undoable_command(self, command):
         self.undo_manager.execute(command, self.undo_context)
+        self._refresh_undo_actions()
 
     def undo_last_command(self):
-        return self.undo_manager.undo(self.undo_context)
+        result = self.undo_manager.undo(self.undo_context)
+        self._refresh_undo_actions()
+        return result
 
     def redo_last_command(self):
-        return self.undo_manager.redo(self.undo_context)
+        result = self.undo_manager.redo(self.undo_context)
+        self._refresh_undo_actions()
+        return result
+
+    def undo(self):
+        self.undo_last_command()
+
+    def redo(self):
+        self.redo_last_command()
+
+    def _refresh_undo_actions(self):
+        self.menu.undo_action.setEnabled(self.undo_manager.can_undo())
+        self.menu.redo_action.setEnabled(self.undo_manager.can_redo())
+
+    def closeEvent(self, event):
+        """Prompt to save unsaved work before exiting."""
+        if self.undo_manager.can_undo():
+            reply = QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                "You have unsaved changes. Save before exiting?",
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Save,
+            )
+            if reply == QMessageBox.StandardButton.Save:
+                self.quick_save_project()
+                event.accept()
+            elif reply == QMessageBox.StandardButton.Discard:
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()

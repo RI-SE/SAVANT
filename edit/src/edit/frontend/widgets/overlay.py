@@ -55,6 +55,12 @@ class Overlay(QWidget):
     cascadeApplyFrameRange = pyqtSignal(
         str, object, object, object, object, object, object
     )  # (object_id, center_x, center_y, width, height, theta, direction).
+    cascadeRotate90 = pyqtSignal(
+        str, bool, object
+    )  # (object_id, clockwise, direction)
+    cascadeRotate90FrameRange = pyqtSignal(
+        str, bool, object
+    )  # (object_id, clockwise, direction)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -135,6 +141,18 @@ class Overlay(QWidget):
         self.cascade_dropdown.applyCenterToFrameRange.connect(
             self._on_cascade_center_to_frame_range
         )
+        self.cascade_dropdown.applyRotate90CWToAll.connect(
+            self._on_cascade_rotate90cw_to_all
+        )
+        self.cascade_dropdown.applyRotate90CCWToAll.connect(
+            self._on_cascade_rotate90ccw_to_all
+        )
+        self.cascade_dropdown.applyRotate90CWToFrameRange.connect(
+            self._on_cascade_rotate90cw_to_frame_range
+        )
+        self.cascade_dropdown.applyRotate90CCWToFrameRange.connect(
+            self._on_cascade_rotate90ccw_to_frame_range
+        )
         self.cascade_dropdown.cancelled.connect(self._on_cascade_cancel)
 
         # Cascade button
@@ -154,12 +172,31 @@ class Overlay(QWidget):
         self.update()
 
     def set_rotated_boxes(self, boxes: List[BBoxData]):
-        """Set boxes as BBox instances in VIDEO coords."""
+        """Set boxes as BBox instances in VIDEO coords.
+
+        If a box was selected before the update and the same object ID exists
+        in the new set of boxes, the selection is automatically preserved.
+        """
+        # _preserve_selection_id is set by show_frame() before clear_selection()
+        prev_object_id = getattr(self, "_preserve_selection_id", None) or self.selected_object_id()
+        self._preserve_selection_id = None  # consume it
+
         self._boxes = []
         if boxes is not None:
             for box in boxes:
                 if isinstance(box, BBoxData):
                     self._boxes.append(box)
+
+        # Re-select the same object if it exists in the new frame
+        self._selected_idx = None
+        if prev_object_id is not None:
+            for i, box in enumerate(self._boxes):
+                if box.object_id == prev_object_id:
+                    self._selected_idx = i
+                    break
+            # Notify listeners that selection has been restored (or lost)
+            self.bounding_box_selected.emit(self.selected_object_id())
+
         self.update()
 
     def set_relationships(self, relationships: List[Relationship]):
@@ -1146,6 +1183,26 @@ class Overlay(QWidget):
             None,
             direction,
         )
+
+    def _on_cascade_rotate90cw_to_all(self, direction: str):
+        """Handle rotate 90° CW to all frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeRotate90.emit(selected_bbox.object_id, True, direction)
+
+    def _on_cascade_rotate90ccw_to_all(self, direction: str):
+        """Handle rotate 90° CCW to all frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeRotate90.emit(selected_bbox.object_id, False, direction)
+
+    def _on_cascade_rotate90cw_to_frame_range(self, direction: str):
+        """Handle rotate 90° CW to next X frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeRotate90FrameRange.emit(selected_bbox.object_id, True, direction)
+
+    def _on_cascade_rotate90ccw_to_frame_range(self, direction: str):
+        """Handle rotate 90° CCW to next X frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeRotate90FrameRange.emit(selected_bbox.object_id, False, direction)
 
     def _on_cascade_cancel(self):
         """Handle cascade cancel."""

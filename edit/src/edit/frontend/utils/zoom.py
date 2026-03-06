@@ -154,8 +154,37 @@ def wire(main_window, initial: float | None = None):
         centered_off_x = (viewport_w - new_draw_w) / 2
         centered_off_y = (viewport_h - new_draw_h) / 2
 
+        # Desired pan: center the bbox in the viewport.
         pan_x = viewport_w / 2 - (centered_off_x + bbox.center_x * new_scale)
         pan_y = viewport_h / 2 - (centered_off_y + bbox.center_y * new_scale)
+
+        # Clamp pan to what video_display._clamp_pan() will allow, so we
+        # can then check if the bbox is still fully visible after clamping.
+        max_pan_x = max(0.0, (new_draw_w - viewport_w) / 2)
+        max_pan_y = max(0.0, (new_draw_h - viewport_h) / 2)
+        pan_x = max(-max_pan_x, min(pan_x, max_pan_x))
+        pan_y = max(-max_pan_y, min(pan_y, max_pan_y))
+
+        # After clamping, verify the bbox edges are visible; if not, nudge the
+        # pan to the nearest position that keeps the bbox fully in view.
+        half_w = bbox.width * new_scale / 2
+        half_h = bbox.height * new_scale / 2
+        bbox_screen_cx = centered_off_x + bbox.center_x * new_scale + pan_x
+        bbox_screen_cy = centered_off_y + bbox.center_y * new_scale + pan_y
+
+        # Push pan so bbox left/right/top/bottom edges are all inside viewport
+        if bbox_screen_cx - half_w < 0:
+            pan_x += half_w - bbox_screen_cx
+        elif bbox_screen_cx + half_w > viewport_w:
+            pan_x -= (bbox_screen_cx + half_w - viewport_w)
+        if bbox_screen_cy - half_h < 0:
+            pan_y += half_h - bbox_screen_cy
+        elif bbox_screen_cy + half_h > viewport_h:
+            pan_y -= (bbox_screen_cy + half_h - viewport_h)
+
+        # Re-clamp after nudging (can't go past image edge)
+        pan_x = max(-max_pan_x, min(pan_x, max_pan_x))
+        pan_y = max(-max_pan_y, min(pan_y, max_pan_y))
 
         _apply_zoom(new_zoom)
         vw.set_pan(pan_x, pan_y)

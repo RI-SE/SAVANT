@@ -89,6 +89,15 @@ class AnnotationGateway(Protocol):
         annotator: str,
     ) -> List[int]: ...
 
+    def rotate_90_cascade(
+        self,
+        frame_start: int,
+        frame_end: Optional[int],
+        object_id: str,
+        annotator: str,
+        clockwise: bool = True,
+    ) -> List[int]: ...
+
     def link_object_ids(
         self,
         primary_object_id: str,
@@ -355,6 +364,23 @@ class ControllerAnnotationGateway:
             height=height,
             rotation=rotation,
             annotator=annotator,
+        )
+        return list(updated_frames or [])
+
+    def rotate_90_cascade(
+        self,
+        frame_start: int,
+        frame_end: Optional[int],
+        object_id: str,
+        annotator: str,
+        clockwise: bool = True,
+    ) -> List[int]:
+        updated_frames = self.annotation_controller.rotate_90_cascade(
+            frame_start=frame_start,
+            frame_end=frame_end,
+            object_key=object_id,
+            annotator=annotator,
+            clockwise=clockwise,
         )
         return list(updated_frames or [])
 

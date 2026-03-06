@@ -47,8 +47,9 @@ The release binaries ship with the bundled assets used by the UI. When a new tag
 - **Annotator awareness**: login prompt, quick annotator switching, and per-project history so previous names autofill.
 - **Video playback & navigation**: instant seek jumps, skip/play controls with FPS-aware playback, spacebar frame advance, go-to-frame (`Ctrl+G`), bookmarks with notes, and next/previous issue jumps.
 - **Bounding box editing**: rotated boxes with drag handles, keyboard nudging, zoom/pan, rectangle zoom, bbox review cycling, cascade edits, undo/redo, right-click context actions, and Delete-to-remove.
+- **Repeat last adjustment**: press `R` to re-apply the same geometry delta (position, size, rotation) from the previous frame edit to the currently selected object — useful when correcting many consecutive annotations with similar offsets.
 - **Object management**: Active Objects list, object name/type editing, relationship viewer, and link-to-existing-ID workflow for both dynamic and static objects.
-- **Interpolation & relationships**: frame-range interpolation wizard plus ontology-backed relationship creation, deletion, restoration, and overlay visualisation.
+- **Interpolation & relationships**: **Fix Range** wizard (formerly "Interpolate") with three methods — *Linear interpolation*, *Re-track forward*, and *Re-track backward* — plus ontology-backed relationship creation, deletion, restoration, and overlay visualisation.
 - **Tagging**: ontology-powered frame tags with configurable default ranges, object tag discovery, tag toggles that surface as markers and status notes, and Delete to remove tags.
 - **Confidence controls**: configurable warning/error thresholds, seek-bar/overlay markers, sortable issue list with “Mark as resolved,” and playback issue summaries.
 - **Saving & persistence**: quick save with validation, per-project settings snapshot (zoom, thresholds, tag toggles, bookmarks, ontology namespace), and automatic restoration on reopen.
@@ -88,13 +89,16 @@ The release binaries ship with the bundled assets used by the UI. When a new tag
   - Arrow keys nudge the box; hold `Shift` with ←/→ to rotate in small steps. When no box is selected and the view is zoomed in, arrow keys pan the view.
   - `Tab` / `Shift+Tab` cycles to the next/previous bounding box and zooms in to it, letting you review each bbox in turn without manual panning. `Ctrl+0` zooms back out.
   - `Delete` removes the selected box (undo restores it).
-  - **Zoom & pan**: `Ctrl` + mouse wheel zooms at the cursor position. Middle-click drag or `Ctrl` + left-click drag pans. `Z` toggles rectangle zoom mode (draw a rectangle to zoom into that area). `Ctrl+0` or the reset-view button resets to the default zoom.
+  - **Repeat last adjustment**: press `R` to re-apply the geometry delta (dx, dy, dw, dh, d-rotation) recorded from your most recent edit to the same object. The delta is the compound change made during the last frame visit (not just a single step), so multiple nudge/rotate steps are accumulated and can be replayed with one key press.
+  - **Zoom & pan**: `Ctrl` + mouse wheel zooms at the cursor position. Middle-click drag or `Ctrl` + left-click drag pans. `Z` toggles rectangle zoom mode (draw a rectangle to zoom into that area). `Ctrl+0` or the reset-view button resets to the default zoom. When selecting an object near the image border the view now keeps the bounding box fully visible rather than centering past the edge.
   - **Right-click context menu**: right-click a bbox for actions including delete, cascade delete, copy from previous frame, tracking, link IDs, and relationship management. Right-click empty space to copy a missing object's bbox from the previous frame.
 - Cascade edits: select a box, open the cascade dropdown, and choose whether to apply size, rotation, or center changes to all future frames or only a frame range for that object.
-- Undo/redo: `Ctrl+Z` / `Ctrl+Shift+Z` (or the Edit menu) reverses most actions, including bbox edits, tag changes, interpolation, linking, and relationship updates.
+- Undo/redo: `Ctrl+Z` / `Ctrl+Shift+Z` or **Edit → Undo / Redo** reverses most actions, including bbox edits, tag changes, Fix Range, linking, and relationship updates. The Edit menu items are enabled and disabled automatically as the undo/redo history changes.
 
-### 4.3 Interpolation, Linking & Relationships
-- **Interpolation** fills gaps between two frames of the same object. Pick the object plus start/end frames (with at least one frame between them) and the tool generates intermediate boxes.
+### 4.3 Fix Range, Linking & Relationships
+- **Fix Range** (formerly "Interpolate") corrects or fills bounding box annotations across a frame range for a selected object. Open it from **Edit → Fix Range** or the sidebar button, then choose a method:
+  - **Linear interpolation** — generates intermediate boxes by linearly blending position, size, and rotation between the two boundary frames (start+1 … end-1). Overwrites any existing annotations in that range.
+  - **Re-track forward / Re-track backward** — deletes the existing annotations in the range and re-runs the optical-flow tracker from one boundary frame toward the other, then linearly interpolates the rotation between the two anchors to suppress cumulative drift. Accepts either frame order; enter the range in whichever direction feels natural and the dialog normalises it.
 - **Linking** adds a bounding box for an existing object. Static objects automatically gain boxes in any frames where they were missing; dynamic objects stay unique per frame.
 - **Relationships** let you describe interactions (e.g., “vehicle follows person”). Choose the subject, relation, and object from the dialog. The editor limits the relationship to the frames where both objects exist and displays the link both in the overlay and the object details list.
 

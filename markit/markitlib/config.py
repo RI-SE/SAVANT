@@ -56,8 +56,11 @@ class OpticalFlowParams:
     """Parameters for optical flow detection.
 
     Attributes:
-        motion_threshold: Threshold for motion magnitude detection.
+        motion_threshold: Threshold for motion magnitude detection. Higher values suppress
+            micro-motion noise (camera shake, compression artifacts) at the cost of missing
+            very slow objects. Increase to reduce false positives in noisy footage.
         min_area: Minimum contour area in pixels at full resolution (scaled with processing_scale²).
+            Increase to discard small blobs that are unlikely to be real objects.
         max_area: Maximum contour area in pixels at full resolution (scaled with processing_scale², 0 to disable).
         algorithm: Optical flow algorithm - "dis", "farneback", or "lucas_kanade".
         temporal_smoothing: Weight for exponential moving average smoothing (0=no smoothing, 1=full).
@@ -67,18 +70,22 @@ class OpticalFlowParams:
         median_filter_size: Median filter kernel size (0 to disable).
         debug_visualization: Enable caching of intermediate data for visualization.
         processing_scale: Scale factor for frame downscaling before flow computation (0.25-1.0).
-        track_max_age: Maximum frames a track can be unmatched before expiring.
-        track_min_iou: Minimum IoU overlap for track association (prevents merging nearby vehicles).
+        track_max_age: Maximum frames a track can be unmatched before expiring. Lower values
+            expire noise tracks faster, reducing spurious long-lived detections.
+        track_min_iou: Minimum IoU overlap for track association. Higher values require more
+            spatial agreement before linking detections into a track, preventing nearby noise
+            from being merged into a real track or vice versa.
         mask_mode: How to combine bg subtraction and optical flow masks ("or", "and", "flow_only", "bg_only").
         dilate_kernel_size: Dilation kernel size for motion mask (0 to disable).
         morph_close_size: MORPH_CLOSE kernel size (0 to disable).
-        morph_open_size: MORPH_OPEN kernel size (0 to disable).
+        morph_open_size: MORPH_OPEN kernel size (0 to disable). Larger values aggressively
+            remove small contour blobs before area filtering, reducing scattered noise detections.
         exclusion_mask: Path to mask image for excluding regions from detection (black areas = excluded).
     """
 
-    motion_threshold: float = 1.0  # Increased from 0.5 for drone footage
-    track_max_age: int = 10  # Frames before track expires (prevents ID reuse)
-    track_min_iou: float = 0.1  # Minimum IoU for track association (prevents track merging)
+    motion_threshold: float = 2.0  # Higher threshold reduces micro-motion noise
+    track_max_age: int = 5  # Expire noise tracks faster (lower = fewer spurious long-lived tracks)
+    track_min_iou: float = 0.3  # Stricter association reduces spurious track merging
     min_area: int = 2000  # For full resolution, scaled down with processing_scale²
     max_area: int = 30000  # For full resolution, scaled down with processing_scale² (0 to disable)
     algorithm: str = "dis"
@@ -93,7 +100,7 @@ class OpticalFlowParams:
     mask_mode: str = "flow_only"  # "or", "and", "flow_only", "bg_only"
     dilate_kernel_size: int = 0  # Dilation for motion mask (0 to disable)
     morph_close_size: int = 3  # MORPH_CLOSE kernel size (0 to disable)
-    morph_open_size: int = 5  # MORPH_OPEN kernel size (0 to disable)
+    morph_open_size: int = 9  # Larger kernel removes scattered noise blobs more aggressively
     exclusion_mask: Optional[str] = None  # Path to mask image for excluding regions from detection
 
 
@@ -164,7 +171,7 @@ class MarkitConfig:
             median_filter_size=getattr(args, "flow_median_filter", 5),
             debug_visualization=getattr(args, "debug_flow", False),
             processing_scale=getattr(args, "flow_scale", 0.5),
-            track_max_age=getattr(args, "track_max_age", 10),
+            track_max_age=getattr(args, "track_max_age", 5),
             mask_mode=getattr(args, "flow_mask_mode", "or"),
             dilate_kernel_size=getattr(args, "flow_dilate_size", 5),
             morph_close_size=getattr(args, "flow_morph_close", 5),
@@ -192,6 +199,7 @@ class MarkitConfig:
         self.edge_distance = args.edge_distance
         self.static_threshold = args.static_threshold
         self.static_mark = args.static_mark
+        self.min_duration = getattr(args, "min_duration", 15)
 
         # Individual pass toggles (only relevant when housekeeping is enabled)
         self.no_gap_detection = getattr(args, "no_gap_detection", False)

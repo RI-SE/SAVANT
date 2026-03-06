@@ -29,6 +29,7 @@ from edit.frontend.utils.undo import (
     DeleteRelationshipCommand,
     LinkObjectIdsCommand,
     ResolveConfidenceCommand,
+    Rotate90CascadeCommand,
     TrackObjectCommand,
     UpdateBBoxGeometryCommand,
 )
@@ -168,6 +169,26 @@ def wire(main_window, frontend_state: FrontendState):
                 direction=direction,
             )
         )
+    if hasattr(main_window.overlay, "cascadeRotate90"):
+        main_window.overlay.cascadeRotate90.connect(
+            lambda object_id, clockwise, direction: _call_with_annotator(
+                _apply_rotate90_all_frames,
+                main_window,
+                object_id,
+                clockwise,
+                direction=direction,
+            )
+        )
+    if hasattr(main_window.overlay, "cascadeRotate90FrameRange"):
+        main_window.overlay.cascadeRotate90FrameRange.connect(
+            lambda object_id, clockwise, direction: _call_with_annotator(
+                _apply_rotate90_next_frames,
+                main_window,
+                object_id,
+                clockwise,
+                direction=direction,
+            )
+        )
 
     # Keep this here so that right-click works without having to select a bbox first
     _install_overlay_context_menu(main_window, frontend_state)
@@ -206,6 +227,7 @@ def _apply_geometry_update(
     annotator: str,
     snapshot_builder,
 ) -> None:
+    import math as _math
     frame_number = int(main_window.video_controller.current_index())
     gateway = main_window.undo_context.annotation_gateway
     before_snapshot = gateway.capture_geometry(frame_number, object_id)
@@ -218,12 +240,68 @@ def _apply_geometry_update(
         annotator=annotator,
     )
     main_window.execute_undoable_command(command)
+
+    # Store the compound delta for the "repeat last adjustment" shortcut (R).
+    # Use a base snapshot anchored to the first edit of this object in this frame,
+    # so that multiple edits (move, rotate, resize) accumulate into one replayable delta.
+    if hasattr(main_window, "last_bbox_deltas"):
+        base_key = (frame_number, object_id)
+        delta_base = getattr(main_window, "_delta_base", {})
+        if base_key not in delta_base:
+            delta_base[base_key] = before_snapshot
+            main_window._delta_base = delta_base
+        base = delta_base[base_key]
+        dcx = after_snapshot.center_x - base.center_x
+        dcy = after_snapshot.center_y - base.center_y
+        dw = after_snapshot.width - base.width
+        dh = after_snapshot.height - base.height
+        dtheta = ((after_snapshot.rotation - base.rotation + _math.pi) % (2 * _math.pi)) - _math.pi
+        main_window.last_bbox_deltas[object_id] = (dcx, dcy, dw, dh, dtheta)
+
     _refresh_after_annotation_change(main_window)
 
 
 def highlight_selected_object(main_window, object_id: str):
     """Highlight the selected object in the overlay."""
     main_window.overlay.select_box_by_obj_id(object_id)
+
+
+def repeat_last_adjustment(main_window) -> None:
+    """Re-apply the last geometry delta for the currently selected object.
+
+    If the user moved/resized/rotated object X in the previous frame,
+    pressing R in the next frame applies the same delta (dcx, dcy, dw, dh, dtheta)
+    to that object's bbox in the current frame.
+    """
+    import math as _math
+
+    object_id = main_window.overlay.selected_object_id()
+    if not object_id:
+        return
+
+    last_deltas = getattr(main_window, "last_bbox_deltas", {})
+    delta = last_deltas.get(object_id)
+    if delta is None:
+        return  # No previous adjustment for this object — silently do nothing
+
+    dcx, dcy, dw, dh, dtheta = delta
+
+    annotator = main_window.state.require_current_annotator()
+    if not annotator:
+        return
+
+    def _builder(before):
+        from edit.frontend.utils.undo.snapshots import BBoxGeometrySnapshot
+        new_rotation = (before.rotation + dtheta) % (2 * _math.pi)
+        return BBoxGeometrySnapshot(
+            center_x=before.center_x + dcx,
+            center_y=before.center_y + dcy,
+            width=max(1.0, before.width + dw),
+            height=max(1.0, before.height + dh),
+            rotation=new_rotation,
+        )
+
+    _apply_geometry_update(main_window, object_id, annotator, _builder)
 
 
 def _zoom_to_object(main_window, object_id: str):
@@ -627,6 +705,130 @@ def _apply_cascade_next_frames(
         f"Applied changes to {len(modified_frames)} frames: {frame_ranges_str}",
     )
 
+    _refresh_after_annotation_change(main_window)
+
+
+def _apply_rotate90_all_frames(
+    main_window,
+    object_id: str,
+    clockwise: bool,
+    annotator: str,
+    direction: CascadeDirection = CascadeDirection.FORWARDS,
+):
+    """Rotate heading 90° CW/CCW on all frames containing the object."""
+    last_frame = main_window.project_state_controller.get_frame_count() - 1
+    current_frame = int(main_window.video_controller.current_index())
+
+    if direction == CascadeDirection.FORWARDS:
+        start_frame = current_frame
+        end_frame = last_frame
+    else:
+        start_frame = 0
+        end_frame = current_frame
+
+    label = "90° CW" if clockwise else "90° CCW"
+    if not _confirm_cascade(
+        main_window, object_id, f"heading {label}", f"{start_frame}–{end_frame}"
+    ):
+        return
+
+    command = Rotate90CascadeCommand(
+        object_id=str(object_id),
+        frame_start=start_frame,
+        frame_end=end_frame,
+        clockwise=clockwise,
+        annotator=annotator,
+    )
+    main_window.execute_undoable_command(command)
+    modified_frames = sorted(command.modified_frames)
+    if not modified_frames:
+        QMessageBox.information(
+            main_window,
+            "Cascade Operation",
+            "No frames were updated for this object.",
+        )
+        _refresh_after_annotation_change(main_window)
+        return
+
+    frame_ranges_str = _frames_to_ranges(modified_frames)
+    QMessageBox.information(
+        main_window,
+        "Cascade Operation Complete",
+        f"Rotated heading {label} on {len(modified_frames)} frames: {frame_ranges_str}",
+    )
+    _refresh_after_annotation_change(main_window)
+
+
+def _apply_rotate90_next_frames(
+    main_window,
+    object_id: str,
+    clockwise: bool,
+    annotator: str,
+    direction: CascadeDirection = CascadeDirection.FORWARDS,
+):
+    """Ask user for number of frames, then rotate heading 90° CW/CCW."""
+    current_frame = int(main_window.video_controller.current_index())
+    if direction == CascadeDirection.FORWARDS:
+        max_frames = (
+            main_window.project_state_controller.get_frame_count() - current_frame - 1
+        )
+        prompt = "Apply to how many subsequent frames?"
+    else:
+        max_frames = current_frame
+        prompt = "Apply to how many previous frames?"
+
+    num_frames, ok = QInputDialog.getInt(
+        main_window,
+        "Cascade Operation",
+        prompt,
+        5,
+        1,
+        max_frames,
+    )
+    if not ok:
+        return
+    if num_frames > max_frames or num_frames < 1:
+        raise InvalidFrameRangeInput(
+            f"Please enter a valid number of frames (1-{max_frames})."
+        )
+
+    if direction == CascadeDirection.FORWARDS:
+        start_frame = current_frame + 1
+        end_frame = current_frame + num_frames
+    else:
+        start_frame = current_frame - num_frames
+        end_frame = current_frame - 1
+
+    label = "90° CW" if clockwise else "90° CCW"
+    if not _confirm_cascade(
+        main_window, object_id, f"heading {label}", f"{start_frame}–{end_frame}"
+    ):
+        return
+
+    command = Rotate90CascadeCommand(
+        object_id=str(object_id),
+        frame_start=start_frame,
+        frame_end=end_frame,
+        clockwise=clockwise,
+        annotator=annotator,
+    )
+    main_window.execute_undoable_command(command)
+    modified_frames = sorted(command.modified_frames)
+    if not modified_frames:
+        QMessageBox.information(
+            main_window,
+            "Cascade Operation",
+            "No frames were updated for this object.",
+        )
+        _refresh_after_annotation_change(main_window)
+        return
+
+    frame_ranges_str = _frames_to_ranges(modified_frames)
+    QMessageBox.information(
+        main_window,
+        "Cascade Operation Complete",
+        f"Rotated heading {label} on {len(modified_frames)} frames: {frame_ranges_str}",
+    )
     _refresh_after_annotation_change(main_window)
 
 

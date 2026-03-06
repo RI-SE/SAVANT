@@ -16,6 +16,7 @@ from edit.frontend.utils.settings_store import (
     get_rotation_sensitivity,
     get_show_errors,
     get_show_warnings,
+    get_video_buffer_frames,
     get_warning_range,
     get_zoom_rate,
     set_action_interval_offset,
@@ -132,6 +133,19 @@ class SettingsDialog(QDialog):
             "Higher values show more context around the bbox."
         )
         general_form.addRow("BBox zoom padding:", self.bbox_zoom_padding_spin)
+
+        # Video buffer size
+        self.video_buffer_spin = QSpinBox()
+        self.video_buffer_spin.setRange(4, 120)
+        self.video_buffer_spin.setSingleStep(4)
+        self.video_buffer_spin.setSuffix(" frames")
+        self.video_buffer_spin.setValue(int(get_video_buffer_frames()))
+        self.video_buffer_spin.setToolTip(
+            "Number of frames to decode per chunk for the video cache.\n"
+            "Higher values reduce freeze during playback but use more RAM.\n"
+            "30 frames ≈ 2 GB for 4K video."
+        )
+        general_form.addRow("Video buffer size:", self.video_buffer_spin)
 
         form.addRow(general_group)
 
@@ -374,6 +388,7 @@ class SettingsDialog(QDialog):
             "movement_sensitivity": float(self.movement_sensitivity_spin.value()),
             "rotation_sensitivity": float(self.rotation_sensitivity_spin.value()),
             "bbox_zoom_padding": float(self.bbox_zoom_padding_spin.value()),
+            "video_buffer_frames": int(self.video_buffer_spin.value()),
             "warning_range": (
                 float(self.warning_min_spin.value()),
                 float(self.warning_max_spin.value()),

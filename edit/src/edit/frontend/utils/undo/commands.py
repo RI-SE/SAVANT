@@ -260,6 +260,77 @@ class CascadeBBoxCommand:
 
 
 @dataclass
+class Rotate90CascadeCommand:
+    """Rotate bboxes by 90° and swap w/h across a frame range."""
+
+    object_id: str
+    frame_start: int
+    frame_end: Optional[int]
+    clockwise: bool
+    annotator: str
+    description: str = "Rotate heading 90°"
+    _before: Dict[int, BBoxGeometrySnapshot] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _after: Dict[int, BBoxGeometrySnapshot] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _modified_frames: List[int] = field(default_factory=list, init=False, repr=False)
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+        if not self._before:
+            frames = gateway.frames_for_object(self.object_id)
+            frames_to_update = [
+                frame
+                for frame in frames
+                if frame >= self.frame_start
+                and (self.frame_end is None or frame <= self.frame_end)
+            ]
+            self._before = {
+                frame: gateway.capture_geometry(frame, self.object_id)
+                for frame in frames_to_update
+            }
+            modified_frames = gateway.rotate_90_cascade(
+                frame_start=self.frame_start,
+                frame_end=self.frame_end,
+                object_id=self.object_id,
+                annotator=self.annotator,
+                clockwise=self.clockwise,
+            )
+            self._modified_frames = list(modified_frames)
+            self._after = {
+                frame: gateway.capture_geometry(frame, self.object_id)
+                for frame in modified_frames
+            }
+            return
+
+        for frame, geometry in self._after.items():
+            gateway.apply_geometry(
+                frame_number=frame,
+                object_id=self.object_id,
+                geometry=geometry,
+                annotator=self.annotator,
+            )
+
+    def undo(self, context: GatewayHolder) -> None:
+        if not self._before:
+            return
+        gateway = context.annotation_gateway
+        for frame, geometry in self._before.items():
+            gateway.apply_geometry(
+                frame_number=frame,
+                object_id=self.object_id,
+                geometry=geometry,
+                annotator=self.annotator,
+            )
+
+    @property
+    def modified_frames(self) -> Sequence[int]:
+        return tuple(self._modified_frames)
+
+
+@dataclass
 class LinkObjectIdsCommand:
     primary_object_id: str
     secondary_object_id: str
@@ -586,3 +657,53 @@ class TrackObjectCommand:
                 frame_number=tf.frame_idx,
                 object_id=self.object_id,
             )
+
+
+@dataclass
+class RetrackRangeCommand:
+    """Undoable command that overwrites a range of frames using the tracker.
+
+    Unlike TrackObjectCommand (which only adds to empty frames), this command
+    overwrites existing annotations in the tracked range, allowing the user to
+    improve bad annotations by re-running the tracker.
+    """
+
+    object_id: str
+    tracked_frames: List  # List of TrackedFrame from TrackingService
+    annotator: str
+    description: str = "Re-track range"
+    _before_snapshots: Dict[int, Optional[FrameObjectSnapshot]] = field(
+        default_factory=dict, init=False, repr=False
+    )
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+
+        if not self._before_snapshots:
+            # First execution: capture before-state
+            for tf in self.tracked_frames:
+                snapshot = gateway.capture_frame_object(tf.frame_idx, self.object_id)
+                self._before_snapshots[tf.frame_idx] = snapshot.clone() if snapshot else None
+
+        # Delete existing, then write tracked results (overwrite semantics)
+        for tf in self.tracked_frames:
+            gateway.delete_bbox(frame_number=tf.frame_idx, object_id=self.object_id)
+
+        for tf in self.tracked_frames:
+            coordinates = (tf.center_x, tf.center_y, tf.width, tf.height, tf.theta)
+            bbox_info = {"object_id": self.object_id, "coordinates": coordinates}
+            gateway.add_bbox_to_existing_object(
+                frame_number=tf.frame_idx,
+                bbox_info=bbox_info,
+                annotator=self.annotator,
+            )
+
+    def undo(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+        # Delete what was added by tracking
+        for tf in self.tracked_frames:
+            gateway.delete_bbox(frame_number=tf.frame_idx, object_id=self.object_id)
+        # Restore original state (None means the frame had no bbox before)
+        for frame_idx, snapshot in self._before_snapshots.items():
+            if snapshot is not None:
+                gateway.restore_bbox(snapshot.clone())

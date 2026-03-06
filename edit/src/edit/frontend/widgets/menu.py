@@ -1,5 +1,5 @@
 # menu.py
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QKeySequence
 
 
 class AppMenu:
@@ -13,6 +13,9 @@ class AppMenu:
         on_load,
         on_save,
         on_settings,
+        on_exit,
+        on_undo,
+        on_redo,
         on_new_bbox,
         on_new_frame_tag,
         on_interpolate,
@@ -45,6 +48,22 @@ class AppMenu:
         file_menu.addAction(self.load_action)
         file_menu.addAction(self.save_action)
         file_menu.addAction(self.settings_action)
+        file_menu.addSeparator()
+
+        self.exit_action = QAction("Exit", window)
+        self.exit_action.setShortcut("Ctrl+Q")
+        self.exit_action.triggered.connect(on_exit)
+        file_menu.addAction(self.exit_action)
+
+        self.undo_action = QAction("Undo", window)
+        self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
+        self.undo_action.setEnabled(False)
+        self.undo_action.triggered.connect(on_undo)
+
+        self.redo_action = QAction("Redo", window)
+        self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
+        self.redo_action.setEnabled(False)
+        self.redo_action.triggered.connect(on_redo)
 
         self.new_bbox_action = QAction("New bounding box", window)
         self.new_bbox_action.triggered.connect(on_new_bbox)
@@ -57,6 +76,9 @@ class AppMenu:
         self.change_annotator_action = QAction("Change annotator", window)
         self.change_annotator_action.triggered.connect(on_change_annotator)
 
+        edit_menu.addAction(self.undo_action)
+        edit_menu.addAction(self.redo_action)
+        edit_menu.addSeparator()
         edit_menu.addAction(self.new_bbox_action)
         edit_menu.addAction(self.new_frame_tag_action)
         edit_menu.addAction(self.interpolate_action)
