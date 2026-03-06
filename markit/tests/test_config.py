@@ -68,12 +68,12 @@ class TestOpticalFlowParams:
     def test_default_values(self):
         """Test default optical flow parameters."""
         params = OpticalFlowParams()
-        assert params.motion_threshold == 1.0  # Increased for drone footage
+        assert params.motion_threshold == 2.0  # Increased for drone footage
         assert params.min_area == 2000  # For full resolution, scaled with processing_scale²
         assert params.max_area == 30000  # For full resolution, scaled with processing_scale²
         assert params.morph_close_size == 3
-        assert params.morph_open_size == 5
-        assert params.track_max_age == 10  # Frames before track expires
+        assert params.morph_open_size == 9
+        assert params.track_max_age == 5  # Frames before track expires
         assert params.algorithm == "dis"
         assert params.temporal_smoothing == 0.3
         assert params.pyramid_levels == 7
