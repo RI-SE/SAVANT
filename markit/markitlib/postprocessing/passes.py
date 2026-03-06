@@ -1349,7 +1349,7 @@ class RotationAdjustmentPass(PostprocessingPass):
         current_obj = frames[current_frame_str]["objects"][obj_id]
         current_rbbox = current_obj["object_data"]["rbbox"][0]["val"]
         x_current, y_current = current_rbbox[0], current_rbbox[1]
-        w_current, h_current = current_rbbox[2], current_rbbox[3]
+        _, _ = current_rbbox[2], current_rbbox[3]
 
         angles = []
         weights = []
