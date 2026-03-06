@@ -127,6 +127,8 @@ class MainWindow(QMainWindow):
             on_save=self.quick_save_project,
             on_settings=self.open_settings,
             on_exit=self.close,
+            on_undo=self.undo,
+            on_redo=self.redo,
             on_new_bbox=self.create_new_bounding_box,
             on_new_frame_tag=self.create_new_frame_tag,
             on_interpolate=self.open_interpolation_dialog,
@@ -444,12 +446,27 @@ class MainWindow(QMainWindow):
 
     def execute_undoable_command(self, command):
         self.undo_manager.execute(command, self.undo_context)
+        self._refresh_undo_actions()
 
     def undo_last_command(self):
-        return self.undo_manager.undo(self.undo_context)
+        result = self.undo_manager.undo(self.undo_context)
+        self._refresh_undo_actions()
+        return result
 
     def redo_last_command(self):
-        return self.undo_manager.redo(self.undo_context)
+        result = self.undo_manager.redo(self.undo_context)
+        self._refresh_undo_actions()
+        return result
+
+    def undo(self):
+        self.undo_last_command()
+
+    def redo(self):
+        self.redo_last_command()
+
+    def _refresh_undo_actions(self):
+        self.menu.undo_action.setEnabled(self.undo_manager.can_undo())
+        self.menu.redo_action.setEnabled(self.undo_manager.can_redo())
 
     def closeEvent(self, event):
         """Prompt to save unsaved work before exiting."""

@@ -61,8 +61,8 @@ class VideoReader:
 
     @property
     def current_index(self) -> int:
-        """Index of the most recently returned frame."""
-        return max(self._last_index, 0)
+        """Index of the most recently returned frame, or -1 if no frame has been read yet."""
+        return self._last_index
 
     def __iter__(self):
         """Return self as iterator."""
@@ -131,7 +131,7 @@ class VideoReader:
         chunk_start = (index // self.chunk_size) * self.chunk_size
         with self._prefetch_lock:
             prefetch_thread = self._prefetch_thread
-            prefetch_chunk = self._prefetch_result[0] if self._prefetch_result else None
+            _ = self._prefetch_result[0] if self._prefetch_result else None
 
         if prefetch_thread and prefetch_thread.is_alive():
             # Check if it's loading the chunk we need by inspecting what chunk_start it was given.

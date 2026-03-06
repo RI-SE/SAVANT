@@ -304,7 +304,7 @@ class VLMAnalysisDialog(QDialog):
         value_label = QLabel(f"  <b>{field_name}</b>: {display_val}")
         value_label.setCursor(Qt.CursorShape.PointingHandCursor)
         if self._can_edit():
-            value_label.mousePressEvent = lambda e, tid=tag_id, fn=field_name, fv=field_val, ft=field_type, d=data, tt=tag_type: (
+            value_label.mousePressEvent = lambda e, tid=tag_id, fn=field_name, fv=field_val, ft=field_type, d=data, tt=tag_type: (  # noqa: E501
                 self._start_field_edit(tid, fn, fv, ft, d, tt)
             )
         value_row.addWidget(value_label)

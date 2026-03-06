@@ -274,7 +274,6 @@ def repeat_last_adjustment(main_window) -> None:
     to that object's bbox in the current frame.
     """
     import math as _math
-    from PyQt6.QtWidgets import QMessageBox
 
     object_id = main_window.overlay.selected_object_id()
     if not object_id:
