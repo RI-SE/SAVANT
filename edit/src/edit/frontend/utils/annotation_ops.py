@@ -1,4 +1,6 @@
 # edit/frontend/utils/annotation_ops.py
+from typing import Optional
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
@@ -863,12 +865,16 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
     context_menu = QMenu(overlay_widget)
     action_delete_single = context_menu.addAction("Delete this bbox")
     action_delete_cascade = context_menu.addAction("Cascade delete all with this ID")
+    action_delete_forward = context_menu.addAction("Cascade delete from here forward")
+    action_delete_backward = context_menu.addAction("Cascade delete from here backward")
     action_delete_relationship = context_menu.addAction("Delete relationships")
 
     # Add tracking actions
     context_menu.addSeparator()
     action_track_forward = context_menu.addAction("Track Forward")
+    action_track_forward_to = context_menu.addAction("Track Forward to Frame...")
     action_track_backward = context_menu.addAction("Track Backward")
+    action_track_backward_to = context_menu.addAction("Track Backward to Frame...")
 
     action_apply_static = None
     if obj_id:
@@ -934,6 +940,12 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
             _cascade_delete_same_id(main_window, bbox_index)
         except MissingObjectIDError as e:
             QMessageBox.warning(main_window, "Cascade Delete", str(e))
+    elif selected_action == action_delete_forward:
+        if obj_id:
+            _cascade_delete_directional(main_window, obj_id, "forward")
+    elif selected_action == action_delete_backward:
+        if obj_id:
+            _cascade_delete_directional(main_window, obj_id, "backward")
     elif selected_action == mark_resolved_action:
         annotator = None
         if frontend_state is not None:
@@ -957,8 +969,12 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
             _apply_to_all_empty_frames(main_window, obj_id, frontend_state)
     elif selected_action == action_track_forward:
         _start_tracking(main_window, obj_id, "forward", frontend_state)
+    elif selected_action == action_track_forward_to:
+        _start_tracking_to_frame(main_window, obj_id, "forward", frontend_state)
     elif selected_action == action_track_backward:
         _start_tracking(main_window, obj_id, "backward", frontend_state)
+    elif selected_action == action_track_backward_to:
+        _start_tracking_to_frame(main_window, obj_id, "backward", frontend_state)
     elif selected_action == action_copy_prev:
         _copy_bbox_from_previous_frame(main_window, obj_id, frontend_state)
 
@@ -1050,7 +1066,8 @@ def _apply_to_all_empty_frames(
 
 
 def _start_tracking(
-    main_window, object_id: str, direction: str, frontend_state: FrontendState
+    main_window, object_id: str, direction: str, frontend_state: FrontendState,
+    stop_frame: Optional[int] = None,
 ):
     """Start tracking the selected object forward or backward.
 
@@ -1059,6 +1076,7 @@ def _start_tracking(
         object_id: ID of the object to track
         direction: "forward" or "backward"
         frontend_state: Current frontend state
+        stop_frame: Optional frame index at which tracking must stop (inclusive).
     """
     annotator = frontend_state.require_current_annotator()
     if not annotator:
@@ -1107,12 +1125,14 @@ def _start_tracking(
                 current_frame, bbox, object_id,
                 iou_threshold=0.3,
                 progress_callback=on_progress,
+                stop_frame=stop_frame,
             )
         else:
             tracked_frames = tracking_service.track_backward(
                 current_frame, bbox, object_id,
                 iou_threshold=0.3,
                 progress_callback=on_progress,
+                stop_frame=stop_frame,
             )
     except RuntimeError as e:
         progress.close()
@@ -1159,6 +1179,38 @@ def _start_tracking(
         "Tracking Complete",
         f"Added bboxes to {len(tracked_frames)} frames: {frame_ranges_str}",
     )
+
+
+def _start_tracking_to_frame(
+    main_window, object_id: str, direction: str, frontend_state: FrontendState
+):
+    """Ask the user for a stop frame and then start tracking toward it."""
+    current_frame = int(main_window.video_controller.current_index())
+    frame_count = main_window.project_state_controller.get_frame_count() or 0
+
+    if direction == "forward":
+        default_stop = frame_count - 1
+        min_stop = current_frame + 1
+        max_stop = frame_count - 1
+        prompt = f"Track forward until frame (current: {current_frame}, max: {max_stop}):"
+    else:
+        default_stop = 0
+        min_stop = 0
+        max_stop = max(0, current_frame - 1)
+        prompt = f"Track backward until frame (current: {current_frame}, min: {min_stop}):"
+
+    if min_stop > max_stop:
+        QMessageBox.information(main_window, "Tracking", "No frames available to track toward.")
+        return
+
+    stop, ok = QInputDialog.getInt(
+        main_window, "Track to Frame", prompt,
+        value=default_stop, min=min_stop, max=max_stop,
+    )
+    if not ok:
+        return
+
+    _start_tracking(main_window, object_id, direction, frontend_state, stop_frame=stop)
 
 
 def _on_overlay_empty_space_context_menu(
@@ -1276,6 +1328,67 @@ def _on_delete_relationship(main_window, relation_ids: list[str]):
         commands=delete_commands,
     )
     main_window.execute_undoable_command(batch_command)
+    _refresh_after_annotation_change(main_window)
+
+
+def _cascade_delete_directional(main_window, object_id: str, direction: str):
+    """Delete all bboxes for object_id from the current frame forward or backward.
+
+    Args:
+        direction: "forward" (current frame … last) or "backward" (first … current frame)
+    """
+    openlabel_annotation = (
+        main_window.annotation_controller.annotation_service.project_state.annotation_config
+    )
+    if not openlabel_annotation:
+        return
+
+    current_frame = int(main_window.video_controller.current_index())
+
+    all_frames = sorted(
+        int(frame_key)
+        for frame_key, frame_data in getattr(openlabel_annotation, "frames", {}).items()
+        if getattr(frame_data, "objects", None) and object_id in frame_data.objects
+    )
+
+    if direction == "forward":
+        frames_to_delete = [f for f in all_frames if f >= current_frame]
+        label = f"from frame {current_frame} forward"
+    else:
+        frames_to_delete = [f for f in all_frames if f <= current_frame]
+        label = f"from frame {current_frame} backward"
+
+    if not frames_to_delete:
+        QMessageBox.information(
+            main_window, "Cascade Delete", f"No bboxes found {label} for ID '{object_id}'."
+        )
+        return
+
+    user_choice = QMessageBox.question(
+        main_window,
+        "Cascade Delete",
+        f"Delete {len(frames_to_delete)} bbox(es) for ID '{object_id}' {label}?",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    if user_choice != QMessageBox.StandardButton.Yes:
+        return
+
+    delete_commands = [
+        DeleteBBoxCommand(frame_number=f, object_id=str(object_id))
+        for f in frames_to_delete
+    ]
+    batch = CompositeCommand(
+        description=f"Cascade delete {len(delete_commands)} bboxes ({label})",
+        commands=delete_commands,
+    )
+    main_window.execute_undoable_command(batch)
+    QMessageBox.information(
+        main_window,
+        "Cascade Delete",
+        f"Deleted {len(frames_to_delete)} bbox(es) for ID '{object_id}' {label}.",
+    )
+    main_window.overlay.clear_selection()
     _refresh_after_annotation_change(main_window)
 
 

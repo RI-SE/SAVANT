@@ -41,6 +41,9 @@ class TrackingService:
     """
 
     MIN_MOVEMENT_FOR_ROTATION = 5.0  # pixels
+    # If the tracked center moves less than this distance (px) over a full
+    # position history window, the tracker has latched onto static background.
+    STATIONARY_THRESHOLD = 3.0  # pixels
 
     def __init__(self, video_reader, annotation_controller):
         """Initialize tracking service.
@@ -275,6 +278,7 @@ class TrackingService:
         # Ensure native Python ints for OpenCV
         ix, iy, iw, ih = int(init_x), int(init_y), int(init_w), int(init_h)
         init_rect = (ix, iy, iw, ih)
+        init_area = iw * ih  # used later to detect tracker clamping at frame edge
         logger.info(
             f"Tracker init: frame={start_frame}, rect={init_rect}, "
             f"frame_size=({frame_w}x{frame_h}), "
@@ -335,6 +339,21 @@ class TrackingService:
             tx, ty, tw, th = tracked_bbox
             new_cx = tx + tw / 2
             new_cy = ty + th / 2
+
+            # Detect tracker clamping at the frame edge.
+            # OpenCV trackers clip their output rect to frame boundaries, so when
+            # an object exits the frame the reported rect stays fully inside and
+            # the overlap check below would see 100% overlap and never fire.
+            # Instead, check whether the tracked area has shrunk significantly
+            # compared to the initial bbox: clamping at any edge causes the
+            # reported width or height (or both) to drop, halving the area.
+            if init_area > 0 and tw * th < 0.5 * init_area:
+                logger.info(
+                    f"Tracking stopped at frame {current_frame}: "
+                    f"tracked area ({tw * th:.0f}) is less than half the initial "
+                    f"area ({init_area}); object likely exited the frame."
+                )
+                break
 
             # Stop if the tracked box has mostly left the frame.
             # Measure the fraction of the axis-aligned tracked rect that still
@@ -400,6 +419,21 @@ class TrackingService:
                         f"velocity=({avg_dx:.1f}, {avg_dy:.1f})"
                     )
                     _will_exit = True
+
+            # Stationarity check: when the history is full, measure total
+            # displacement from oldest to newest point.  If the tracker
+            # hasn't moved at all it has latched onto static background
+            # (e.g. snow, road texture) rather than the object.
+            if len(_pos_history) == _pos_history.maxlen:
+                oldest_x, oldest_y = _pos_history[0]
+                displacement = math.hypot(new_cx - oldest_x, new_cy - oldest_y)
+                if displacement < self.STATIONARY_THRESHOLD:
+                    logger.info(
+                        f"Tracking stopped at frame {current_frame}: "
+                        f"tracker appears stationary (displacement={displacement:.2f}px "
+                        f"over {_pos_history.maxlen} frames); likely latched onto background."
+                    )
+                    break
 
             # Add to results
             results.append(
