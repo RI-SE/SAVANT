@@ -101,6 +101,11 @@ class ProjectState:
             config = read_json(path)
             self.annotation_config = OpenLabel(**config["openlabel"])
             self.open_label_path = path
+        except KeyError as e:
+            raise OpenLabelFileNotValid(
+                f"File does not appear to be a SAVANT OpenLabel file "
+                f"(missing key: {e}). Please select a valid project JSON."
+            ) from e
         except json.decoder.JSONDecodeError:
             raise OpenLabelFileNotValid(
                 "Please ensure a valid json file exists in the config dir."
