@@ -260,6 +260,93 @@ class CascadeBBoxCommand:
 
 
 @dataclass
+class CascadeDeltaBBoxCommand:
+    """Apply a geometry delta (dcx, dcy, dw, dh, dtheta) to every annotated
+    frame for an object within a frame range.  Unlike CascadeBBoxCommand which
+    sets absolute values, this shifts each frame's existing geometry by the
+    same increments — matching the "repeat last adjustment" (R-key) behaviour
+    but applied across many frames at once.
+    """
+
+    object_id: str
+    frame_start: int
+    frame_end: Optional[int]
+    dcx: float
+    dcy: float
+    dw: float
+    dh: float
+    dtheta: float
+    annotator: str
+    description: str = "Cascade delta bounding box update"
+    _before: Dict[int, BBoxGeometrySnapshot] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _after: Dict[int, BBoxGeometrySnapshot] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _modified_frames: List[int] = field(default_factory=list, init=False, repr=False)
+
+    def do(self, context: GatewayHolder) -> None:
+        import math as _math
+
+        gateway = context.annotation_gateway
+        if not self._before:
+            frames = gateway.frames_for_object(self.object_id)
+            frames_to_update = [
+                f for f in frames
+                if f >= self.frame_start and (self.frame_end is None or f <= self.frame_end)
+            ]
+            self._before = {
+                f: gateway.capture_geometry(f, self.object_id) for f in frames_to_update
+            }
+            self._modified_frames = list(frames_to_update)
+            for f in frames_to_update:
+                before = self._before[f]
+                new_rotation = (before.rotation + self.dtheta) % (2 * _math.pi)
+                after = BBoxGeometrySnapshot(
+                    center_x=before.center_x + self.dcx,
+                    center_y=before.center_y + self.dcy,
+                    width=max(1.0, before.width + self.dw),
+                    height=max(1.0, before.height + self.dh),
+                    rotation=new_rotation,
+                )
+                gateway.apply_geometry(
+                    frame_number=f,
+                    object_id=self.object_id,
+                    geometry=after,
+                    annotator=self.annotator,
+                )
+            self._after = {
+                f: gateway.capture_geometry(f, self.object_id) for f in frames_to_update
+            }
+            return
+
+        for f, geometry in self._after.items():
+            gateway.apply_geometry(
+                frame_number=f,
+                object_id=self.object_id,
+                geometry=geometry,
+                annotator=self.annotator,
+            )
+
+    def undo(self, context: GatewayHolder) -> None:
+        if not self._before:
+            return
+        gateway = context.annotation_gateway
+        for f, geometry in self._before.items():
+            gateway.apply_geometry(
+                frame_number=f,
+                object_id=self.object_id,
+                geometry=geometry,
+                annotator=self.annotator,
+            )
+
+    @property
+    def modified_frames(self) -> Sequence[int]:
+        return tuple(self._modified_frames)
+
+
+@dataclass
 class Rotate90CascadeCommand:
     """Rotate bboxes by 90° and swap w/h across a frame range."""
 

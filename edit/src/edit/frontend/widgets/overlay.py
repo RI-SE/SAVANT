@@ -61,6 +61,8 @@ class Overlay(QWidget):
     cascadeRotate90FrameRange = pyqtSignal(
         str, bool, object
     )  # (object_id, clockwise, direction)
+    cascadeDeltaAll = pyqtSignal(str, object)         # (object_id, direction)
+    cascadeDeltaFrameRange = pyqtSignal(str, object)  # (object_id, direction)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -152,6 +154,10 @@ class Overlay(QWidget):
         )
         self.cascade_dropdown.applyRotate90CCWToFrameRange.connect(
             self._on_cascade_rotate90ccw_to_frame_range
+        )
+        self.cascade_dropdown.applyDeltaToAll.connect(self._on_cascade_delta_to_all)
+        self.cascade_dropdown.applyDeltaToFrameRange.connect(
+            self._on_cascade_delta_to_frame_range
         )
         self.cascade_dropdown.cancelled.connect(self._on_cascade_cancel)
 
@@ -1203,6 +1209,16 @@ class Overlay(QWidget):
         """Handle rotate 90° CCW to next X frames."""
         selected_bbox = self._get_selected_bbox()
         self.cascadeRotate90FrameRange.emit(selected_bbox.object_id, False, direction)
+
+    def _on_cascade_delta_to_all(self, direction: str):
+        """Handle apply last delta to all frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeDeltaAll.emit(selected_bbox.object_id, direction)
+
+    def _on_cascade_delta_to_frame_range(self, direction: str):
+        """Handle apply last delta to next X frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeDeltaFrameRange.emit(selected_bbox.object_id, direction)
 
     def _on_cascade_cancel(self):
         """Handle cascade cancel."""

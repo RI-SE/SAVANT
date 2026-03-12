@@ -23,6 +23,7 @@ from edit.frontend.types import Relationship
 from edit.frontend.utils.undo import (
     BBoxGeometrySnapshot,
     CascadeBBoxCommand,
+    CascadeDeltaBBoxCommand,
     CompositeCommand,
     CreateExistingObjectBBoxCommand,
     CreateNewObjectBBoxCommand,
@@ -188,6 +189,24 @@ def wire(main_window, frontend_state: FrontendState):
                 main_window,
                 object_id,
                 clockwise,
+                direction=direction,
+            )
+        )
+    if hasattr(main_window.overlay, "cascadeDeltaAll"):
+        main_window.overlay.cascadeDeltaAll.connect(
+            lambda object_id, direction: _call_with_annotator(
+                _apply_cascade_delta_all_frames,
+                main_window,
+                object_id,
+                direction=direction,
+            )
+        )
+    if hasattr(main_window.overlay, "cascadeDeltaFrameRange"):
+        main_window.overlay.cascadeDeltaFrameRange.connect(
+            lambda object_id, direction: _call_with_annotator(
+                _apply_cascade_delta_next_frames,
+                main_window,
+                object_id,
                 direction=direction,
             )
         )
@@ -830,6 +849,165 @@ def _apply_rotate90_next_frames(
         main_window,
         "Cascade Operation Complete",
         f"Rotated heading {label} on {len(modified_frames)} frames: {frame_ranges_str}",
+    )
+    _refresh_after_annotation_change(main_window)
+
+
+def _apply_cascade_delta_all_frames(
+    main_window,
+    object_id: str,
+    annotator: str,
+    direction: CascadeDirection = CascadeDirection.FORWARDS,
+):
+    """Apply the last recorded geometry delta to all annotated frames for the object."""
+    import math as _math
+
+    last_deltas = getattr(main_window, "last_bbox_deltas", {})
+    delta = last_deltas.get(object_id)
+    if delta is None:
+        QMessageBox.information(
+            main_window,
+            "Cascade Delta",
+            "No recorded adjustment for this object yet.\n"
+            "Move, resize or rotate the bbox first (the R-key shortcut records the delta).",
+        )
+        return
+
+    dcx, dcy, dw, dh, dtheta = delta
+    last_frame = main_window.project_state_controller.get_frame_count() - 1
+    current_frame = int(main_window.video_controller.current_index())
+
+    if direction == CascadeDirection.FORWARDS:
+        start_frame = current_frame + 1
+        end_frame = last_frame
+        range_str = f"{start_frame}–{end_frame}"
+    else:
+        start_frame = 0
+        end_frame = current_frame - 1
+        range_str = f"{start_frame}–{end_frame}"
+
+    prop_desc = (
+        f"delta (Δcx={dcx:+.1f}, Δcy={dcy:+.1f}, "
+        f"Δw={dw:+.1f}, Δh={dh:+.1f}, "
+        f"Δθ={_math.degrees(dtheta):+.1f}°)"
+    )
+    if not _confirm_cascade(main_window, object_id, prop_desc, range_str):
+        return
+
+    command = CascadeDeltaBBoxCommand(
+        object_id=str(object_id),
+        frame_start=start_frame,
+        frame_end=end_frame,
+        dcx=dcx,
+        dcy=dcy,
+        dw=dw,
+        dh=dh,
+        dtheta=dtheta,
+        annotator=annotator,
+    )
+    main_window.execute_undoable_command(command)
+    modified_frames = sorted(command.modified_frames)
+    if not modified_frames:
+        QMessageBox.information(
+            main_window, "Cascade Delta", "No frames were updated for this object."
+        )
+        _refresh_after_annotation_change(main_window)
+        return
+
+    frame_ranges_str = _frames_to_ranges(modified_frames)
+    QMessageBox.information(
+        main_window,
+        "Cascade Delta Complete",
+        f"Applied delta to {len(modified_frames)} frames: {frame_ranges_str}",
+    )
+    _refresh_after_annotation_change(main_window)
+
+
+def _apply_cascade_delta_next_frames(
+    main_window,
+    object_id: str,
+    annotator: str,
+    direction: CascadeDirection = CascadeDirection.FORWARDS,
+):
+    """Ask user for number of frames, then apply the last geometry delta to those frames."""
+    import math as _math
+
+    last_deltas = getattr(main_window, "last_bbox_deltas", {})
+    delta = last_deltas.get(object_id)
+    if delta is None:
+        QMessageBox.information(
+            main_window,
+            "Cascade Delta",
+            "No recorded adjustment for this object yet.\n"
+            "Move, resize or rotate the bbox first (the R-key shortcut records the delta).",
+        )
+        return
+
+    dcx, dcy, dw, dh, dtheta = delta
+    current_frame = int(main_window.video_controller.current_index())
+
+    if direction == CascadeDirection.FORWARDS:
+        max_frames = main_window.project_state_controller.get_frame_count() - current_frame - 1
+        prompt = "Apply delta to how many subsequent frames?"
+    else:
+        max_frames = current_frame
+        prompt = "Apply delta to how many previous frames?"
+
+    num_frames, ok = QInputDialog.getInt(
+        main_window,
+        "Cascade Delta",
+        prompt,
+        5,
+        1,
+        max_frames,
+    )
+    if not ok:
+        return
+    if num_frames > max_frames or num_frames < 1:
+        raise InvalidFrameRangeInput(
+            f"Please enter a valid number of frames (1-{max_frames})."
+        )
+
+    if direction == CascadeDirection.FORWARDS:
+        start_frame = current_frame + 1
+        end_frame = current_frame + num_frames
+    else:
+        start_frame = current_frame - num_frames
+        end_frame = current_frame - 1
+
+    prop_desc = (
+        f"delta (Δcx={dcx:+.1f}, Δcy={dcy:+.1f}, "
+        f"Δw={dw:+.1f}, Δh={dh:+.1f}, "
+        f"Δθ={_math.degrees(dtheta):+.1f}°)"
+    )
+    if not _confirm_cascade(main_window, object_id, prop_desc, f"{start_frame}–{end_frame}"):
+        return
+
+    command = CascadeDeltaBBoxCommand(
+        object_id=str(object_id),
+        frame_start=start_frame,
+        frame_end=end_frame,
+        dcx=dcx,
+        dcy=dcy,
+        dw=dw,
+        dh=dh,
+        dtheta=dtheta,
+        annotator=annotator,
+    )
+    main_window.execute_undoable_command(command)
+    modified_frames = sorted(command.modified_frames)
+    if not modified_frames:
+        QMessageBox.information(
+            main_window, "Cascade Delta", "No frames were updated for this object."
+        )
+        _refresh_after_annotation_change(main_window)
+        return
+
+    frame_ranges_str = _frames_to_ranges(modified_frames)
+    QMessageBox.information(
+        main_window,
+        "Cascade Delta Complete",
+        f"Applied delta to {len(modified_frames)} frames: {frame_ranges_str}",
     )
     _refresh_after_annotation_change(main_window)
 

@@ -27,6 +27,8 @@ class CascadeDropdown(QWidget):
     applyRotate90CCWToAll = pyqtSignal(object)
     applyRotate90CWToFrameRange = pyqtSignal(object)
     applyRotate90CCWToFrameRange = pyqtSignal(object)
+    applyDeltaToAll = pyqtSignal(object)
+    applyDeltaToFrameRange = pyqtSignal(object)
     cancelled = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -110,6 +112,14 @@ class CascadeDropdown(QWidget):
         )
         layout.addWidget(self.apply_rotate90ccw_to_next_btn)
 
+        self.apply_delta_to_all_btn = QPushButton("Apply Last Delta to All Frames")
+        self.apply_delta_to_all_btn.clicked.connect(self._on_apply_delta_all)
+        layout.addWidget(self.apply_delta_to_all_btn)
+
+        self.apply_delta_to_next_btn = QPushButton("Apply Last Delta to Next X Frames")
+        self.apply_delta_to_next_btn.clicked.connect(self._on_apply_delta_next_frame)
+        layout.addWidget(self.apply_delta_to_next_btn)
+
         # Store action buttons for easy access
         self._action_buttons = [
             self.apply_size_to_all_btn,
@@ -122,6 +132,8 @@ class CascadeDropdown(QWidget):
             self.apply_rotate90ccw_to_all_btn,
             self.apply_rotate90cw_to_next_btn,
             self.apply_rotate90ccw_to_next_btn,
+            self.apply_delta_to_all_btn,
+            self.apply_delta_to_next_btn,
         ]
 
         # Cancel button (always visible)
@@ -141,16 +153,30 @@ class CascadeDropdown(QWidget):
         self._show_direction_buttons()
 
     def show_at_position(self, x, y):
-        """Show the dropdown at the specified position."""
+        """Show the dropdown at the specified position, clamped within the parent widget."""
         # Reset state to direction selection
         self._current_direction = None
         self._show_direction_buttons()
-        # Position the widget
+        # Position the widget, ensuring it stays fully inside the parent
         self.move(int(x), int(y))
+        self._clamp_to_parent()
 
         # Show the widget
         self.show()
         self.raise_()
+
+    def _clamp_to_parent(self):
+        """Nudge the widget position so it stays fully within its parent."""
+        parent = self.parent()
+        if parent is None:
+            return
+        self.adjustSize()
+        dw = self.sizeHint().width()
+        dh = self.sizeHint().height()
+        px, py = self.x(), self.y()
+        px = max(0, min(px, parent.width() - dw))
+        py = max(0, min(py, parent.height() - dh))
+        self.move(px, py)
 
     def _on_apply_size_all(self):
         """Handle cascade size to all frames button click."""
@@ -202,6 +228,16 @@ class CascadeDropdown(QWidget):
         self.hide()
         self.applyRotate90CCWToFrameRange.emit(self._current_direction)
 
+    def _on_apply_delta_all(self):
+        """Handle apply last delta to all frames button click."""
+        self.hide()
+        self.applyDeltaToAll.emit(self._current_direction)
+
+    def _on_apply_delta_next_frame(self):
+        """Handle apply last delta to next X frames button click."""
+        self.hide()
+        self.applyDeltaToFrameRange.emit(self._current_direction)
+
     def _on_cancel(self):
         """Handle cancel button click."""
         self.hide()
@@ -230,6 +266,7 @@ class CascadeDropdown(QWidget):
                 f"{original_text} ({self._current_direction.value.capitalize()})"
             )
         self.adjustSize()
+        self._clamp_to_parent()
 
     def _select_direction(self, direction: CascadeDirection):
         """Handle direction selection."""

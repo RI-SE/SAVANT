@@ -3,6 +3,7 @@
 from .commands import (
     AddFrameTagCommand,
     CascadeBBoxCommand,
+    CascadeDeltaBBoxCommand,
     CompositeCommand,
     CreateExistingObjectBBoxCommand,
     CreateNewObjectBBoxCommand,
@@ -59,6 +60,7 @@ __all__ = [
     "VLMTagSnapshot",
     "AddFrameTagCommand",
     "CascadeBBoxCommand",
+    "CascadeDeltaBBoxCommand",
     "CompositeCommand",
     "CreateExistingObjectBBoxCommand",
     "CreateNewObjectBBoxCommand",

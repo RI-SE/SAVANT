@@ -43,7 +43,11 @@ class TrackingService:
     MIN_MOVEMENT_FOR_ROTATION = 5.0  # pixels
     # If the tracked center moves less than this distance (px) over a full
     # position history window, the tracker has latched onto static background.
-    STATIONARY_THRESHOLD = 3.0  # pixels
+    # Window of 10 frames + 5px threshold tolerates slow-moving objects
+    # (e.g. a car braking at a junction) while still catching a truly frozen
+    # tracker that has latched onto snow or road texture (0px displacement).
+    STATIONARY_THRESHOLD = 5.0  # pixels
+    STATIONARY_WINDOW = 10      # frames
 
     def __init__(self, video_reader, annotation_controller):
         """Initialize tracking service.
@@ -311,7 +315,7 @@ class TrackingService:
         # position will be outside — we stop before the tracker can latch
         # onto background features inside the frame.
         from collections import deque
-        _pos_history: deque = deque(maxlen=5)
+        _pos_history: deque = deque(maxlen=self.STATIONARY_WINDOW)
         _pos_history.append((center_x, center_y))
 
         current_frame = start_frame + direction
