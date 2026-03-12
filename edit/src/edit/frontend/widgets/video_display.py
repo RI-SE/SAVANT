@@ -5,6 +5,12 @@ from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
 from typing import Optional
 from edit.frontend.states.annotation_state import AnnotationState
 
+# Extra pan allowed beyond the image edge on each side, as a fraction of the
+# drawn image size.  0.10 means 10 % on each side → effectively a 20 % wider
+# virtual canvas.  This lets annotators work on bboxes near image borders
+# without the view cutting off part of the object.
+CANVAS_PADDING_FRACTION = 0.10
+
 
 class VideoDisplay(QLabel):
     pan_changed = pyqtSignal(float, float)
@@ -302,7 +308,12 @@ class VideoDisplay(QLabel):
         return QRectF(off_x, off_y, draw_w, draw_h)
 
     def _clamp_pan(self) -> None:
-        """Keep image from drifting too far off-screen."""
+        """Keep image from drifting too far off-screen.
+
+        An extra CANVAS_PADDING_FRACTION of the drawn image size is allowed on
+        each side so that objects near the image border can be centred in the
+        viewport without part of the bbox being hidden.
+        """
         if not self._pixmap or self._pixmap.isNull():
             self._pan = QPointF(0, 0)
             return
@@ -312,8 +323,10 @@ class VideoDisplay(QLabel):
         scale = base * self._zoom
         draw_w, draw_h = fw * scale, fh * scale
 
-        max_x = max(0.0, (draw_w - vw) / 2)
-        max_y = max(0.0, (draw_h - vh) / 2)
+        pad_x = draw_w * CANVAS_PADDING_FRACTION
+        pad_y = draw_h * CANVAS_PADDING_FRACTION
+        max_x = max(0.0, (draw_w - vw) / 2) + pad_x
+        max_y = max(0.0, (draw_h - vh) / 2) + pad_y
         x = max(-max_x, min(self._pan.x(), max_x))
         y = max(-max_y, min(self._pan.y(), max_y))
         self._pan = QPointF(x, y)
