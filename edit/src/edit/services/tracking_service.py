@@ -212,32 +212,13 @@ class TrackingService:
             skip_object_ids=skip_object_ids,
         )
 
-    def _track(
-        self,
-        start_frame: int,
-        bbox_data,
-        object_id: str,
-        iou_threshold: float,
-        direction: int,
-        progress_callback: Optional[callable] = None,
-        stop_frame: Optional[int] = None,
-        skip_object_ids: Optional[set] = None,
-    ) -> List[TrackedFrame]:
-        """Core tracking loop.
-
-        Args:
-            start_frame: Starting frame index
-            bbox_data: Initial bbox (BBoxData-like object with center_x, center_y, etc.)
-            object_id: Object ID to track
-            iou_threshold: IoU threshold for stopping
-            direction: 1 for forward, -1 for backward
+    def _prepare_tracker(self, start_frame: int, bbox_data) -> Optional[Tuple]:
+        """Validate the start frame, compute the axis-aligned rect, and initialize the tracker.
 
         Returns:
-            List of TrackedFrame for each successfully tracked frame
+            Tuple of (tracker, tracker_name, init_rect, init_area, frame_w, frame_h, frame),
+            or None if initialization failed.
         """
-        results: List[TrackedFrame] = []
-
-        # Extract bbox parameters
         center_x = bbox_data.center_x
         center_y = bbox_data.center_y
         width = bbox_data.width
@@ -249,11 +230,11 @@ class TrackingService:
             frame = self.video_reader.get_frame(start_frame)
         except Exception as e:
             logger.error(f"Failed to get start frame {start_frame}: {e}")
-            return results
+            return None
 
         if frame is None or frame.size == 0:
             logger.error(f"Got empty frame at {start_frame}")
-            return results
+            return None
 
         frame_h, frame_w = frame.shape[:2]
         logger.debug(f"Frame shape: {frame.shape}, dtype: {frame.dtype}")
@@ -277,7 +258,7 @@ class TrackingService:
             logger.warning(
                 f"Invalid bbox dimensions after clamping: w={init_w}, h={init_h}"
             )
-            return results
+            return None
 
         # Ensure native Python ints for OpenCV
         ix, iy, iw, ih = int(init_x), int(init_y), int(init_w), int(init_h)
@@ -302,7 +283,136 @@ class TrackingService:
                 f"All trackers failed to initialize with rect={init_rect}, "
                 f"frame_size=({frame_w}x{frame_h}), frame_dtype={frame.dtype}"
             )
+            return None
+
+        return tracker, tracker_name, init_rect, init_area, frame_w, frame_h, frame
+
+    def _check_edge_exit(
+        self, tx, ty, tw, th, frame_w: int, frame_h: int, init_area: int, current_frame: int
+    ) -> bool:
+        """Check whether the tracked bbox has exited or is clamped at the frame edge.
+
+        Returns:
+            True if tracking should stop.
+        """
+        # Detect tracker clamping at the frame edge.
+        # OpenCV trackers clip their output rect to frame boundaries, so when
+        # an object exits the frame the reported rect stays fully inside and
+        # the overlap check below would see 100% overlap and never fire.
+        # Instead, check whether the tracked area has shrunk significantly
+        # compared to the initial bbox: clamping at any edge causes the
+        # reported width or height (or both) to drop, halving the area.
+        if init_area > 0 and tw * th < 0.5 * init_area:
+            logger.info(
+                f"Tracking stopped at frame {current_frame}: "
+                f"tracked area ({tw * th:.0f}) is less than half the initial "
+                f"area ({init_area}); object likely exited the frame."
+            )
+            return True
+
+        # Stop if the tracked box has mostly left the frame.
+        # Measure the fraction of the axis-aligned tracked rect that still
+        # overlaps the frame — this handles rotated/large objects correctly.
+        overlap_w = min(tx + tw, frame_w) - max(tx, 0)
+        overlap_h = min(ty + th, frame_h) - max(ty, 0)
+        overlap_area = max(0.0, overlap_w) * max(0.0, overlap_h)
+        tracked_area = tw * th
+        if tracked_area > 0 and overlap_area / tracked_area < 0.5:
+            logger.info(
+                f"Tracking stopped at frame {current_frame}: "
+                f"bbox mostly outside frame ({overlap_area/tracked_area:.1%} overlap)"
+            )
+            return True
+
+        return False
+
+    def _check_stationary_or_exit(
+        self, pos_history, new_cx: float, new_cy: float,
+        frame_w: int, frame_h: int, current_frame: int,
+    ) -> Tuple[bool, bool]:
+        """Check velocity-based exit prediction and stationarity.
+
+        pos_history must already include (new_cx, new_cy) as its most recent entry.
+
+        Returns:
+            (will_exit, should_stop_immediately): will_exit means record this frame then
+            stop; should_stop_immediately means stop before recording.
+        """
+        # Velocity-based exit prediction: if we have enough history,
+        # compute rolling average velocity and project one step ahead.
+        # Stop (after recording the current frame) when the predicted
+        # center exits the frame — this fires before the tracker can
+        # latch onto in-frame background after the object has left.
+        will_exit = False
+        if len(pos_history) >= 2:
+            pts = list(pos_history)
+            avg_dx = sum(pts[i][0] - pts[i-1][0] for i in range(1, len(pts))) / (len(pts) - 1)
+            avg_dy = sum(pts[i][1] - pts[i-1][1] for i in range(1, len(pts))) / (len(pts) - 1)
+            pred_cx = new_cx + avg_dx
+            pred_cy = new_cy + avg_dy
+            if pred_cx < 0 or pred_cx >= frame_w or pred_cy < 0 or pred_cy >= frame_h:
+                logger.info(
+                    f"Tracking stopped at frame {current_frame}: "
+                    f"predicted exit at ({pred_cx:.1f}, {pred_cy:.1f}) "
+                    f"velocity=({avg_dx:.1f}, {avg_dy:.1f})"
+                )
+                will_exit = True
+
+        # Stationarity check: when the history is full, measure total
+        # displacement from oldest to newest point.  If the tracker
+        # hasn't moved at all it has latched onto static background
+        # (e.g. snow, road texture) rather than the object.
+        if len(pos_history) == pos_history.maxlen:
+            oldest_x, oldest_y = pos_history[0]
+            displacement = math.hypot(new_cx - oldest_x, new_cy - oldest_y)
+            if displacement < self.STATIONARY_THRESHOLD:
+                logger.info(
+                    f"Tracking stopped at frame {current_frame}: "
+                    f"tracker appears stationary (displacement={displacement:.2f}px "
+                    f"over {pos_history.maxlen} frames); likely latched onto background."
+                )
+                return will_exit, True
+
+        return will_exit, False
+
+    def _track(
+        self,
+        start_frame: int,
+        bbox_data,
+        object_id: str,
+        iou_threshold: float,
+        direction: int,
+        progress_callback: Optional[callable] = None,
+        stop_frame: Optional[int] = None,
+        skip_object_ids: Optional[set] = None,
+    ) -> List[TrackedFrame]:
+        """Core tracking loop.
+
+        Args:
+            start_frame: Starting frame index
+            bbox_data: Initial bbox (BBoxData-like object with center_x, center_y, etc.)
+            object_id: Object ID to track
+            iou_threshold: IoU threshold for stopping
+            direction: 1 for forward, -1 for backward
+
+        Returns:
+            List of TrackedFrame for each successfully tracked frame
+        """
+        from collections import deque
+
+        results: List[TrackedFrame] = []
+
+        state = self._prepare_tracker(start_frame, bbox_data)
+        if state is None:
             return results
+
+        tracker, tracker_name, init_rect, init_area, frame_w, frame_h, frame = state
+
+        center_x = bbox_data.center_x
+        center_y = bbox_data.center_y
+        width = bbox_data.width
+        height = bbox_data.height
+        theta = bbox_data.theta
 
         # Track state
         prev_cx, prev_cy = center_x, center_y
@@ -314,7 +424,6 @@ class TrackingService:
         # When the object is about to exit the frame its predicted next
         # position will be outside — we stop before the tracker can latch
         # onto background features inside the frame.
-        from collections import deque
         _pos_history: deque = deque(maxlen=self.STATIONARY_WINDOW)
         _pos_history.append((center_x, center_y))
 
@@ -344,33 +453,7 @@ class TrackingService:
             new_cx = tx + tw / 2
             new_cy = ty + th / 2
 
-            # Detect tracker clamping at the frame edge.
-            # OpenCV trackers clip their output rect to frame boundaries, so when
-            # an object exits the frame the reported rect stays fully inside and
-            # the overlap check below would see 100% overlap and never fire.
-            # Instead, check whether the tracked area has shrunk significantly
-            # compared to the initial bbox: clamping at any edge causes the
-            # reported width or height (or both) to drop, halving the area.
-            if init_area > 0 and tw * th < 0.5 * init_area:
-                logger.info(
-                    f"Tracking stopped at frame {current_frame}: "
-                    f"tracked area ({tw * th:.0f}) is less than half the initial "
-                    f"area ({init_area}); object likely exited the frame."
-                )
-                break
-
-            # Stop if the tracked box has mostly left the frame.
-            # Measure the fraction of the axis-aligned tracked rect that still
-            # overlaps the frame — this handles rotated/large objects correctly.
-            overlap_w = min(tx + tw, frame_w) - max(tx, 0)
-            overlap_h = min(ty + th, frame_h) - max(ty, 0)
-            overlap_area = max(0.0, overlap_w) * max(0.0, overlap_h)
-            tracked_area = tw * th
-            if tracked_area > 0 and overlap_area / tracked_area < 0.5:
-                logger.info(
-                    f"Tracking stopped at frame {current_frame}: "
-                    f"bbox mostly outside frame ({overlap_area/tracked_area:.1%} overlap)"
-                )
+            if self._check_edge_exit(tx, ty, tw, th, frame_w, frame_h, init_area, current_frame):
                 break
 
             # Estimate rotation via sparse optical flow over the bbox crop,
@@ -403,41 +486,12 @@ class TrackingService:
                 )
                 break
 
-            # Velocity-based exit prediction: if we have enough history,
-            # compute rolling average velocity and project one step ahead.
-            # Stop (after recording the current frame) when the predicted
-            # center exits the frame — this fires before the tracker can
-            # latch onto in-frame background after the object has left.
             _pos_history.append((new_cx, new_cy))
-            _will_exit = False
-            if len(_pos_history) >= 2:
-                pts = list(_pos_history)
-                avg_dx = sum(pts[i][0] - pts[i-1][0] for i in range(1, len(pts))) / (len(pts) - 1)
-                avg_dy = sum(pts[i][1] - pts[i-1][1] for i in range(1, len(pts))) / (len(pts) - 1)
-                pred_cx = new_cx + avg_dx
-                pred_cy = new_cy + avg_dy
-                if pred_cx < 0 or pred_cx >= frame_w or pred_cy < 0 or pred_cy >= frame_h:
-                    logger.info(
-                        f"Tracking stopped at frame {current_frame}: "
-                        f"predicted exit at ({pred_cx:.1f}, {pred_cy:.1f}) "
-                        f"velocity=({avg_dx:.1f}, {avg_dy:.1f})"
-                    )
-                    _will_exit = True
-
-            # Stationarity check: when the history is full, measure total
-            # displacement from oldest to newest point.  If the tracker
-            # hasn't moved at all it has latched onto static background
-            # (e.g. snow, road texture) rather than the object.
-            if len(_pos_history) == _pos_history.maxlen:
-                oldest_x, oldest_y = _pos_history[0]
-                displacement = math.hypot(new_cx - oldest_x, new_cy - oldest_y)
-                if displacement < self.STATIONARY_THRESHOLD:
-                    logger.info(
-                        f"Tracking stopped at frame {current_frame}: "
-                        f"tracker appears stationary (displacement={displacement:.2f}px "
-                        f"over {_pos_history.maxlen} frames); likely latched onto background."
-                    )
-                    break
+            _will_exit, _stop_now = self._check_stationary_or_exit(
+                _pos_history, new_cx, new_cy, frame_w, frame_h, current_frame
+            )
+            if _stop_now:
+                break
 
             # Add to results
             results.append(
