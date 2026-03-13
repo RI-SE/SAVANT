@@ -188,14 +188,27 @@ class AnnotationController:
         return self.annotation_service.frames_for_object(object_id)
 
     @error_handler
-    def link_object_ids(
+    def conflicting_frames_for_link(
         self,
         primary_object_id: str,
         secondary_object_id: str,
     ) -> list[int]:
+        return self.annotation_service.conflicting_frames_for_link(
+            primary_object_id,
+            secondary_object_id,
+        )
+
+    @error_handler
+    def link_object_ids(
+        self,
+        primary_object_id: str,
+        secondary_object_id: str,
+        conflict_resolution: str | None = None,
+    ) -> list[int]:
         return self.annotation_service.link_object_ids(
             primary_object_id,
             secondary_object_id,
+            conflict_resolution=conflict_resolution,
         )
 
     @error_handler

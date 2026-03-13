@@ -421,49 +421,83 @@ class Rotate90CascadeCommand:
 class LinkObjectIdsCommand:
     primary_object_id: str
     secondary_object_id: str
+    conflict_resolution: str = "keep_primary"
     description: str = "Link object IDs"
-    _frame_snapshots: List[FrameObjectSnapshot] = field(
+    _secondary_snapshots: List[FrameObjectSnapshot] = field(
+        default_factory=list, init=False, repr=False
+    )
+    _conflict_primary_snapshots: List[FrameObjectSnapshot] = field(
         default_factory=list, init=False, repr=False
     )
     _metadata_snapshot: Optional[ObjectMetadataSnapshot] = field(
         default=None, init=False, repr=False
     )
-    _affected_frames: List[int] = field(default_factory=list, init=False, repr=False)
+    _moved_frames: List[int] = field(default_factory=list, init=False, repr=False)
+    _conflict_frames: List[int] = field(default_factory=list, init=False, repr=False)
 
     def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
-        if not self._frame_snapshots:
-            frames = gateway.frames_for_object(self.secondary_object_id)
-            for frame in frames:
+        if not self._secondary_snapshots and self._metadata_snapshot is None:
+            # First execution: snapshot everything we may need to restore.
+            all_secondary_frames = gateway.frames_for_object(self.secondary_object_id)
+            conflict_frames = set(
+                gateway.conflicting_frames_for_link(
+                    self.primary_object_id, self.secondary_object_id
+                )
+            )
+            for frame in all_secondary_frames:
                 snapshot = gateway.capture_frame_object(frame, self.secondary_object_id)
                 if snapshot is not None:
-                    self._frame_snapshots.append(snapshot.clone())
+                    self._secondary_snapshots.append(snapshot.clone())
+            if self.conflict_resolution == "keep_secondary":
+                for frame in conflict_frames:
+                    snapshot = gateway.capture_frame_object(frame, self.primary_object_id)
+                    if snapshot is not None:
+                        self._conflict_primary_snapshots.append(snapshot.clone())
             self._metadata_snapshot = gateway.capture_object_metadata(
                 self.secondary_object_id
             )
-        affected = gateway.link_object_ids(
+            self._conflict_frames = sorted(conflict_frames)
+            secondary_set = set(all_secondary_frames)
+            self._moved_frames = sorted(secondary_set - conflict_frames)
+
+        gateway.link_object_ids(
             self.primary_object_id,
             self.secondary_object_id,
+            conflict_resolution=self.conflict_resolution,
         )
-        self._affected_frames = list(affected or [])
 
     def undo(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
-        if not self._frame_snapshots and self._metadata_snapshot is None:
+        if not self._secondary_snapshots and self._metadata_snapshot is None:
             return
-        for frame in self._affected_frames:
+        # Undo non-conflict frames: the secondary was renamed to primary.
+        for frame in self._moved_frames:
             gateway.delete_bbox(frame, self.primary_object_id)
-        for snapshot in self._frame_snapshots:
+        # Undo conflict frames.
+        for frame in self._conflict_frames:
+            if self.conflict_resolution == "keep_secondary":
+                # Secondary was renamed to primary; original primary was deleted.
+                gateway.delete_bbox(frame, self.primary_object_id)
+            # For keep_primary: secondary was silently dropped; primary is intact.
+        # Restore all secondary snapshots (non-conflict renamed + conflict dropped).
+        for snapshot in self._secondary_snapshots:
+            gateway.restore_bbox(snapshot.clone())
+        # Restore original primary bboxes in conflict frames (keep_secondary only).
+        for snapshot in self._conflict_primary_snapshots:
             gateway.restore_bbox(snapshot.clone())
         if self._metadata_snapshot is not None:
             gateway.ensure_object_metadata(self._metadata_snapshot)
-        self._affected_frames = sorted(
-            {snapshot.frame_number for snapshot in self._frame_snapshots}
-        )
+        # Reset so do() can re-snapshot if executed again.
+        self._secondary_snapshots = []
+        self._conflict_primary_snapshots = []
+        self._metadata_snapshot = None
+        self._moved_frames = []
+        self._conflict_frames = []
 
     @property
     def affected_frames(self) -> Sequence[int]:
-        return tuple(sorted(set(self._affected_frames)))
+        return tuple(sorted(set(self._moved_frames + self._conflict_frames)))
 
 
 @dataclass

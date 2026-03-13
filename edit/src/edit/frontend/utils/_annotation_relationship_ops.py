@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QLabel,
     QMessageBox,
+    QPushButton,
     QVBoxLayout,
 )
 
@@ -118,6 +119,52 @@ def _prompt_link_target_object(
     return None
 
 
+def _ask_link_conflict_resolution(
+    main_window,
+    conflict_frames: list[int],
+    primary_id: str,
+    secondary_id: str,
+) -> str | None:
+    """Ask the user how to resolve frames that contain both object IDs.
+
+    Returns "keep_primary", "keep_secondary", or None to cancel.
+    """
+    frame_summary = _frames_to_ranges(conflict_frames)
+    n = len(conflict_frames)
+
+    dialog = QDialog(main_window)
+    dialog.setWindowTitle("Link Object IDs — Conflict")
+    layout = QVBoxLayout(dialog)
+
+    info = QLabel(
+        f"<b>{n} frame(s)</b> already contain both '{primary_id}' and '{secondary_id}':"
+        f"<br>{frame_summary}<br><br>"
+        f"Choose how to resolve the conflict:"
+    )
+    info.setWordWrap(True)
+    layout.addWidget(info)
+
+    resolution: dict = {"value": None}
+
+    keep_primary_btn = QPushButton(f"Keep '{primary_id}' (drop secondary in {n} frame(s))")
+    keep_secondary_btn = QPushButton(f"Keep '{secondary_id}' (replace primary in {n} frame(s))")
+    cancel_btn = QPushButton("Cancel")
+
+    for btn in (keep_primary_btn, keep_secondary_btn, cancel_btn):
+        layout.addWidget(btn)
+
+    def _choose(value):
+        resolution["value"] = value
+        dialog.accept()
+
+    keep_primary_btn.clicked.connect(lambda: _choose("keep_primary"))
+    keep_secondary_btn.clicked.connect(lambda: _choose("keep_secondary"))
+    cancel_btn.clicked.connect(dialog.reject)
+
+    dialog.exec()
+    return resolution["value"]
+
+
 def _link_object_ids_interactive(
     main_window, primary_object_id: str, candidate_ids: list[str]
 ) -> None:
@@ -130,6 +177,20 @@ def _link_object_ids_interactive(
     )
     if not target_object_id:
         return
+
+    conflict_frames = main_window.annotation_controller.conflicting_frames_for_link(
+        primary_object_id, target_object_id
+    ) or []
+
+    conflict_resolution: str | None = None
+    if conflict_frames:
+        conflict_resolution = _ask_link_conflict_resolution(
+            main_window, conflict_frames, primary_object_id, target_object_id
+        )
+        if conflict_resolution is None:
+            return
+    else:
+        conflict_resolution = "keep_primary"  # no conflicts, value is irrelevant
 
     frames_with_target = main_window.annotation_controller.frames_for_object(
         target_object_id
@@ -144,6 +205,11 @@ def _link_object_ids_interactive(
         confirmation_text += f": {frame_summary}"
     else:
         confirmation_text += "."
+    if conflict_frames:
+        confirmation_text += (
+            f"\n\n{len(conflict_frames)} conflicting frame(s) will use "
+            f"'{'keep primary' if conflict_resolution == 'keep_primary' else 'keep secondary'}' strategy."
+        )
     confirmation_text += "\nYou can undo this action if needed."
 
     confirm = QMessageBox.question(
@@ -159,6 +225,7 @@ def _link_object_ids_interactive(
     command = LinkObjectIdsCommand(
         primary_object_id=str(primary_object_id),
         secondary_object_id=str(target_object_id),
+        conflict_resolution=conflict_resolution,
     )
     main_window.execute_undoable_command(command)
     linked_frames = list(command.affected_frames)

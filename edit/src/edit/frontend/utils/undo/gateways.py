@@ -102,6 +102,13 @@ class AnnotationGateway(Protocol):
         self,
         primary_object_id: str,
         secondary_object_id: str,
+        conflict_resolution: str | None = None,
+    ) -> List[int]: ...
+
+    def conflicting_frames_for_link(
+        self,
+        primary_object_id: str,
+        secondary_object_id: str,
     ) -> List[int]: ...
 
     def mark_confidence_resolved(
@@ -388,12 +395,25 @@ class ControllerAnnotationGateway:
         self,
         primary_object_id: str,
         secondary_object_id: str,
+        conflict_resolution: str | None = None,
     ) -> List[int]:
         affected = self.annotation_controller.link_object_ids(
             primary_object_id,
             secondary_object_id,
+            conflict_resolution=conflict_resolution,
         )
         return list(affected or [])
+
+    def conflicting_frames_for_link(
+        self,
+        primary_object_id: str,
+        secondary_object_id: str,
+    ) -> List[int]:
+        result = self.annotation_controller.conflicting_frames_for_link(
+            primary_object_id,
+            secondary_object_id,
+        )
+        return list(result or [])
 
     def interpolate_annotations(
         self,
