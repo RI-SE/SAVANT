@@ -115,15 +115,12 @@ def _build_bbox_context_menu(main_window, obj_id, overlay_widget, current_frame)
 
     action_copy_prev = None
     if obj_id and current_frame > 0:
-        try:
-            prev_bbox = main_window.annotation_controller.get_bbox(
-                current_frame - 1, obj_id
-            )
-            if prev_bbox:
-                context_menu.addSeparator()
-                action_copy_prev = context_menu.addAction("Copy from previous frame")
-        except Exception:
-            pass
+        prev_bbox = main_window.annotation_controller.try_get_bbox(
+            current_frame - 1, obj_id
+        )
+        if prev_bbox:
+            context_menu.addSeparator()
+            action_copy_prev = context_menu.addAction("Copy from previous frame")
 
     actions = {
         "delete_single": action_delete_single,
@@ -220,13 +217,16 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
         main_window, obj_id, overlay_widget, current_frame
     )
 
+    overlay_widget.setFocus()
     selected_action = context_menu.exec(overlay_widget.mapToGlobal(click_position))
+    overlay_widget.setFocus()
     if selected_action is None:
         return
 
     _dispatch_bbox_context_action(
         main_window, frontend_state, obj_id, bbox_index, selected_action, actions
     )
+    overlay_widget.setFocus()
 
 
 def _on_overlay_empty_space_context_menu(

@@ -110,6 +110,7 @@ def _start_tracking(
     except RuntimeError as e:
         progress.close()
         QMessageBox.warning(main_window, "Tracking Error", str(e))
+        main_window.overlay.setFocus()
         return
     finally:
         progress.close()
@@ -125,8 +126,10 @@ def _start_tracking(
                 QMessageBox.StandardButton.Yes,
             )
             if keep != QMessageBox.StandardButton.Yes:
+                main_window.overlay.setFocus()
                 return
         else:
+            main_window.overlay.setFocus()
             return
 
     if not tracked_frames:
@@ -135,6 +138,7 @@ def _start_tracking(
             "Tracking",
             "Tracking stopped immediately (object lost or overlap detected).",
         )
+        main_window.overlay.setFocus()
         return
 
     # Create undoable command for all tracked frames
@@ -152,6 +156,7 @@ def _start_tracking(
         "Tracking Complete",
         f"Added bboxes to {len(tracked_frames)} frames: {frame_ranges_str}",
     )
+    main_window.overlay.setFocus()
 
 
 def _start_tracking_to_frame(

@@ -23,6 +23,10 @@ class SeekSlider(QSlider):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # ClickFocus prevents the slider from stealing keyboard focus after
+        # dialogs close (which would cause arrow keys to change the frame
+        # instead of moving a selected bounding box).
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self._warning_frames: list[int] = []
         self._error_frames: list[int] = []
         self._bookmark_frames: list[int] = []

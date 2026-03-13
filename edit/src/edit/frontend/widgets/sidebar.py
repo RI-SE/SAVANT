@@ -1325,11 +1325,7 @@ class Sidebar(QWidget):
         else:
             seed_frame, direction, stop_frame = end_frame, "backward", start_frame
 
-        try:
-            seed_bbox = self.annotation_controller.get_bbox(seed_frame, object_id)
-        except Exception as e:
-            QMessageBox.warning(self, "Re-track", f"Could not get bbox at seed frame: {e}")
-            return None
+        seed_bbox = self.annotation_controller.try_get_bbox(seed_frame, object_id)
         if seed_bbox is None:
             QMessageBox.warning(self, "Re-track", f"No bbox for object {object_id} at frame {seed_frame}.")
             return None
@@ -1436,11 +1432,8 @@ class Sidebar(QWidget):
         # Replace the accumulated (noisy) rotation with shortest-path linear
         # interpolation between the two known anchor rotations.
         # This avoids per-frame drift from optical flow on low-contrast objects.
-        try:
-            start_bbox = self.annotation_controller.get_bbox(start_frame, object_id)
-            end_bbox = self.annotation_controller.get_bbox(end_frame, object_id)
-        except Exception:
-            start_bbox = end_bbox = None
+        start_bbox = self.annotation_controller.try_get_bbox(start_frame, object_id)
+        end_bbox = self.annotation_controller.try_get_bbox(end_frame, object_id)
 
         if start_bbox is not None and end_bbox is not None:
             import math as _math
