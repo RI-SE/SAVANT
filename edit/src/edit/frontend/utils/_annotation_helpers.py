@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math as _math
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
 
 from edit.frontend.utils.undo import UpdateBBoxGeometryCommand
@@ -108,8 +109,8 @@ def _cascade_property_description(center_x, center_y, width, height, rotation) -
 
 def _confirm_cascade(main_window, object_id, property_desc, frame_range_str) -> bool:
     """Show a confirmation dialog before executing a cascade operation."""
-    result = QMessageBox.warning(
-        main_window,
+    msg = QMessageBox(
+        QMessageBox.Icon.Warning,
         "Cascade Operation",
         f"This will overwrite the <b>{property_desc}</b> of object "
         f"'{object_id}' on frames {frame_range_str} with values from "
@@ -118,6 +119,21 @@ def _confirm_cascade(main_window, object_id, property_desc, frame_range_str) -> 
         f"frames will be lost.\n\n"
         f"Continue?",
         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        QMessageBox.StandardButton.No,
+        main_window,
     )
-    return result == QMessageBox.StandardButton.Yes
+    msg.setDefaultButton(QMessageBox.StandardButton.No)
+    msg.setWindowFlag(Qt.WindowType.Tool)
+    msg.raise_()
+    msg.activateWindow()
+    return msg.exec() == QMessageBox.StandardButton.Yes
+
+
+def _tool_information(parent, title: str, text: str) -> None:
+    """Show an information dialog that stays on top of the main window."""
+    msg = QMessageBox(QMessageBox.Icon.Information, title, text,
+                      QMessageBox.StandardButton.Ok, parent)
+    msg.setDefaultButton(QMessageBox.StandardButton.Ok)
+    msg.setWindowFlag(Qt.WindowType.Tool)
+    msg.raise_()
+    msg.activateWindow()
+    msg.exec()

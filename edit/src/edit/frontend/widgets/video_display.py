@@ -57,12 +57,24 @@ class VideoDisplay(QLabel):
 
     def cancel_zoom_rect_mode(self):
         """Cancel rectangle-zoom mode and reset all related state."""
+        if self._zoom_rect_drawing:
+            self.releaseMouse()
         self._zoom_rect_mode = False
         self._zoom_rect_drawing = False
         self._zoom_rect_start = QPointF()
         self._zoom_rect_end = QPointF()
         self.setCursor(Qt.CursorShape.ArrowCursor)
         self.update()
+
+    def focusOutEvent(self, event):
+        """Release any mouse grab if focus is lost mid-gesture."""
+        if self._zoom_rect_drawing or self.drawing or self._dragging:
+            self.releaseMouse()
+            self._zoom_rect_drawing = False
+            self.drawing = False
+            self._dragging = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+        super().focusOutEvent(event)
 
     def start_drawing_mode(self, annotation_state: AnnotationState):
         """Enable bounding box drawing mode for specific object type."""

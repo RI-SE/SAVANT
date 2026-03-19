@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math as _math
 
-from PyQt6.QtWidgets import QInputDialog, QMessageBox
+from PyQt6.QtWidgets import QInputDialog
 
 from edit.frontend.exceptions import InvalidFrameRangeInput
 from edit.frontend.utils.undo import CascadeBBoxCommand, CascadeDeltaBBoxCommand, Rotate90CascadeCommand
@@ -14,6 +14,7 @@ from ._annotation_helpers import (
     _confirm_cascade,
     _frames_to_ranges,
     _refresh_after_annotation_change,
+    _tool_information,
 )
 
 
@@ -58,13 +59,11 @@ def _execute_cascade_command(
     main_window.execute_undoable_command(command)
     modified_frames = sorted(command.modified_frames)
     if not modified_frames:
-        QMessageBox.information(
-            main_window, empty_title, "No frames were updated for this object."
-        )
+        _tool_information(main_window, empty_title, "No frames were updated for this object.")
         _refresh_after_annotation_change(main_window)
         return
     frame_ranges_str = _frames_to_ranges(modified_frames)
-    QMessageBox.information(
+    _tool_information(
         main_window,
         complete_title,
         f"{success_msg_prefix} {len(modified_frames)} frames: {frame_ranges_str}",

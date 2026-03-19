@@ -21,6 +21,7 @@ _SHORTCUTS: list[tuple[str, str]] = [
     ("Ctrl+Shift+P", "Jump to previous bookmark"),
     # -- Undo / Redo --
     ("", "Undo / Redo"),
+    ("Ctrl+S", "Save project"),
     ("Ctrl+Z", "Undo last action"),
     ("Ctrl+Y", "Redo last action"),
     # -- Zoom --

@@ -221,6 +221,11 @@ class MainWindow(QMainWindow):
             self,
             activated=lambda: annotation_ops.cascade_delta_backward_all(self),
         )
+        QShortcut(
+            QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_S),
+            self,
+            activated=self.quick_save_project,
+        )
 
         self.refresh_confidence_issues()
         self.update_issue_info()
