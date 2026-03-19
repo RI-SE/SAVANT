@@ -211,6 +211,16 @@ class MainWindow(QMainWindow):
             self,
             activated=lambda: annotation_ops.repeat_last_adjustment(self),
         )
+        QShortcut(
+            QKeySequence(Qt.KeyboardModifier.ShiftModifier | Qt.Key.Key_R),
+            self,
+            activated=lambda: annotation_ops.cascade_delta_forward_all(self),
+        )
+        QShortcut(
+            QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_R),
+            self,
+            activated=lambda: annotation_ops.cascade_delta_backward_all(self),
+        )
 
         self.refresh_confidence_issues()
         self.update_issue_info()

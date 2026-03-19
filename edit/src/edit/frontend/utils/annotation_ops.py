@@ -17,6 +17,8 @@ from ._annotation_helpers import (
 )
 from ._annotation_helpers import _cascade_property_description  # noqa: F401 – re-exported for callers
 from ._annotation_helpers import _frames_to_ranges  # noqa: F401 – re-exported for callers
+from edit.frontend.utils.undo import CascadeDeltaBBoxCommand
+from edit.frontend.widgets.cascade_dropdown import CascadeDirection
 from ._annotation_cascade_ops import (
     _apply_cascade_all_frames,
     _apply_cascade_delta_all_frames,
@@ -24,6 +26,7 @@ from ._annotation_cascade_ops import (
     _apply_cascade_next_frames,
     _apply_rotate90_all_frames,
     _apply_rotate90_next_frames,
+    _execute_cascade_command,
 )
 from ._annotation_context_menu import _install_overlay_context_menu
 from ._annotation_relationship_ops import (
@@ -242,6 +245,56 @@ def repeat_last_adjustment(main_window) -> None:
         )
 
     _apply_geometry_update(main_window, object_id, annotator, _builder)
+
+
+def cascade_delta_forward_all(main_window) -> None:
+    """Shift+R: apply last delta to all subsequent frames — no confirmation dialog."""
+    _cascade_delta_all_shortcut(main_window, CascadeDirection.FORWARDS)
+
+
+def cascade_delta_backward_all(main_window) -> None:
+    """Ctrl+R: apply last delta to all previous frames — no confirmation dialog."""
+    _cascade_delta_all_shortcut(main_window, CascadeDirection.BACKWARDS)
+
+
+def _cascade_delta_all_shortcut(main_window, direction: CascadeDirection) -> None:
+    """Keyboard-shortcut path for cascade-delta-to-all: skips the confirmation dialog."""
+    object_id = main_window.overlay.selected_object_id()
+    if not object_id:
+        return
+
+    last_deltas = getattr(main_window, "last_bbox_deltas", {})
+    delta = last_deltas.get(object_id)
+    if delta is None:
+        return  # no delta recorded yet — same silent behaviour as R
+
+    annotator = main_window.state.require_current_annotator()
+    if not annotator:
+        return
+
+    dcx, dcy, dw, dh, dtheta = delta
+    current_frame = int(main_window.video_controller.current_index())
+    last_frame = main_window.project_state_controller.get_frame_count() - 1
+
+    if direction == CascadeDirection.FORWARDS:
+        start_frame, end_frame = current_frame + 1, last_frame
+    else:
+        start_frame, end_frame = 0, current_frame - 1
+
+    if start_frame > end_frame:
+        return  # already at boundary — nothing to do
+
+    command = CascadeDeltaBBoxCommand(
+        object_id=str(object_id),
+        frame_start=start_frame,
+        frame_end=end_frame,
+        dcx=dcx, dcy=dcy, dw=dw, dh=dh, dtheta=dtheta,
+        annotator=annotator,
+    )
+    _execute_cascade_command(
+        main_window, command, "Applied delta to",
+        empty_title="Cascade Delta", complete_title="Cascade Delta Complete",
+    )
 
 
 def _zoom_to_object(main_window, object_id: str):
