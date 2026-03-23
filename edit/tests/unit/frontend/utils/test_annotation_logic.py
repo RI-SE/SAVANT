@@ -1,8 +1,8 @@
-"""Unit tests for pure-logic helpers in annotation_ops.py (no Qt required)."""
+"""Unit tests for pure-logic helpers (no Qt required)."""
 
-from edit.frontend.utils.annotation_ops import (
-    _cascade_property_description,
-    _frames_to_ranges,
+from edit.frontend.utils._annotation_pure import (
+    cascade_property_description as _cascade_property_description,
+    frames_to_ranges as _frames_to_ranges,
 )
 
 

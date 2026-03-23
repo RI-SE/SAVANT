@@ -6,6 +6,9 @@ import math as _math
 from edit.frontend.utils.undo import UpdateBBoxGeometryCommand
 from edit.services.exceptions import VideoLoadError
 
+from ._annotation_pure import cascade_property_description as _cascade_property_description  # noqa: F401
+from ._annotation_pure import frames_to_ranges as _frames_to_ranges  # noqa: F401
+
 from .render import refresh_frame
 
 
@@ -73,35 +76,6 @@ def _apply_geometry_update(
         main_window.last_bbox_deltas[object_id] = (dcx, dcy, dw, dh, dtheta)
 
     _refresh_after_annotation_change(main_window)
-
-
-def _frames_to_ranges(frames: list[int]) -> str:
-    """Convert a list of frame numbers into contiguous ranges as a string."""
-    if not frames:
-        return ""
-    ranges = []
-    start = prev = frames[0]
-    for f in frames[1:]:
-        if f == prev + 1:
-            prev = f
-        else:
-            ranges.append((start, prev))
-            start = prev = f
-    ranges.append((start, prev))
-    range_strs = [f"{s}-{e}" if s != e else f"{s}" for s, e in ranges]
-    return ", ".join(range_strs)
-
-
-def _cascade_property_description(center_x, center_y, width, height, rotation) -> str:
-    """Build a human-readable list of properties being cascaded."""
-    parts = []
-    if center_x is not None or center_y is not None:
-        parts.append("position")
-    if width is not None or height is not None:
-        parts.append("size")
-    if rotation is not None:
-        parts.append("rotation")
-    return ", ".join(parts) or "properties"
 
 
 def _confirm_cascade(main_window, object_id, property_desc, frame_range_str) -> bool:
