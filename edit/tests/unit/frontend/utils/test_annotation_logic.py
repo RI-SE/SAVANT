@@ -1,7 +1,5 @@
 """Unit tests for pure-logic helpers in annotation_ops.py (no Qt required)."""
 
-import pytest
-
 from edit.frontend.utils.annotation_ops import (
     _cascade_property_description,
     _frames_to_ranges,

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math as _math
 
-from PyQt6.QtWidgets import QInputDialog
+from PyQt6.QtWidgets import QInputDialog, QMessageBox
 
 from edit.frontend.exceptions import InvalidFrameRangeInput
 from edit.frontend.utils.undo import CascadeBBoxCommand, CascadeDeltaBBoxCommand, Rotate90CascadeCommand

@@ -205,8 +205,6 @@ def test_cascade_bbox_command_restores_original_geometry_after_undo():
 
 
 def test_cascade_delta_bbox_command_applies_delta_on_do():
-    import math
-
     gateway = FakeCascadeGateway()
     context = GatewayHolder(annotation_gateway=gateway)
     original = {f: BBoxGeometrySnapshot(g.center_x, g.center_y, g.width, g.height, g.rotation)
