@@ -15,8 +15,24 @@ def show_error_box(message: str, title: str = "Error"):
     QMessageBox.critical(None, title, message)
 
 
+def _release_any_mouse_grab():
+    """Release mouse grab on any widget to prevent X11 desktop freeze."""
+    from PyQt6.QtWidgets import QApplication
+    widget = QApplication.instance() and QApplication.activeWindow()
+    if widget and hasattr(widget, "video_widget"):
+        vw = widget.video_widget
+        if hasattr(vw, "_force_cancel_all_gestures"):
+            vw._force_cancel_all_gestures()
+
+
 def exception_hook(exc_type, exc_value, exc_tb):
     """Global Qt exception hook for error handling."""
+
+    # Always release mouse grabs on any exception to prevent X11 freeze
+    try:
+        _release_any_mouse_grab()
+    except Exception:
+        pass
 
     # Recoverable domain-level errors
     if issubclass(exc_type, DomainException):

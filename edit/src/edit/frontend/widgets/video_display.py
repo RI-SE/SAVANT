@@ -1,9 +1,12 @@
 # frontend/widgets/video_display.py
+import logging
 from PyQt6.QtWidgets import QLabel
 from PyQt6.QtGui import QPainter, QMouseEvent, QCursor, QPixmap, QPen
-from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
+from PyQt6.QtCore import Qt, QRectF, QPointF, QTimer, pyqtSignal
 from typing import Optional
 from edit.frontend.states.annotation_state import AnnotationState
+
+logger = logging.getLogger(__name__)
 
 # Extra pan allowed beyond the image edge on each side, as a fraction of the
 # drawn image size.  0.10 means 10 % on each side → effectively a 20 % wider
@@ -41,14 +44,50 @@ class VideoDisplay(QLabel):
         self._zoom_rect_start = QPointF()
         self._zoom_rect_end = QPointF()
 
-        self._pixmap = None
-        self._zoom = 1.0
-        self._pan = QPointF(0.0, 0.0)
-        self._dragging = False
-        self._drag_start_pos = QPointF()
-        self._pan_start = QPointF()
-        self._pan_via_ctrl = False
+        # Mouse grab tracking — True whenever we own an X11 pointer grab
+        self._mouse_grabbed = False
+
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        # Watchdog: auto-release mouse grabs held longer than 5 seconds.
+        # On X11 an unreleased grab freezes the entire desktop.
+        self._grab_watchdog = QTimer(self)
+        self._grab_watchdog.setSingleShot(True)
+        self._grab_watchdog.setInterval(5000)
+        self._grab_watchdog.timeout.connect(self._on_grab_watchdog)
+
+    # -- Mouse grab safety helpers ------------------------------------------
+
+    def _safe_grab_mouse(self):
+        """Grab the mouse and start the watchdog timer."""
+        self.grabMouse()
+        self._mouse_grabbed = True
+        self._grab_watchdog.start()
+
+    def _safe_release_mouse(self):
+        """Release the mouse grab and stop the watchdog."""
+        self._grab_watchdog.stop()
+        if self._mouse_grabbed:
+            self.releaseMouse()
+            self._mouse_grabbed = False
+
+    def _on_grab_watchdog(self):
+        """Auto-release a mouse grab that has been held too long."""
+        if self._mouse_grabbed:
+            logger.warning("Mouse grab held >5 s — force-releasing to prevent X11 freeze")
+            self._force_cancel_all_gestures()
+
+    def _force_cancel_all_gestures(self):
+        """Unconditionally cancel every active gesture and release the grab."""
+        self._safe_release_mouse()
+        self._zoom_rect_mode = False
+        self._zoom_rect_drawing = False
+        self.drawing = False
+        self._dragging = False
+        self._pan_via_ctrl = False
+        self.current_annotation_state = None
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+        self.update()
 
     def start_zoom_rect_mode(self):
         """Enter rectangle-zoom mode. LMB drag draws a zoom rectangle."""
@@ -57,10 +96,9 @@ class VideoDisplay(QLabel):
 
     def cancel_zoom_rect_mode(self):
         """Cancel rectangle-zoom mode and reset all related state."""
-        if self._zoom_rect_drawing:
-            self.releaseMouse()
-        self._zoom_rect_mode = False
         self._zoom_rect_drawing = False
+        self._zoom_rect_mode = False
+        self._safe_release_mouse()
         self._zoom_rect_start = QPointF()
         self._zoom_rect_end = QPointF()
         self.setCursor(Qt.CursorShape.ArrowCursor)
@@ -68,12 +106,8 @@ class VideoDisplay(QLabel):
 
     def focusOutEvent(self, event):
         """Release any mouse grab if focus is lost mid-gesture."""
-        if self._zoom_rect_drawing or self.drawing or self._dragging:
-            self.releaseMouse()
-            self._zoom_rect_drawing = False
-            self.drawing = False
-            self._dragging = False
-            self.setCursor(Qt.CursorShape.ArrowCursor)
+        if self._mouse_grabbed:
+            self._force_cancel_all_gestures()
         super().focusOutEvent(event)
 
     def start_drawing_mode(self, annotation_state: AnnotationState):
@@ -87,7 +121,7 @@ class VideoDisplay(QLabel):
             self._zoom_rect_drawing = True
             self._zoom_rect_start = e.position()
             self._zoom_rect_end = e.position()
-            self.grabMouse()
+            self._safe_grab_mouse()
             self.update()
             return
 
@@ -117,47 +151,43 @@ class VideoDisplay(QLabel):
             self._handle_drawing_move(e)
             return
         if self._dragging:
-            if self._pan_via_ctrl and not (
-                e.modifiers() & Qt.KeyboardModifier.ControlModifier
-            ):
-                self._dragging = False
-                self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
-                e.accept()
-                return
-
             self._handle_panning_move(e)
             return
         super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e: QMouseEvent):
         """End zoom-rect/drawing/panning when appropriate; otherwise bubble up."""
-        if self._zoom_rect_drawing and e.button() == Qt.MouseButton.LeftButton:
-            self._zoom_rect_drawing = False
-            self.releaseMouse()
-            rect = QRectF(self._zoom_rect_start, self._zoom_rect_end).normalized()
-            self._zoom_rect_mode = False
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-            if rect.width() > 10 and rect.height() > 10:
-                self.zoom_rect_selected.emit(rect)
-            self.update()
-            return
-        if self.drawing and e.button() == Qt.MouseButton.LeftButton:
-            self._handle_drawing_release(e)
-            return
-        if self._dragging and e.button() in (
-            Qt.MouseButton.LeftButton,
-            Qt.MouseButton.MiddleButton,
-        ):
-            self._handle_panning_release(e)
-            return
-        super().mouseReleaseEvent(e)
+        try:
+            if self._zoom_rect_drawing and e.button() == Qt.MouseButton.LeftButton:
+                self._zoom_rect_drawing = False
+                self._safe_release_mouse()
+                rect = QRectF(self._zoom_rect_start, self._zoom_rect_end).normalized()
+                self._zoom_rect_mode = False
+                self.setCursor(Qt.CursorShape.ArrowCursor)
+                if rect.width() > 10 and rect.height() > 10:
+                    self.zoom_rect_selected.emit(rect)
+                self.update()
+                return
+            if self.drawing and e.button() == Qt.MouseButton.LeftButton:
+                self._handle_drawing_release(e)
+                return
+            if self._dragging and e.button() in (
+                Qt.MouseButton.LeftButton,
+                Qt.MouseButton.MiddleButton,
+            ):
+                self._handle_panning_release(e)
+                return
+            super().mouseReleaseEvent(e)
+        except Exception:
+            logger.exception("Exception in mouseReleaseEvent — force-releasing grab")
+            self._force_cancel_all_gestures()
 
     def _handle_drawing_press(self, e: QMouseEvent):
         """Handle drawing mode mouse press."""
         self.drawing = True
         self.start_point = e.position()
         self.end_point = e.position()
-        self.grabMouse()
+        self._safe_grab_mouse()
         self.update()
 
     def _handle_drawing_move(self, e: QMouseEvent):
@@ -169,7 +199,7 @@ class VideoDisplay(QLabel):
     def _handle_drawing_release(self, e: QMouseEvent):
         """Handle drawing mode mouse release."""
         self.drawing = False
-        self.releaseMouse()
+        self._safe_release_mouse()
         self.setCursor(Qt.CursorShape.ArrowCursor)
 
         if self._pixmap is None or self._pixmap.isNull():
@@ -226,7 +256,7 @@ class VideoDisplay(QLabel):
         self._drag_start_pos = e.position()
         self._pan_start = QPointF(self._pan)
         self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
-        self.grabMouse()
+        self._safe_grab_mouse()
         e.accept()
 
     def _handle_panning_move(self, e: QMouseEvent):
@@ -237,7 +267,7 @@ class VideoDisplay(QLabel):
             self._dragging = False
             self._pan_via_ctrl = False
             self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
-            self.releaseMouse()
+            self._safe_release_mouse()
             e.accept()
             return
         if self._dragging:
@@ -259,7 +289,7 @@ class VideoDisplay(QLabel):
             self._dragging = False
             self._pan_via_ctrl = False
             self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
-            self.releaseMouse()
+            self._safe_release_mouse()
 
     def set_zoom(self, zoom: float, anchor_position: Optional[QPointF] = None) -> None:
         new_zoom = max(0.05, min(zoom, 20.0))
