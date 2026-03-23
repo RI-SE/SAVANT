@@ -3,9 +3,6 @@ from __future__ import annotations
 
 import math as _math
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QMessageBox
-
 from edit.frontend.utils.undo import UpdateBBoxGeometryCommand
 from edit.services.exceptions import VideoLoadError
 
@@ -109,6 +106,8 @@ def _cascade_property_description(center_x, center_y, width, height, rotation) -
 
 def _confirm_cascade(main_window, object_id, property_desc, frame_range_str) -> bool:
     """Show a confirmation dialog before executing a cascade operation."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QMessageBox
     msg = QMessageBox(
         QMessageBox.Icon.Warning,
         "Cascade Operation",
@@ -130,6 +129,8 @@ def _confirm_cascade(main_window, object_id, property_desc, frame_range_str) -> 
 
 def _tool_information(parent, title: str, text: str) -> None:
     """Show an information dialog that stays on top of the main window."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QMessageBox
     msg = QMessageBox(QMessageBox.Icon.Information, title, text,
                       QMessageBox.StandardButton.Ok, parent)
     msg.setDefaultButton(QMessageBox.StandardButton.Ok)
