@@ -12,7 +12,14 @@ from edit.frontend.theme.constants import (
     get_error_icon,
     get_warning_icon,
 )
-from edit.frontend.types import BBoxData, ConfidenceFlagMap, Relationship
+from edit.frontend.types import (
+    BBoxData,
+    BBoxResizedEvent,
+    BBoxRotatedEvent,
+    CascadeApplyEvent,
+    ConfidenceFlagMap,
+    Relationship,
+)
 from edit.frontend.utils.settings_store import (
     get_movement_sensitivity,
     get_rotation_sensitivity,
@@ -33,13 +40,9 @@ class Overlay(QWidget):
 
     # TODO: Refactor these to use custom dataclass types!
     boxMoved = pyqtSignal(str, float, float)  # (object_id, x, y)
-    boxResized = pyqtSignal(
-        str, float, float, float, float, float
-    )  # (object_id, x, y, w, h, rotate_angle)
+    boxResized = pyqtSignal(object)  # BBoxResizedEvent
 
-    boxRotated = pyqtSignal(
-        str, float, float, float
-    )  # (object_id, width, height, rotation)
+    boxRotated = pyqtSignal(object)  # BBoxRotatedEvent
 
     # Emits live BBoxData during drag/size/rotation change operations
     boxModified = pyqtSignal(BBoxData)
@@ -49,18 +52,16 @@ class Overlay(QWidget):
 
     deletePressed = pyqtSignal()
     cycle_bbox_requested = pyqtSignal(int)  # +1 next, -1 prev
-    cascadeApplyAll = pyqtSignal(
-        str, object, object, object, object, object, object
-    )  # (object_id, center_x, center_y, width, height, theta, direction).
-    cascadeApplyFrameRange = pyqtSignal(
-        str, object, object, object, object, object, object
-    )  # (object_id, center_x, center_y, width, height, theta, direction).
+    cascadeApplyAll = pyqtSignal(object)  # CascadeApplyEvent
+    cascadeApplyFrameRange = pyqtSignal(object)  # CascadeApplyEvent
     cascadeRotate90 = pyqtSignal(
         str, bool, object
     )  # (object_id, clockwise, direction)
     cascadeRotate90FrameRange = pyqtSignal(
         str, bool, object
     )  # (object_id, clockwise, direction)
+    cascadeDeltaAll = pyqtSignal(str, object)         # (object_id, direction)
+    cascadeDeltaFrameRange = pyqtSignal(str, object)  # (object_id, direction)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -152,6 +153,10 @@ class Overlay(QWidget):
         )
         self.cascade_dropdown.applyRotate90CCWToFrameRange.connect(
             self._on_cascade_rotate90ccw_to_frame_range
+        )
+        self.cascade_dropdown.applyDeltaToAll.connect(self._on_cascade_delta_to_all)
+        self.cascade_dropdown.applyDeltaToFrameRange.connect(
+            self._on_cascade_delta_to_frame_range
         )
         self.cascade_dropdown.cancelled.connect(self._on_cascade_cancel)
 
@@ -362,23 +367,7 @@ class Overlay(QWidget):
             return super().mouseMoveEvent(ev)
 
         if self._drag_mode is None:
-            hit_index, hit_mode = self.hit_test(ev.position())
-            if hit_index != self._hover_idx or hit_mode != self._hover_mode:
-                self._hover_idx, self._hover_mode = hit_index, hit_mode
-                self.update()
-
-            if hit_mode in ("E", "W", "N", "S"):
-                theta = self._boxes[hit_index].theta
-                axis_x, axis_y = self._axis_from_mode(theta, hit_mode)
-                self.setCursor(self._cursor_for_axis(axis_x, axis_y))
-            elif hit_mode == "move":
-                self.setCursor(Qt.CursorShape.SizeAllCursor)
-            elif hit_mode == "R":
-                self.setCursor(Qt.CursorShape.OpenHandCursor)
-            else:
-                self.unsetCursor()
-
-            ev.accept()
+            self._handle_hover_update(ev)
             return
 
         # Dragging a selected box/handle
@@ -412,83 +401,21 @@ class Overlay(QWidget):
         delta_x_video = delta_x_pixels / scale
         delta_y_video = delta_y_pixels / scale
 
-        # Get current bbox properties
         original_cx = self._orig_box.center_x
         original_cy = self._orig_box.center_y
-        original_width = self._orig_box.width
-        original_height = self._orig_box.height
         theta = self._orig_box.theta
-        new_cx, new_cy, new_width, new_height = (
-            original_cx,
-            original_cy,
-            original_width,
-            original_height,
-        )
+        new_cx, new_cy = original_cx, original_cy
+        new_width, new_height = self._orig_box.width, self._orig_box.height
 
         if self._drag_mode == "move":
             new_cx = original_cx + delta_x_video
             new_cy = original_cy + delta_y_video
-
         elif self._drag_mode in ("E", "W", "N", "S"):
-            angle_rad = -theta if self._theta_is_anticlockwise else theta
-            ct = math.cos(angle_rad)
-            st = math.sin(angle_rad)
-
-            ex_x, ex_y = ct, st
-            ey_x, ey_y = -st, ct
-
-            # Project mouse delta (video coords) onto each local axis
-            delta_along_x = delta_x_video * ex_x + delta_y_video * ex_y
-            delta_along_y = delta_x_video * ey_x + delta_y_video * ey_y
-
-            if self._drag_mode == "E":
-                delta_extent = delta_along_x
-                new_width = max(1e-6, original_width + delta_extent)
-                new_cx = original_cx + 0.5 * delta_extent * ex_x
-                new_cy = original_cy + 0.5 * delta_extent * ex_y
-
-            elif self._drag_mode == "W":
-                delta_extent = delta_along_x
-                new_width = max(1e-6, original_width - delta_extent)
-                new_cx = original_cx + 0.5 * delta_extent * ex_x
-                new_cy = original_cy + 0.5 * delta_extent * ex_y
-
-            elif self._drag_mode == "S":
-                delta_extent = delta_along_y
-                new_height = max(1e-6, original_height + delta_extent)
-                new_cx = original_cx + 0.5 * delta_extent * ey_x
-                new_cy = original_cy + 0.5 * delta_extent * ey_y
-
-            elif self._drag_mode == "N":
-                delta_extent = delta_along_y
-                new_height = max(1e-6, original_height - delta_extent)
-                new_cx = original_cx + 0.5 * delta_extent * ey_x
-                new_cy = original_cy + 0.5 * delta_extent * ey_y
-
-        elif self._drag_mode == "R":
-            cursor_video_x = (ev.position().x() - off_x) / scale
-            cursor_video_y = (ev.position().y() - off_y) / scale
-            current_angle = math.atan2(
-                cursor_video_y - original_cy, cursor_video_x - original_cx
+            new_cx, new_cy, new_width, new_height, theta = self._handle_resize_drag(
+                delta_x_video, delta_y_video
             )
-
-            incremental_delta = current_angle - self._last_mouseframe_angle
-
-            if incremental_delta > math.pi:
-                incremental_delta -= 2 * math.pi
-            if incremental_delta <= -math.pi:
-                incremental_delta += 2 * math.pi
-
-            self._total_delta += incremental_delta
-
-            self._last_mouseframe_angle = current_angle
-
-            if self._theta_is_anticlockwise:
-                theta = self._orig_theta - self._total_delta
-            else:
-                theta = self._orig_theta + self._total_delta
-
-            theta = theta % (2 * math.pi)
+        elif self._drag_mode == "R":
+            theta = self._handle_rotate_drag(ev, original_cx, original_cy, off_x, off_y, scale)
 
         # Create new BBox for live preview
         current_box = self._boxes[self._selected_idx]
@@ -530,21 +457,21 @@ class Overlay(QWidget):
                     selected_bbox.center_y,
                 )
             elif self._drag_mode == "R":
-                self.boxRotated.emit(
-                    selected_bbox.object_id,
-                    selected_bbox.width,
-                    selected_bbox.height,
-                    selected_bbox.theta,
-                )
+                self.boxRotated.emit(BBoxRotatedEvent(
+                    object_id=selected_bbox.object_id,
+                    width=selected_bbox.width,
+                    height=selected_bbox.height,
+                    rotation=selected_bbox.theta,
+                ))
             else:
-                self.boxResized.emit(
-                    selected_bbox.object_id,
-                    selected_bbox.center_x,
-                    selected_bbox.center_y,
-                    selected_bbox.width,
-                    selected_bbox.height,
-                    selected_bbox.theta,
-                )
+                self.boxResized.emit(BBoxResizedEvent(
+                    object_id=selected_bbox.object_id,
+                    center_x=selected_bbox.center_x,
+                    center_y=selected_bbox.center_y,
+                    width=selected_bbox.width,
+                    height=selected_bbox.height,
+                    rotation=selected_bbox.theta,
+                ))
 
         # clear drag/hover state
         self._hover_idx, self._hover_mode = None, None
@@ -553,6 +480,100 @@ class Overlay(QWidget):
         self._press_pos_disp = None
         self._orig_box = None
         ev.accept()
+
+    def _handle_hover_update(self, ev) -> None:
+        """Update hover state and cursor when not dragging."""
+        hit_index, hit_mode = self.hit_test(ev.position())
+        if hit_index != self._hover_idx or hit_mode != self._hover_mode:
+            self._hover_idx, self._hover_mode = hit_index, hit_mode
+            self.update()
+
+        if hit_mode in ("E", "W", "N", "S"):
+            theta = self._boxes[hit_index].theta
+            axis_x, axis_y = self._axis_from_mode(theta, hit_mode)
+            self.setCursor(self._cursor_for_axis(axis_x, axis_y))
+        elif hit_mode == "move":
+            self.setCursor(Qt.CursorShape.SizeAllCursor)
+        elif hit_mode == "R":
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        else:
+            self.unsetCursor()
+
+        ev.accept()
+
+    def _handle_resize_drag(
+        self, delta_x_video: float, delta_y_video: float
+    ) -> tuple[float, float, float, float, float]:
+        """Compute updated (cx, cy, width, height, theta) for E/W/N/S resize drag."""
+        original_cx = self._orig_box.center_x
+        original_cy = self._orig_box.center_y
+        original_width = self._orig_box.width
+        original_height = self._orig_box.height
+        theta = self._orig_box.theta
+
+        angle_rad = -theta if self._theta_is_anticlockwise else theta
+        ct, st = math.cos(angle_rad), math.sin(angle_rad)
+        ex_x, ex_y = ct, st
+        ey_x, ey_y = -st, ct
+
+        # Project mouse delta (video coords) onto each local axis
+        delta_along_x = delta_x_video * ex_x + delta_y_video * ex_y
+        delta_along_y = delta_x_video * ey_x + delta_y_video * ey_y
+
+        new_cx, new_cy = original_cx, original_cy
+        new_width, new_height = original_width, original_height
+
+        if self._drag_mode == "E":
+            delta_extent = delta_along_x
+            new_width = max(1e-6, original_width + delta_extent)
+            new_cx = original_cx + 0.5 * delta_extent * ex_x
+            new_cy = original_cy + 0.5 * delta_extent * ex_y
+        elif self._drag_mode == "W":
+            delta_extent = delta_along_x
+            new_width = max(1e-6, original_width - delta_extent)
+            new_cx = original_cx + 0.5 * delta_extent * ex_x
+            new_cy = original_cy + 0.5 * delta_extent * ex_y
+        elif self._drag_mode == "S":
+            delta_extent = delta_along_y
+            new_height = max(1e-6, original_height + delta_extent)
+            new_cx = original_cx + 0.5 * delta_extent * ey_x
+            new_cy = original_cy + 0.5 * delta_extent * ey_y
+        elif self._drag_mode == "N":
+            delta_extent = delta_along_y
+            new_height = max(1e-6, original_height - delta_extent)
+            new_cx = original_cx + 0.5 * delta_extent * ey_x
+            new_cy = original_cy + 0.5 * delta_extent * ey_y
+
+        return new_cx, new_cy, new_width, new_height, theta
+
+    def _handle_rotate_drag(
+        self,
+        ev,
+        original_cx: float,
+        original_cy: float,
+        off_x: float,
+        off_y: float,
+        scale: float,
+    ) -> float:
+        """Compute updated theta for rotation drag. Updates internal angle accumulators."""
+        cursor_video_x = (ev.position().x() - off_x) / scale
+        cursor_video_y = (ev.position().y() - off_y) / scale
+        current_angle = math.atan2(cursor_video_y - original_cy, cursor_video_x - original_cx)
+
+        incremental_delta = current_angle - self._last_mouseframe_angle
+        if incremental_delta > math.pi:
+            incremental_delta -= 2 * math.pi
+        if incremental_delta <= -math.pi:
+            incremental_delta += 2 * math.pi
+
+        self._total_delta += incremental_delta
+        self._last_mouseframe_angle = current_angle
+
+        if self._theta_is_anticlockwise:
+            theta = self._orig_theta - self._total_delta
+        else:
+            theta = self._orig_theta + self._total_delta
+        return theta % (2 * math.pi)
 
     def wheelEvent(self, ev):
         ev.ignore()
@@ -589,10 +610,6 @@ class Overlay(QWidget):
             return None, None
 
         scale, off_x, off_y, _ = self._compute_transform()
-        tol = getattr(self, "_hit_tol_px", 14.0)
-        s = max(tol, getattr(self, "_handle_draw_px", tol))
-        half = s * 0.5
-
         x = pos_disp.x()
         y = pos_disp.y()
 
@@ -611,86 +628,87 @@ class Overlay(QWidget):
 
             cx_disp = off_x + cx_vid * scale
             cy_disp = off_y + cy_vid * scale
-            box_w_disp = w_vid * scale
-            box_h_disp = h_vid * scale
-
-            angle_rad = -theta if self._theta_is_anticlockwise else theta
-            cos_a, sin_a = math.cos(angle_rad), math.sin(angle_rad)
-
-            half_w = box_w_disp * 0.5
-            half_h = box_h_disp * 0.5
-
-            # corners in DISPLAY coords (same local order as paintEvent)
-            corners = []
-            for lx, ly in [
-                (-half_w, -half_h),
-                (half_w, -half_h),
-                (half_w, half_h),
-                (-half_w, half_h),
-            ]:
-                rx = lx * cos_a - ly * sin_a
-                ry = lx * sin_a + ly * cos_a
-                corners.append(QPointF(cx_disp + rx, cy_disp + ry))
-
-            TL, TR, BR, BL = corners
-
-            # midpoints (DISPLAY)
-            mid_top = QPointF((TL.x() + TR.x()) * 0.5, (TL.y() + TR.y()) * 0.5)
-            mid_right = QPointF((TR.x() + BR.x()) * 0.5, (TR.y() + BR.y()) * 0.5)
-            mid_bottom = QPointF((BL.x() + BR.x()) * 0.5, (BL.y() + BR.y()) * 0.5)
-            mid_left = QPointF((TL.x() + BL.x()) * 0.5, (TL.y() + BL.y()) * 0.5)
-
-            # side handle hits (square around midpoint)
-            def in_handle(pt: QPointF) -> bool:
-                return (pt.x() - half <= x <= pt.x() + half) and (
-                    pt.y() - half <= y <= pt.y() + half
-                )
-
-            if in_handle(mid_top):
-                return idx, "N"
-            if in_handle(mid_right):
-                return idx, "E"
-            if in_handle(mid_bottom):
-                return idx, "S"
-            if in_handle(mid_left):
-                return idx, "W"
-
-            # rotate handle (ALWAYS OUTSIDE top edge) — same outward normal logic as paintEvent
-            tx, ty = (TR.x() - TL.x()), (TR.y() - TL.y())
-            edge_len = math.hypot(tx, ty) or 1.0
-            nx, ny = (-ty / edge_len, tx / edge_len)
-
-            # flip normal if it points toward the center → ensure "outside"
-            vec_cx, vec_cy = (cx_disp - mid_top.x()), (cy_disp - mid_top.y())
-            if nx * vec_cx + ny * vec_cy > 0:
-                nx, ny = -nx, -ny
-
-            handle_offset = getattr(self, "_rotate_handle_offset_px", 24)
-            rot_cx = mid_top.x() + nx * handle_offset
-            rot_cy = mid_top.y() + ny * handle_offset
-            rot_half = getattr(self, "_handle_draw_px", tol) * 0.5
-            if (rot_cx - rot_half <= x <= rot_cx + rot_half) and (
-                rot_cy - rot_half <= y <= rot_cy + rot_half
-            ):
-                return idx, "R"
-
-            # inside test (point-in-quad) → MOVE
-            def tri_area(a, b, c):
-                return (b.x() - a.x()) * (c.y() - a.y()) - (b.y() - a.y()) * (
-                    c.x() - a.x()
-                )
-
-            P = QPointF(x, y)
-            a1 = tri_area(TL, TR, P)
-            a2 = tri_area(TR, BR, P)
-            a3 = tri_area(BR, BL, P)
-            a4 = tri_area(BL, TL, P)
-            if (a1 >= 0 and a2 >= 0 and a3 >= 0 and a4 >= 0) or (
-                a1 <= 0 and a2 <= 0 and a3 <= 0 and a4 <= 0
-            ):
-                return idx, "move"
+            zone = self._point_in_rotated_rect(x, y, cx_disp, cy_disp, w_vid * scale, h_vid * scale, theta)
+            if zone is not None:
+                return idx, zone
 
         return None, None
+
+    def _point_in_rotated_rect(
+        self,
+        px: float,
+        py: float,
+        cx_disp: float,
+        cy_disp: float,
+        w_disp: float,
+        h_disp: float,
+        theta: float,
+    ) -> str | None:
+        """Return zone ("N","S","E","W","move","R") or None for point (px,py) vs rotated rect."""
+        tol = getattr(self, "_hit_tol_px", 14.0)
+        s = max(tol, getattr(self, "_handle_draw_px", tol))
+        half = s * 0.5
+
+        angle_rad = -theta if self._theta_is_anticlockwise else theta
+        cos_a, sin_a = math.cos(angle_rad), math.sin(angle_rad)
+        half_w = w_disp * 0.5
+        half_h = h_disp * 0.5
+
+        # corners in DISPLAY coords (same local order as paintEvent)
+        corners = []
+        for lx, ly in [(-half_w, -half_h), (half_w, -half_h), (half_w, half_h), (-half_w, half_h)]:
+            rx = lx * cos_a - ly * sin_a
+            ry = lx * sin_a + ly * cos_a
+            corners.append(QPointF(cx_disp + rx, cy_disp + ry))
+        TL, TR, BR, BL = corners
+
+        mid_top = QPointF((TL.x() + TR.x()) * 0.5, (TL.y() + TR.y()) * 0.5)
+        mid_right = QPointF((TR.x() + BR.x()) * 0.5, (TR.y() + BR.y()) * 0.5)
+        mid_bottom = QPointF((BL.x() + BR.x()) * 0.5, (BL.y() + BR.y()) * 0.5)
+        mid_left = QPointF((TL.x() + BL.x()) * 0.5, (TL.y() + BL.y()) * 0.5)
+
+        def in_handle(pt: QPointF) -> bool:
+            return (pt.x() - half <= px <= pt.x() + half) and (pt.y() - half <= py <= pt.y() + half)
+
+        if in_handle(mid_top):
+            return "N"
+        if in_handle(mid_right):
+            return "E"
+        if in_handle(mid_bottom):
+            return "S"
+        if in_handle(mid_left):
+            return "W"
+
+        # rotate handle (ALWAYS OUTSIDE top edge) — same outward normal logic as paintEvent
+        tx, ty = (TR.x() - TL.x()), (TR.y() - TL.y())
+        edge_len = math.hypot(tx, ty) or 1.0
+        nx, ny = (-ty / edge_len, tx / edge_len)
+
+        # flip normal if it points toward the center → ensure "outside"
+        vec_cx, vec_cy = (cx_disp - mid_top.x()), (cy_disp - mid_top.y())
+        if nx * vec_cx + ny * vec_cy > 0:
+            nx, ny = -nx, -ny
+
+        handle_offset = getattr(self, "_rotate_handle_offset_px", 24)
+        rot_cx = mid_top.x() + nx * handle_offset
+        rot_cy = mid_top.y() + ny * handle_offset
+        rot_half = getattr(self, "_handle_draw_px", tol) * 0.5
+        if (rot_cx - rot_half <= px <= rot_cx + rot_half) and (rot_cy - rot_half <= py <= rot_cy + rot_half):
+            return "R"
+
+        # inside test (point-in-quad) → MOVE
+        def tri_area(a, b, c):
+            return (b.x() - a.x()) * (c.y() - a.y()) - (b.y() - a.y()) * (c.x() - a.x())
+
+        P = QPointF(px, py)
+        a1 = tri_area(TL, TR, P)
+        a2 = tri_area(TR, BR, P)
+        a3 = tri_area(BR, BL, P)
+        a4 = tri_area(BL, TL, P)
+        if (a1 >= 0 and a2 >= 0 and a3 >= 0 and a4 >= 0) or (a1 <= 0 and a2 <= 0 and a3 <= 0 and a4 <= 0):
+            return "move"
+
+        return None
 
     def _compute_transform(self) -> tuple[float, float, float, float]:
         """
@@ -776,22 +794,7 @@ class Overlay(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        # Draw relationship lines
-        painter.setPen(self._pen_relationship)
-        for relationship in self._relationships:
-            subject_box = self._get_box_by_obj_id(relationship.subject)
-            object_box = self._get_box_by_obj_id(relationship.object)
-
-            if subject_box and object_box:
-                p1 = QPointF(
-                    offset_x + subject_box.center_x * scale,
-                    offset_y + subject_box.center_y * scale,
-                )
-                p2 = QPointF(
-                    offset_x + object_box.center_x * scale,
-                    offset_y + object_box.center_y * scale,
-                )
-                painter.drawLine(p1, p2)
+        self._paint_relationships(painter, scale, offset_x, offset_y)
 
         for idx, bbox in enumerate(self._boxes):
             if isinstance(bbox, BBoxData):
@@ -815,28 +818,20 @@ class Overlay(QWidget):
             box_height_disp = box_height * scale
 
             angle_rad = -theta_val if self._theta_is_anticlockwise else theta_val
-
             cos_angle, sin_angle = math.cos(angle_rad), math.sin(angle_rad)
             half_w = box_width_disp / 2.0
             half_h = box_height_disp / 2.0
 
             # Compute corners
             corners = []
-            for lx, ly in [
-                (-half_w, -half_h),
-                (half_w, -half_h),
-                (half_w, half_h),
-                (-half_w, half_h),
-            ]:
+            for lx, ly in [(-half_w, -half_h), (half_w, -half_h), (half_w, half_h), (-half_w, half_h)]:
                 rx = lx * cos_angle - ly * sin_angle
                 ry = lx * sin_angle + ly * cos_angle
                 corners.append(QPointF(center_x_disp + rx, center_y_disp + ry))
             polygon = QPolygonF(corners)
 
             # Draw box
-            painter.setPen(
-                self._pen_box_selected if self._selected_idx == idx else self._pen_box
-            )
+            painter.setPen(self._pen_box_selected if self._selected_idx == idx else self._pen_box)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawPolygon(polygon)
             TL, TR, BR, BL = corners[0], corners[1], corners[2], corners[3]
@@ -865,105 +860,174 @@ class Overlay(QWidget):
             elif flag == "warning" and self._show_warning_flags:
                 icon_pixmap = (
                     self._warning_icon_scaled
-                    if self._warning_icon_scaled
-                    and not self._warning_icon_scaled.isNull()
+                    if self._warning_icon_scaled and not self._warning_icon_scaled.isNull()
                     else None
                 )
-            icon_width = icon_pixmap.width() if icon_pixmap else 0
-            icon_height = icon_pixmap.height() if icon_pixmap else 0
-            icon_spacing = OVERLAY_ICON_SPACING if icon_pixmap else 0
-
-            painter.save()
-            painter.translate(text_x, text_y)
-            painter.rotate(edge_angle)
-
-            metrics = painter.fontMetrics()
-            text_width = metrics.horizontalAdvance(text_str)
-            text_height = metrics.height()
-            padding = 2
-            background_top = -metrics.ascent() - padding
-            background_height = text_height + 2 * padding
-
-            if icon_pixmap:
-                icon_x = 0
-                icon_y = background_top + (background_height - icon_height) / 2
-                painter.drawPixmap(int(icon_x), int(icon_y), icon_pixmap)
-            text_offset_x = icon_width + icon_spacing
-            painter.setBrush(QColor(0, 0, 0, 160))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRect(
-                text_offset_x - padding,
-                background_top,
-                text_width + 2 * padding,
-                background_height,
-            )
-            painter.setPen(QColor(255, 255, 0))
-            painter.drawText(text_offset_x, 0, text_str)
-            painter.restore()
+            self._paint_bbox_label(painter, text_str, text_x, text_y, edge_angle, flag, icon_pixmap)
 
             # --- Draw side handles if selected ---
             if self._selected_idx == idx:
-                s = self._handle_draw_px
-                half = s / 2.0
-                mid_right = QPointF((TR.x() + BR.x()) / 2, (TR.y() + BR.y()) / 2)
-                mid_bottom = QPointF((BL.x() + BR.x()) / 2, (BL.y() + BR.y()) / 2)
-                mid_left = QPointF((TL.x() + BL.x()) / 2, (TL.y() + BL.y()) / 2)
-                painter.setPen(QPen(QColor(30, 30, 30)))
-                painter.setBrush(QColor(255, 255, 255))
-                for pt in (mid_top, mid_right, mid_bottom, mid_left):
-                    painter.drawRect(QRectF(pt.x() - half, pt.y() - half, s, s))
+                self._paint_bbox_handles(painter, TL, TR, BR, BL, mid_top, vec_cx, vec_cy, center_x_disp, center_y_disp)
 
-                # Rotate handle
-                edge_len = math.hypot(tx, ty) or 1.0
-                nx, ny = -ty / edge_len, tx / edge_len
-                if nx * vec_cx + ny * vec_cy > 0:
-                    nx, ny = -nx, -ny
-                handle_offset = self._rotate_handle_offset_px
-                rot_cx = mid_top.x() + nx * handle_offset
-                rot_cy = mid_top.y() + ny * handle_offset
-                pen_line = QPen(QColor(0, 200, 255))
-                pen_line.setWidth(2)
-                pen_line.setStyle(Qt.PenStyle.DashLine)
-                painter.setPen(pen_line)
-                painter.drawLine(mid_top, QPointF(rot_cx, rot_cy))
-                r = self._handle_draw_px / 2
-                painter.setPen(self._pen_rotate_handle)
-                painter.setBrush(self._brush_rotate_handle)
-                painter.drawEllipse(QRectF(rot_cx - r, rot_cy - r, 2 * r, 2 * r))
-
-            # --- Hover edges ---
-            if idx == self._hover_idx and self._hover_mode in ("N", "S", "E", "W"):
-                painter.setPen(self._pen_hover_edge)
-                if self._hover_mode == "N":
-                    painter.drawLine(TL, TR)
-                elif self._hover_mode == "S":
-                    painter.drawLine(BL, BR)
-                elif self._hover_mode == "E":
-                    painter.drawLine(TR, BR)
-                elif self._hover_mode == "W":
-                    painter.drawLine(TL, BL)
-
-            # --- Centers / axes ---
-            if self._show_centers:
-                painter.setPen(self._pen_center)
-                painter.drawLine(
-                    QPointF(center_x_disp - 4, center_y_disp),
-                    QPointF(center_x_disp + 4, center_y_disp),
-                )
-                painter.drawLine(
-                    QPointF(center_x_disp, center_y_disp - 4),
-                    QPointF(center_x_disp, center_y_disp + 4),
-                )
-            if self._show_axes:
-                painter.setPen(self._pen_axis)
-                axis_length = max(box_width_disp, box_height_disp) / 2
-                axis_x = center_x_disp + axis_length * cos_angle
-                axis_y = center_y_disp + axis_length * sin_angle
-                painter.drawLine(
-                    QPointF(center_x_disp, center_y_disp), QPointF(axis_x, axis_y)
-                )
+            self._paint_bbox_extras(
+                painter, idx, center_x_disp, center_y_disp,
+                cos_angle, sin_angle, box_width_disp, box_height_disp,
+                TL, TR, BR, BL, mid_top,
+            )
 
         painter.end()
+
+    def _paint_relationships(self, painter, scale: float, offset_x: float, offset_y: float) -> None:
+        """Draw relationship lines between boxes."""
+        painter.setPen(self._pen_relationship)
+        for relationship in self._relationships:
+            subject_box = self._get_box_by_obj_id(relationship.subject)
+            object_box = self._get_box_by_obj_id(relationship.object)
+            if subject_box and object_box:
+                p1 = QPointF(
+                    offset_x + subject_box.center_x * scale,
+                    offset_y + subject_box.center_y * scale,
+                )
+                p2 = QPointF(
+                    offset_x + object_box.center_x * scale,
+                    offset_y + object_box.center_y * scale,
+                )
+                painter.drawLine(p1, p2)
+
+    def _paint_bbox_label(
+        self,
+        painter,
+        text_str: str,
+        text_x: float,
+        text_y: float,
+        edge_angle: float,
+        flag,
+        icon_pixmap,
+    ) -> None:
+        """Draw rotated text label with semi-transparent background (and optional icon)."""
+        icon_width = icon_pixmap.width() if icon_pixmap else 0
+        icon_height = icon_pixmap.height() if icon_pixmap else 0
+        icon_spacing = OVERLAY_ICON_SPACING if icon_pixmap else 0
+
+        painter.save()
+        painter.translate(text_x, text_y)
+        painter.rotate(edge_angle)
+
+        metrics = painter.fontMetrics()
+        text_width = metrics.horizontalAdvance(text_str)
+        text_height = metrics.height()
+        padding = 2
+        background_top = -metrics.ascent() - padding
+        background_height = text_height + 2 * padding
+
+        if icon_pixmap:
+            icon_x = 0
+            icon_y = background_top + (background_height - icon_height) / 2
+            painter.drawPixmap(int(icon_x), int(icon_y), icon_pixmap)
+        text_offset_x = icon_width + icon_spacing
+        painter.setBrush(QColor(0, 0, 0, 160))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(
+            text_offset_x - padding,
+            background_top,
+            text_width + 2 * padding,
+            background_height,
+        )
+        painter.setPen(QColor(255, 255, 0))
+        painter.drawText(text_offset_x, 0, text_str)
+        painter.restore()
+
+    def _paint_bbox_handles(
+        self,
+        painter,
+        TL,
+        TR,
+        BR,
+        BL,
+        mid_top,
+        vec_cx: float,
+        vec_cy: float,
+        center_x_disp: float,
+        center_y_disp: float,
+    ) -> None:
+        """Draw side resize handles and rotation handle for a selected box."""
+        s = self._handle_draw_px
+        half = s / 2.0
+        mid_right = QPointF((TR.x() + BR.x()) / 2, (TR.y() + BR.y()) / 2)
+        mid_bottom = QPointF((BL.x() + BR.x()) / 2, (BL.y() + BR.y()) / 2)
+        mid_left = QPointF((TL.x() + BL.x()) / 2, (TL.y() + BL.y()) / 2)
+        painter.setPen(QPen(QColor(30, 30, 30)))
+        painter.setBrush(QColor(255, 255, 255))
+        for pt in (mid_top, mid_right, mid_bottom, mid_left):
+            painter.drawRect(QRectF(pt.x() - half, pt.y() - half, s, s))
+
+        # Rotate handle
+        tx, ty = TR.x() - TL.x(), TR.y() - TL.y()
+        edge_len = math.hypot(tx, ty) or 1.0
+        nx, ny = -ty / edge_len, tx / edge_len
+        if nx * vec_cx + ny * vec_cy > 0:
+            nx, ny = -nx, -ny
+        handle_offset = self._rotate_handle_offset_px
+        rot_cx = mid_top.x() + nx * handle_offset
+        rot_cy = mid_top.y() + ny * handle_offset
+        pen_line = QPen(QColor(0, 200, 255))
+        pen_line.setWidth(2)
+        pen_line.setStyle(Qt.PenStyle.DashLine)
+        painter.setPen(pen_line)
+        painter.drawLine(mid_top, QPointF(rot_cx, rot_cy))
+        r = self._handle_draw_px / 2
+        painter.setPen(self._pen_rotate_handle)
+        painter.setBrush(self._brush_rotate_handle)
+        painter.drawEllipse(QRectF(rot_cx - r, rot_cy - r, 2 * r, 2 * r))
+
+    def _paint_bbox_extras(
+        self,
+        painter,
+        idx: int,
+        center_x_disp: float,
+        center_y_disp: float,
+        cos_angle: float,
+        sin_angle: float,
+        box_width_disp: float,
+        box_height_disp: float,
+        TL,
+        TR,
+        BR,
+        BL,
+        mid_top,
+    ) -> None:
+        """Draw hover edge highlights and center/axis markers."""
+        # --- Hover edges ---
+        if idx == self._hover_idx and self._hover_mode in ("N", "S", "E", "W"):
+            painter.setPen(self._pen_hover_edge)
+            if self._hover_mode == "N":
+                painter.drawLine(TL, TR)
+            elif self._hover_mode == "S":
+                painter.drawLine(BL, BR)
+            elif self._hover_mode == "E":
+                painter.drawLine(TR, BR)
+            elif self._hover_mode == "W":
+                painter.drawLine(TL, BL)
+
+        # --- Centers / axes ---
+        if self._show_centers:
+            painter.setPen(self._pen_center)
+            painter.drawLine(
+                QPointF(center_x_disp - 4, center_y_disp),
+                QPointF(center_x_disp + 4, center_y_disp),
+            )
+            painter.drawLine(
+                QPointF(center_x_disp, center_y_disp - 4),
+                QPointF(center_x_disp, center_y_disp + 4),
+            )
+        if self._show_axes:
+            painter.setPen(self._pen_axis)
+            axis_length = max(box_width_disp, box_height_disp) / 2
+            axis_x = center_x_disp + axis_length * cos_angle
+            axis_y = center_y_disp + axis_length * sin_angle
+            painter.drawLine(
+                QPointF(center_x_disp, center_y_disp), QPointF(axis_x, axis_y)
+            )
 
     def _scale_icon(self, pixmap: QPixmap | None) -> QPixmap | None:
         if pixmap is None or pixmap.isNull():
@@ -1087,102 +1151,102 @@ class Overlay(QWidget):
 
         # Check if the rotation has changed
         if not new_theta == selected_bbox.theta:
-            self.boxRotated.emit(
-                updated_bbox.object_id,
-                updated_bbox.width,
-                updated_bbox.height,
-                updated_bbox.theta,
-            )
+            self.boxRotated.emit(BBoxRotatedEvent(
+                object_id=updated_bbox.object_id,
+                width=updated_bbox.width,
+                height=updated_bbox.height,
+                rotation=updated_bbox.theta,
+            ))
 
     def _on_cascade_size_to_all(self, direction: str):
         """Handle cascade apply to all frames."""
         selected_bbox = self._get_selected_bbox()
 
         # Emit a custom signal for cascade operations
-        self.cascadeApplyAll.emit(
-            selected_bbox.object_id,
-            None,  # Pass none for center_x
-            None,  # Pass none for center_y
-            selected_bbox.width,
-            selected_bbox.height,
-            None,  # Pass none for the rotation
-            direction,
-        )
+        self.cascadeApplyAll.emit(CascadeApplyEvent(
+            object_id=selected_bbox.object_id,
+            center_x=None,
+            center_y=None,
+            width=selected_bbox.width,
+            height=selected_bbox.height,
+            rotation=None,
+            direction=direction,
+        ))
 
     def _on_cascade_rotation_to_all(self, direction: str):
         """Handle cascade apply to all frames."""
         selected_bbox = self._get_selected_bbox()
 
         # Emit a custom signal for cascade operations
-        self.cascadeApplyAll.emit(
-            selected_bbox.object_id,
-            None,  # Pass none for center_x
-            None,  # Pass none for center_y
-            None,  # Pass none for the width
-            None,  # Pass none for the height
-            selected_bbox.theta,
-            direction,
-        )
+        self.cascadeApplyAll.emit(CascadeApplyEvent(
+            object_id=selected_bbox.object_id,
+            center_x=None,
+            center_y=None,
+            width=None,
+            height=None,
+            rotation=selected_bbox.theta,
+            direction=direction,
+        ))
 
     def _on_cascade_center_to_all(self, direction: str):
         """Handle cascade apply to all frames."""
         selected_bbox = self._get_selected_bbox()
 
         # Emit a custom signal for cascade operations
-        self.cascadeApplyAll.emit(
-            selected_bbox.object_id,
-            selected_bbox.center_x,
-            selected_bbox.center_y,
-            None,  # Pass none for the width
-            None,  # Pass none for the height
-            None,  # Pass none for the rotation
-            direction,
-        )
+        self.cascadeApplyAll.emit(CascadeApplyEvent(
+            object_id=selected_bbox.object_id,
+            center_x=selected_bbox.center_x,
+            center_y=selected_bbox.center_y,
+            width=None,
+            height=None,
+            rotation=None,
+            direction=direction,
+        ))
 
     def _on_cascade_size_to_frame_range(self, direction: str):
         """Handle cascade apply to next X frames."""
         selected_bbox = self._get_selected_bbox()
 
         # Emit a custom signal for cascade operations
-        self.cascadeApplyFrameRange.emit(
-            selected_bbox.object_id,
-            None,  # Pass none for center_x
-            None,  # Pass none for center_y
-            selected_bbox.width,
-            selected_bbox.height,
-            None,
-            direction,
-        )
+        self.cascadeApplyFrameRange.emit(CascadeApplyEvent(
+            object_id=selected_bbox.object_id,
+            center_x=None,
+            center_y=None,
+            width=selected_bbox.width,
+            height=selected_bbox.height,
+            rotation=None,
+            direction=direction,
+        ))
 
     def _on_cascade_rotation_to_frame_range(self, direction: str):
         """Handle cascade apply to next X frames."""
         selected_bbox = self._get_selected_bbox()
 
         # Emit a custom signal for cascade operations
-        self.cascadeApplyFrameRange.emit(
-            selected_bbox.object_id,
-            None,  # Pass none for center_x
-            None,  # Pass none for center_y
-            None,
-            None,
-            selected_bbox.theta,
-            direction,
-        )
+        self.cascadeApplyFrameRange.emit(CascadeApplyEvent(
+            object_id=selected_bbox.object_id,
+            center_x=None,
+            center_y=None,
+            width=None,
+            height=None,
+            rotation=selected_bbox.theta,
+            direction=direction,
+        ))
 
     def _on_cascade_center_to_frame_range(self, direction: str):
         """Handle cascade apply to next X frames."""
         selected_bbox = self._get_selected_bbox()
 
         # Emit a custom signal for cascade operations
-        self.cascadeApplyFrameRange.emit(
-            selected_bbox.object_id,
-            selected_bbox.center_x,
-            selected_bbox.center_y,
-            None,
-            None,
-            None,
-            direction,
-        )
+        self.cascadeApplyFrameRange.emit(CascadeApplyEvent(
+            object_id=selected_bbox.object_id,
+            center_x=selected_bbox.center_x,
+            center_y=selected_bbox.center_y,
+            width=None,
+            height=None,
+            rotation=None,
+            direction=direction,
+        ))
 
     def _on_cascade_rotate90cw_to_all(self, direction: str):
         """Handle rotate 90° CW to all frames."""
@@ -1203,6 +1267,16 @@ class Overlay(QWidget):
         """Handle rotate 90° CCW to next X frames."""
         selected_bbox = self._get_selected_bbox()
         self.cascadeRotate90FrameRange.emit(selected_bbox.object_id, False, direction)
+
+    def _on_cascade_delta_to_all(self, direction: str):
+        """Handle apply last delta to all frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeDeltaAll.emit(selected_bbox.object_id, direction)
+
+    def _on_cascade_delta_to_frame_range(self, direction: str):
+        """Handle apply last delta to next X frames."""
+        selected_bbox = self._get_selected_bbox()
+        self.cascadeDeltaFrameRange.emit(selected_bbox.object_id, direction)
 
     def _on_cascade_cancel(self):
         """Handle cascade cancel."""

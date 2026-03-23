@@ -7,6 +7,7 @@ import pytest
 from edit.frontend.utils.undo import (
     BBoxGeometrySnapshot,
     CascadeBBoxCommand,
+    CascadeDeltaBBoxCommand,
     DeleteBBoxCommand,
     FrameObjectSnapshot,
     GatewayHolder,
@@ -201,3 +202,142 @@ def test_cascade_bbox_command_restores_original_geometry_after_undo():
     assert gateway.applied[-2][0] == 1
     assert gateway.applied[-1][0] == 2
     assert gateway.geometries[1].width == 10.0
+
+
+def test_cascade_delta_bbox_command_applies_delta_on_do():
+    gateway = FakeCascadeGateway()
+    context = GatewayHolder(annotation_gateway=gateway)
+    original = {f: BBoxGeometrySnapshot(g.center_x, g.center_y, g.width, g.height, g.rotation)
+                for f, g in gateway.geometries.items()}
+
+    command = CascadeDeltaBBoxCommand(
+        object_id="obj-1",
+        frame_start=1,
+        frame_end=3,
+        dcx=1.0,
+        dcy=2.0,
+        dw=0.0,
+        dh=0.0,
+        dtheta=0.0,
+        annotator="tester",
+    )
+
+    command.do(context)
+
+    # Each frame should have center shifted by (dcx, dcy)
+    for f in (1, 2, 3):
+        assert gateway.geometries[f].center_x == pytest.approx(original[f].center_x + 1.0)
+        assert gateway.geometries[f].center_y == pytest.approx(original[f].center_y + 2.0)
+        # Size unchanged
+        assert gateway.geometries[f].width == pytest.approx(original[f].width)
+        assert gateway.geometries[f].height == pytest.approx(original[f].height)
+
+
+def test_cascade_delta_bbox_command_undo_restores_original_geometry():
+    gateway = FakeCascadeGateway()
+    context = GatewayHolder(annotation_gateway=gateway)
+    original = {f: BBoxGeometrySnapshot(g.center_x, g.center_y, g.width, g.height, g.rotation)
+                for f, g in gateway.geometries.items()}
+
+    command = CascadeDeltaBBoxCommand(
+        object_id="obj-1",
+        frame_start=1,
+        frame_end=3,
+        dcx=5.0,
+        dcy=5.0,
+        dw=1.0,
+        dh=1.0,
+        dtheta=0.1,
+        annotator="tester",
+    )
+
+    command.do(context)
+    command.undo(context)
+
+    for f in (1, 2, 3):
+        assert gateway.geometries[f].center_x == pytest.approx(original[f].center_x)
+        assert gateway.geometries[f].center_y == pytest.approx(original[f].center_y)
+        assert gateway.geometries[f].width == pytest.approx(original[f].width)
+        assert gateway.geometries[f].height == pytest.approx(original[f].height)
+        assert gateway.geometries[f].rotation == pytest.approx(original[f].rotation)
+
+
+def test_cascade_delta_bbox_command_redo_reapplies_after_geometry():
+    gateway = FakeCascadeGateway()
+    context = GatewayHolder(annotation_gateway=gateway)
+
+    command = CascadeDeltaBBoxCommand(
+        object_id="obj-1",
+        frame_start=1,
+        frame_end=None,
+        dcx=2.0,
+        dcy=0.0,
+        dw=0.0,
+        dh=0.0,
+        dtheta=0.0,
+        annotator="tester",
+    )
+
+    command.do(context)
+    after_do = {f: BBoxGeometrySnapshot(g.center_x, g.center_y, g.width, g.height, g.rotation)
+                for f, g in gateway.geometries.items()}
+
+    command.undo(context)
+    command.do(context)  # redo — should reapply _after without re-computing
+
+    for f in gateway.geometries:
+        assert gateway.geometries[f].center_x == pytest.approx(after_do[f].center_x)
+
+
+def test_cascade_delta_bbox_command_respects_frame_range():
+    gateway = FakeCascadeGateway()
+    context = GatewayHolder(annotation_gateway=gateway)
+    original_frame3 = BBoxGeometrySnapshot(
+        gateway.geometries[3].center_x,
+        gateway.geometries[3].center_y,
+        gateway.geometries[3].width,
+        gateway.geometries[3].height,
+        gateway.geometries[3].rotation,
+    )
+
+    command = CascadeDeltaBBoxCommand(
+        object_id="obj-1",
+        frame_start=1,
+        frame_end=2,  # frame 3 excluded
+        dcx=99.0,
+        dcy=0.0,
+        dw=0.0,
+        dh=0.0,
+        dtheta=0.0,
+        annotator="tester",
+    )
+
+    command.do(context)
+
+    # Frame 3 must be untouched
+    assert gateway.geometries[3].center_x == pytest.approx(original_frame3.center_x)
+
+
+def test_cascade_delta_bbox_command_undo_before_do_is_noop():
+    gateway = FakeCascadeGateway()
+    context = GatewayHolder(annotation_gateway=gateway)
+    original = {f: BBoxGeometrySnapshot(g.center_x, g.center_y, g.width, g.height, g.rotation)
+                for f, g in gateway.geometries.items()}
+
+    command = CascadeDeltaBBoxCommand(
+        object_id="obj-1",
+        frame_start=1,
+        frame_end=None,
+        dcx=10.0,
+        dcy=10.0,
+        dw=0.0,
+        dh=0.0,
+        dtheta=0.0,
+        annotator="tester",
+    )
+
+    # Calling undo without a prior do should not raise and should not change anything
+    command.undo(context)
+
+    for f in gateway.geometries:
+        assert gateway.geometries[f].center_x == pytest.approx(original[f].center_x)

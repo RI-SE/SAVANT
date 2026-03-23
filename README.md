@@ -55,6 +55,36 @@ uv sync
 
 SAVANT is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
 
+### Dependencies and Their Licenses
+
+All runtime dependencies use permissive or compatible copyleft licenses. AGPL-3.0 is compatible with GPL-3.0, LGPL, Apache 2.0, MIT, BSD, and PSF licenses when used as dependencies. Apache 2.0 is one-directionally compatible: Apache 2.0 code may be included in an AGPL-3.0 project, but not vice versa.
+
+**Runtime (all components):**
+- **PyQt6** – GPL v3 (commercial license available from Qt Group)
+- **PyQt6-Qt6** – LGPL v3 (Qt framework; bundled with PyQt6)
+- **opencv-contrib-python** – Apache 2.0
+- **NumPy** – BSD 3-Clause
+- **pydantic** – MIT
+- **PyYAML** – MIT
+- **rdflib** – BSD 3-Clause
+- **appdirs** – MIT
+- **matplotlib** – PSF-based (BSD-compatible; see [matplotlib license](https://matplotlib.org/stable/project/license.html))
+- **httpx** – BSD 3-Clause
+
+**Runtime (markit component only):**
+- **ultralytics** – AGPL-3.0
+- **lap** – BSD 2-Clause
+- **dataprov** – MIT
+
+**Development (optional):**
+- **pytest** – MIT
+- **pytest-cov** – MIT
+- **pytest-mock** – MIT
+- **flake8** – MIT
+- **black** – MIT
+
+> ⚠️ **Note on `ultralytics`:** The YOLOv8/YOLO11 library is itself AGPL-3.0 licensed. Using it in a commercial or proprietary product requires a separate commercial license from Ultralytics. SAVANT's AGPL-3.0 license is consistent with this requirement.
+
 ## Acknowledgement
 <br><div align="center">
   <img src="docs/synergies.svg" alt="Synergies logo" width="200"/>

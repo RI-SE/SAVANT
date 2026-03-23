@@ -305,5 +305,5 @@ def _display_annotation_info(main_window, playback_controls, object_id: str):
         playback_controls.clear_annotation_info()
         return
     frame_key = int(main_window.video_controller.current_index())
-    bbox_dimensions = main_window.annotation_controller.get_bbox(frame_key, object_id)
+    bbox_dimensions = main_window.annotation_controller.try_get_bbox(frame_key, object_id)
     playback_controls.display_annotation_info(bbox_dimensions)

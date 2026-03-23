@@ -2,6 +2,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeySequence, QShortcut
 
 from edit.frontend.utils.settings_store import get_bbox_zoom_padding, get_zoom_rate
+from edit.frontend.widgets.video_display import CANVAS_PADDING_FRACTION
 
 
 def wire(main_window, initial: float | None = None):
@@ -160,8 +161,10 @@ def wire(main_window, initial: float | None = None):
 
         # Clamp pan to what video_display._clamp_pan() will allow, so we
         # can then check if the bbox is still fully visible after clamping.
-        max_pan_x = max(0.0, (new_draw_w - viewport_w) / 2)
-        max_pan_y = max(0.0, (new_draw_h - viewport_h) / 2)
+        pad_x = new_draw_w * CANVAS_PADDING_FRACTION
+        pad_y = new_draw_h * CANVAS_PADDING_FRACTION
+        max_pan_x = max(0.0, (new_draw_w - viewport_w) / 2) + pad_x
+        max_pan_y = max(0.0, (new_draw_h - viewport_h) / 2) + pad_y
         pan_x = max(-max_pan_x, min(pan_x, max_pan_x))
         pan_y = max(-max_pan_y, min(pan_y, max_pan_y))
 

@@ -260,6 +260,93 @@ class CascadeBBoxCommand:
 
 
 @dataclass
+class CascadeDeltaBBoxCommand:
+    """Apply a geometry delta (dcx, dcy, dw, dh, dtheta) to every annotated
+    frame for an object within a frame range.  Unlike CascadeBBoxCommand which
+    sets absolute values, this shifts each frame's existing geometry by the
+    same increments — matching the "repeat last adjustment" (R-key) behaviour
+    but applied across many frames at once.
+    """
+
+    object_id: str
+    frame_start: int
+    frame_end: Optional[int]
+    dcx: float
+    dcy: float
+    dw: float
+    dh: float
+    dtheta: float
+    annotator: str
+    description: str = "Cascade delta bounding box update"
+    _before: Dict[int, BBoxGeometrySnapshot] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _after: Dict[int, BBoxGeometrySnapshot] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _modified_frames: List[int] = field(default_factory=list, init=False, repr=False)
+
+    def do(self, context: GatewayHolder) -> None:
+        import math as _math
+
+        gateway = context.annotation_gateway
+        if not self._before:
+            frames = gateway.frames_for_object(self.object_id)
+            frames_to_update = [
+                f for f in frames
+                if f >= self.frame_start and (self.frame_end is None or f <= self.frame_end)
+            ]
+            self._before = {
+                f: gateway.capture_geometry(f, self.object_id) for f in frames_to_update
+            }
+            self._modified_frames = list(frames_to_update)
+            for f in frames_to_update:
+                before = self._before[f]
+                new_rotation = (before.rotation + self.dtheta) % (2 * _math.pi)
+                after = BBoxGeometrySnapshot(
+                    center_x=before.center_x + self.dcx,
+                    center_y=before.center_y + self.dcy,
+                    width=max(1.0, before.width + self.dw),
+                    height=max(1.0, before.height + self.dh),
+                    rotation=new_rotation,
+                )
+                gateway.apply_geometry(
+                    frame_number=f,
+                    object_id=self.object_id,
+                    geometry=after,
+                    annotator=self.annotator,
+                )
+            self._after = {
+                f: gateway.capture_geometry(f, self.object_id) for f in frames_to_update
+            }
+            return
+
+        for f, geometry in self._after.items():
+            gateway.apply_geometry(
+                frame_number=f,
+                object_id=self.object_id,
+                geometry=geometry,
+                annotator=self.annotator,
+            )
+
+    def undo(self, context: GatewayHolder) -> None:
+        if not self._before:
+            return
+        gateway = context.annotation_gateway
+        for f, geometry in self._before.items():
+            gateway.apply_geometry(
+                frame_number=f,
+                object_id=self.object_id,
+                geometry=geometry,
+                annotator=self.annotator,
+            )
+
+    @property
+    def modified_frames(self) -> Sequence[int]:
+        return tuple(self._modified_frames)
+
+
+@dataclass
 class Rotate90CascadeCommand:
     """Rotate bboxes by 90° and swap w/h across a frame range."""
 
@@ -334,49 +421,83 @@ class Rotate90CascadeCommand:
 class LinkObjectIdsCommand:
     primary_object_id: str
     secondary_object_id: str
+    conflict_resolution: str = "keep_primary"
     description: str = "Link object IDs"
-    _frame_snapshots: List[FrameObjectSnapshot] = field(
+    _secondary_snapshots: List[FrameObjectSnapshot] = field(
+        default_factory=list, init=False, repr=False
+    )
+    _conflict_primary_snapshots: List[FrameObjectSnapshot] = field(
         default_factory=list, init=False, repr=False
     )
     _metadata_snapshot: Optional[ObjectMetadataSnapshot] = field(
         default=None, init=False, repr=False
     )
-    _affected_frames: List[int] = field(default_factory=list, init=False, repr=False)
+    _moved_frames: List[int] = field(default_factory=list, init=False, repr=False)
+    _conflict_frames: List[int] = field(default_factory=list, init=False, repr=False)
 
     def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
-        if not self._frame_snapshots:
-            frames = gateway.frames_for_object(self.secondary_object_id)
-            for frame in frames:
+        if not self._secondary_snapshots and self._metadata_snapshot is None:
+            # First execution: snapshot everything we may need to restore.
+            all_secondary_frames = gateway.frames_for_object(self.secondary_object_id)
+            conflict_frames = set(
+                gateway.conflicting_frames_for_link(
+                    self.primary_object_id, self.secondary_object_id
+                )
+            )
+            for frame in all_secondary_frames:
                 snapshot = gateway.capture_frame_object(frame, self.secondary_object_id)
                 if snapshot is not None:
-                    self._frame_snapshots.append(snapshot.clone())
+                    self._secondary_snapshots.append(snapshot.clone())
+            if self.conflict_resolution == "keep_secondary":
+                for frame in conflict_frames:
+                    snapshot = gateway.capture_frame_object(frame, self.primary_object_id)
+                    if snapshot is not None:
+                        self._conflict_primary_snapshots.append(snapshot.clone())
             self._metadata_snapshot = gateway.capture_object_metadata(
                 self.secondary_object_id
             )
-        affected = gateway.link_object_ids(
+            self._conflict_frames = sorted(conflict_frames)
+            secondary_set = set(all_secondary_frames)
+            self._moved_frames = sorted(secondary_set - conflict_frames)
+
+        gateway.link_object_ids(
             self.primary_object_id,
             self.secondary_object_id,
+            conflict_resolution=self.conflict_resolution,
         )
-        self._affected_frames = list(affected or [])
 
     def undo(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
-        if not self._frame_snapshots and self._metadata_snapshot is None:
+        if not self._secondary_snapshots and self._metadata_snapshot is None:
             return
-        for frame in self._affected_frames:
+        # Undo non-conflict frames: the secondary was renamed to primary.
+        for frame in self._moved_frames:
             gateway.delete_bbox(frame, self.primary_object_id)
-        for snapshot in self._frame_snapshots:
+        # Undo conflict frames.
+        for frame in self._conflict_frames:
+            if self.conflict_resolution == "keep_secondary":
+                # Secondary was renamed to primary; original primary was deleted.
+                gateway.delete_bbox(frame, self.primary_object_id)
+            # For keep_primary: secondary was silently dropped; primary is intact.
+        # Restore all secondary snapshots (non-conflict renamed + conflict dropped).
+        for snapshot in self._secondary_snapshots:
+            gateway.restore_bbox(snapshot.clone())
+        # Restore original primary bboxes in conflict frames (keep_secondary only).
+        for snapshot in self._conflict_primary_snapshots:
             gateway.restore_bbox(snapshot.clone())
         if self._metadata_snapshot is not None:
             gateway.ensure_object_metadata(self._metadata_snapshot)
-        self._affected_frames = sorted(
-            {snapshot.frame_number for snapshot in self._frame_snapshots}
-        )
+        # Reset so do() can re-snapshot if executed again.
+        self._secondary_snapshots = []
+        self._conflict_primary_snapshots = []
+        self._metadata_snapshot = None
+        self._moved_frames = []
+        self._conflict_frames = []
 
     @property
     def affected_frames(self) -> Sequence[int]:
-        return tuple(sorted(set(self._affected_frames)))
+        return tuple(sorted(set(self._moved_frames + self._conflict_frames)))
 
 
 @dataclass

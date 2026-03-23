@@ -2,6 +2,7 @@ from typing import List, Optional, Tuple, Union
 
 from edit.models.OpenLabel import FrameLevelObject, RotatedBBox
 from edit.services.annotation_service import AnnotationService
+from edit.services.exceptions import BBoxNotFoundError, ObjectNotFoundError
 
 from .error_handler_middleware import error_handler
 
@@ -39,6 +40,22 @@ class AnnotationController:
             object_key=object_key,
             bbox_index=bbox_index,
         )
+
+    def try_get_bbox(
+        self,
+        frame_key: int | str,
+        object_key: int | str,
+        bbox_index: int = 0,
+    ) -> Optional[RotatedBBox]:
+        """Return bbox or None silently — used when absence is a normal case."""
+        try:
+            return self.annotation_service.get_bbox(
+                frame_key=frame_key,
+                object_key=object_key,
+                bbox_index=bbox_index,
+            )
+        except (BBoxNotFoundError, ObjectNotFoundError, KeyError):
+            return None
 
     @error_handler
     def move_resize_bbox(
@@ -188,14 +205,27 @@ class AnnotationController:
         return self.annotation_service.frames_for_object(object_id)
 
     @error_handler
-    def link_object_ids(
+    def conflicting_frames_for_link(
         self,
         primary_object_id: str,
         secondary_object_id: str,
     ) -> list[int]:
+        return self.annotation_service.conflicting_frames_for_link(
+            primary_object_id,
+            secondary_object_id,
+        )
+
+    @error_handler
+    def link_object_ids(
+        self,
+        primary_object_id: str,
+        secondary_object_id: str,
+        conflict_resolution: str | None = None,
+    ) -> list[int]:
         return self.annotation_service.link_object_ids(
             primary_object_id,
             secondary_object_id,
+            conflict_resolution=conflict_resolution,
         )
 
     @error_handler

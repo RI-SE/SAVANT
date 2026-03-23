@@ -206,10 +206,27 @@ class MainWindow(QMainWindow):
             self,
             activated=lambda: annotation_ops.redo_last_action(self),
         )
+
+        # R / Shift+R / Ctrl+R — disable auto-repeat so holding the key
+        # doesn't fire cascade operations multiple times.
+        for key_seq, handler in (
+            (Qt.Key.Key_R, lambda: annotation_ops.repeat_last_adjustment(self)),
+            (
+                Qt.KeyboardModifier.ShiftModifier | Qt.Key.Key_R,
+                lambda: annotation_ops.cascade_delta_forward_all(self),
+            ),
+            (
+                Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_R,
+                lambda: annotation_ops.cascade_delta_backward_all(self),
+            ),
+        ):
+            sc = QShortcut(QKeySequence(key_seq), self, activated=handler)
+            sc.setAutoRepeat(False)
+
         QShortcut(
-            QKeySequence(Qt.Key.Key_R),
+            QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key.Key_S),
             self,
-            activated=lambda: annotation_ops.repeat_last_adjustment(self),
+            activated=self.quick_save_project,
         )
 
         self.refresh_confidence_issues()

@@ -137,16 +137,18 @@ class VideoReader:
             # Check if it's loading the chunk we need by inspecting what chunk_start it was given.
             # We store the target in _prefetch_target for this purpose.
             if getattr(self, '_prefetch_target', None) == chunk_start:
-                prefetch_thread.join()
-                self._absorb_prefetch()
-                # Now check cache again
-                for slot, entry in enumerate(self._chunks):
-                    if entry is not None and index in entry[1]:
-                        self._chunk_ages[slot] = self._age_counter
-                        self._age_counter += 1
-                        self._last_index = index
-                        self._maybe_prefetch(index)
-                        return entry[1][index]
+                prefetch_thread.join(timeout=2.0)
+                if not prefetch_thread.is_alive():
+                    self._absorb_prefetch()
+                    # Now check cache again
+                    for slot, entry in enumerate(self._chunks):
+                        if entry is not None and index in entry[1]:
+                            self._chunk_ages[slot] = self._age_counter
+                            self._age_counter += 1
+                            self._last_index = index
+                            self._maybe_prefetch(index)
+                            return entry[1][index]
+                # Thread stalled — fall through to synchronous load
 
         # Synchronous load — also read the next chunk while the capture is
         # already positioned at chunk_end (avoids I/O contention with the
@@ -172,11 +174,16 @@ class VideoReader:
                 self._age_counter += 1
                 self._chunk_ages[oldest_slot] = self._age_counter
 
-        # Position prefetch capture where the main capture left off so
-        # the next background prefetch can read sequentially without seeking.
-        read_end = next_start + self.chunk_size if next_start < frame_count else chunk_start + self.chunk_size
-        if self._prefetch_capture and read_end < frame_count:
-            self._prefetch_capture.set(cv2.CAP_PROP_POS_FRAMES, read_end)
+        # Position prefetch capture where the main capture left off so the next
+        # background prefetch can read sequentially without seeking.
+        # Guard: cv2.VideoCapture is not thread-safe — only touch _prefetch_capture
+        # when no worker is using it.  _load_chunk seeks on its own if needed.
+        with self._prefetch_lock:
+            thread_idle = not (self._prefetch_thread and self._prefetch_thread.is_alive())
+        if thread_idle:
+            read_end = next_start + self.chunk_size if next_start < frame_count else chunk_start + self.chunk_size
+            if self._prefetch_capture and read_end < frame_count:
+                self._prefetch_capture.set(cv2.CAP_PROP_POS_FRAMES, read_end)
 
         self._last_index = index
         self._maybe_prefetch(index)

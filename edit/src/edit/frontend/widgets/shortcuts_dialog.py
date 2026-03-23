@@ -21,6 +21,7 @@ _SHORTCUTS: list[tuple[str, str]] = [
     ("Ctrl+Shift+P", "Jump to previous bookmark"),
     # -- Undo / Redo --
     ("", "Undo / Redo"),
+    ("Ctrl+S", "Save project"),
     ("Ctrl+Z", "Undo last action"),
     ("Ctrl+Y", "Redo last action"),
     # -- Zoom --
@@ -39,6 +40,8 @@ _SHORTCUTS: list[tuple[str, str]] = [
     ("Shift+Tab", "Cycle to previous bounding box (zoomed)"),
     ("Delete", "Delete selected bounding box or frame tag"),
     ("R", "Repeat last adjustment (re-apply same position/size/rotation delta)"),
+    ("Shift+R", "Cascade delta forward — apply last delta to all subsequent frames"),
+    ("Ctrl+R", "Cascade delta backward — apply last delta to all previous frames"),
     # -- Seek bar --
     ("", "Seek Bar"),
     ("Escape", "Cancel frame number input"),

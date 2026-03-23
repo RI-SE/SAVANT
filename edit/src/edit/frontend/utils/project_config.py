@@ -148,7 +148,7 @@ def _snapshot_settings() -> Dict[str, Any]:
         "show_warnings": get_show_warnings(),
         "error_range": tuple(get_error_range()),
         "show_errors": get_show_errors(),
-        "bookmarks": get_bookmark_notes(),
+        "bookmarks": {str(k): v for k, v in get_bookmark_notes().items()},
     }
 
 

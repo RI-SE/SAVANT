@@ -417,6 +417,11 @@ class OpenLabel(BaseModel):
 
         new_width = max(min_width, new_width)
         new_height = max(min_height, new_height)
+        # Clamp center to non-negative (model constraint: x_center >= 0, y_center >= 0).
+        # This prevents nudging or dragging a bbox past the left/top frame edge from
+        # raising a validation error — the bbox simply stops at the boundary.
+        new_x_center = max(0.0, new_x_center)
+        new_y_center = max(0.0, new_y_center)
 
         updated_bbox = RotatedBBox.model_validate(
             [new_x_center, new_y_center, new_width, new_height, new_rotation]

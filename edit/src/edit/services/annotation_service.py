@@ -433,10 +433,30 @@ class AnnotationService:
                     continue
         return sorted(frames_with_object)
 
+    def conflicting_frames_for_link(
+        self,
+        primary_object_id: str,
+        secondary_object_id: str,
+    ) -> list[int]:
+        """Return sorted frame indices that contain both object IDs simultaneously."""
+        config = self.project_state.annotation_config
+        if config is None:
+            return []
+        conflicts: list[int] = []
+        for frame_key, frame in config.frames.items():
+            frame_objects = getattr(frame, "objects", {})
+            if primary_object_id in frame_objects and secondary_object_id in frame_objects:
+                try:
+                    conflicts.append(int(frame_key))
+                except (TypeError, ValueError):
+                    continue
+        return sorted(conflicts)
+
     def link_object_ids(
         self,
         primary_object_id: str,
         secondary_object_id: str,
+        conflict_resolution: str | None = None,
     ) -> list[int]:
         """
         Replace all occurrences of secondary_object_id with primary_object_id.
@@ -444,9 +464,13 @@ class AnnotationService:
         Args:
             primary_object_id: The object ID that should remain.
             secondary_object_id: The object ID to replace.
+            conflict_resolution: How to handle frames where both IDs exist.
+                "keep_primary" — drop secondary in those frames.
+                "keep_secondary" — replace primary with secondary in those frames.
+                None — raise ObjectLinkConflictError if any conflict exists (default).
 
         Returns:
-            A sorted list of affected frame indices.
+            A sorted list of affected frame indices (all frames touched).
         """
         if primary_object_id == secondary_object_id:
             raise ObjectLinkConflictError("Cannot link an object ID to itself.")
@@ -468,15 +492,18 @@ class AnnotationService:
         affected_frames: list[int] = []
         for frame_key, frame in config.frames.items():
             frame_objects = getattr(frame, "objects", {})
-            if secondary_object_id in frame_objects:
-                if primary_object_id in frame_objects:
-                    raise ObjectLinkConflictError(
-                        f"Frame {frame_key} already contains both object IDs."
-                    )
-                try:
-                    affected_frames.append(int(frame_key))
-                except (TypeError, ValueError):
-                    continue
+            has_secondary = secondary_object_id in frame_objects
+            has_primary = primary_object_id in frame_objects
+            if not has_secondary:
+                continue
+            if has_primary and conflict_resolution is None:
+                raise ObjectLinkConflictError(
+                    f"Frame {frame_key} already contains both object IDs."
+                )
+            try:
+                affected_frames.append(int(frame_key))
+            except (TypeError, ValueError):
+                continue
 
         if not affected_frames:
             return []
@@ -484,11 +511,22 @@ class AnnotationService:
         for frame_key in list(config.frames.keys()):
             frame = config.frames[frame_key]
             frame_objects = getattr(frame, "objects", {})
-            if secondary_object_id not in frame_objects:
+            has_secondary = secondary_object_id in frame_objects
+            has_primary = primary_object_id in frame_objects
+            if not has_secondary:
                 continue
 
-            frame_obj = frame_objects.pop(secondary_object_id)
-            frame_objects[primary_object_id] = frame_obj
+            if has_primary:
+                # Conflict frame: resolve according to chosen strategy.
+                if conflict_resolution == "keep_primary":
+                    frame_objects.pop(secondary_object_id)
+                else:  # keep_secondary
+                    frame_objects.pop(primary_object_id)
+                    frame_obj = frame_objects.pop(secondary_object_id)
+                    frame_objects[primary_object_id] = frame_obj
+            else:
+                frame_obj = frame_objects.pop(secondary_object_id)
+                frame_objects[primary_object_id] = frame_obj
 
         # Remove secondary metadata; primary metadata remains authoritative.
         if secondary_object_id in objects_map:
