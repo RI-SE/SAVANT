@@ -253,7 +253,31 @@ def cascade_delta_forward_all(main_window) -> None:
 
 
 def cascade_delta_backward_all(main_window) -> None:
-    """Ctrl+R: apply last delta to all previous frames — no confirmation dialog."""
+    """Ctrl+R: apply last delta to all previous frames — with lightweight confirmation."""
+    from PyQt6.QtWidgets import QMessageBox
+
+    object_id = main_window.overlay.selected_object_id()
+    if not object_id:
+        return
+    last_deltas = getattr(main_window, "last_bbox_deltas", {})
+    if last_deltas.get(object_id) is None:
+        return
+
+    current_frame = int(main_window.video_controller.current_index())
+    if current_frame < 1:
+        return
+
+    result = QMessageBox.question(
+        main_window,
+        "Cascade Delta Backward",
+        f"Apply last delta to all frames before frame {current_frame} "
+        f"for object '{object_id}'?",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    if result != QMessageBox.StandardButton.Yes:
+        return
+
     _cascade_delta_all_shortcut(main_window, CascadeDirection.BACKWARDS)
 
 
