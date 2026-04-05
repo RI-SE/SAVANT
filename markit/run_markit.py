@@ -760,6 +760,7 @@ def main():
         video_processor.initialize()
         openlabel_handler.add_metadata(config.video_path)
         openlabel_handler.set_ontology(config.ontology_uri)
+        openlabel_handler.set_fps(video_processor.fps)
 
         # Pre-populate ArUco markers from GPS data (if ArUco detection enabled)
         aruco_gps = video_processor.get_aruco_gps_data()

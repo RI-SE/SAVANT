@@ -121,10 +121,17 @@ class FrameLevelObject(BaseModel):
     object_data: ObjectData
 
 
+class FrameProperties(BaseModel):
+    """Per-frame properties such as video timestamp."""
+
+    timestamp: Optional[str] = None
+
+
 class FrameObjects(BaseModel):
     """Represents all objects within a specific frame."""
 
     objects: Dict[str, FrameLevelObject]
+    frame_properties: Optional[FrameProperties] = None
 
 
 class FrameInterval(BaseModel):

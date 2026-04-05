@@ -138,6 +138,7 @@ class TestAnnotationService:
             bbox_coordinates=coordinates,
             annotator="test_annotator",
             obj_id=object_id,
+            fps=mock_project_state.video_metadata.fps or None,
         )
 
     def test_add_bbox_to_existing_static_object(

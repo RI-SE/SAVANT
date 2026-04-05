@@ -593,6 +593,7 @@ class AnnotationService:
             bbox_coordinates=bbox_coordinates,
             obj_id=obj_id,
             annotator=annotator,
+            fps=self.project_state.video_metadata.fps or None,
         )
 
     def _does_object_exist_in_frame(self, frame_number: int, object_id: str) -> bool:
