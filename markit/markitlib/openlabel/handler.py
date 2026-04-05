@@ -527,6 +527,15 @@ class OpenLabelHandler:
         self.openlabel_data["openlabel"]["ontologies"][ontology_uid] = ontology_uri
         logger.debug(f"Added ontology {ontology_uid}: {ontology_uri}")
 
+    def add_streams(self, streams: Dict[str, Any]) -> None:
+        """Add streams block to OpenLabel structure.
+
+        Args:
+            streams: Dict mapping stream name to stream metadata
+        """
+        self.openlabel_data["openlabel"]["streams"] = streams
+        logger.info(f"Added {len(streams)} stream(s) to OpenLabel structure")
+
     def save_to_file(self, output_path: str) -> None:
         """Save OpenLabel data to JSON file.
 

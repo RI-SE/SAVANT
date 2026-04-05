@@ -570,6 +570,27 @@
               ]
             }
           }
+        },
+        "streams": {
+          "type": "object",
+          "description": "Recording streams (e.g. camera sources)",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              },
+              "stream_properties": {
+                "type": "object"
+              }
+            }
+          }
         }
       },
       "required": [

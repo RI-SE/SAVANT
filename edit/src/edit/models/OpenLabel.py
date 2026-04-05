@@ -187,6 +187,8 @@ class OpenLabel(BaseModel):
     tags: Optional[Dict[str, Dict[str, Any]]] = None
 
     frames: Dict[str, FrameObjects]
+    # Recording stream metadata (e.g. from --drone-info in markit)
+    streams: Optional[Dict[str, Any]] = None
 
     def model_dump(self, *args, **kwargs) -> dict:
         """ "
