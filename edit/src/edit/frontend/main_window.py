@@ -39,6 +39,7 @@ from edit.frontend.utils.settings_store import (
 from edit.frontend.utils import (
     annotation_ops,
     confidence_ops,
+    measure,
     navigation,
     playback,
     project_io,
@@ -190,6 +191,7 @@ class MainWindow(QMainWindow):
 
         annotation_ops.wire(self, self.state)
         zoom.wire(self)
+        measure.setup_measure_shortcuts(self)
 
         QShortcut(
             QKeySequence.StandardKey.Undo,
