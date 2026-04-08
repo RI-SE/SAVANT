@@ -110,9 +110,9 @@ class SettingsDialog(QDialog):
 
         # Rotation sensitivity
         self.rotation_sensitivity_spin = QDoubleSpinBox()
-        self.rotation_sensitivity_spin.setRange(0.1, 10.0)
+        self.rotation_sensitivity_spin.setRange(0.01, 10.0)
         self.rotation_sensitivity_spin.setDecimals(2)
-        self.rotation_sensitivity_spin.setSingleStep(0.1)
+        self.rotation_sensitivity_spin.setSingleStep(0.01)
         self.rotation_sensitivity_spin.setValue(float(get_rotation_sensitivity()))
         self.rotation_sensitivity_spin.valueChanged.connect(
             self._on_rotation_sensitivity_changed

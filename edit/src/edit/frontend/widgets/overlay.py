@@ -109,7 +109,7 @@ class Overlay(QWidget):
         self._pen_hover_edge.setWidth(5)
 
         # Rotation handle
-        self._rotate_handle_offset_px = 24
+        self._rotate_handle_offset_px = 50
         self._pen_rotate_handle = QPen(QColor(0, 200, 255))
         self._pen_rotate_handle.setWidth(2)
         self._brush_rotate_handle = QBrush(QColor(0, 200, 255))
@@ -565,6 +565,10 @@ class Overlay(QWidget):
             incremental_delta -= 2 * math.pi
         if incremental_delta <= -math.pi:
             incremental_delta += 2 * math.pi
+
+        ctrl_held = bool(ev.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        if ctrl_held:
+            incremental_delta /= 8.0
 
         self._total_delta += incremental_delta
         self._last_mouseframe_angle = current_angle
@@ -1098,10 +1102,14 @@ class Overlay(QWidget):
         new_center_y = selected_bbox.center_y
         new_theta = selected_bbox.theta
 
-        # Check if shift is pressed to choose if left and right arrow keys
-        # move or rotate the box.
+        mods = event.modifiers()
+        ctrl_shift = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+
         def _is_shift_pressed() -> bool:
-            return event.modifiers() == Qt.KeyboardModifier.ShiftModifier
+            return mods == Qt.KeyboardModifier.ShiftModifier
+
+        def _is_ctrl_shift_pressed() -> bool:
+            return mods == ctrl_shift
 
         match event.key():
             # note: Y-axis movement is inverted.
@@ -1110,12 +1118,16 @@ class Overlay(QWidget):
             case Qt.Key.Key_Down:
                 new_center_y += movement_step
             case Qt.Key.Key_Right:
-                if _is_shift_pressed():
+                if _is_ctrl_shift_pressed():
+                    new_theta += rotation_step / 8.0
+                elif _is_shift_pressed():
                     new_theta += rotation_step
                 else:
                     new_center_x += movement_step
             case Qt.Key.Key_Left:
-                if _is_shift_pressed():
+                if _is_ctrl_shift_pressed():
+                    new_theta -= rotation_step / 8.0
+                elif _is_shift_pressed():
                     new_theta -= rotation_step
                 else:
                     new_center_x -= movement_step
