@@ -77,10 +77,17 @@ class FrameLevelObject(BaseModel):
     object_data: ObjectData
 
 
+class FrameProperties(BaseModel):
+    """Per-frame properties such as video timestamp."""
+
+    timestamp: Optional[str] = None
+
+
 class FrameObjects(BaseModel):
     """Represents all objects within a specific frame"""
 
     objects: Dict[str, FrameLevelObject]
+    frame_properties: Optional[FrameProperties] = None
 
 
 class FrameInterval(BaseModel):
@@ -180,6 +187,8 @@ class OpenLabel(BaseModel):
     tags: Optional[Dict[str, Dict[str, Any]]] = None
 
     frames: Dict[str, FrameObjects]
+    # Recording stream metadata (e.g. from --drone-info in markit)
+    streams: Optional[Dict[str, Any]] = None
 
     def model_dump(self, *args, **kwargs) -> dict:
         """ "
@@ -204,6 +213,7 @@ class OpenLabel(BaseModel):
         bbox_coordinates: List[float],
         obj_id: str,
         annotator: str,
+        fps: Optional[float] = None,
     ) -> FrameLevelObject:
         """
         Adds a new bounding box for an object with no existing
@@ -277,7 +287,17 @@ class OpenLabel(BaseModel):
         frame_key = str(frame_id)
         frame_entry = self.frames.get(frame_key)
         if frame_entry is None:
-            frame_entry = FrameObjects(objects={})
+            props = None
+            if fps and fps > 0:
+                from datetime import timedelta
+                td = timedelta(seconds=frame_id / fps)
+                total_seconds = int(td.total_seconds())
+                hours, remainder = divmod(total_seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                microseconds = td.microseconds
+                ts = f"{hours:02d}:{minutes:02d}:{seconds:02d}.{microseconds:06d}"
+                props = FrameProperties(timestamp=ts)
+            frame_entry = FrameObjects(objects={}, frame_properties=props)
             self.frames[frame_key] = frame_entry
 
         if frame_entry.objects is None:

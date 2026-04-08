@@ -121,10 +121,17 @@ class FrameLevelObject(BaseModel):
     object_data: ObjectData
 
 
+class FrameProperties(BaseModel):
+    """Per-frame properties such as video timestamp."""
+
+    timestamp: Optional[str] = None
+
+
 class FrameObjects(BaseModel):
     """Represents all objects within a specific frame."""
 
     objects: Dict[str, FrameLevelObject]
+    frame_properties: Optional[FrameProperties] = None
 
 
 class FrameInterval(BaseModel):
@@ -188,6 +195,8 @@ class OpenLabel(BaseModel):
     # Scenario-level metadata tags - from VLM analysis
     tags: Optional[Dict[str, Dict[str, Any]]] = None
     frames: Dict[str, FrameObjects]
+    # Recording stream metadata (e.g. from --drone-info in markit)
+    streams: Optional[Dict[str, Any]] = None
 
     def model_dump(self, *args, **kwargs) -> dict:
         """Override Pydantic's default model_dump to exclude None values."""

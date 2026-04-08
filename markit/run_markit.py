@@ -111,6 +111,7 @@ from markit.markitlib import MarkitConfig, __version__
 from savant_common.resources import get_ontology_path, get_schema_path, get_weights_path
 from markit.markitlib.processing import VideoProcessor
 from markit.markitlib.openlabel import OpenLabelHandler
+from markit.markitlib.openlabel.drone_info import build_streams_entry, parse_drone_info
 from markit.markitlib.outputvideo import render_output_video
 from markit.markitlib.postprocessing import (
     PostprocessingPipeline,
@@ -218,6 +219,11 @@ Examples:
     optional.add_argument(
         "--provenance",
         help="Path to provenance chain file (will be created if not exists)",
+    )
+    optional.add_argument(
+        "--drone-info",
+        dest="drone_info",
+        help="Path to FlightRecord*.video_stats.json for drone stream metadata",
     )
 
     # Detection configuration
@@ -760,6 +766,15 @@ def main():
         video_processor.initialize()
         openlabel_handler.add_metadata(config.video_path)
         openlabel_handler.set_ontology(config.ontology_uri)
+        openlabel_handler.set_fps(video_processor.fps)
+
+        # Add drone streams metadata if provided
+        if config.drone_info_path:
+            drone_info = parse_drone_info(config.drone_info_path)
+            streams = build_streams_entry(
+                config.video_path, video_processor.fps, drone_info
+            )
+            openlabel_handler.add_streams(streams)
 
         # Pre-populate ArUco markers from GPS data (if ArUco detection enabled)
         aruco_gps = video_processor.get_aruco_gps_data()

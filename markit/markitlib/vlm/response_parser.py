@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # SAVANT scenario ontology namespace and URI
 SCENARIO_ONTOLOGY_UID = "1"
-SCENARIO_ONTOLOGY_URI = "http://github.com/RI-SE/SAVANT/scenario-ontology#"
+SCENARIO_ONTOLOGY_URI = "https://github.com/RI-SE/SAVANT/tree/main/ontology/savant-scenario#"
 
 # Default annotator name for VLM-generated data
 VLM_ANNOTATOR = "markit_vlm"

@@ -47,6 +47,7 @@ The release binaries ship with the bundled assets used by the UI. When a new tag
 - **Annotator awareness**: login prompt, quick annotator switching, and per-project history so previous names autofill.
 - **Video playback & navigation**: instant seek jumps, skip/play controls with FPS-aware playback, spacebar frame advance, go-to-frame (`Ctrl+G`), bookmarks with notes, and next/previous issue jumps.
 - **Bounding box editing**: rotated boxes with drag handles, keyboard nudging, zoom/pan, rectangle zoom, bbox review cycling, cascade edits, undo/redo, right-click context actions, and Delete-to-remove.
+- **Measure tool**: ephemeral pixel-distance measurements overlaid on the video (press `M` to toggle; not saved to the project).
 - **Repeat last adjustment**: press `R` to re-apply the same geometry delta (position, size, rotation) from the previous frame edit to the currently selected object — useful when correcting many consecutive annotations with similar offsets.
 - **Object management**: Active Objects list, object name/type editing, relationship viewer, and link-to-existing-ID workflow for both dynamic and static objects.
 - **Interpolation & relationships**: **Fix Range** wizard (formerly "Interpolate") with three methods — *Linear interpolation*, *Re-track forward*, and *Re-track backward* — plus ontology-backed relationship creation, deletion, restoration, and overlay visualisation.
@@ -86,7 +87,8 @@ The release binaries ship with the bundled assets used by the UI. When a new tag
 - The **Active Objects** list shows everything on the current frame. Selecting one highlights it, unlocks the **Object details** panel (rename, change type, view relationships), and synchronises the relationship list with the overlay. `Shift+click` an item to select it **and** zoom in to its bounding box.
 - Overlay controls:
   - Drag handles/edges to resize, drag the box to move, drag the rotation handle to rotate.
-  - Arrow keys nudge the box; hold `Shift` with ←/→ to rotate in small steps. When no box is selected and the view is zoomed in, arrow keys pan the view.
+  - Arrow keys nudge the box; hold `Shift` with ←/→ to rotate in the configured step. Hold `Ctrl+Shift` with ←/→ to rotate at 1/8 of that step for fine-tuning. When no box is selected and the view is zoomed in, arrow keys pan the view.
+  - The rotation handle (cyan circle above the top edge) has a longer stem for a greater lever arm, giving finer mouse-rotation control. Hold `Ctrl` while dragging the rotation handle to slow down rotation by 8× for precision work.
   - `Tab` / `Shift+Tab` cycles to the next/previous bounding box and zooms in to it, letting you review each bbox in turn without manual panning. `Ctrl+0` zooms back out.
   - `Delete` removes the selected box (undo restores it).
   - **Repeat last adjustment**: press `R` to re-apply the geometry delta (dx, dy, dw, dh, d-rotation) recorded from your most recent edit to the same object. The delta is the compound change made during the last frame visit (not just a single step), so multiple nudge/rotate steps are accumulated and can be replayed with one key press.
@@ -127,17 +129,27 @@ The `annotator` and `confidence` vec fields are auto-managed and shown as read-o
 
 For details on confidence values and multi-annotator tracking, see the [Schema documentation](../schema/README.md#annotator-and-confidence-fields).
 
-### 4.6 Confidence Issues
+### 4.6 Measure Tool
+
+Press **`M`** to toggle measure mode. The cursor changes to a crosshair and annotation editing is suspended.
+
+- **Left-click** places the first point; a second left-click places the endpoint and completes one measurement segment, showing a dashed white line and the pixel distance at the midpoint.
+- You can place multiple independent measurement pairs simultaneously — each completed pair stays visible until you exit.
+- **Right-click** (or `Escape` with one point already placed) cancels the in-progress pair without clearing completed ones.
+- **`Escape`** when no pair is in progress exits measure mode and clears all measurements.
+- Distances are reported in video pixels (`"1234 px"`). Measurements are ephemeral and are never saved to the project.
+
+### 4.7 Confidence Issues
 - Confidence markers are drawn when a bounding box’s stored confidence value falls inside the Warning or Error range you configured. Warnings show amber icons, errors show red icons, and both ranges also appear under the seek bar.
 - The **Confidence Issues** list in the sidebar shows every active warning/error near the current frame. Sort by frame or ID, multi-select rows, and right-click → *Mark as resolved* to confirm you have reviewed the issue.
 - The issue panel in the playback controls mirrors the same data and adds any enabled tag notes. Use the `Next/Previous issue` buttons to jump along the timeline.
 
 For details on how confidence values are generated and what they mean for different annotator types (YOLO, VLM, human), see the [Schema documentation](../schema/README.md#annotator-and-confidence-fields).
 
-### 4.7 Keyboard Shortcuts
+### 4.8 Keyboard Shortcuts
 Open `Help → Keyboard Shortcuts` to see a table of all available keyboard shortcuts.
 
-### 4.8 Saving Projects
+### 4.9 Saving Projects
 - `Ctrl+S`, `File → Save project`, or the Save toolbar icon writes the OpenLabel JSON back to disk. Before saving, the app validates action tags to ensure each interval has a valid start/end.
 - After saving annotations you are asked whether to store the current settings (zoom, warning ranges, tag toggles, namespace, bookmarks, etc.) inside `savant_project_config.json`. Choosing "Yes" means next time the project opens it will look exactly the same without further tweaks.
 
@@ -149,7 +161,7 @@ Open `File → Settings` to fine-tune the experience:
 
 - **Default zoom rate** – the rate at which the video is zoomed in to fit the video display area.
 - **Frame history** – how many earlier frames the “Link to existing ID” dialog inspects while suggesting dynamic objects.
-- **Movement/rotation sensitivity** – arrow-key increments for nudging and rotating.
+- **Movement/rotation sensitivity** – arrow-key increments for nudging and rotating. Rotation sensitivity can be set as low as 0.01 rad (~0.57°) for fine work; `Ctrl+Shift+←/→` always rotates at 1/8 of the configured step regardless of this setting.
 - **BBox zoom padding** – how much context to show around a bounding box when zooming to it (via `Shift+click` or `Tab`). Higher values show more surrounding area.
 - **Ontology namespace** – the namespace written when new entries are created.
 - **Action interval offset** – extends `New frame tag` start/end defaults equally before and after the current frame.

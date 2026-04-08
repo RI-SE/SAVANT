@@ -90,6 +90,13 @@ class Overlay(QWidget):
         self._pen_box_selected.setWidth(3)
         self._pen_relationship = QPen(QColor(255, 0, 255), 2)
 
+        # Measure mode
+        self._measure_active: bool = False
+        # Completed segments as (p1, p2) pairs in video-pixel coords
+        self._measure_segments: List[Tuple[Tuple[float, float], Tuple[float, float]]] = []
+        self._measure_pending: Tuple[float, float] | None = None  # first point of in-progress pair
+        self._measure_cursor: QPointF | None = None  # for rubber-band
+
         # Interaction state
         self._interactive: bool = True
         self._selected_idx: int | None = None
@@ -109,7 +116,7 @@ class Overlay(QWidget):
         self._pen_hover_edge.setWidth(5)
 
         # Rotation handle
-        self._rotate_handle_offset_px = 24
+        self._rotate_handle_offset_px = 50
         self._pen_rotate_handle = QPen(QColor(0, 200, 255))
         self._pen_rotate_handle.setWidth(2)
         self._brush_rotate_handle = QBrush(QColor(0, 200, 255))
@@ -230,6 +237,22 @@ class Overlay(QWidget):
         self._interactive = bool(enabled)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, not enabled)
 
+    def set_measure_mode(self, enabled: bool) -> None:
+        """Enable or disable ephemeral measure mode. Clears all measurements on exit."""
+        self._measure_active = bool(enabled)
+        if not enabled:
+            self._measure_segments.clear()
+            self._measure_pending = None
+            self._measure_cursor = None
+        self.setCursor(
+            Qt.CursorShape.CrossCursor if enabled else Qt.CursorShape.ArrowCursor
+        )
+        self.update()
+
+    def toggle_measure_mode(self) -> None:
+        """Toggle measure mode on/off."""
+        self.set_measure_mode(not self._measure_active)
+
     def set_confidence_flags(self, flags: ConfidenceFlagMap | None):
         """Map object_id -> 'warning' or 'error' for overlay icons."""
         self._bbox_flags = dict(flags) if flags else {}
@@ -294,6 +317,27 @@ class Overlay(QWidget):
 
     def mousePressEvent(self, ev):
         self.setFocus()
+
+        # --- Measure mode ---
+        if self._measure_active:
+            if ev.button() == Qt.MouseButton.LeftButton:
+                vp = self._display_to_video(ev.position().x(), ev.position().y())
+                pt = (vp.x(), vp.y())
+                if self._measure_pending is None:
+                    self._measure_pending = pt
+                else:
+                    self._measure_segments.append((self._measure_pending, pt))
+                    self._measure_pending = None
+                    self._measure_cursor = None
+                self.update()
+            elif ev.button() == Qt.MouseButton.RightButton:
+                # Cancel in-progress pair
+                self._measure_pending = None
+                self._measure_cursor = None
+                self.update()
+            ev.accept()
+            return
+
         if ev.button() in (Qt.MouseButton.MiddleButton,) or (
             ev.button() == Qt.MouseButton.LeftButton
             and (ev.modifiers() & Qt.KeyboardModifier.ControlModifier)
@@ -363,6 +407,13 @@ class Overlay(QWidget):
         ev.accept()
 
     def mouseMoveEvent(self, ev):
+        # Rubber-band tracking in measure mode
+        if self._measure_active:
+            if self._measure_pending is not None:
+                self._measure_cursor = ev.position()
+                self.update()
+            return
+
         if not self._interactive:
             return super().mouseMoveEvent(ev)
 
@@ -565,6 +616,10 @@ class Overlay(QWidget):
             incremental_delta -= 2 * math.pi
         if incremental_delta <= -math.pi:
             incremental_delta += 2 * math.pi
+
+        ctrl_held = bool(ev.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        if ctrl_held:
+            incremental_delta /= 8.0
 
         self._total_delta += incremental_delta
         self._last_mouseframe_angle = current_angle
@@ -875,6 +930,9 @@ class Overlay(QWidget):
                 TL, TR, BR, BL, mid_top,
             )
 
+        if self._measure_active:
+            self._paint_measurements(painter, scale, offset_x, offset_y)
+
         painter.end()
 
     def _paint_relationships(self, painter, scale: float, offset_x: float, offset_y: float) -> None:
@@ -893,6 +951,71 @@ class Overlay(QWidget):
                     offset_y + object_box.center_y * scale,
                 )
                 painter.drawLine(p1, p2)
+
+    def _paint_measurements(self, painter, scale: float, offset_x: float, offset_y: float) -> None:
+        """Draw all measure-mode segments plus rubber-band and endpoint dots."""
+        from PyQt6.QtGui import QFont
+
+        pen_line = QPen(QColor(255, 255, 255), 2)
+        pen_line.setStyle(Qt.PenStyle.DashLine)
+        pen_rubber = QPen(QColor(255, 255, 255), 1)
+        pen_rubber.setStyle(Qt.PenStyle.DotLine)
+        pen_dot = QPen(QColor(255, 255, 255), 2)
+        brush_dot = QBrush(QColor(255, 255, 255))
+        dot_r = 4.0
+
+        font = QFont()
+        font.setBold(True)
+        font.setPointSize(11)
+        painter.setFont(font)
+
+        def _to_disp(vx: float, vy: float) -> QPointF:
+            return QPointF(offset_x + vx * scale, offset_y + vy * scale)
+
+        def _draw_dot(pt: QPointF) -> None:
+            painter.setPen(pen_dot)
+            painter.setBrush(brush_dot)
+            painter.drawEllipse(QRectF(pt.x() - dot_r, pt.y() - dot_r, 2 * dot_r, 2 * dot_r))
+
+        def _draw_label(mid: QPointF, text: str) -> None:
+            metrics = painter.fontMetrics()
+            tw = metrics.horizontalAdvance(text)
+            th = metrics.height()
+            pad_x, pad_y = 6, 3
+            bx = mid.x() - tw / 2 - pad_x
+            by = mid.y() - th / 2 - pad_y
+            bw = tw + 2 * pad_x
+            bh = th + 2 * pad_y
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
+            painter.drawRoundedRect(QRectF(bx, by, bw, bh), 3, 3)
+            painter.setPen(QPen(QColor(255, 255, 255)))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawText(QRectF(bx, by, bw, bh), Qt.AlignmentFlag.AlignCenter, text)
+
+        # Completed segments
+        for (x1, y1), (x2, y2) in self._measure_segments:
+            p1d = _to_disp(x1, y1)
+            p2d = _to_disp(x2, y2)
+            painter.setPen(pen_line)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawLine(p1d, p2d)
+            _draw_dot(p1d)
+            _draw_dot(p2d)
+            dist_px = int(round(math.hypot(x2 - x1, y2 - y1)))
+            mid = QPointF((p1d.x() + p2d.x()) / 2, (p1d.y() + p2d.y()) / 2)
+            _draw_label(mid, f"{dist_px} px")
+
+        # Rubber-band for in-progress pair
+        if self._measure_pending is not None:
+            px1, py1 = self._measure_pending
+            p1d = _to_disp(px1, py1)
+            _draw_dot(p1d)
+            if self._measure_cursor is not None:
+                p2d = self._measure_cursor
+                painter.setPen(pen_rubber)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawLine(p1d, p2d)
 
     def _paint_bbox_label(
         self,
@@ -1051,6 +1174,17 @@ class Overlay(QWidget):
         return super().event(ev)
 
     def keyPressEvent(self, event):
+        # Escape in measure mode: cancel pending point or exit measure mode
+        if self._measure_active and event.key() == Qt.Key.Key_Escape:
+            if self._measure_pending is not None:
+                self._measure_pending = None
+                self._measure_cursor = None
+                self.update()
+            else:
+                self.set_measure_mode(False)
+            event.accept()
+            return
+
         if event.key() == Qt.Key.Key_Delete and not (
             event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
@@ -1098,10 +1232,14 @@ class Overlay(QWidget):
         new_center_y = selected_bbox.center_y
         new_theta = selected_bbox.theta
 
-        # Check if shift is pressed to choose if left and right arrow keys
-        # move or rotate the box.
+        mods = event.modifiers()
+        ctrl_shift = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+
         def _is_shift_pressed() -> bool:
-            return event.modifiers() == Qt.KeyboardModifier.ShiftModifier
+            return mods == Qt.KeyboardModifier.ShiftModifier
+
+        def _is_ctrl_shift_pressed() -> bool:
+            return mods == ctrl_shift
 
         match event.key():
             # note: Y-axis movement is inverted.
@@ -1110,12 +1248,16 @@ class Overlay(QWidget):
             case Qt.Key.Key_Down:
                 new_center_y += movement_step
             case Qt.Key.Key_Right:
-                if _is_shift_pressed():
+                if _is_ctrl_shift_pressed():
+                    new_theta += rotation_step / 8.0
+                elif _is_shift_pressed():
                     new_theta += rotation_step
                 else:
                     new_center_x += movement_step
             case Qt.Key.Key_Left:
-                if _is_shift_pressed():
+                if _is_ctrl_shift_pressed():
+                    new_theta -= rotation_step / 8.0
+                elif _is_shift_pressed():
                     new_theta -= rotation_step
                 else:
                     new_center_x -= movement_step

@@ -216,6 +216,9 @@ class MarkitConfig:
         self.no_frame_intervals = getattr(args, "no_frame_intervals", False)
         self.no_angle_normalization = getattr(args, "no_angle_normalization", False)
 
+        # Drone info for streams block
+        self.drone_info_path = getattr(args, "drone_info", None)
+
         # Logging configuration
         self.verbose = args.verbose if hasattr(args, "verbose") else False
 

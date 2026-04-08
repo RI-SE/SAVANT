@@ -31,10 +31,17 @@ _SHORTCUTS: list[tuple[str, str]] = [
     ("Ctrl+0", "Reset view (fit to default zoom)"),
     ("Ctrl+Scroll", "Zoom in / out"),
     ("Z", "Toggle rectangle zoom mode"),
+    # -- Measure tool --
+    ("", "Measure Tool"),
+    ("M", "Toggle measure mode (ephemeral, not saved)"),
+    ("Left-click (measure mode)", "Place measurement point; 2nd click completes a segment"),
+    ("Right-click / Escape (1 point placed)", "Cancel in-progress measurement pair"),
+    ("Escape (no pending point)", "Exit measure mode and clear all measurements"),
     # -- Annotation editing --
     ("", "Annotation Editing"),
     ("Arrow keys", "Move selected bounding box / pan view when zoomed in"),
     ("Shift+Left / Right", "Rotate selected bounding box"),
+    ("Ctrl+Shift+Left / Right", "Rotate selected bounding box (fine, 1/8 step)"),
     ("Shift+Click", "Select and zoom to bounding box (sidebar list)"),
     ("Tab", "Cycle to next bounding box (zoomed)"),
     ("Shift+Tab", "Cycle to previous bounding box (zoomed)"),

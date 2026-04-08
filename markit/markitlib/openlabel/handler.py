@@ -51,6 +51,16 @@ class NumpyEncoder(json.JSONEncoder):
         return super().iterencode(round_floats(obj), _one_shot)
 
 
+def _frame_to_timestamp(frame_idx: int, fps: float) -> str:
+    """Convert a frame index to a timestamp string (HH:MM:SS.ffffff)."""
+    from datetime import timedelta
+    td = timedelta(seconds=frame_idx / fps)
+    total_seconds = int(td.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{td.microseconds:06d}"
+
+
 class OpenLabelHandler:
     """Handles OpenLabel JSON structure creation and management."""
 
@@ -69,7 +79,12 @@ class OpenLabelHandler:
         self._class_translation_count = (
             0  # Counter for verbose class translation logging
         )
+        self._fps: Optional[float] = None
         self.initialize_from_schema()
+
+    def set_fps(self, fps: float) -> None:
+        """Set video FPS so frame timestamps can be written."""
+        self._fps = fps if fps and fps > 0 else None
 
     def initialize_from_schema(self) -> None:
         """Initialize OpenLabel structure from schema."""
@@ -398,9 +413,12 @@ class OpenLabelHandler:
 
         # Only add frame if there are objects (matching original behavior)
         if seen_object:
-            self.openlabel_data["openlabel"]["frames"][str(frame_idx)] = {
-                "objects": frame_objects
-            }
+            frame_entry: Dict[str, Any] = {"objects": frame_objects}
+            if self._fps:
+                frame_entry["frame_properties"] = {
+                    "timestamp": _frame_to_timestamp(frame_idx, self._fps)
+                }
+            self.openlabel_data["openlabel"]["frames"][str(frame_idx)] = frame_entry
 
     def _detection_to_xywhr(self, detection: DetectionResult, frame_idx: int) -> List:
         """Convert DetectionResult to OpenLabel xywhr format.
@@ -508,6 +526,15 @@ class OpenLabelHandler:
 
         self.openlabel_data["openlabel"]["ontologies"][ontology_uid] = ontology_uri
         logger.debug(f"Added ontology {ontology_uid}: {ontology_uri}")
+
+    def add_streams(self, streams: Dict[str, Any]) -> None:
+        """Add streams block to OpenLabel structure.
+
+        Args:
+            streams: Dict mapping stream name to stream metadata
+        """
+        self.openlabel_data["openlabel"]["streams"] = streams
+        logger.info(f"Added {len(streams)} stream(s) to OpenLabel structure")
 
     def save_to_file(self, output_path: str) -> None:
         """Save OpenLabel data to JSON file.

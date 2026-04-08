@@ -12,10 +12,11 @@ Markit is a command-line tool for detecting and tracking objects using oriented 
 - **VLM Scene Analysis** - Automatic scenario tagging using Vision Language Models (BSI PAS-1883 ODD taxonomy)
 - **Conflict Resolution** - IoU-based merging when engines detect the same object
 - **Oriented Bounding Boxes** - Proper rotation handling with continuous angle tracking
-- **OpenLabel Export** - Schema-validated JSON output
+- **OpenLabel Export** - Schema-validated JSON output with per-frame timestamps and optional drone stream metadata
 - **Postprocessing Pipeline** - Gap filling, duplicate removal, rotation smoothing, static object handling
 - **Provenance Tracking** - W3C PROV-JSON format via dataprov
 - **Video Rendering** - Optional annotated output video with drawn detections
+- **Drone Info** - Optionally populate a `streams` block from a DJI flight record for richer metadata
 
 ## Contents
 
@@ -337,7 +338,7 @@ See `markit/markitlib/vlm/prompts/default_prompts.json` for the expected format.
 
 ## Output Format
 
-Markit exports detections in OpenLabel (subset) JSON format, including information on annotator and confidence in annotation accuracy.
+Markit exports detections in OpenLabel (subset) JSON format, including information on annotator and confidence in annotation accuracy. Each frame entry includes a `frame_properties.timestamp` (starting at `"00:00:00.000000"` for frame 0) derived from the video FPS, so downstream tools can work with video time rather than just frame numbers.
 
 ### JSON Structure
 
@@ -355,7 +356,31 @@ Markit exports detections in OpenLabel (subset) JSON format, including informati
         "tracking"
       ]
     },
-    "ontologies": {},
+    "ontologies": {
+      "0": "https://ri-se.github.io/SAVANT/ontology/savant#",
+      "1": "https://github.com/RI-SE/SAVANT/tree/main/ontology/savant-scenario#"
+    },
+    "streams": {
+      "drone_camera": {
+        "type": "camera",
+        "description": "Mavic3Pro standard lens",
+        "uri": "Saro_roundabout.mp4",
+        "stream_properties": {
+          "sync": { "frame_rate": 25.0 },
+          "drone_type": "Mavic3Pro",
+          "lens_type": "standard",
+          "recording_start": "2025-11-18T22:21:57.044Z",
+          "recording_end": "2025-11-18T22:35:13.611Z",
+          "position": {
+            "latitude_mean_deg": 57.7425,
+            "longitude_mean_deg": 12.8946,
+            "altitude_msl_mean_m": 434.59,
+            "height_agl_mean_m": 119.66
+          },
+          "gimbal_pitch_mean_deg": -83.1
+        }
+      }
+    },
     "objects": {
       "1": {
         "name": "Object-1",
@@ -368,9 +393,12 @@ Markit exports detections in OpenLabel (subset) JSON format, including informati
           }
         ]
       }
-    }
+    },
     "frames": {
       "0": {
+        "frame_properties": {
+          "timestamp": "00:00:00.000000"
+        },
         "objects": {
           "1": {
             "object_data": {
@@ -404,9 +432,12 @@ Markit exports detections in OpenLabel (subset) JSON format, including informati
           }
         }
       }
-   }
+    }
+  }
 }
 ```
+
+The `streams` block is optional and only written when `--drone-info` is provided (see [Configuration Reference](#configuration-reference)).
 
 ### Annotator and Confidence
 
@@ -543,6 +574,7 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--aruco-csv` | - | CSV with ArUco marker positions |
 | `--visual-markers` | - | CSV with visual marker positions (same format as ArUco) |
 | `--provenance` | - | Provenance chain file path |
+| `--drone-info` | - | Path to a DJI `FlightRecord*.video_stats.json` file; adds a `streams` block with camera and flight metadata to the OpenLabel output |
 
 ### Detection Options
 
