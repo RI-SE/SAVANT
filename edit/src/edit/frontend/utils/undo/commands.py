@@ -10,6 +10,7 @@ from .snapshots import (
     BBoxGeometrySnapshot,
     CreatedObjectSnapshot,
     CreatedRelationshipSnapshot,
+    EditFrameTagSnapshot,
     FrameObjectSnapshot,
     FrameTagSnapshot,
     ObjectMetadataSnapshot,
@@ -589,6 +590,24 @@ class RemoveFrameTagCommand:
         if gateway is None:
             raise RuntimeError("No frame tag gateway configured.")
         gateway.add_frame_tag(self.snapshot)
+
+
+@dataclass
+class EditFrameTagCommand:
+    snapshot: EditFrameTagSnapshot
+    description: str = "Edit frame tag"
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.frame_tag_gateway
+        if gateway is None:
+            raise RuntimeError("No frame tag gateway configured.")
+        gateway.edit_frame_tag(self.snapshot.old, self.snapshot.new)
+
+    def undo(self, context: GatewayHolder) -> None:
+        gateway = context.frame_tag_gateway
+        if gateway is None:
+            raise RuntimeError("No frame tag gateway configured.")
+        gateway.edit_frame_tag(self.snapshot.new, self.snapshot.old)
 
 
 @dataclass

@@ -280,6 +280,20 @@ class AnnotationController:
         )
 
     @error_handler
+    def update_frame_tag(
+        self,
+        old_tag_name: str,
+        old_start: int,
+        old_end: int,
+        new_tag_name: str,
+        new_start: int,
+        new_end: int,
+    ) -> bool:
+        return self.annotation_service.update_frame_tag(
+            old_tag_name, old_start, old_end, new_tag_name, new_start, new_end
+        )
+
+    @error_handler
     def delete_bboxes_by_object(
         self, object_key: str
     ) -> list[tuple[int, FrameLevelObject]]:

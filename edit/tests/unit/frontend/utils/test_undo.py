@@ -341,3 +341,59 @@ def test_cascade_delta_bbox_command_undo_before_do_is_noop():
 
     for f in gateway.geometries:
         assert gateway.geometries[f].center_x == pytest.approx(original[f].center_x)
+
+
+class TestEditFrameTagCommand:
+    """Tests for EditFrameTagCommand execute/undo round-trip."""
+
+    def _make_context(self):
+        from unittest.mock import MagicMock
+        from edit.frontend.utils.undo.gateways import GatewayHolder, FrameTagGateway
+        gateway = MagicMock(spec=FrameTagGateway)
+        annotation_gateway = MagicMock()
+        annotation_gateway.capture_geometry = MagicMock()
+        holder = GatewayHolder(
+            annotation_gateway=annotation_gateway,
+            frame_tag_gateway=gateway,
+        )
+        return holder, gateway
+
+    def test_do_calls_edit_frame_tag(self):
+        from edit.frontend.utils.undo import (
+            EditFrameTagCommand, EditFrameTagSnapshot, FrameTagSnapshot
+        )
+        old = FrameTagSnapshot("lanechange", 0, 10)
+        new = FrameTagSnapshot("overtake", 0, 10)
+        cmd = EditFrameTagCommand(EditFrameTagSnapshot(old=old, new=new))
+        ctx, gateway = self._make_context()
+        cmd.do(ctx)
+        gateway.edit_frame_tag.assert_called_once_with(old, new)
+
+    def test_undo_reverses_edit(self):
+        from edit.frontend.utils.undo import (
+            EditFrameTagCommand, EditFrameTagSnapshot, FrameTagSnapshot
+        )
+        old = FrameTagSnapshot("lanechange", 0, 10)
+        new = FrameTagSnapshot("overtake", 0, 10)
+        cmd = EditFrameTagCommand(EditFrameTagSnapshot(old=old, new=new))
+        ctx, gateway = self._make_context()
+        cmd.do(ctx)
+        cmd.undo(ctx)
+        assert gateway.edit_frame_tag.call_count == 2
+        calls = gateway.edit_frame_tag.call_args_list
+        assert calls[1].args == (new, old)
+
+    def test_no_gateway_raises(self):
+        from edit.frontend.utils.undo import (
+            EditFrameTagCommand, EditFrameTagSnapshot, FrameTagSnapshot
+        )
+        from unittest.mock import MagicMock
+        from edit.frontend.utils.undo.gateways import GatewayHolder
+        old = FrameTagSnapshot("lanechange", 0, 10)
+        new = FrameTagSnapshot("overtake", 0, 10)
+        cmd = EditFrameTagCommand(EditFrameTagSnapshot(old=old, new=new))
+        annotation_gateway = MagicMock()
+        annotation_gateway.capture_geometry = MagicMock()
+        ctx = GatewayHolder(annotation_gateway=annotation_gateway)
+        with pytest.raises(RuntimeError, match="No frame tag gateway"):
+            cmd.do(ctx)

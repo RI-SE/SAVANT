@@ -688,3 +688,49 @@ class TestCalculateRelationFrameInterval:
         intervals = annotation_service._calculate_relation_frame_interval("1", "2")
 
         assert intervals == []
+
+
+class TestUpdateFrameTag:
+    """Tests for AnnotationService.update_frame_tag."""
+
+    @pytest.fixture
+    def service_with_tag(self, annotation_service, mock_project_state):
+        from types import SimpleNamespace
+        from edit.models.OpenLabel import ActionMetadata, FrameInterval
+        config = SimpleNamespace(
+            actions={
+                "lanechange": ActionMetadata(
+                    name="lanechange",
+                    type="FrameTag",
+                    frame_intervals=[FrameInterval(frame_start=10, frame_end=20)],
+                )
+            }
+        )
+        mock_project_state.annotation_config = config
+        return annotation_service
+
+    def test_update_changes_range(self, service_with_tag, mocker):
+        mocker.patch.object(service_with_tag, "get_frame_tags", return_value=["lanechange"])
+        result = service_with_tag.update_frame_tag("lanechange", 10, 20, "lanechange", 5, 15)
+        assert result is True
+        intervals = service_with_tag.project_state.annotation_config.actions["lanechange"].frame_intervals
+        assert len(intervals) == 1
+        assert intervals[0].frame_start == 5
+        assert intervals[0].frame_end == 15
+
+    def test_update_changes_tag_type(self, service_with_tag, mocker):
+        mocker.patch.object(
+            service_with_tag, "get_frame_tags", return_value=["lanechange", "overtake"]
+        )
+        result = service_with_tag.update_frame_tag("lanechange", 10, 20, "overtake", 10, 20)
+        assert result is True
+        config = service_with_tag.project_state.annotation_config
+        assert "lanechange" not in (config.actions or {})
+        assert "overtake" in config.actions
+        intervals = config.actions["overtake"].frame_intervals
+        assert intervals[0].frame_start == 10
+
+    def test_update_returns_false_when_old_tag_missing(self, service_with_tag, mocker):
+        mocker.patch.object(service_with_tag, "get_frame_tags", return_value=["lanechange"])
+        result = service_with_tag.update_frame_tag("lanechange", 0, 5, "lanechange", 0, 5)
+        assert result is False

@@ -118,3 +118,23 @@ class TestAnnotationController:
             {"type": "box", "name": "box_1"},
             {"type": "box", "name": "box_2"},
         ]
+
+
+class TestUpdateFrameTagController:
+    """Tests that update_frame_tag delegates to the service."""
+
+    @pytest.fixture
+    def mock_annotation_service(self):
+        return MagicMock(spec=AnnotationService)
+
+    @pytest.fixture
+    def annotation_controller(self, mock_annotation_service):
+        return AnnotationController(annotation_service=mock_annotation_service)
+
+    def test_update_frame_tag_delegates(self, annotation_controller, mock_annotation_service):
+        mock_annotation_service.update_frame_tag.return_value = True
+        result = annotation_controller.update_frame_tag("lanechange", 0, 10, "overtake", 0, 10)
+        mock_annotation_service.update_frame_tag.assert_called_once_with(
+            "lanechange", 0, 10, "overtake", 0, 10
+        )
+        assert result is True
