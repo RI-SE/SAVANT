@@ -93,8 +93,14 @@ class TestInterpolateAnnotations:
         assert all(b["rotation"] == 0 for b in result)
 
     def test_rotation_wrapping(self):
-        start_bbox = {"x_center": 0, "y_center": 0, "rotation": 350}
-        end_bbox = {"x_center": 0, "y_center": 0, "rotation": 10}
+        """Shortest-path interpolation in radians: values close in angle must not rotate far."""
+        import math
+        # Simulate the real bug: 7.596 rad ≈ 75°, 1.397 rad ≈ 80° — only ~5° apart.
+        # Before the fix the service produced a ~355° backward rotation.
+        start_rot = 7.59592698725086
+        end_rot = 1.3966128312587314
+        start_bbox = {"x_center": 0, "y_center": 0, "rotation": start_rot}
+        end_bbox = {"x_center": 0, "y_center": 0, "rotation": end_rot}
         num_frames = 5
 
         result = InterpolationService.interpolate_annotations(
@@ -102,13 +108,22 @@ class TestInterpolateAnnotations:
         )
 
         rotations = [b["rotation"] for b in result]
-        rotation_diff = ((10 - 350 + 180) % 360) - 180
-        expected_rotations = [
-            (350 + rotation_diff * factor) % 360
-            for factor in np.linspace(0, 1, num_frames + 2)[1:-1]
-        ]
+        # Each interpolated rotation should stay close to the start/end (~75-80°).
+        for r in rotations:
+            r_deg = math.degrees(r)
+            # Must be near 75°-80°, not spinning through 355° the wrong way.
+            assert 70 <= r_deg <= 85, f"Unexpected rotation {r_deg:.1f}° (expected ~75-80°)"
 
-        assert np.allclose(rotations, expected_rotations)
+        # Also verify the cross-zero case: 350° → 10° in radians (≈ +20° forward, not -340°).
+        start_rad = math.radians(350)
+        end_rad = math.radians(10)
+        start_bbox2 = {"x_center": 0, "y_center": 0, "rotation": start_rad}
+        end_bbox2 = {"x_center": 0, "y_center": 0, "rotation": end_rad}
+        result2 = InterpolationService.interpolate_annotations(start_bbox2, end_bbox2, 5)
+        for b in result2:
+            r_deg = math.degrees(b["rotation"])
+            # Should pass through ~350-360/0-10°, not backwards through ~170-350°.
+            assert r_deg > 345 or r_deg < 15, f"Unexpected rotation {r_deg:.1f}°"
 
     def test_zero_frames(self, sample_bbox):
         result = InterpolationService.interpolate_annotations(
