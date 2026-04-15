@@ -10,7 +10,8 @@ The postprocessing pipeline runs when `--housekeeping` is enabled. Passes execut
 ```
 GapDetection → GapFilling → DuplicateRemoval → StaticObjectRemoval →
 FirstDetectionRefinement → BboxSmoothing → RotationAdjustment →
-SuddenDetection → FrameInterval → AngleNormalization
+AngleSplineInterpolation (opt-in) → SuddenDetection → FrameInterval →
+AngleNormalization
 ```
 
 ---
@@ -229,6 +230,36 @@ SuddenDetection → FrameInterval → AngleNormalization
 
 ---
 
+### AngleSplineInterpolationPass
+
+**Purpose:** Derives bounding box heading angles from a cubic spline fitted to the object's trajectory. Instead of using frame-to-frame movement direction (like RotationAdjustmentPass), this pass fits a smooth parametric curve through all centre positions and orients each bbox along the tangent of that curve.
+
+**When to use:** This is an **opt-in** pass, enabled with `--angle-spline-interpolation S`. It runs after RotationAdjustmentPass and overrides any previous rotation values. Use it when you want globally smooth heading angles that follow the overall trajectory shape rather than local frame-to-frame estimates.
+
+**Algorithm:**
+1. For each tracked object, collect the (x, y) centre coordinates across all frames, sorted by frame index
+2. Remove consecutive duplicate positions (vehicle stopped in place)
+3. If fewer than 4 unique positions remain, skip the object (cubic spline requires ≥ 4 points)
+4. Fit a parametric cubic spline: `splprep([x, y], s=smoothing_factor, k=3)`
+5. Evaluate the first derivative at each knot: `splev(u, tck, der=1)` → `(dx, dy)`
+6. Compute heading angles: `atan2(dy, dx)`
+7. Forward-fill: frames with duplicate positions (stationary vehicle) receive the angle of the last moving position
+8. Write angles back to each bbox and ensure width ≥ height (long axis aligned with heading)
+
+**Parameters:**
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `smoothing_factor` | (user-specified) | The `s` parameter for `scipy.interpolate.splprep`. `0` = exact interpolation through all points; larger values produce smoother curves that may not pass through every point. |
+
+**Annotator:** Modified frames are marked with `markit_housekeeping(spline)`.
+
+**Statistics:**
+- `objects_processed`: Objects with spline-fitted angles
+- `objects_skipped`: Objects with fewer than 4 unique positions
+- `angles_updated`: Total bbox angles modified
+
+---
+
 ### SuddenPass
 
 **Purpose:** Detects objects that suddenly appear or disappear far from frame edges, which may indicate tracking errors or unusual events.
@@ -296,6 +327,7 @@ Each pass that modifies data adds an annotator marker to track provenance:
 | `markit_housekeeping(gap)` | GapFillingPass | 0.6666 |
 | `markit_housekeeping(smooth)` | BboxSmoothingPass | (unchanged) |
 | `markit_housekeeping(rot)` | RotationAdjustmentPass | 0.8888 |
+| `markit_housekeeping(spline)` | AngleSplineInterpolationPass | (unchanged) |
 
 ---
 
@@ -308,6 +340,13 @@ Each pass that modifies data adds an annotator marker to track provenance:
 ### Reducing Rotation Jitter
 - Increase `rotation_smoothing` in RotationAdjustmentPass (try 0.6-0.7)
 - Increase `min_movement_pixels` to ignore small movements
+- Consider using `--angle-spline-interpolation 0` for globally smooth angles derived from trajectory shape
+
+### Spline Angle Interpolation
+- Use `--angle-spline-interpolation 0` for exact interpolation through all trajectory points
+- Increase the smoothing factor (e.g. 10, 100) to tolerate noisy detections — the spline will approximate rather than pass through every point
+- Objects with fewer than 4 unique positions (stationary or very short tracks) are automatically skipped
+- This pass overrides RotationAdjustmentPass angles; use one or the other for best results
 
 ### Edge Artifacts
 - Increase `edge_margin` if objects show size jumps when entering/leaving frame
