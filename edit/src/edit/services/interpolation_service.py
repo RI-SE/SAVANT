@@ -1,5 +1,6 @@
 from typing import Union, List, Dict, Tuple
 import numpy as np
+from scipy.interpolate import splev, splprep
 
 
 class InterpolationService:
@@ -72,3 +73,62 @@ class InterpolationService:
             }
             interpolated_bboxes.append(bbox)
         return interpolated_bboxes
+
+    @staticmethod
+    def _deduplicate_positions(
+        xs: List[float], ys: List[float]
+    ) -> Tuple[List[float], List[float], List[int]]:
+        """Remove consecutive duplicate (x, y) positions.
+
+        Returns deduplicated x/y lists and a mapping from each original
+        index to the corresponding unique-point index (for forward-filling).
+        """
+        unique_xs: List[float] = []
+        unique_ys: List[float] = []
+        orig_to_unique: List[int] = []
+
+        for x, y in zip(xs, ys):
+            if not unique_xs or (x != unique_xs[-1] or y != unique_ys[-1]):
+                unique_xs.append(x)
+                unique_ys.append(y)
+            orig_to_unique.append(len(unique_xs) - 1)
+
+        return unique_xs, unique_ys, orig_to_unique
+
+    @staticmethod
+    def spline_interpolate_angles(
+        positions: List[Tuple[float, float]],
+        smoothing_factor: float = 0.0,
+    ) -> List[float]:
+        """Compute heading angles from a spline fit to (x, y) positions.
+
+        Consecutive duplicate positions are deduplicated before fitting;
+        the resulting angles are forward-filled back to the original length.
+
+        Returns a list of angles in radians, one per input position.
+        Raises ValueError if fewer than 4 unique positions are available.
+        """
+        if len(positions) < 1:
+            raise ValueError("At least one position is required.")
+
+        xs = [p[0] for p in positions]
+        ys = [p[1] for p in positions]
+
+        unique_xs, unique_ys, orig_to_unique = (
+            InterpolationService._deduplicate_positions(xs, ys)
+        )
+
+        if len(unique_xs) < 4:
+            raise ValueError(
+                f"Need at least 4 unique positions for cubic spline, "
+                f"got {len(unique_xs)}."
+            )
+
+        tck, u = splprep(
+            [unique_xs, unique_ys], s=smoothing_factor, k=3
+        )
+        dx, dy = splev(u, tck, der=1)
+        unique_angles = np.arctan2(dy, dx).tolist()
+
+        # Forward-fill angles for deduplicated positions
+        return [unique_angles[orig_to_unique[i]] for i in range(len(positions))]

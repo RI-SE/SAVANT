@@ -134,6 +134,15 @@ class AnnotationGateway(Protocol):
         object_object_id: str,
     ) -> None: ...
 
+    def spline_interpolate_angles(
+        self,
+        object_id: str,
+        smoothing_factor: float,
+        annotator: str,
+        start_frame: Optional[int],
+        end_frame: Optional[int],
+    ) -> List[int]: ...
+
 
 @runtime_checkable
 class FrameTagGateway(Protocol):
@@ -491,6 +500,25 @@ class ControllerAnnotationGateway:
             ontology_uid,
             subject_object_id,
             object_object_id,
+        )
+
+    def spline_interpolate_angles(
+        self,
+        object_id: str,
+        smoothing_factor: float,
+        annotator: str,
+        start_frame: Optional[int],
+        end_frame: Optional[int],
+    ) -> List[int]:
+        return list(
+            self.annotation_controller.spline_interpolate_angles(
+                object_id=object_id,
+                smoothing_factor=smoothing_factor,
+                annotator=annotator,
+                start_frame=start_frame,
+                end_frame=end_frame,
+            )
+            or []
         )
 
 

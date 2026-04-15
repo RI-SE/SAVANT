@@ -22,6 +22,7 @@ from ._annotation_tracking_ops import (
     _start_tracking,
     _start_tracking_to_frame,
 )
+from ._annotation_spline_ops import _open_spline_angle_dialog
 
 
 def _mark_confidence_issue_resolved(
@@ -122,6 +123,13 @@ def _build_bbox_context_menu(main_window, obj_id, overlay_widget, current_frame)
             context_menu.addSeparator()
             action_copy_prev = context_menu.addAction("Copy from previous frame")
 
+    action_spline_angles = None
+    if obj_id:
+        context_menu.addSeparator()
+        action_spline_angles = context_menu.addAction(
+            "Spline interpolate angles\u2026"
+        )
+
     actions = {
         "delete_single": action_delete_single,
         "delete_cascade": action_delete_cascade,
@@ -136,6 +144,7 @@ def _build_bbox_context_menu(main_window, obj_id, overlay_widget, current_frame)
         "mark_resolved": mark_resolved_action,
         "link_ids": link_ids_action,
         "copy_prev": action_copy_prev,
+        "spline_angles": action_spline_angles,
         "available_ids": available_ids,  # type: ignore[dict-item]
     }
     return context_menu, actions
@@ -193,6 +202,9 @@ def _dispatch_bbox_context_action(
         _start_tracking_to_frame(main_window, obj_id, "backward", frontend_state)
     elif selected_action == actions["copy_prev"]:
         _copy_bbox_from_previous_frame(main_window, obj_id, frontend_state)
+    elif selected_action == actions["spline_angles"]:
+        if obj_id:
+            _open_spline_angle_dialog(main_window, frontend_state, obj_id)
 
 
 def _on_overlay_context_menu(main_window, frontend_state, click_position):

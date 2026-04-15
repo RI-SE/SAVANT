@@ -2168,6 +2168,8 @@ edit = [
     { name = "pydantic" },
     { name = "pyqt6" },
     { name = "rdflib" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.16.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 markit = [
     { name = "dataprov" },
@@ -2240,6 +2242,7 @@ edit = [
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pyqt6", specifier = "<=6.9.1" },
     { name = "rdflib", specifier = ">=7.2.1" },
+    { name = "scipy", specifier = ">=1.10.0" },
 ]
 markit = [
     { name = "dataprov", specifier = ">=3.0.2" },
