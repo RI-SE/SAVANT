@@ -23,6 +23,7 @@ from .passes import (
     StaticObjectRemovalPass,
     ShortDurationPass,
     AngleNormalizationPass,
+    AngleSplineInterpolationPass,
 )
 from .pipeline import PostprocessingPipeline
 
@@ -43,5 +44,6 @@ __all__ = [
     "StaticObjectRemovalPass",
     "ShortDurationPass",
     "AngleNormalizationPass",
+    "AngleSplineInterpolationPass",
     "PostprocessingPipeline",
 ]

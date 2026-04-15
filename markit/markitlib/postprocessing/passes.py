@@ -22,4 +22,5 @@ from ._passes import (  # noqa: F401
     Rotation90JumpFixPass,
     RotationTemporalSmoothingPass,
     AngleNormalizationPass,
+    AngleSplineInterpolationPass,
 )

@@ -13,6 +13,7 @@ from .size_step_detection import SizeStepDetectionPass
 from .rotation_90_jump_fix import Rotation90JumpFixPass
 from .rotation_temporal_smoothing import RotationTemporalSmoothingPass
 from .angle_normalization import AngleNormalizationPass
+from .angle_spline_interpolation import AngleSplineInterpolationPass
 
 __all__ = [
     "GapDetectionPass",
@@ -30,4 +31,5 @@ __all__ = [
     "Rotation90JumpFixPass",
     "RotationTemporalSmoothingPass",
     "AngleNormalizationPass",
+    "AngleSplineInterpolationPass",
 ]

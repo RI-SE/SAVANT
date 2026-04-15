@@ -27,6 +27,7 @@ markit = [
     "lap>=0.5.12",
     "opencv-contrib-python>=4.5.0",
     "numpy",
+    "scipy>=1.10.0",
     "pyyaml",
     "pydantic>=2.0",
     "rdflib",
