@@ -898,6 +898,56 @@ class AnnotationService:
         """Check if annotation is interpolated at given frame"""
         return (frame_num, object_id) in self.project_state.interpolation_metadata
 
+    def apply_spline_angle_interpolation(
+        self,
+        object_id: str,
+        smoothing_factor: float,
+        annotator: str,
+        start_frame: Optional[int] = None,
+        end_frame: Optional[int] = None,
+    ) -> List[int]:
+        """Orient bounding box angles along a spline fitted to the trajectory.
+
+        Returns a sorted list of frame numbers whose angles were modified.
+        """
+        all_frames = self.frames_for_object(object_id)
+        if not all_frames:
+            raise ObjectNotFoundError(
+                f"Object '{object_id}' has no frames."
+            )
+
+        if start_frame is not None and end_frame is not None:
+            frames = [
+                f for f in all_frames
+                if start_frame <= f <= end_frame
+            ]
+        else:
+            frames = list(all_frames)
+
+        if not frames:
+            raise InvalidFrameRangeError(
+                "No frames for this object in the given range."
+            )
+
+        positions = []
+        for frame_idx in frames:
+            bbox = self.get_bbox(frame_idx, object_id)
+            positions.append((float(bbox.x_center), float(bbox.y_center)))
+
+        angles = InterpolationService.spline_interpolate_angles(
+            positions, smoothing_factor
+        )
+
+        for frame_idx, angle in zip(frames, angles):
+            self.move_resize_bbox(
+                frame_key=frame_idx,
+                object_key=object_id,
+                rotation=angle,
+                annotator=annotator,
+            )
+
+        return frames
+
     def add_object_relationship(
         self,
         relationship_type: str,

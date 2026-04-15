@@ -847,3 +847,79 @@ class RetrackRangeCommand:
         for frame_idx, snapshot in self._before_snapshots.items():
             if snapshot is not None:
                 gateway.restore_bbox(snapshot.clone())
+
+
+@dataclass
+class SplineAngleCommand:
+    """Undoable command that orients bbox angles along a spline trajectory."""
+
+    object_id: str
+    smoothing_factor: float
+    annotator: str
+    start_frame: Optional[int] = None
+    end_frame: Optional[int] = None
+    description: str = "Spline angle interpolation"
+    _before: Dict[int, BBoxGeometrySnapshot] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _after: Dict[int, BBoxGeometrySnapshot] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _modified_frames: List[int] = field(
+        default_factory=list, init=False, repr=False
+    )
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+
+        if not self._before:
+            # First execution: capture before-state
+            frames = gateway.frames_for_object(self.object_id)
+            if self.start_frame is not None and self.end_frame is not None:
+                frames = [
+                    f for f in frames
+                    if self.start_frame <= f <= self.end_frame
+                ]
+            self._before = {
+                frame: gateway.capture_geometry(frame, self.object_id)
+                for frame in frames
+            }
+
+            modified = gateway.spline_interpolate_angles(
+                object_id=self.object_id,
+                smoothing_factor=self.smoothing_factor,
+                annotator=self.annotator,
+                start_frame=self.start_frame,
+                end_frame=self.end_frame,
+            )
+            self._modified_frames = list(modified)
+            self._after = {
+                frame: gateway.capture_geometry(frame, self.object_id)
+                for frame in modified
+            }
+            return
+
+        # Re-do: apply stored after-state
+        for frame, geometry in self._after.items():
+            gateway.apply_geometry(
+                frame_number=frame,
+                object_id=self.object_id,
+                geometry=geometry,
+                annotator=self.annotator,
+            )
+
+    def undo(self, context: GatewayHolder) -> None:
+        if not self._before:
+            return
+        gateway = context.annotation_gateway
+        for frame, geometry in self._before.items():
+            gateway.apply_geometry(
+                frame_number=frame,
+                object_id=self.object_id,
+                geometry=geometry,
+                annotator=self.annotator,
+            )
+
+    @property
+    def modified_frames(self) -> Sequence[int]:
+        return tuple(self._modified_frames)
