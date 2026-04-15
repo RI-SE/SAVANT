@@ -69,6 +69,7 @@ Postprocessing (Housekeeping):
     --no-size-step-detection  Disable size step detection pass
     --no-frame-intervals  Disable frame intervals pass
     --no-angle-normalization  Disable angle normalization pass
+    --angle-spline-interpolation S  Enable spline-based angle interpolation (S = splprep smoothing factor)
 
 VLM Scene Analysis:
     --vlm                Enable VLM-based scene analysis for scenario tagging
@@ -129,6 +130,7 @@ from markit.markitlib.postprocessing import (
     StaticObjectRemovalPass,
     ShortDurationPass,
     AngleNormalizationPass,
+    AngleSplineInterpolationPass,
 )
 
 # Configure logging
@@ -531,6 +533,11 @@ Examples:
         "--no-angle-normalization", action="store_true",
         help="Disable angle normalization pass",
     )
+    postproc.add_argument(
+        "--angle-spline-interpolation", type=float, default=None, metavar="S",
+        help="Enable spline-based angle interpolation. S is the smoothing factor "
+             "for scipy splprep (0 = exact interpolation, larger = smoother).",
+    )
 
     # Logging and debug
     logging_group = parser.add_argument_group("Logging and Debug")
@@ -613,6 +620,10 @@ def build_arguments_string(args: argparse.Namespace) -> str:
         ]:
             if getattr(args, flag, False):
                 parts.append(f"--{flag.replace('_', '-')}")
+        # Record spline interpolation if enabled
+        spline_s = getattr(args, "angle_spline_interpolation", None)
+        if spline_s is not None:
+            parts.append(f"--angle-spline-interpolation {spline_s}")
     if args.output_video:
         parts.append(f"--output_video {args.output_video}")
     if args.aruco_csv:
@@ -865,6 +876,14 @@ def main():
                         min_total_movement=config.min_total_movement,
                         temporal_smoothing=config.rotation_smoothing,
                         max_rotation_change=config.max_rotation_change,
+                    )
+                )
+
+            # 8b. Spline-based angle interpolation (opt-in)
+            if config.angle_spline_smoothing is not None:
+                postprocessing_pipeline.add_pass(
+                    AngleSplineInterpolationPass(
+                        smoothing_factor=config.angle_spline_smoothing,
                     )
                 )
 

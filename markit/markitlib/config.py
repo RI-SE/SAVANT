@@ -215,6 +215,7 @@ class MarkitConfig:
         self.no_size_step_detection = getattr(args, "no_size_step_detection", False)
         self.no_frame_intervals = getattr(args, "no_frame_intervals", False)
         self.no_angle_normalization = getattr(args, "no_angle_normalization", False)
+        self.angle_spline_smoothing = getattr(args, "angle_spline_interpolation", None)
 
         # Drone info for streams block
         self.drone_info_path = getattr(args, "drone_info", None)
