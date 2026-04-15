@@ -154,6 +154,7 @@ markit --input video.mp4 --output_json output.json --housekeeping
 | First Detection Refinement | Refines initial detection angles using lookahead |
 | Bbox Smoothing | Applies temporal smoothing to position and size (reduces jitter) |
 | Rotation Adjustment | Smooths rotation using movement direction |
+| Angle Spline Interpolation | Derives bbox angles from spline-fitted trajectories (opt-in) |
 | Sudden Detection | Flags objects appearing/disappearing far from frame edges |
 | Frame Interval | Calculates frame intervals for each object |
 | Static Object Removal | Removes or marks objects that don't move |
@@ -169,6 +170,7 @@ markit --input video.mp4 --output_json output.json --housekeeping \
        --rotation-threshold 0.1 \
        --min-movement-pixels 5.0 \
        --rotation-smoothing 0.5 \
+       --angle-spline-interpolation 0.0 \
        --edge-distance 200 \
        --static-threshold 20 \
        --static-mark  # Mark instead of remove
@@ -606,6 +608,7 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--edge-distance` | `200` | Edge distance for sudden detection (pixels) |
 | `--static-threshold` | `20` | Static object movement threshold (pixels) |
 | `--static-mark` | false | Mark static objects instead of removing |
+| `--angle-spline-interpolation` | disabled | Enable spline-based angle interpolation. Value is the smoothing factor for `splprep` (0 = exact interpolation, larger = smoother) |
 
 ### VLM Scene Analysis
 
