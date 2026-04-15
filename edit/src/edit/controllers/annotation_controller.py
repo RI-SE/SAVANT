@@ -312,6 +312,24 @@ class AnnotationController:
         )
 
     @error_handler
+    def spline_interpolate_angles(
+        self,
+        object_id: str,
+        smoothing_factor: float,
+        annotator: str,
+        start_frame: Optional[int] = None,
+        end_frame: Optional[int] = None,
+    ) -> List[int]:
+        """Orient bbox angles along a spline fitted to the trajectory."""
+        return self.annotation_service.apply_spline_angle_interpolation(
+            object_id=object_id,
+            smoothing_factor=smoothing_factor,
+            annotator=annotator,
+            start_frame=start_frame,
+            end_frame=end_frame,
+        )
+
+    @error_handler
     def add_object_relationship(
         self,
         relationship_type: str,

@@ -52,6 +52,7 @@ edit = [
     "pydantic>=2.11.7",
     "appdirs>=1.4.4",
     "rdflib>=7.2.1",
+    "scipy>=1.10.0",
 ]
 dev = [
     "flake8>=7.3.0",
