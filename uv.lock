@@ -2149,6 +2149,8 @@ all-apps = [
     { name = "pyqt6" },
     { name = "pyyaml" },
     { name = "rdflib" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.16.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "ultralytics" },
 ]
 dev = [
@@ -2179,6 +2181,8 @@ markit = [
     { name = "pyqt6" },
     { name = "pyyaml" },
     { name = "rdflib" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.16.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "ultralytics" },
 ]
 trainit = [
@@ -2219,6 +2223,7 @@ all-apps = [
     { name = "rdflib" },
     { name = "rdflib", specifier = ">=7.0.0" },
     { name = "rdflib", specifier = ">=7.2.1" },
+    { name = "scipy", specifier = ">=1.10.0" },
     { name = "ultralytics" },
 ]
 dev = [
@@ -2247,6 +2252,7 @@ markit = [
     { name = "pyqt6", specifier = ">=6.5.0" },
     { name = "pyyaml" },
     { name = "rdflib" },
+    { name = "scipy", specifier = ">=1.10.0" },
     { name = "ultralytics" },
 ]
 trainit = [
