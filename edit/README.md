@@ -98,7 +98,7 @@ The release binaries ship with the bundled assets used by the UI. When a new tag
 - Undo/redo: `Ctrl+Z` / `Ctrl+Shift+Z` or **Edit → Undo / Redo** reverses most actions, including bbox edits, tag changes, Fix Range, linking, and relationship updates. The Edit menu items are enabled and disabled automatically as the undo/redo history changes.
 
 ### 4.3 Fix Range, Linking & Relationships
-- **Fix Range** (formerly "Interpolate") corrects or fills bounding box annotations across a frame range for a selected object. Open it from **Edit → Fix Range** or the sidebar button, then choose a method:
+- **Fix Range** (formerly "Interpolate") corrects or fills bounding box annotations for a selected object. Open it from **Edit → Fix Range** or the sidebar button, choose **Entire range** (uses the object's first and last annotated frames) or **Frame range**, then choose a method:
   - **Linear interpolation** — generates intermediate boxes by linearly blending position, size, and rotation between the two boundary frames (start+1 … end-1). Overwrites any existing annotations in that range.
   - **Re-track forward / Re-track backward** — deletes the existing annotations in the range and re-runs the optical-flow tracker from one boundary frame toward the other, then linearly interpolates the rotation between the two anchors to suppress cumulative drift. Accepts either frame order; enter the range in whichever direction feels natural and the dialog normalises it.
 - **Linking** adds a bounding box for an existing object. Static objects automatically gain boxes in any frames where they were missing; dynamic objects stay unique per frame.
