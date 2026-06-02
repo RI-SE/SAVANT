@@ -77,6 +77,7 @@ from edit.services.exceptions import VideoLoadError
 
 
 class Sidebar(QWidget):
+    _ACTIVE_OBJECT_BASE_TEXT_ROLE = Qt.ItemDataRole.UserRole + 1
 
     open_video = pyqtSignal(str)
     open_config = pyqtSignal(str)
@@ -223,6 +224,18 @@ class Sidebar(QWidget):
         relationships_layout.addWidget(self.relationships_list)
         self._details_content.layout().addRow(relationships_layout)
 
+        # --- Object frame range links ---
+        self._details_frame_links = QLabel("-")
+        self._details_frame_links.setTextFormat(Qt.TextFormat.RichText)
+        self._details_frame_links.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextBrowserInteraction
+        )
+        self._details_frame_links.setOpenExternalLinks(False)
+        self._details_frame_links.linkActivated.connect(
+            self._on_details_frame_link_activated
+        )
+        self._details_content.layout().addRow(QLabel("Frames:"), self._details_frame_links)
+
         main_layout.addWidget(self.details_container)
 
         # --- Active Objects ---
@@ -330,10 +343,87 @@ class Sidebar(QWidget):
             f"Cannot extract object ID from item: {item.text()}"
         )
 
+    def _format_active_object_text(self, obj_type: str, obj_id: str, obj_name: str) -> str:
+        return f"{obj_type} (ID: {obj_id}) - {obj_name}"
+
+    def _format_object_frame_span(self, object_id: str) -> str:
+        try:
+            frames = self.annotation_controller.frames_for_object(object_id)
+        except Exception:
+            return "Frames: n/a"
+
+        if not frames:
+            return "Frames: n/a"
+        if len(frames) == 1:
+            return f"Frames: {frames[0]}"
+        return f"Frames: {frames[0]}–{frames[-1]}"
+
+    def _set_details_frame_links(self, object_id: str) -> None:
+        try:
+            frames = self.annotation_controller.frames_for_object(object_id)
+        except Exception:
+            self._details_frame_links.setText("n/a")
+            return
+
+        if not frames:
+            self._details_frame_links.setText("n/a")
+            return
+
+        first_frame = int(frames[0])
+        last_frame = int(frames[-1])
+        if first_frame == last_frame:
+            self._details_frame_links.setText(
+                f"<a href='frame:{first_frame}'>{first_frame}</a>"
+            )
+            return
+        self._details_frame_links.setText(
+            f"first <a href='frame:{first_frame}'>{first_frame}</a>  |  "
+            f"last <a href='frame:{last_frame}'>{last_frame}</a>"
+        )
+
+    def _on_details_frame_link_activated(self, link: str) -> None:
+        prefix = "frame:"
+        if not link.startswith(prefix):
+            return
+        try:
+            frame_index = int(link[len(prefix) :])
+        except ValueError:
+            return
+        host_window = self.window()
+        if host_window is None:
+            return
+        from edit.frontend.utils.navigation import on_seek
+
+        on_seek(host_window, frame_index)
+
+    def _set_active_object_base_text(self, item: QListWidgetItem, text: str) -> None:
+        item.setData(self._ACTIVE_OBJECT_BASE_TEXT_ROLE, text)
+        item.setText(text)
+
+    def _active_object_base_text(self, item: QListWidgetItem) -> str:
+        value = item.data(self._ACTIVE_OBJECT_BASE_TEXT_ROLE)
+        if value is not None:
+            return str(value)
+        return item.text().splitlines()[0] if item.text() else ""
+
+    def _collapse_active_object_rows(self) -> None:
+        for index in range(self.active_objects.count()):
+            row_item = self.active_objects.item(index)
+            row_item.setText(self._active_object_base_text(row_item))
+
+    def _expand_active_object_row(self, item: QListWidgetItem) -> None:
+        object_id = self._item_object_id(item)
+        base_text = self._active_object_base_text(item)
+        with QSignalBlocker(self.active_objects):
+            self._collapse_active_object_rows()
+            item.setText(f"{base_text}\n{self._format_object_frame_span(object_id)}")
+        self.adjust_list_sizes()
+
     def _on_active_object_selected(self, item):
         # Trigger highlight in the UI
         object_id = self._item_object_id(item)
         self._selected_annotation_object_id = object_id
+        self._expand_active_object_row(item)
         self.highlight_selected_object.emit(object_id)
         self.show_object_editor(object_id, expand=False)
         if QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier:
@@ -350,6 +440,7 @@ class Sidebar(QWidget):
                     item.setSelected(True)
                     self.active_objects.setCurrentItem(item)
                     self.active_objects.scrollToItem(item)
+                    self._expand_active_object_row(item)
                     break
 
     def refresh_active_objects(
@@ -365,9 +456,10 @@ class Sidebar(QWidget):
                 obj_id = item.get("id")
                 obj_name = item.get("name") or ""
                 obj_type = item.get("type", "Object")
-                display_text = f"{obj_type} (ID: {obj_id}) - {obj_name}"
-                list_item = QListWidgetItem(display_text)
+                base_text = self._format_active_object_text(obj_type, obj_id, obj_name)
+                list_item = QListWidgetItem(base_text)
                 list_item.setData(Qt.ItemDataRole.UserRole, obj_id)
+                list_item.setData(self._ACTIVE_OBJECT_BASE_TEXT_ROLE, base_text)
 
                 severity = flags.get(obj_id)
                 if severity == "error":
@@ -829,8 +921,12 @@ class Sidebar(QWidget):
                 widget.setMinimumHeight(widget.minimumHeight())
                 widget.setMaximumHeight(16777215)
                 continue
-            row_height = widget.sizeHintForRow(0)
-            content_height = row_height * rows + 6
+            content_height = 6
+            for row_index in range(rows):
+                row_height = widget.sizeHintForRow(row_index)
+                if row_height <= 0:
+                    row_height = widget.fontMetrics().height() + 6
+                content_height += row_height
             widget.setMinimumHeight(max(widget.minimumHeight(), content_height))
             widget.setMaximumHeight(16777215)
 
@@ -1188,6 +1284,7 @@ class Sidebar(QWidget):
 
         # Load and display relationships for this object
         self._refresh_relationships(object_id)
+        self._set_details_frame_links(object_id)
 
         if expand and not self._details_toggle.isChecked():
             self._details_toggle.setChecked(True)
@@ -1261,6 +1358,7 @@ class Sidebar(QWidget):
             self._details_toggle.setChecked(False)
 
         self._details_id_label.setText("-")
+        self._details_frame_links.setText("-")
         self._details_name_edit.blockSignals(True)
         self._details_type_combo.blockSignals(True)
         try:
@@ -1312,9 +1410,10 @@ class Sidebar(QWidget):
                 obj_id = item.get("id")
                 obj_name = item.get("name") or ""
                 obj_type = item.get("type", "Object")
-                display_text = f"{obj_type} (ID: {obj_id}) - {obj_name}"
-                list_item = QListWidgetItem(display_text)
+                base_text = self._format_active_object_text(obj_type, obj_id, obj_name)
+                list_item = QListWidgetItem(base_text)
                 list_item.setData(Qt.ItemDataRole.UserRole, obj_id)
+                list_item.setData(self._ACTIVE_OBJECT_BASE_TEXT_ROLE, base_text)
                 self.active_objects.addItem(list_item)
 
             self.select_active_object_by_id(self._editing_object_id)
@@ -1322,6 +1421,8 @@ class Sidebar(QWidget):
     def _on_active_objects_selection_changed(self):
         if self.active_objects.selectedItems():
             return
+        self._collapse_active_object_rows()
+        self.adjust_list_sizes()
         self.hide_object_editor()
 
     def _open_interpolation_dialog(self):
