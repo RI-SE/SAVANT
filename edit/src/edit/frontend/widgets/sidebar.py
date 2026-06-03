@@ -347,13 +347,13 @@ class Sidebar(QWidget):
         try:
             frames = self.annotation_controller.frames_for_object(object_id)
         except Exception:
-            return "Frames: n/a"
+            return "  Frames: n/a"
 
         if not frames:
-            return "Frames: n/a"
+            return "  Frames: n/a"
         if len(frames) == 1:
-            return f"Frames: {frames[0]}"
-        return f"Frames: {frames[0]}–{frames[-1]}"
+            return f"  Frames: {frames[0]}"
+        return f"  Frames: {frames[0]}–{frames[-1]}"
 
     def _set_details_frame_links(self, object_id: str) -> None:
         try:
@@ -374,8 +374,8 @@ class Sidebar(QWidget):
             )
             return
         self._details_frame_links.setText(
-            f"first <a href='frame:{first_frame}'>{first_frame}</a>  |  "
-            f"last <a href='frame:{last_frame}'>{last_frame}</a>"
+            f"<a href='frame:{first_frame}'>{first_frame}</a>  -  "
+            f"<a href='frame:{last_frame}'>{last_frame}</a>"
         )
 
     def _on_details_frame_link_activated(self, link: str) -> None:
@@ -1024,11 +1024,13 @@ class Sidebar(QWidget):
         except Exception:
             active = []
 
-        self.frame_tag_list.clear()
-        for tag, start, end in active:
-            item = QListWidgetItem(f"{tag} [{start}-{end}]")
-            item.setData(Qt.ItemDataRole.UserRole, (tag, int(start), int(end)))
-            self.frame_tag_list.addItem(item)
+        with QSignalBlocker(self.frame_tag_list):
+            self.frame_tag_list.clear()
+            for tag, start, end in active:
+                item = QListWidgetItem(f"{tag} [{start}-{end}]")
+                item.setData(Qt.ItemDataRole.UserRole, (tag, int(start), int(end)))
+                self.frame_tag_list.addItem(item)
+        self.adjust_list_sizes()
         self.refresh_confidence_issue_list(frame_index)
 
     @pyqtSlot(int)
@@ -1037,17 +1039,7 @@ class Sidebar(QWidget):
         Slot called when SeekBar emits frame_changed(int).
         Updates the list to only show tags active at that frame.
         """
-        active = []
-        try:
-            active = self.annotation_controller.active_frame_tags(int(frame_index))
-        except Exception:
-            pass
-
-        self.frame_tag_list.clear()
-        for tag, start, end in active:
-            item = QListWidgetItem(f"{tag} [{start}-{end}]")
-            item.setData(Qt.ItemDataRole.UserRole, (tag, int(start), int(end)))
-            self.frame_tag_list.addItem(item)
+        self._refresh_active_frame_tags(frame_index)
 
     def _add_combo_separator(self, combo: QComboBox, text: str) -> None:
         """Insert a disabled, italic separator item into a combo box."""
