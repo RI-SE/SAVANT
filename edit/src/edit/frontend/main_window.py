@@ -175,8 +175,6 @@ class MainWindow(QMainWindow):
             self.state,
             self.sidebar_state,
         )
-        self.seek_bar.frame_changed.connect(self.sidebar.on_frame_changed)
-
         main_layout = QHBoxLayout()
         main_layout.addLayout(video_layout, stretch=1)
         main_layout.addWidget(self.sidebar)

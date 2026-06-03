@@ -1,12 +1,14 @@
 from typing import Callable, Dict, List
 
 from PyQt6.QtWidgets import (
+    QButtonGroup,
     QComboBox,
     QDialog,
     QFormLayout,
     QLabel,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QSpinBox,
     QVBoxLayout,
 )
@@ -78,17 +80,32 @@ class InterpolationDialog(QDialog):
         form.addRow(QLabel("Method:"), self.method_combo)
         form.addRow(self.help_label)
 
+        # Range mode selection
+        self.radio_entire = QRadioButton("Entire range")
+        self.radio_range = QRadioButton("Frame range")
+        self.radio_entire.setChecked(True)
+
+        mode_group = QButtonGroup(self)
+        mode_group.addButton(self.radio_entire)
+        mode_group.addButton(self.radio_range)
+        self.radio_range.toggled.connect(self._toggle_range_inputs)
+
+        form.addRow(QLabel("Range:"), self.radio_entire)
+        form.addRow(QLabel(""), self.radio_range)
+
         # Frame selection
         self.start_frame_spin = QSpinBox()
         self.start_frame_spin.setRange(0, total_frames - 1)
         self.start_frame_spin.setValue(current_frame)
         self.start_frame_spin.valueChanged.connect(self._validate_frames)
+        self.start_frame_spin.setEnabled(False)
         form.addRow(QLabel("Start Frame:"), self.start_frame_spin)
 
         self.end_frame_spin = QSpinBox()
         self.end_frame_spin.setRange(0, total_frames - 1)
         self.end_frame_spin.setValue(min(current_frame + 30, total_frames - 1))
         self.end_frame_spin.valueChanged.connect(self._validate_frames)
+        self.end_frame_spin.setEnabled(False)
         form.addRow(QLabel("End Frame:"), self.end_frame_spin)
 
         # Interpolate and cancel button
@@ -119,9 +136,17 @@ class InterpolationDialog(QDialog):
             )
 
     def _validate_frames(self):
+        if self.radio_entire.isChecked():
+            self.interpolate_btn.setEnabled(True)
+            return
         start = self.start_frame_spin.value()
         end = self.end_frame_spin.value()
         self.interpolate_btn.setEnabled(start != end)
+
+    def _toggle_range_inputs(self, checked: bool):
+        self.start_frame_spin.setEnabled(checked)
+        self.end_frame_spin.setEnabled(checked)
+        self._validate_frames()
 
     def _interpolate(self):
         object_id = self.object_combo.currentData()
@@ -133,24 +158,56 @@ class InterpolationDialog(QDialog):
                 )
                 return
 
-        frame_a = self.start_frame_spin.value()
-        frame_b = self.end_frame_spin.value()
         method = self.method_combo.currentData()
-
-        # Normalize so start_frame <= end_frame for all methods
-        start_frame = min(frame_a, frame_b)
-        end_frame = max(frame_a, frame_b)
-
-        # Verify object exists in both boundary frames
-        for check_frame in (start_frame, end_frame):
-            active_objs = self.parent().annotation_controller.get_active_objects(check_frame)
-            if not any(obj["id"] == object_id for obj in active_objs):
+        if self.radio_entire.isChecked():
+            try:
+                object_frames = self.parent().annotation_controller.frames_for_object(
+                    object_id
+                )
+            except Exception as exc:
                 QMessageBox.warning(
                     self,
                     "Object Not Found",
-                    f"Object {object_id} not found in frame {check_frame}",
+                    str(exc),
                 )
                 return
+            if not object_frames:
+                QMessageBox.warning(
+                    self,
+                    "Object Not Found",
+                    f"Object {object_id} has no annotated frames.",
+                )
+                return
+            start_frame = int(object_frames[0])
+            end_frame = int(object_frames[-1])
+        else:
+            frame_a = self.start_frame_spin.value()
+            frame_b = self.end_frame_spin.value()
+
+            # Normalize so start_frame <= end_frame for all methods
+            start_frame = min(frame_a, frame_b)
+            end_frame = max(frame_a, frame_b)
+
+            # Verify object exists in both boundary frames
+            for check_frame in (start_frame, end_frame):
+                active_objs = self.parent().annotation_controller.get_active_objects(
+                    check_frame
+                )
+                if not any(obj["id"] == object_id for obj in active_objs):
+                    QMessageBox.warning(
+                        self,
+                        "Object Not Found",
+                        f"Object {object_id} not found in frame {check_frame}",
+                    )
+                    return
+
+        if end_frame - start_frame <= 1:
+            QMessageBox.warning(
+                self,
+                "Invalid Range",
+                "The selected range must include at least one intermediate frame.",
+            )
+            return
 
         self.on_interpolate(object_id, start_frame, end_frame, method)
         # For re-track methods the sidebar provides its own messaging;

@@ -48,6 +48,8 @@ class AnnotationService:
         self._tag_cache_vals: list[str] | None = None
         self._bbox_cache_key: tuple[str, float] | None = None
         self._bbox_cache_vals: Dict[str, List[str]] | None = None
+        self._frame_tag_lookup_cache: dict[int, list[tuple[str, int, int]]] | None = None
+        self._frame_tag_lookup_source: int | None = None
 
     def create_new_object_bbox(
         self, frame_number: int, obj_type: str, coordinates: tuple, annotator: str
@@ -124,13 +126,14 @@ class AnnotationService:
         frame = self.project_state.annotation_config.frames.get(str(frame_number))
         if frame is None:
             return []
-        active_object_keys = frame.objects.keys()
-
-        return [
-            {"type": obj.type, "name": obj.name, "id": key}
-            for key, obj in self.project_state.annotation_config.objects.items()
-            if key in active_object_keys
-        ]
+        global_objects = self.project_state.annotation_config.objects
+        active_objects: list[dict] = []
+        for key in frame.objects.keys():
+            obj = global_objects.get(key)
+            if obj is None:
+                continue
+            active_objects.append({"type": obj.type, "name": obj.name, "id": key})
+        return active_objects
 
     def get_frame_objects(self, frame_limit: int, current_frame: int) -> list[dict]:
         """
@@ -667,6 +670,8 @@ class AnnotationService:
         intervals = openlabel_config.actions[tag].frame_intervals or []
         intervals.append(FrameInterval(frame_start=frame_start, frame_end=frame_end))
         openlabel_config.actions[tag].frame_intervals = intervals
+        self._frame_tag_lookup_cache = None
+        self._frame_tag_lookup_source = None
 
     def get_active_frame_tags(self, frame_index: int):
         """
@@ -683,17 +688,30 @@ class AnnotationService:
         if not openlabel_config or not openlabel_config.actions:
             return []
 
-        active = []
-        for tag_name, action in openlabel_config.actions.items():
-            intervals = getattr(action, "frame_intervals", None) or []
-            for iv in intervals:
-                start = iv.frame_start
-                end = iv.frame_end
-                if start is None or end is None:
-                    continue
-                if int(start) <= frame_index <= int(end):
-                    active.append((tag_name, int(start), int(end)))
-        return active
+        current_actions = openlabel_config.actions
+        current_source = id(current_actions)
+        if (
+            self._frame_tag_lookup_cache is None
+            or self._frame_tag_lookup_source != current_source
+        ):
+            frame_lookup: dict[int, list[tuple[str, int, int]]] = {}
+            for tag_name, action in current_actions.items():
+                intervals = getattr(action, "frame_intervals", None) or []
+                for iv in intervals:
+                    start = iv.frame_start
+                    end = iv.frame_end
+                    if start is None or end is None:
+                        continue
+                    start_idx = int(start)
+                    end_idx = int(end)
+                    for idx in range(start_idx, end_idx + 1):
+                        frame_lookup.setdefault(idx, []).append(
+                            (tag_name, start_idx, end_idx)
+                        )
+            self._frame_tag_lookup_cache = frame_lookup
+            self._frame_tag_lookup_source = current_source
+
+        return list(self._frame_tag_lookup_cache.get(int(frame_index), []))
 
     def bbox_types(self) -> Dict[str, List[str]]:
         """
@@ -757,6 +775,8 @@ class AnnotationService:
             del openlabel_config.actions[tag_name]
             if not openlabel_config.actions:
                 openlabel_config.actions = None
+        self._frame_tag_lookup_cache = None
+        self._frame_tag_lookup_source = None
         return True
 
     def delete_bboxes_by_object(

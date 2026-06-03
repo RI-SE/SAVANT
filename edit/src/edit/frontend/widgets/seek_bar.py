@@ -327,9 +327,13 @@ class SeekBar(QWidget):
         Set the current frame on the slider. Optionally emit frame_changed.
         Use this for programmatic frame updates (playback, arrow keys).
         """
-        self.slider.setValue(int(value))
         if emit_signal:
-            self.frame_changed.emit(int(value))
+            self.slider.setValue(int(value))
+            return
+        self.slider.blockSignals(True)
+        self.slider.setValue(int(value))
+        self.slider.blockSignals(False)
+        self.label.setText(f"{int(value)} / {self.slider.maximum()}")
 
     def set_confidence_markers(
         self, warning_frames: list[int] | None, error_frames: list[int] | None
@@ -385,7 +389,6 @@ class SeekBar(QWidget):
         self.frame_input.setVisible(False)
         self.label.setVisible(True)
         self.slider.setValue(value)
-        self.frame_changed.emit(value)
 
     def keyPressEvent(self, event):
         """Cancel frame input on Escape."""
