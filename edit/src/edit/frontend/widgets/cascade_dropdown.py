@@ -1,7 +1,7 @@
 # edit/frontend/widgets/cascade_dropdown.py
 from enum import Enum
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal
 from PyQt6.QtWidgets import QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from edit.frontend.theme.menu_styler import cascade_dropdown_css
@@ -16,6 +16,8 @@ class CascadeDropdown(QWidget):
     """
     A dropdown widget that appears near annotations to provide cascade options.
     """
+
+    closed = pyqtSignal()  # emitted whenever the dropdown is hidden
 
     applySizeToAll = pyqtSignal(object)
     applyRotationToAll = pyqtSignal(object)
@@ -237,6 +239,10 @@ class CascadeDropdown(QWidget):
         """Handle apply last delta to next X frames button click."""
         self.hide()
         self.applyDeltaToFrameRange.emit(self._current_direction)
+
+    def hideEvent(self, event: QEvent) -> None:  # noqa: N802
+        super().hideEvent(event)
+        self.closed.emit()
 
     def _on_cancel(self):
         """Handle cancel button click."""

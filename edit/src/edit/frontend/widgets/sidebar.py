@@ -14,6 +14,7 @@ from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -57,7 +58,11 @@ from edit.frontend.utils.project_io import (
     ProjectDirectoryContents,
     scan_project_directory,
 )
-from edit.frontend.utils.settings_store import get_ontology_path
+from edit.frontend.utils.settings_store import (
+    get_lock_to_center,
+    get_ontology_path,
+    set_lock_to_center,
+)
 from edit.frontend.utils.sidebar_confidence_items import (
     SidebarConfidenceIssueItemDelegate,
 )
@@ -322,6 +327,15 @@ class Sidebar(QWidget):
         self.refresh_confidence_issue_list()
 
         # Finalize Scroll Area
+        # --- View options ---
+        self.lock_to_center_checkbox = QCheckBox("Lock selected to center")
+        self.lock_to_center_checkbox.setToolTip(
+            "Keep the selected bounding box centred in the view when stepping frames"
+        )
+        self.lock_to_center_checkbox.setChecked(get_lock_to_center())
+        self.lock_to_center_checkbox.toggled.connect(set_lock_to_center)
+        main_layout.addWidget(self.lock_to_center_checkbox)
+
         main_layout.addStretch()  # Pushes content to top
         self.scroll_area.setWidget(self.content_widget)
         outer_layout.addWidget(self.scroll_area)
