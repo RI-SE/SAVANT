@@ -31,6 +31,7 @@ _zoom_rate: float = 1.0
 _bbox_zoom_padding: float = 2.5
 _frame_history_count: int = 50
 _video_buffer_frames: int = 30  # chunk size for VideoReader frame cache
+_lock_to_center: bool = False
 _bookmarks: dict[int, str] = {}  # frame -> note
 _DEFAULT_ONTOLOGY_FILES = ("1.3.1.ttl",)
 
@@ -215,6 +216,17 @@ def set_video_buffer_frames(value: int) -> None:
     if count < 1:
         raise InvalidFrameHistoryCountError("Video buffer must be at least 1 frame.")
     _video_buffer_frames = count
+
+
+def get_lock_to_center() -> bool:
+    """Return whether the selected bbox should be kept centred on frame advance."""
+    return bool(_lock_to_center)
+
+
+def set_lock_to_center(value: bool) -> None:
+    """Enable or disable lock-to-center mode."""
+    global _lock_to_center
+    _lock_to_center = bool(value)
 
 
 def update_tag_options(tag_data: dict[str, dict[str, Iterable[int]]]) -> None:

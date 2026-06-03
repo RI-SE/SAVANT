@@ -1,7 +1,10 @@
 # edit/frontend/utils/render.py
 from __future__ import annotations
 
+from PyQt6.QtCore import QTimer
+
 from edit.frontend.utils.frame_sync import _update_overlay_from_model
+from edit.frontend.utils.settings_store import get_lock_to_center
 
 
 def wire(main_window):
@@ -42,7 +45,15 @@ def show_frame(main_window, pixmap, frame_idx: int | None):
     _clear_selection_for_frame_change(main_window, frame_idx)
     if _prev_selected_id is not None and overlay is not None:
         overlay._preserve_selection_id = _prev_selected_id
-    _update_overlay_from_model(main_window)
+    main_window._frame_updating = True
+    try:
+        _update_overlay_from_model(main_window)
+    finally:
+        main_window._frame_updating = False
+    if get_lock_to_center():
+        pan_fn = getattr(main_window, "pan_to_selected_bbox", None)
+        if callable(pan_fn):
+            QTimer.singleShot(0, pan_fn)
     if hasattr(main_window, "update_issue_info"):
         main_window.update_issue_info()
 

@@ -1,4 +1,6 @@
 # edit/frontend/utils/annotation_ops.py
+from PyQt6.QtCore import QTimer
+
 from edit.frontend.states.annotation_state import AnnotationMode, AnnotationState
 from edit.frontend.states.frontend_state import FrontendState
 from edit.frontend.utils.undo import (
@@ -9,6 +11,8 @@ from edit.frontend.utils.undo import (
     DeleteBBoxCommand,
     DeleteRelationshipCommand,
 )
+
+from edit.frontend.utils.settings_store import get_lock_to_center
 
 from .render import refresh_frame
 from ._annotation_helpers import (
@@ -67,6 +71,14 @@ def wire(main_window, frontend_state: FrontendState):
         main_window.sidebar.highlight_selected_object.connect(
             lambda object_id: highlight_selected_object(main_window, object_id)
         )
+        main_window.sidebar.highlight_selected_object.connect(
+            lambda object_id: _pan_to_center_if_locked(main_window, object_id)
+        )
+
+    if hasattr(main_window.sidebar, "lock_to_center_checkbox"):
+        main_window.sidebar.lock_to_center_checkbox.toggled.connect(
+            lambda checked: _on_lock_to_center_toggled(main_window, checked)
+        )
 
     if hasattr(main_window.sidebar, "zoom_to_selected_object"):
         main_window.sidebar.zoom_to_selected_object.connect(
@@ -88,6 +100,9 @@ def wire(main_window, frontend_state: FrontendState):
     if hasattr(main_window.overlay, "bounding_box_selected"):
         main_window.overlay.bounding_box_selected.connect(
             lambda object_id: highlight_active_obj_list(main_window, object_id)
+        )
+        main_window.overlay.bounding_box_selected.connect(
+            lambda object_id: _pan_to_center_if_locked(main_window, object_id)
         )
 
     if hasattr(main_window.overlay, "deletePressed"):
@@ -371,6 +386,33 @@ def highlight_active_obj_list(main_window, object_id: str):
         sidebar._selected_annotation_object_id = None
         sidebar.active_objects.clearSelection()
         sidebar.hide_object_editor()
+
+
+def _on_lock_to_center_toggled(main_window, checked: bool):
+    """When lock-to-center is enabled, immediately centre the selected bbox."""
+    if not checked:
+        return
+    pan_fn = getattr(main_window, "pan_to_selected_bbox", None)
+    if callable(pan_fn):
+        QTimer.singleShot(0, pan_fn)
+
+
+def _pan_to_center_if_locked(main_window, object_id):
+    """If lock-to-center is active and a bbox was selected, centre it immediately.
+
+    Skipped during frame advances (`_frame_updating` flag set in render.show_frame)
+    because render.show_frame calls pan_to_selected_bbox directly once the overlay
+    state is fully settled.
+    """
+    if not get_lock_to_center():
+        return
+    if getattr(main_window, "_frame_updating", False):
+        return
+    if not object_id:
+        return
+    pan_fn = getattr(main_window, "pan_to_selected_bbox", None)
+    if callable(pan_fn):
+        QTimer.singleShot(0, pan_fn)
 
 
 def on_new_object_bbox(main_window, object_type: str):
