@@ -172,7 +172,10 @@ class Overlay(QWidget):
         self.cascade_button.clicked.connect(self._on_cascade_button_clicked)
 
     def set_frame_size(self, width_vid: int, height_vid: int):
-        self._frame_size = (width_vid, height_vid)
+        size = (int(width_vid), int(height_vid))
+        if self._frame_size == size:
+            return
+        self._frame_size = size
         self.update()
 
     def set_zoom(self, z: float):
