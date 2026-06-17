@@ -90,4 +90,9 @@ class _MenuStyler(QObject):
 
 def install_menu_styler(app) -> None:
     app.setStyle("Fusion")
-    app.installEventFilter(_MenuStyler(app))
+    styler = _MenuStyler(app)
+    app.installEventFilter(styler)
+    # Keep a Python reference alive for the app's lifetime. Without it the sip
+    # wrapper is released immediately (C++ object survives via its parent), and
+    # QApplication teardown later visits the orphaned wrapper -> segfault on exit.
+    app._menu_styler = styler
