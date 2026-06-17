@@ -68,6 +68,8 @@ from edit.frontend.utils.sidebar_confidence_items import (
 )
 from edit.frontend.utils.undo import (
     AddFrameTagCommand,
+    EditFrameTagCommand,
+    EditFrameTagSnapshot,
     FrameTagSnapshot,
     InterpolateAnnotationsCommand,
     RemoveFrameTagCommand,
@@ -312,6 +314,7 @@ class Sidebar(QWidget):
         self.frame_tag_list.model().rowsInserted.connect(self.adjust_list_sizes)
         self.frame_tag_list.model().rowsRemoved.connect(self.adjust_list_sizes)
         self.frame_tag_list.installEventFilter(self)
+        self.frame_tag_list.itemDoubleClicked.connect(self._open_edit_frame_tag_dialog)
         main_layout.addWidget(self.frame_tag_list)
 
         self._frame_tag_del = QShortcut(
@@ -1026,6 +1029,89 @@ class Sidebar(QWidget):
             QMessageBox.information(self, "Tag added", f"{tag}: {start} → {end}")
         except Exception as exc:
             QMessageBox.critical(self, "Failed to add tag", str(exc))
+
+    def _open_edit_frame_tag_dialog(self, item: "QListWidgetItem") -> None:
+        """Open a pre-filled dialog to edit the selected frame tag."""
+        payload = item.data(Qt.ItemDataRole.UserRole)
+        if not payload:
+            return
+        old_tag, old_start, old_end = payload
+
+        path = get_ontology_path()
+        if path is None:
+            QMessageBox.warning(
+                self, "No Ontology", "Set an ontology file in settings first."
+            )
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Edit Frame Tag")
+        form = QFormLayout(dlg)
+
+        tag_combo = QComboBox(dlg)
+        tag_combo.addItems(self.annotation_controller.allowed_frame_tags())
+        idx = tag_combo.findText(old_tag)
+        if idx >= 0:
+            tag_combo.setCurrentIndex(idx)
+        form.addRow("Tag:", tag_combo)
+
+        try:
+            total = max(0, int(self.project_state_controller.get_frame_count()))
+        except Exception:
+            total = 0
+
+        start_spin = QSpinBox(dlg)
+        end_spin = QSpinBox(dlg)
+        for spin_box in (start_spin, end_spin):
+            spin_box.setRange(0, max(0, total - 1))
+            spin_box.setSingleStep(1)
+        start_spin.setValue(int(old_start))
+        end_spin.setValue(int(old_end))
+        form.addRow("Start frame:", start_spin)
+        form.addRow("End frame:", end_spin)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=dlg,
+        )
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        form.addRow(buttons)
+
+        if not dlg.exec():
+            return
+
+        new_tag = tag_combo.currentText().strip()
+        new_start = int(start_spin.value())
+        new_end = int(end_spin.value())
+        if new_start > new_end:
+            QMessageBox.warning(
+                self, "Invalid range", "Start frame cannot be after end frame."
+            )
+            return
+
+        old_snapshot = FrameTagSnapshot(
+            tag_name=old_tag, start_frame=int(old_start), end_frame=int(old_end)
+        )
+        new_snapshot = FrameTagSnapshot(
+            tag_name=new_tag, start_frame=new_start, end_frame=new_end
+        )
+        snapshot = EditFrameTagSnapshot(old=old_snapshot, new=new_snapshot)
+        host_window = self.window()
+        try:
+            if host_window is not None and hasattr(
+                host_window, "execute_undoable_command"
+            ):
+                host_window.execute_undoable_command(EditFrameTagCommand(snapshot))
+            else:
+                self.annotation_controller.update_frame_tag(
+                    old_tag, int(old_start), int(old_end),
+                    new_tag, new_start, new_end,
+                )
+            current_index = int(self.video_controller.current_index())
+            self._refresh_active_frame_tags(current_index)
+        except Exception as exc:
+            QMessageBox.critical(self, "Failed to edit tag", str(exc))
 
     def _refresh_active_frame_tags(self, frame_index: int) -> None:
         """

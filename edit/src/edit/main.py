@@ -44,7 +44,16 @@ def main():
 
     sys.excepthook = exception_hook
 
-    sys.exit(app.exec())
+    exit_code = app.exec()
+
+    # Tear down deterministically: delete the window and flush the deferred-delete
+    # queue while the event loop machinery is still alive, so child QObject wrappers
+    # are cleaned up here instead of being orphaned during QApplication destruction
+    # at interpreter shutdown (which segfaults).
+    window.deleteLater()
+    app.processEvents()
+
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

@@ -146,11 +146,13 @@ class AnnotationGateway(Protocol):
 
 @runtime_checkable
 class FrameTagGateway(Protocol):
-    """API for adding/removing frame tags."""
+    """API for adding/removing/editing frame tags."""
 
     def add_frame_tag(self, snapshot: FrameTagSnapshot) -> None: ...
 
     def remove_frame_tag(self, snapshot: FrameTagSnapshot) -> None: ...
+
+    def edit_frame_tag(self, old: FrameTagSnapshot, new: FrameTagSnapshot) -> None: ...
 
 
 @runtime_checkable
@@ -541,6 +543,14 @@ class ControllerFrameTagGateway:
         )
         if removed is False:
             raise UndoGatewayError("Frame tag removal failed; snapshot not present.")
+
+    def edit_frame_tag(self, old: FrameTagSnapshot, new: FrameTagSnapshot) -> None:
+        ok = self.annotation_controller.update_frame_tag(
+            old.tag_name, old.start_frame, old.end_frame,
+            new.tag_name, new.start_frame, new.end_frame,
+        )
+        if ok is False:
+            raise UndoGatewayError("Frame tag edit failed; old snapshot not present.")
 
 
 @dataclass

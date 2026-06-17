@@ -1,3 +1,4 @@
+import math
 from typing import Union, List, Dict, Tuple
 import numpy as np
 from scipy.interpolate import splev, splprep
@@ -47,12 +48,14 @@ class InterpolationService:
             start_value = start_dict.get(prop, 0)
             end_value = end_dict.get(prop, 0)
             if prop == "rotation":
-                rotation_difference = ((end_value - start_value + 180) % 360) - 180
+                rotation_difference = (
+                    (end_value - start_value + math.pi) % (2 * math.pi) - math.pi
+                )
                 # Increment num_frames by 2 to account for start
                 # and end points, then exclude them via the [1:-1].
                 interpolation_factors = np.linspace(0, 1, num_frames + 2)[1:-1]
                 interpolated_properties[prop] = [
-                    (start_value + rotation_difference * factor) % 360
+                    (start_value + rotation_difference * factor) % (2 * math.pi)
                     for factor in interpolation_factors
                 ]
             else:

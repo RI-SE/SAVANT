@@ -111,6 +111,14 @@ class FrameTagSnapshot:
 
 
 @dataclass(frozen=True)
+class EditFrameTagSnapshot:
+    """Snapshot for editing a frame-tag interval (old → new)."""
+
+    old: FrameTagSnapshot
+    new: FrameTagSnapshot
+
+
+@dataclass(frozen=True)
 class VLMTagSnapshot:
     """Snapshot of a VLM tag's data for undo/redo operations."""
 
