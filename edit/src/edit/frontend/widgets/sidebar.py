@@ -1447,9 +1447,18 @@ class Sidebar(QWidget):
         # Extract object IDs
         obj_ids = [obj["id"] for obj in active_objs if "id" in obj]
 
+        # Determine pre-selected object: sidebar selection first, then overlay
+        preselect_id = self._selected_annotation_object_id
+        if not preselect_id:
+            host_window = self.window()
+            overlay = getattr(host_window, "overlay", None)
+            if overlay is not None:
+                preselect_id = overlay.selected_object_id()
+
         # Create and show dialog
         dialog = InterpolationDialog(
-            self, obj_ids, current_frame, total_frames, self.on_interpolate
+            self, obj_ids, current_frame, total_frames, self.on_interpolate,
+            preselect_object_id=preselect_id,
         )
         dialog.exec()
 
