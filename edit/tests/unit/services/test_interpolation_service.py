@@ -1,3 +1,4 @@
+import math
 import pytest
 import numpy as np
 from edit.services.interpolation_service import InterpolationService
@@ -92,9 +93,12 @@ class TestInterpolateAnnotations:
         assert all(b["height"] == 0 for b in result)
         assert all(b["rotation"] == 0 for b in result)
 
-    def test_rotation_wrapping(self):
-        start_bbox = {"x_center": 0, "y_center": 0, "rotation": 350}
-        end_bbox = {"x_center": 0, "y_center": 0, "rotation": 10}
+    def test_rotation_wrapping_short_path(self):
+        """Short path: start near 0, end near 2π — difference is tiny, not ~2π."""
+        start_angle = 0.1
+        end_angle = 2 * math.pi - 0.1
+        start_bbox = {"x_center": 0, "y_center": 0, "rotation": start_angle}
+        end_bbox = {"x_center": 0, "y_center": 0, "rotation": end_angle}
         num_frames = 5
 
         result = InterpolationService.interpolate_annotations(
@@ -102,13 +106,36 @@ class TestInterpolateAnnotations:
         )
 
         rotations = [b["rotation"] for b in result]
-        rotation_diff = ((10 - 350 + 180) % 360) - 180
-        expected_rotations = [
-            (350 + rotation_diff * factor) % 360
-            for factor in np.linspace(0, 1, num_frames + 2)[1:-1]
+        short_diff = end_angle - start_angle - 2 * math.pi  # ≈ −0.2 rad
+        expected = [
+            (start_angle + short_diff * f) % (2 * math.pi)
+            for f in np.linspace(0, 1, num_frames + 2)[1:-1]
         ]
+        assert np.allclose(rotations, expected, atol=1e-9)
+        # All interpolated angles must stay near the 0/2π boundary, never near π
+        assert all(
+            r < 0.2 or r > 2 * math.pi - 0.2 for r in rotations
+        ), f"Took long path: {rotations}"
 
-        assert np.allclose(rotations, expected_rotations)
+    def test_rotation_no_wrap(self):
+        """Simple case: both angles in mid-range, no wrapping needed."""
+        start_angle = math.pi / 4
+        end_angle = math.pi / 2
+        start_bbox = {"x_center": 0, "y_center": 0, "rotation": start_angle}
+        end_bbox = {"x_center": 0, "y_center": 0, "rotation": end_angle}
+        num_frames = 3
+
+        result = InterpolationService.interpolate_annotations(
+            start_bbox, end_bbox, num_frames
+        )
+
+        rotations = [b["rotation"] for b in result]
+        diff = end_angle - start_angle
+        expected = [
+            start_angle + diff * f
+            for f in np.linspace(0, 1, num_frames + 2)[1:-1]
+        ]
+        assert np.allclose(rotations, expected, atol=1e-9)
 
     def test_zero_frames(self, sample_bbox):
         result = InterpolationService.interpolate_annotations(
