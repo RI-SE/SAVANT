@@ -125,6 +125,27 @@ class TestInterpolateAnnotations:
             # Should pass through ~350-360/0-10°, not backwards through ~170-350°.
             assert r_deg > 345 or r_deg < 15, f"Unexpected rotation {r_deg:.1f}°"
 
+    def test_rotation_no_wrap(self):
+        """Simple case: both angles in mid-range, no wrapping needed."""
+        import math
+        start_angle = math.pi / 4
+        end_angle = math.pi / 2
+        start_bbox = {"x_center": 0, "y_center": 0, "rotation": start_angle}
+        end_bbox = {"x_center": 0, "y_center": 0, "rotation": end_angle}
+        num_frames = 3
+
+        result = InterpolationService.interpolate_annotations(
+            start_bbox, end_bbox, num_frames
+        )
+
+        rotations = [b["rotation"] for b in result]
+        diff = end_angle - start_angle
+        expected = [
+            start_angle + diff * f
+            for f in np.linspace(0, 1, num_frames + 2)[1:-1]
+        ]
+        assert np.allclose(rotations, expected, atol=1e-9)
+
     def test_zero_frames(self, sample_bbox):
         result = InterpolationService.interpolate_annotations(
             sample_bbox, sample_bbox, 0
