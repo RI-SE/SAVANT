@@ -15,6 +15,7 @@ from edit.frontend.theme.constants import (
     SEEK_BAR_WARNING_MARKER_COLOR,
     SEEK_BAR_ERROR_MARKER_COLOR,
     SEEK_BAR_BOOKMARK_MARKER_COLOR,
+    SEEK_BAR_INSPECTION_MARKER_COLOR,
 )
 
 
@@ -30,6 +31,7 @@ class SeekSlider(QSlider):
         self._warning_frames: list[int] = []
         self._error_frames: list[int] = []
         self._bookmark_frames: list[int] = []
+        self._inspection_frames: list[int] = []
         self._show_warnings: bool = True
         self._show_errors: bool = True
         self._show_bookmarks: bool = True
@@ -126,6 +128,10 @@ class SeekSlider(QSlider):
         self._bookmark_frames = self._normalize_frames(frames)
         self.update()
 
+    def set_inspection_frames(self, frames: list[int]):
+        self._inspection_frames = self._normalize_frames(frames)
+        self.update()
+
     def set_show_bookmarks(self, show: bool) -> None:
         if self._show_bookmarks != bool(show):
             self._show_bookmarks = bool(show)
@@ -207,6 +213,7 @@ class SeekSlider(QSlider):
             draw_markers(self._error_frames, SEEK_BAR_ERROR_MARKER_COLOR)
         if self._show_bookmarks:
             draw_markers(self._bookmark_frames, SEEK_BAR_BOOKMARK_MARKER_COLOR)
+        draw_markers(self._inspection_frames, SEEK_BAR_INSPECTION_MARKER_COLOR)
         painter.end()
 
     def _normalize_frames(self, frames) -> list[int]:
@@ -273,6 +280,7 @@ class SeekBar(QWidget):
         self._warning_frames_raw: list[int] = []
         self._error_frames_raw: list[int] = []
         self._bookmark_frames_raw: list[int] = []
+        self._inspection_frames_raw: list[int] = []
         self._warning_frames: list[int] = []
         self._error_frames: list[int] = []
         self._show_warnings: bool = True
@@ -374,6 +382,15 @@ class SeekBar(QWidget):
         self._bookmark_frames_raw = self._normalize_source_frames(frames)
         self._apply_marker_frames()
 
+    def set_inspection_frames(self, frames: list[int]):
+        """Update the inspection problem marker frames displayed on the slider."""
+        self._inspection_frames_raw = self._normalize_source_frames(frames)
+        self._apply_marker_frames()
+
+    def clear_inspection_frames(self):
+        """Remove all inspection markers from the slider."""
+        self.set_inspection_frames([])
+
     def activate_frame_input(self):
         """Show the frame number input spinbox, hiding the label."""
         self.frame_input.setMaximum(self.slider.maximum())
@@ -402,9 +419,11 @@ class SeekBar(QWidget):
         filtered_warnings = self._filter_frames_for_range(self._warning_frames_raw)
         filtered_errors = self._filter_frames_for_range(self._error_frames_raw)
         filtered_bookmarks = self._filter_frames_for_range(self._bookmark_frames_raw)
+        filtered_inspection = self._filter_frames_for_range(self._inspection_frames_raw)
         self.slider.set_warning_frames(filtered_warnings)
         self.slider.set_error_frames(filtered_errors)
         self.slider.set_bookmark_frames(filtered_bookmarks)
+        self.slider.set_inspection_frames(filtered_inspection)
         self._warning_frames = self.slider.warning_frames()
         self._error_frames = self.slider.error_frames()
 

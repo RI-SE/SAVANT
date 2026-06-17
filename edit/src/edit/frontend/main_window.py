@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
+    QProgressDialog,
     QVBoxLayout,
     QWidget,
 )
@@ -58,6 +59,7 @@ from edit.frontend.utils.undo import (
 from edit.frontend.widgets.about_dialog import AboutDialog
 from edit.frontend.widgets.bookmark_dialog import BookmarkManagerDialog
 from edit.frontend.widgets.shortcuts_dialog import ShortcutsDialog
+from edit.frontend.widgets.inspection_widgets import InspectionBar, InspectionParamsDialog
 from edit.frontend.widgets.menu import AppMenu
 from edit.frontend.widgets.vlm_analysis_dialog import VLMAnalysisDialog
 from edit.frontend.widgets.overlay import Overlay
@@ -67,6 +69,7 @@ from edit.frontend.widgets.settings import SettingsDialog
 from edit.frontend.widgets.sidebar import Sidebar
 from edit.frontend.widgets.video_display import VideoDisplay
 from edit.services.tracking_service import TrackingService
+from edit.services import inspection_service
 
 
 class MainWindow(QMainWindow):
@@ -136,6 +139,7 @@ class MainWindow(QMainWindow):
             on_create_relationship=self.open_relationship_dialog,
             on_change_annotator=self.change_current_annotator,
             on_bookmarks=self.open_bookmark_manager,
+            on_inspect=self.perform_inspection,
             on_vlm_analysis=self.open_vlm_analysis,
             on_shortcuts=self.open_shortcuts,
             on_about=self.open_about,
@@ -149,6 +153,16 @@ class MainWindow(QMainWindow):
         # Seek + controls
         self.seek_bar = SeekBar()
         self.playback_controls = PlaybackControls()
+        self.inspection_bar = InspectionBar()
+        self.inspection_bar.hide()
+        self._inspection_frames: list[int] = []
+        self.inspection_bar.prev_clicked.connect(
+            lambda: self._jump_to_inspection_frame(-1)
+        )
+        self.inspection_bar.next_clicked.connect(
+            lambda: self._jump_to_inspection_frame(+1)
+        )
+        self.inspection_bar.end_clicked.connect(self._end_inspection)
 
         # Layout
         video_container = QWidget()
@@ -158,6 +172,7 @@ class MainWindow(QMainWindow):
 
         video_layout = QVBoxLayout()
         video_layout.addWidget(video_container, stretch=1)
+        video_layout.addWidget(self.inspection_bar)
         video_layout.addWidget(self.seek_bar)
         video_layout.addWidget(self.playback_controls)
         video_layout.setContentsMargins(0, 0, 0, 0)
@@ -330,6 +345,95 @@ class MainWindow(QMainWindow):
             from edit.frontend.utils.navigation import on_seek
 
             on_seek(self, dialog.selected_frame)
+
+    def perform_inspection(self) -> None:
+        """Open the inspection parameters dialog and run detection."""
+        frame_count = self.project_state_controller.get_frame_count()
+        if frame_count <= 0:
+            QMessageBox.warning(
+                self,
+                "No project loaded",
+                "Please open a project before running inspection.",
+            )
+            return
+        dialog = InspectionParamsDialog(frame_count=frame_count, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        start_frame = dialog.start_frame
+        end_frame = dialog.end_frame
+        frames_to_scan = max(1, end_frame - start_frame + 1)
+
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QApplication
+
+        progress = QProgressDialog(
+            "Scanning frames for problems…", None, 0, frames_to_scan, self
+        )
+        progress.setWindowTitle("Performing inspection")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setCancelButton(None)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+        QApplication.processEvents()
+
+        def _on_progress(frames_scanned: int, total: int) -> None:
+            progress.setValue(frames_scanned)
+            QApplication.processEvents()
+
+        result = inspection_service.run_inspection(
+            annotation_controller=self.annotation_controller,
+            project_state_controller=self.project_state_controller,
+            max_ghost_frames=dialog.max_ghost_frames,
+            overlap_percent=dialog.overlap_percent,
+            start_frame=start_frame,
+            end_frame=end_frame,
+            progress_callback=_on_progress,
+        )
+
+        progress.setValue(frames_to_scan)
+        progress.close()
+
+        all_frames = result["all_frames"]
+        if not all_frames:
+            QMessageBox.information(
+                self,
+                "Inspection complete",
+                "No problems found.",
+            )
+            return
+
+        self._inspection_frames = all_frames
+        ghost_count = len(result["ghost_frames"])
+        double_count = len(result["double_frames"])
+        self.inspection_bar.set_counts(ghost_count, double_count, len(all_frames))
+        self.seek_bar.set_inspection_frames(all_frames)
+        self.inspection_bar.show()
+
+    def _end_inspection(self) -> None:
+        """Exit inspection mode, clearing all inspection state."""
+        self._inspection_frames = []
+        self.seek_bar.clear_inspection_frames()
+        self.inspection_bar.hide()
+
+    def _jump_to_inspection_frame(self, direction: int) -> None:
+        """Jump to the next or previous inspection problem frame."""
+        if not self._inspection_frames:
+            return
+        try:
+            current = int(self.video_controller.current_index())
+        except Exception:
+            current = 0
+        from edit.frontend.utils.playback import _select_issue_frame
+        from edit.frontend.utils.render import show_frame
+        target = _select_issue_frame(self._inspection_frames, current, direction)
+        if target is None or target == current:
+            return
+        try:
+            pixmap, idx = self.video_controller.jump_to_frame(target)
+            show_frame(self, pixmap, idx)
+        except Exception:
+            pass
 
     def update_vlm_menu_state(self):
         """Enable/disable VLM Analysis menu item based on data availability."""
