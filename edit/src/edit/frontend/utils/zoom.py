@@ -192,10 +192,49 @@ def wire(main_window, initial: float | None = None):
         _apply_zoom(new_zoom)
         vw.set_pan(pan_x, pan_y)
 
+    def pan_to_selected_bbox():
+        """Pan so the currently selected bbox is centred in the viewport (zoom unchanged).
+
+        Uses the overlay's own _compute_transform() so the computed pan is guaranteed
+        to match exactly how the overlay renders the selected box — regardless of any
+        difference between the video pixmap size and the overlay's frame_size.
+        """
+        vw = main_window.video_widget
+        overlay = getattr(main_window, "overlay", None)
+        if overlay is None:
+            return
+        bbox = overlay._get_selected_bbox()
+        if bbox is None:
+            return
+
+        # _compute_transform returns (scale, off_x, off_y, base_scale)
+        scale, off_x, off_y, _ = overlay._compute_transform()
+        if scale <= 0:
+            return
+
+        display_w = overlay.width()
+        display_h = overlay.height()
+
+        # Current screen-space position of the bbox centre (before any pan change).
+        current_screen_x = off_x + bbox.center_x * scale
+        current_screen_y = off_y + bbox.center_y * scale
+
+        # Delta needed to shift the bbox centre to the viewport centre.
+        dx = display_w / 2 - current_screen_x
+        dy = display_h / 2 - current_screen_y
+
+        # New pan = current overlay pan + required delta.
+        new_pan_x = overlay._pan_x + dx
+        new_pan_y = overlay._pan_y + dy
+
+        # Use exact pan (no clamping) so edge bboxes reach the true centre.
+        vw.set_pan_exact(new_pan_x, new_pan_y)
+
     main_window.zoom_in = zoom_in
     main_window.zoom_out = zoom_out
     main_window.zoom_fit = zoom_fit
     main_window.zoom_to_bbox = zoom_to_bbox
+    main_window.pan_to_selected_bbox = pan_to_selected_bbox
     main_window.set_default_zoom = lambda value, *, apply=False: _set_default_zoom(
         value, apply=apply
     )

@@ -166,6 +166,7 @@ class Overlay(QWidget):
             self._on_cascade_delta_to_frame_range
         )
         self.cascade_dropdown.cancelled.connect(self._on_cascade_cancel)
+        self.cascade_dropdown.closed.connect(self.setFocus)
 
         # Cascade button
         self.cascade_button = CascadeButton(self)

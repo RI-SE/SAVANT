@@ -315,6 +315,14 @@ class VideoDisplay(QLabel):
         self.update()
         self.pan_changed.emit(self._pan.x(), self._pan.y())
 
+    def set_pan_exact(self, pan_x: float, pan_y: float) -> None:
+        """Set pan without clamping — used by lock-to-center so edge bboxes
+        can be precisely centred even when the required offset exceeds the
+        normal canvas padding limit."""
+        self._pan = QPointF(pan_x, pan_y)
+        self.update()
+        self.pan_changed.emit(self._pan.x(), self._pan.y())
+
     def show_frame(self, pixmap: QPixmap) -> None:
         """Show a new frame in the video display."""
         if pixmap and not pixmap.isNull():
