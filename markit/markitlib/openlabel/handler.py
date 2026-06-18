@@ -536,6 +536,31 @@ class OpenLabelHandler:
         self.openlabel_data["openlabel"]["streams"] = streams
         logger.info(f"Added {len(streams)} stream(s) to OpenLabel structure")
 
+    def _purge_orphaned_frame_objects(self) -> int:
+        """Remove any frame entries whose object ID is absent from the objects dict.
+
+        Returns the number of frame entries purged.  Orphaned objects indicate a
+        bug in a postprocessing pass (most likely cascade deletions in
+        DuplicateRemovalPass) and should never occur in well-formed data.
+        """
+        if self.openlabel_data is None:
+            return 0
+        root = self.openlabel_data.get("openlabel", self.openlabel_data)
+        objects = root.get("objects", {})
+        frames = root.get("frames", {})
+        purged = 0
+        for frame_data in frames.values():
+            frame_objects = frame_data.get("objects", {})
+            orphans = [oid for oid in list(frame_objects) if oid not in objects]
+            for oid in orphans:
+                del frame_objects[oid]
+                purged += 1
+                logger.warning(
+                    f"Purged orphaned frame object {oid!r} (present in frames but missing "
+                    "from objects metadata — indicates a postprocessing bug)"
+                )
+        return purged
+
     def save_to_file(self, output_path: str) -> None:
         """Save OpenLabel data to JSON file.
 
@@ -544,6 +569,11 @@ class OpenLabelHandler:
         """
         try:
             self.sort_objects()
+            n_purged = self._purge_orphaned_frame_objects()
+            if n_purged:
+                logger.warning(
+                    f"Purged {n_purged} orphaned frame object reference(s) before saving."
+                )
 
             with open(output_path, "w") as f:
                 json.dump(self.openlabel_data, f, indent=2, cls=NumpyEncoder)
