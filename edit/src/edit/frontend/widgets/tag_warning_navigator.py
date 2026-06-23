@@ -87,8 +87,12 @@ class TagWarningNavigator(QDialog):
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             parent=self,
         )
+        ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_button is not None:
+            ok_button.setText("Start Navigator View")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
+
 
         lay = QVBoxLayout(self)
         lay.addWidget(page)
@@ -158,6 +162,22 @@ class TagWarningNavigator(QDialog):
             0.0,
             float(self.warning_max_spin.value()),
         )
+
+
+    def values(self) -> dict:
+
+        tag_options = {
+            "object": dict(self._object_tag_states),
+        }
+
+        return {
+            "warning_range": (
+                float(0.0),
+                float(self.warning_max_spin.value()),
+            ),
+            "show_warnings": bool(self.warning_toggle_cb.isChecked()),
+            "tag_options": tag_options,
+        }
 
 
     def accept(self) -> None:

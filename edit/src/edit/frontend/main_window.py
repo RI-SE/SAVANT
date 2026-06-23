@@ -364,6 +364,38 @@ class MainWindow(QMainWindow):
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
+        
+
+        self.sidebar.refresh_confidence_issue_list()
+
+        vals = dialog.values()
+        set_tag_option_states(vals.get("tag_options", {}))
+        warning_range = vals.get("warning_range", get_warning_range())
+        show_warnings = vals.get("show_warnings", get_show_warnings())
+        
+        thresholds_valid = True
+        try:
+            set_threshold_ranges(
+                warning_range=warning_range,
+                show_warnings=show_warnings,
+                error_range=(0.0,0.0),
+                show_errors=False,
+            )
+            set_show_warnings(show_warnings)
+            set_show_errors(False)
+            confidence_ops.apply_confidence_markers(self)
+        except InvalidWarningErrorRange as ex:
+            QMessageBox.critical(self, "Invalid Ranges", str(ex))
+            thresholds_valid = False
+        if thresholds_valid:
+            confidence_ops.refresh_confidence_issues(self)
+        else:
+            confidence_ops.apply_confidence_markers(self)
+        
+
+
+        self.update_issue_info()
+
 
     def perform_inspection(self) -> None:
         """Open the inspection parameters dialog and run detection."""
@@ -483,7 +515,7 @@ class MainWindow(QMainWindow):
             set_frame_history_count(vals["previous_frame_count"])
             self.sidebar_state.historic_obj_frame_count = get_frame_history_count()
             self.sidebar.refresh_confidence_issue_list()
-            new_buf = vals.get("video_buffer_frames", get_video_buffer_frames())
+            new_buf = vals.get("video_buffer_frameself.sidebar.refresh_confidence_issue_list()s", get_video_buffer_frames())
             set_video_buffer_frames(new_buf)
             self.video_controller.reader.chunk_size = get_video_buffer_frames()
             warning_vals = vals.get("warning_range", get_warning_range())
