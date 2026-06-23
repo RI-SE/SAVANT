@@ -514,52 +514,52 @@ class MainWindow(QMainWindow):
             set_bbox_zoom_padding(vals.get("bbox_zoom_padding", 2.5))
             set_frame_history_count(vals["previous_frame_count"])
             self.sidebar_state.historic_obj_frame_count = get_frame_history_count()
-            self.sidebar.refresh_confidence_issue_list()
+            # self.sidebar.refresh_confidence_issue_list()
             new_buf = vals.get("video_buffer_frameself.sidebar.refresh_confidence_issue_list()s", get_video_buffer_frames())
             set_video_buffer_frames(new_buf)
             self.video_controller.reader.chunk_size = get_video_buffer_frames()
-            warning_vals = vals.get("warning_range", get_warning_range())
-            error_vals = vals.get("error_range", get_error_range())
-            warning_range = tuple(float(v) for v in warning_vals)
-            error_range = tuple(float(v) for v in error_vals)
-            show_warnings = vals.get("show_warnings", get_show_warnings())
-            show_errors = vals.get("show_errors", get_show_errors())
-            set_tag_option_states(vals.get("tag_options", {}))
-            thresholds_valid = True
-            if (
-                show_warnings
-                and show_errors
-                and not (
-                    warning_range[1] <= error_range[0]
-                    or error_range[1] <= warning_range[0]
-                )
-            ):
-                QMessageBox.critical(
-                    self,
-                    "Invalid Ranges",
-                    "Warning and error ranges must not overlap when both markers are visible.",
-                )
-                thresholds_valid = False
+            # warning_vals = vals.get("warning_range", get_warning_range())
+            # error_vals = vals.get("error_range", get_error_range())
+            # warning_range = tuple(float(v) for v in warning_vals)
+            # error_range = tuple(float(v) for v in error_vals)
+            # show_warnings = vals.get("show_warnings", get_show_warnings())
+            # show_errors = vals.get("show_errors", get_show_errors())
+            # set_tag_option_states(vals.get("tag_options", {}))
+            # thresholds_valid = True
+            # if (
+            #     show_warnings
+            #     and show_errors
+            #     and not (
+            #         warning_range[1] <= error_range[0]
+            #         or error_range[1] <= warning_range[0]
+            #     )
+            # ):
+            #     QMessageBox.critical(
+            #         self,
+            #         "Invalid Ranges",
+            #         "Warning and error ranges must not overlap when both markers are visible.",
+            #     )
+            #     thresholds_valid = False
 
-            if thresholds_valid:
-                try:
-                    set_threshold_ranges(
-                        warning_range=warning_range,
-                        error_range=error_range,
-                        show_warnings=show_warnings,
-                        show_errors=show_errors,
-                    )
-                    set_show_warnings(show_warnings)
-                    set_show_errors(show_errors)
-                    confidence_ops.apply_confidence_markers(self)
-                except InvalidWarningErrorRange as ex:
-                    QMessageBox.critical(self, "Invalid Ranges", str(ex))
-                    thresholds_valid = False
-            if thresholds_valid:
-                confidence_ops.refresh_confidence_issues(self)
-            else:
-                confidence_ops.apply_confidence_markers(self)
-            self.update_issue_info()
+            # if thresholds_valid:
+            #     try:
+            #         set_threshold_ranges(
+            #             warning_range=warning_range,
+            #             error_range=error_range,
+            #             show_warnings=show_warnings,
+            #             show_errors=show_errors,
+            #         )
+            #         set_show_warnings(show_warnings)
+            #         set_show_errors(show_errors)
+            #         confidence_ops.apply_confidence_markers(self)
+            #     except InvalidWarningErrorRange as ex:
+            #         QMessageBox.critical(self, "Invalid Ranges", str(ex))
+            #         thresholds_valid = False
+            # if thresholds_valid:
+            #     confidence_ops.refresh_confidence_issues(self)
+            # else:
+            #     confidence_ops.apply_confidence_markers(self)
+            # self.update_issue_info()
 
     def noop(*args, **kwargs):
         print("Not implemented yet")
