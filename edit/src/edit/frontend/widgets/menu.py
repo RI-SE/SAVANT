@@ -23,6 +23,7 @@ class AppMenu:
         on_change_annotator,
         on_bookmarks,
         on_inspect,
+        on_navigator,
         on_vlm_analysis,
         on_shortcuts,
         on_about,
@@ -102,6 +103,10 @@ class AppMenu:
         self.vlm_analysis_action.triggered.connect(on_vlm_analysis)
         self.vlm_analysis_action.setEnabled(False)  # Disabled until VLM data loaded
         view_menu.addAction(self.vlm_analysis_action)
+
+        self.navigator_action = QAction("Object Tag && Warnings Explorer", window)
+        self.navigator_action.triggered.connect(on_navigator)
+        view_menu.addAction(self.navigator_action)
 
         # Help menu
         help_menu = mb.addMenu("Help")

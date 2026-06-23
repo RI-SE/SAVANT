@@ -61,6 +61,7 @@ from edit.frontend.widgets.bookmark_dialog import BookmarkManagerDialog
 from edit.frontend.widgets.shortcuts_dialog import ShortcutsDialog
 from edit.frontend.widgets.inspection_widgets import InspectionBar, InspectionParamsDialog
 from edit.frontend.widgets.menu import AppMenu
+from edit.frontend.widgets.tag_warning_navigator import TagWarningNavigator
 from edit.frontend.widgets.vlm_analysis_dialog import VLMAnalysisDialog
 from edit.frontend.widgets.overlay import Overlay
 from edit.frontend.widgets.playback_controls import PlaybackControls
@@ -140,6 +141,7 @@ class MainWindow(QMainWindow):
             on_change_annotator=self.change_current_annotator,
             on_bookmarks=self.open_bookmark_manager,
             on_inspect=self.perform_inspection,
+            on_navigator=self.open_object_tag_warning_navigator,
             on_vlm_analysis=self.open_vlm_analysis,
             on_shortcuts=self.open_shortcuts,
             on_about=self.open_about,
@@ -345,6 +347,23 @@ class MainWindow(QMainWindow):
             from edit.frontend.utils.navigation import on_seek
 
             on_seek(self, dialog.selected_frame)
+
+    def open_object_tag_warning_navigator(self) -> None:
+        """Open the dialog for the object tag & warnings navigator."""
+        frame_count = self.project_state_controller.get_frame_count()
+        if frame_count <= 0:
+            QMessageBox.warning(
+                self,
+                "No project loaded",
+                "Please open a project before opening the Object Tag & Warnings Navigator.",
+            )
+            return
+        tag_options = get_tag_options()
+        dialog = TagWarningNavigator(
+            frame_count=frame_count, parent=self, tag_options=tag_options
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
 
     def perform_inspection(self) -> None:
         """Open the inspection parameters dialog and run detection."""
