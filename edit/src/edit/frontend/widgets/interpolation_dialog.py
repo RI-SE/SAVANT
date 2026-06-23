@@ -1,10 +1,11 @@
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QComboBox,
     QDialog,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -24,6 +25,7 @@ class InterpolationDialog(QDialog):
         current_frame: int,
         total_frames: int,
         on_interpolate: Callable,
+        preselect_object_id: Optional[str] = None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Interpolate / Re-track Annotations")
@@ -64,6 +66,13 @@ class InterpolationDialog(QDialog):
 
         self.object_combo.setCurrentIndex(-1)  # No pre-selected item
 
+        # Pre-select the requested object if provided
+        if preselect_object_id:
+            for i in range(self.object_combo.count()):
+                if self.object_combo.itemData(i) == preselect_object_id:
+                    self.object_combo.setCurrentIndex(i)
+                    break
+
         # Method selection
         self.method_combo = QComboBox()
         self.method_combo.addItem("Linear interpolation", userData="linear")
@@ -93,20 +102,41 @@ class InterpolationDialog(QDialog):
         form.addRow(QLabel("Range:"), self.radio_entire)
         form.addRow(QLabel(""), self.radio_range)
 
-        # Frame selection
+        # Start frame: spinbox + "From first occurrence" button
         self.start_frame_spin = QSpinBox()
         self.start_frame_spin.setRange(0, total_frames - 1)
         self.start_frame_spin.setValue(current_frame)
         self.start_frame_spin.valueChanged.connect(self._validate_frames)
         self.start_frame_spin.setEnabled(False)
-        form.addRow(QLabel("Start Frame:"), self.start_frame_spin)
 
+        self.first_frame_btn = QPushButton("↑ First")
+        self.first_frame_btn.setToolTip("Set to the first frame this object appears in")
+        self.first_frame_btn.setEnabled(False)
+        self.first_frame_btn.clicked.connect(self._fill_first_frame)
+
+        start_row = QHBoxLayout()
+        start_row.addWidget(self.start_frame_spin)
+        start_row.addWidget(self.first_frame_btn)
+        form.addRow(QLabel("Start Frame:"), start_row)
+
+        # End frame: spinbox + "To last occurrence" button
         self.end_frame_spin = QSpinBox()
         self.end_frame_spin.setRange(0, total_frames - 1)
         self.end_frame_spin.setValue(min(current_frame + 30, total_frames - 1))
         self.end_frame_spin.valueChanged.connect(self._validate_frames)
         self.end_frame_spin.setEnabled(False)
-        form.addRow(QLabel("End Frame:"), self.end_frame_spin)
+
+        self.last_frame_btn = QPushButton("↓ Last")
+        self.last_frame_btn.setToolTip("Set to the last frame this object appears in")
+        self.last_frame_btn.setEnabled(False)
+        self.last_frame_btn.clicked.connect(self._fill_last_frame)
+
+        end_row = QHBoxLayout()
+        end_row.addWidget(self.end_frame_spin)
+        end_row.addWidget(self.last_frame_btn)
+        form.addRow(QLabel("End Frame:"), end_row)
+
+        self.object_combo.currentIndexChanged.connect(self._update_first_last_btn_state)
 
         # Interpolate and cancel button
         self.interpolate_btn = QPushButton("Apply")
@@ -143,10 +173,43 @@ class InterpolationDialog(QDialog):
         end = self.end_frame_spin.value()
         self.interpolate_btn.setEnabled(start != end)
 
+    def _update_first_last_btn_state(self):
+        """Enable first/last buttons only in frame-range mode with a valid object."""
+        in_range_mode = self.radio_range.isChecked()
+        has_object = bool(
+            self.object_combo.currentData() or self.object_combo.currentText().strip()
+        )
+        enabled = in_range_mode and has_object
+        self.first_frame_btn.setEnabled(enabled)
+        self.last_frame_btn.setEnabled(enabled)
+
     def _toggle_range_inputs(self, checked: bool):
         self.start_frame_spin.setEnabled(checked)
         self.end_frame_spin.setEnabled(checked)
+        self._update_first_last_btn_state()
         self._validate_frames()
+
+    def _current_object_frames(self):
+        """Return sorted frame list for the currently selected object, or []."""
+        object_id = self.object_combo.currentData()
+        if not object_id:
+            object_id = self.object_combo.currentText().strip()
+        if not object_id:
+            return []
+        try:
+            return self.parent().annotation_controller.frames_for_object(object_id)
+        except Exception:
+            return []
+
+    def _fill_first_frame(self):
+        frames = self._current_object_frames()
+        if frames:
+            self.start_frame_spin.setValue(int(frames[0]))
+
+    def _fill_last_frame(self):
+        frames = self._current_object_frames()
+        if frames:
+            self.end_frame_spin.setValue(int(frames[-1]))
 
     def _interpolate(self):
         object_id = self.object_combo.currentData()
