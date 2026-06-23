@@ -138,9 +138,20 @@ class DuplicateRemovalPass(PostprocessingPass):
             )
             obj_to_keep = detail["kept_object"] if detail else None
 
-            kept_frames = set(object_frame_map.get(obj_to_keep, [])) if obj_to_keep else set()
-            deleted_frames = set(object_frame_map.get(obj_id, []))
-            exclusive_frames = deleted_frames - kept_frames
+            # Scan actual frame data for ALL frames containing obj_id, not just the stale
+            # object_frame_map entry.  This prevents orphaned frames when a cascade deletion
+            # transfers frames to an intermediate object that is itself later deleted: the
+            # stale map would miss those transferred frames and leave them unclean.
+            actual_deleted_frames: set[int] = set()
+            actual_kept_frames: set[int] = set()
+            for fk, fv in frames.items():
+                fobjs = fv.get("objects", {})
+                if obj_id in fobjs:
+                    actual_deleted_frames.add(int(fk))
+                if obj_to_keep and obj_to_keep in fobjs:
+                    actual_kept_frames.add(int(fk))
+
+            exclusive_frames = actual_deleted_frames - actual_kept_frames
 
             # Transfer exclusive frames to the kept object
             for frame_idx in exclusive_frames:
@@ -151,7 +162,7 @@ class DuplicateRemovalPass(PostprocessingPass):
                     self.frames_merged += 1
 
             # Delete from shared frames (where both objects exist)
-            for frame_idx in (deleted_frames - exclusive_frames):
+            for frame_idx in (actual_deleted_frames - exclusive_frames):
                 frame_str = str(frame_idx)
                 frame_objects = frames.get(frame_str, {}).get("objects", {})
                 if obj_id in frame_objects:
