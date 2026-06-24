@@ -36,6 +36,7 @@ from edit.frontend.utils.settings_store import (
     set_bbox_zoom_padding,
     set_video_buffer_frames,
     get_video_buffer_frames,
+    update_tag_options,
 )
 from edit.frontend.utils import (
     annotation_ops,
@@ -60,7 +61,7 @@ from edit.frontend.utils.undo import (
 from edit.frontend.widgets.about_dialog import AboutDialog
 from edit.frontend.widgets.bookmark_dialog import BookmarkManagerDialog
 from edit.frontend.widgets.shortcuts_dialog import ShortcutsDialog
-from edit.frontend.widgets.inspection_widgets import InspectionBar, InspectionParamsDialog
+from edit.frontend.widgets.inspection_widgets import InspectionParamsDialog
 from edit.frontend.widgets.menu import AppMenu
 from edit.frontend.widgets.tag_warning_navigator import TagWarningNavigator
 from edit.frontend.widgets.vlm_analysis_dialog import VLMAnalysisDialog
@@ -142,7 +143,6 @@ class MainWindow(QMainWindow):
             on_create_relationship=self.open_relationship_dialog,
             on_change_annotator=self.change_current_annotator,
             on_bookmarks=self.open_bookmark_manager,
-            on_inspect=self.perform_inspection,
             on_navigator=self.open_object_tag_warning_navigator,
             on_vlm_analysis=self.open_vlm_analysis,
             on_shortcuts=self.open_shortcuts,
@@ -157,16 +157,6 @@ class MainWindow(QMainWindow):
         # Seek + controls
         self.seek_bar = SeekBar()
         self.playback_controls = PlaybackControls()
-        self.inspection_bar = InspectionBar()
-        self.inspection_bar.hide()
-        self._inspection_frames: list[int] = []
-        self.inspection_bar.prev_clicked.connect(
-            lambda: self._jump_to_inspection_frame(-1)
-        )
-        self.inspection_bar.next_clicked.connect(
-            lambda: self._jump_to_inspection_frame(+1)
-        )
-        self.inspection_bar.end_clicked.connect(self._end_inspection)
 
         # Layout
         video_container = QWidget()
@@ -176,7 +166,6 @@ class MainWindow(QMainWindow):
 
         video_layout = QVBoxLayout()
         video_layout.addWidget(video_container, stretch=1)
-        video_layout.addWidget(self.inspection_bar)
         video_layout.addWidget(self.seek_bar)
         video_layout.addWidget(self.playback_controls)
         video_layout.setContentsMargins(0, 0, 0, 0)
@@ -362,11 +351,11 @@ class MainWindow(QMainWindow):
             return
         tag_options = get_tag_options()
         dialog = TagWarningNavigator(
-            frame_count=frame_count, parent=self, tag_options=tag_options
+            frame_count=frame_count, parent=self, tag_options=tag_options,
+            on_generate_tags=self.generate_inspection_tags,
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        
 
         self.sidebar.refresh_confidence_issue_list()
 
@@ -374,13 +363,12 @@ class MainWindow(QMainWindow):
         set_tag_option_states(vals.get("tag_options", {}))
         warning_range = vals.get("warning_range", get_warning_range())
         show_warnings = vals.get("show_warnings", get_show_warnings())
-        
         thresholds_valid = True
         try:
             set_threshold_ranges(
                 warning_range=warning_range,
                 show_warnings=show_warnings,
-                error_range=(0.0,0.0),
+                error_range=(0.0, 0.0),
                 show_errors=False,
             )
             set_show_warnings(show_warnings)
@@ -393,14 +381,11 @@ class MainWindow(QMainWindow):
             confidence_ops.refresh_confidence_issues(self)
         else:
             confidence_ops.apply_confidence_markers(self)
-        
-
 
         self.update_issue_info()
 
-
-    def perform_inspection(self) -> None:
-        """Open the inspection parameters dialog and run detection."""
+    def generate_inspection_tags(self) -> None:
+        """Open the inspection parameters dialog, run detection, and store results as object tags."""
         frame_count = self.project_state_controller.get_frame_count()
         if frame_count <= 0:
             QMessageBox.warning(
@@ -423,7 +408,7 @@ class MainWindow(QMainWindow):
         progress = QProgressDialog(
             "Scanning frames for problems…", None, 0, frames_to_scan, self
         )
-        progress.setWindowTitle("Performing inspection")
+        progress.setWindowTitle("Generating additional tags")
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setCancelButton(None)
         progress.setMinimumDuration(0)
@@ -452,46 +437,53 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 "Inspection complete",
-                "No problems found.",
+                "No problems found, no new tags generated.",
             )
             return
 
-        ghost_frames = result["ghost_frames"]
-        double_frames = result["double_frames"]
+        ghost_detections: dict = result["ghost_detections"]
+        double_detections: dict = result["double_detections"]
 
-        for frame_idx in ghost_frames:
-            self.state.add_frame_tag_details(frame_idx, {"type": "ghost"})
-        for frame_idx in double_frames:
-            self.state.add_frame_tag_details(frame_idx, {"type": "double"})
+        tags_added = 0
+        for obj_id, frames in ghost_detections.items():
+            for frame_idx in frames:
+                try:
+                    self.annotation_controller.add_object_tag(
+                        obj_id, "ghost_detection", frame_idx
+                    )
+                    tags_added += 1
+                except Exception:
+                    pass
 
-        # self.inspection_bar.set_counts(ghost_count, double_count, len(all_frames))
-        # self.seek_bar.set_inspection_frames(all_frames)
-        # self.inspection_bar.show()
+        for frame_idx, obj_ids in double_detections.items():
+            for obj_id in obj_ids:
+                try:
+                    self.annotation_controller.add_object_tag(
+                        obj_id, "double_detection", frame_idx
+                    )
+                    tags_added += 1
+                except Exception:
+                    pass
 
-    def _end_inspection(self) -> None:
-        """Exit inspection mode, clearing all inspection state."""
-        self._inspection_frames = []
-        self.seek_bar.clear_inspection_frames()
-        self.inspection_bar.hide()
-
-    def _jump_to_inspection_frame(self, direction: int) -> None:
-        """Jump to the next or previous inspection problem frame."""
-        if not self._inspection_frames:
-            return
+        # Sync _tag_options in settings store so new tags appear in the navigator
         try:
-            current = int(self.video_controller.current_index())
-        except Exception:
-            current = 0
-        from edit.frontend.utils.playback import _select_issue_frame
-        from edit.frontend.utils.render import show_frame
-        target = _select_issue_frame(self._inspection_frames, current, direction)
-        if target is None or target == current:
-            return
-        try:
-            pixmap, idx = self.video_controller.jump_to_frame(target)
-            show_frame(self, pixmap, idx)
+            tag_map = self.project_state_controller.get_tag_categories() or {}
+            update_tag_options(tag_map)
         except Exception:
             pass
+
+        # Refresh sidebar tag tree
+        try:
+            current_index = int(self.video_controller.current_index())
+            self.sidebar._refresh_active_frame_tags(current_index)
+        except Exception:
+            pass
+
+        QMessageBox.information(
+            self,
+            "Inspection complete",
+            f"Added {tags_added} object tag(s).",
+        )
 
     def update_vlm_menu_state(self):
         """Enable/disable VLM Analysis menu item based on data availability."""

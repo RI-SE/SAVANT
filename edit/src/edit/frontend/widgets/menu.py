@@ -22,7 +22,6 @@ class AppMenu:
         on_create_relationship,
         on_change_annotator,
         on_bookmarks,
-        on_inspect,
         on_navigator,
         on_vlm_analysis,
         on_shortcuts,
@@ -78,9 +77,6 @@ class AppMenu:
         self.change_annotator_action = QAction("Change annotator", window)
         self.change_annotator_action.triggered.connect(on_change_annotator)
 
-        self.inspect_action = QAction("Perform inspection", window)
-        self.inspect_action.triggered.connect(on_inspect)
-
         edit_menu.addAction(self.undo_action)
         edit_menu.addAction(self.redo_action)
         edit_menu.addSeparator()
@@ -90,8 +86,6 @@ class AppMenu:
         edit_menu.addAction(self.create_relationship_action)
         edit_menu.addSeparator()
         edit_menu.addAction(self.change_annotator_action)
-        edit_menu.addSeparator()
-        edit_menu.addAction(self.inspect_action)
 
         # View menu
         view_menu = mb.addMenu("View")

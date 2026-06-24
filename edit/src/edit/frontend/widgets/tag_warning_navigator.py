@@ -19,17 +19,22 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from edit.frontend.theme.forms import style_checkbox
+from edit.frontend.utils.settings_store import get_tag_options
 
 class TagWarningNavigator(QDialog):
     """Dialog to activate the Object Tag & Warnings explorer"""
 
     _warning_threshold: float = 0.4
 
-    def __init__(self, frame_count: int = 0, parent=None, tag_options: dict[str, dict[str, bool]] | None = None):
+    def __init__(self, frame_count: int = 0, parent=None, tag_options: dict[str, dict[str, bool]] | None = None, on_generate_tags=None):
         super().__init__(parent)
         self.setWindowTitle("Object Tag & Warnings Explorer")
         self.setModal(True)
         self.setMinimumWidth(600)
+        self._on_generate_tags = on_generate_tags
+        self._tag_menu = None
+        self._tag_dropdown = None
+        self._update_tag_text = None
 
         page = QWidget(self)
         form = QFormLayout(page)
@@ -82,6 +87,19 @@ class TagWarningNavigator(QDialog):
 
         form.addRow(confidence_group)
 
+        # Generate additional tags button
+        if self._on_generate_tags is not None:
+            gen_group = QGroupBox("Automatic Tag Generation", self)
+            gen_layout = QHBoxLayout(gen_group)
+            gen_btn = QPushButton("Generate additional tags")
+            gen_btn.setToolTip(
+                "Run ghost/double-detection and store results as object tags"
+            )
+            gen_btn.clicked.connect(self._run_generate_tags)
+            gen_layout.addWidget(gen_btn)
+            gen_layout.addStretch(1)
+            form.addRow(gen_group)
+
         # Dialog buttons
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
@@ -111,49 +129,85 @@ class TagWarningNavigator(QDialog):
         layout.addWidget(heading)
 
         if not states:
-            placeholder = QLabel(empty_message, self)
-            placeholder.setEnabled(False)
-            layout.addWidget(placeholder)
+            # Use a placeholder but still set up menu infrastructure for later additions
+            self._tag_dropdown = QToolButton(self)
+            self._tag_dropdown.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            self._tag_menu = QMenu(self._tag_dropdown)
+            self._tag_dropdown.setMenu(self._tag_menu)
+            self._tag_dropdown.setText("Select tags to display…   ")
+            layout.addWidget(self._tag_dropdown)
+            self._update_tag_text = lambda: self._tag_dropdown.setText(
+                "Select tags to display…   "
+                if not any(states.values())
+                else f"{sum(1 for v in states.values() if v)} selected to display"
+            )
             return container
 
-        dropdown = QToolButton(self)
-        dropdown.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        menu = QMenu(dropdown)
-        dropdown.setMenu(menu)
+        self._tag_dropdown = QToolButton(self)
+        self._tag_dropdown.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self._tag_menu = QMenu(self._tag_dropdown)
+        self._tag_dropdown.setMenu(self._tag_menu)
 
         def update_text():
             selected = [name for name, enabled in states.items() if enabled]
-            dropdown.setText(
+            self._tag_dropdown.setText(
                 "Select tags to display…   "
                 if not selected
                 else f"{len(selected)} selected to display"
             )
 
+        self._update_tag_text = update_text
         update_text()
+        self._add_tag_menu_entries(sorted(states.keys(), key=lambda n: n.lower()))
 
-        for name in sorted(states.keys(), key=lambda n: n.lower()):
+        layout.addWidget(self._tag_dropdown)
+        return container
+
+    def _add_tag_menu_entries(self, names):
+        """Add checkbox menu entries for the given tag names."""
+        states = self._object_tag_states
+        for name in names:
             widget = QWidget()
             widget_layout = QHBoxLayout(widget)
             widget_layout.setContentsMargins(5, 2, 5, 2)
             checkbox = QCheckBox(name, self)
             style_checkbox(checkbox)
-            checkbox.setChecked(bool(states[name]))
+            checkbox.setChecked(bool(states.get(name, False)))
 
             def handle_toggle(checked, key=name, box=checkbox):
                 states[key] = bool(checked)
                 box.blockSignals(True)
                 box.setChecked(bool(checked))
                 box.blockSignals(False)
-                update_text()
+                if self._update_tag_text:
+                    self._update_tag_text()
 
             checkbox.toggled.connect(handle_toggle)
             widget_layout.addWidget(checkbox)
-            action = QWidgetAction(menu)
+            action = QWidgetAction(self._tag_menu)
             action.setDefaultWidget(widget)
-            menu.addAction(action)
+            self._tag_menu.addAction(action)
 
-        layout.addWidget(dropdown)
-        return container
+    def _run_generate_tags(self):
+        """Call the generate tags callback, then sync new tags into the dropdown."""
+        if self._on_generate_tags is not None:
+            self._on_generate_tags()
+        self._sync_new_object_tags()
+
+    def _sync_new_object_tags(self):
+        """Add any newly discovered object tags to the dropdown."""
+        fresh = get_tag_options().get("object", {})
+        new_names = sorted(
+            [n for n in fresh if n not in self._object_tag_states],
+            key=lambda n: n.lower(),
+        )
+        if not new_names:
+            return
+        for name in new_names:
+            self._object_tag_states[name] = fresh.get(name, False)
+        self._add_tag_menu_entries(new_names)
+        if self._update_tag_text:
+            self._update_tag_text()
 
 
     def _normalize_ranges(self) -> None:
