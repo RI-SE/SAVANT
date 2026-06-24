@@ -21,9 +21,7 @@ from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
     # get_ontology_path,  # legacy manual ontology picker
     get_warning_range,
-    get_error_range,
     get_show_warnings,
-    get_show_errors,
     get_tag_options,
     get_frame_history_count,
     get_zoom_rate,

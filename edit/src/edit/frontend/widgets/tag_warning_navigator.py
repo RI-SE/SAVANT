@@ -12,21 +12,26 @@ from PyQt6.QtWidgets import (
     QToolButton,
     QMenu,
     QPushButton,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
     QWidgetAction,
-    QMessageBox,
 )
 from edit.frontend.theme.forms import style_checkbox
 from edit.frontend.utils.settings_store import get_tag_options
+
 
 class TagWarningNavigator(QDialog):
     """Dialog to activate the Object Tag & Warnings explorer"""
 
     _warning_threshold: float = 0.4
 
-    def __init__(self, frame_count: int = 0, parent=None, tag_options: dict[str, dict[str, bool]] | None = None, on_generate_tags=None):
+    def __init__(
+        self,
+        frame_count: int = 0,
+        parent=None,
+        tag_options: dict[str, dict[str, bool]] | None = None,
+        on_generate_tags=None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("Object Tag & Warnings Explorer")
         self.setModal(True)
@@ -39,7 +44,7 @@ class TagWarningNavigator(QDialog):
         page = QWidget(self)
         form = QFormLayout(page)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-        
+
         # Object Tags group
         option_map = tag_options or {}
         self._object_tag_states: dict[str, bool] = dict(option_map.get("object", {}))
@@ -111,15 +116,13 @@ class TagWarningNavigator(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 
-
         lay = QVBoxLayout(self)
         lay.addWidget(page)
         lay.addWidget(buttons)
 
-
     def _create_tag_dropdown(
-            self, *, title: str, states: dict[str, bool], empty_message: str
-        ) -> QWidget:
+        self, *, title: str, states: dict[str, bool], empty_message: str
+    ) -> QWidget:
         container = QWidget(self)
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -131,7 +134,9 @@ class TagWarningNavigator(QDialog):
         if not states:
             # Use a placeholder but still set up menu infrastructure for later additions
             self._tag_dropdown = QToolButton(self)
-            self._tag_dropdown.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            self._tag_dropdown.setPopupMode(
+                QToolButton.ToolButtonPopupMode.InstantPopup
+            )
             self._tag_menu = QMenu(self._tag_dropdown)
             self._tag_dropdown.setMenu(self._tag_menu)
             self._tag_dropdown.setText("Select tags to display…   ")
@@ -209,17 +214,13 @@ class TagWarningNavigator(QDialog):
         if self._update_tag_text:
             self._update_tag_text()
 
-
     def _normalize_ranges(self) -> None:
- 
         self._previous_warning_range = (
             0.0,
             float(self.warning_max_spin.value()),
         )
 
-
     def values(self) -> dict:
-
         tag_options = {
             "object": dict(self._object_tag_states),
         }
@@ -233,10 +234,8 @@ class TagWarningNavigator(QDialog):
             "tag_options": tag_options,
         }
 
-
     def accept(self) -> None:
         super().accept()
-
 
     def reject(self) -> None:
         super().reject()

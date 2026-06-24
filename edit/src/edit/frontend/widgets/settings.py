@@ -10,14 +10,10 @@ from edit.frontend.theme.forms import style_checkbox
 from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
     get_bbox_zoom_padding,
-    get_error_range,
     get_movement_sensitivity,
     get_ontology_namespace,
     get_rotation_sensitivity,
-    get_show_errors,
-    get_show_warnings,
     get_video_buffer_frames,
-    get_warning_range,
     get_zoom_rate,
     set_action_interval_offset,
     set_movement_sensitivity,
@@ -36,15 +32,12 @@ from PyQt6.QtWidgets import (  # QFileDialog,  # Manual ontology picker
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMenu,
     QMessageBox,
     QPushButton,
     QSpinBox,
     QTableWidgetItem,
-    QToolButton,
     QVBoxLayout,
     QWidget,
-    QWidgetAction,
 )
 
 
@@ -377,7 +370,6 @@ class SettingsDialog(QDialog):
         #    color_hex = color_btn.text()
         #    annotators.append({"name": name, "enabled": enabled, "color": color_hex})
 
-
         return {
             "zoom_rate": float(self.zoom_spin.value()),
             "previous_frame_count": int(self.frame_count_spin.value()),
@@ -391,7 +383,6 @@ class SettingsDialog(QDialog):
         spin.blockSignals(True)
         spin.setValue(float(value))
         spin.blockSignals(False)
-
 
     def _pick_color_for_row(self, row: int):
         current_btn = self.annotator_table.cellWidget(row, 2)
