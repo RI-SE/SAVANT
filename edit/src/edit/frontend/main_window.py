@@ -52,6 +52,7 @@ from edit.frontend.utils.project_config import record_annotator_login
 from edit.frontend.utils.undo import (
     ControllerAnnotationGateway,
     ControllerFrameTagGateway,
+    ControllerObjectTagGateway,
     ControllerVLMGateway,
     GatewayHolder,
     UndoRedoManager,
@@ -108,6 +109,7 @@ class MainWindow(QMainWindow):
                 project_state_controller=self.project_state_controller,
             ),
             frame_tag_gateway=ControllerFrameTagGateway(self.annotation_controller),
+            object_tag_gateway=ControllerObjectTagGateway(self.annotation_controller),
             vlm_gateway=ControllerVLMGateway(self.project_state_controller),
         )
 
@@ -454,12 +456,17 @@ class MainWindow(QMainWindow):
             )
             return
 
-        self._inspection_frames = all_frames
-        ghost_count = len(result["ghost_frames"])
-        double_count = len(result["double_frames"])
-        self.inspection_bar.set_counts(ghost_count, double_count, len(all_frames))
-        self.seek_bar.set_inspection_frames(all_frames)
-        self.inspection_bar.show()
+        ghost_frames = result["ghost_frames"]
+        double_frames = result["double_frames"]
+
+        for frame_idx in ghost_frames:
+            self.state.add_frame_tag_details(frame_idx, {"type": "ghost"})
+        for frame_idx in double_frames:
+            self.state.add_frame_tag_details(frame_idx, {"type": "double"})
+
+        # self.inspection_bar.set_counts(ghost_count, double_count, len(all_frames))
+        # self.seek_bar.set_inspection_frames(all_frames)
+        # self.inspection_bar.show()
 
     def _end_inspection(self) -> None:
         """Exit inspection mode, clearing all inspection state."""

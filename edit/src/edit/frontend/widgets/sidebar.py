@@ -31,6 +31,8 @@ from PyQt6.QtWidgets import (
     QRadioButton,
     QScrollArea,
     QSpinBox,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -72,7 +74,9 @@ from edit.frontend.utils.undo import (
     EditFrameTagSnapshot,
     FrameTagSnapshot,
     InterpolateAnnotationsCommand,
+    ObjectTagSnapshot,
     RemoveFrameTagCommand,
+    RemoveObjectTagCommand,
     RetrackRangeCommand,
 )
 from edit.frontend.widgets.interpolation_dialog import InterpolationDialog
@@ -257,28 +261,28 @@ class Sidebar(QWidget):
 
         warnings_header = QVBoxLayout()
         title_row = QHBoxLayout()
-        title_row.addWidget(QLabel("Issues:"))
+        title_row.addWidget(QLabel("Confidence Warnings:"))
         title_row.addStretch(1)
-        sort_controls = QHBoxLayout()
-        sort_controls.setSpacing(12)
-        self._frame_sort_btn = QPushButton()
-        self._frame_sort_btn.setFlat(True)
-        self._frame_sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._frame_sort_btn.clicked.connect(
-            lambda: self._change_confidence_sort_mode("frame")
-        )
-        sort_controls.addWidget(self._frame_sort_btn)
-        self._id_sort_btn = QPushButton()
-        self._id_sort_btn.setFlat(True)
-        self._id_sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._id_sort_btn.clicked.connect(
-            lambda: self._change_confidence_sort_mode("object_id")
-        )
-        sort_controls.addWidget(self._id_sort_btn)
-        title_row.addLayout(sort_controls)
+        # sort_controls = QHBoxLayout()
+        # sort_controls.setSpacing(12)
+        # self._frame_sort_btn = QPushButton()
+        # self._frame_sort_btn.setFlat(True)
+        # self._frame_sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        # self._frame_sort_btn.clicked.connect(
+        #     lambda: self._change_confidence_sort_mode("frame")
+        # )
+        # sort_controls.addWidget(self._frame_sort_btn)
+        # self._id_sort_btn = QPushButton()
+        # self._id_sort_btn.setFlat(True)
+        # self._id_sort_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        # self._id_sort_btn.clicked.connect(
+        #     lambda: self._change_confidence_sort_mode("object_id")
+        # )
+        # sort_controls.addWidget(self._id_sort_btn)
+        # title_row.addLayout(sort_controls)
         warnings_header.addLayout(title_row)
         main_layout.addLayout(warnings_header)
-        self._update_confidence_sort_buttons()
+        # self._update_confidence_sort_buttons()
         self.confidence_issue_list = QListWidget()
         self.confidence_issue_list.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection
@@ -307,21 +311,27 @@ class Sidebar(QWidget):
         self.confidence_issue_list.model().rowsRemoved.connect(self.adjust_list_sizes)
         main_layout.addWidget(self.confidence_issue_list)
 
-        # --- Active Frame Tags ---
-        main_layout.addWidget(QLabel("Frame Tags:"))
-        self.frame_tag_list = QListWidget()
-        self.frame_tag_list.setMinimumHeight(100)
-        self.frame_tag_list.model().rowsInserted.connect(self.adjust_list_sizes)
-        self.frame_tag_list.model().rowsRemoved.connect(self.adjust_list_sizes)
-        self.frame_tag_list.installEventFilter(self)
-        self.frame_tag_list.itemDoubleClicked.connect(self._open_edit_frame_tag_dialog)
-        main_layout.addWidget(self.frame_tag_list)
-
-        self._frame_tag_del = QShortcut(
-            QKeySequence(Qt.Key.Key_Delete), self.frame_tag_list
+        # --- Active Frame Tags (and Object Tags) ---
+        main_layout.addWidget(QLabel("Frame & Object Tags:"))
+        self.tag_tree = QTreeWidget()
+        self.tag_tree.setHeaderHidden(True)
+        self.tag_tree.setRootIsDecorated(True)
+        self.tag_tree.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
         )
-        self._frame_tag_del.setContext(Qt.ShortcutContext.WidgetShortcut)
-        self._frame_tag_del.activated.connect(self._delete_selected_frame_tag)
+        self.tag_tree.setMinimumHeight(100)
+        self.tag_tree.model().rowsInserted.connect(self.adjust_list_sizes)
+        self.tag_tree.model().rowsRemoved.connect(self.adjust_list_sizes)
+        self.tag_tree.installEventFilter(self)
+        self.tag_tree.itemClicked.connect(self._on_tag_tree_item_clicked)
+        self.tag_tree.itemDoubleClicked.connect(self._open_edit_frame_tag_dialog)
+        main_layout.addWidget(self.tag_tree)
+
+        self._tag_tree_del = QShortcut(
+            QKeySequence(Qt.Key.Key_Delete), self.tag_tree
+        )
+        self._tag_tree_del.setContext(Qt.ShortcutContext.WidgetShortcut)
+        self._tag_tree_del.activated.connect(self._delete_selected_tag)
 
         self.frontend_state.confidenceIssuesChanged.connect(
             self._on_confidence_issues_changed
@@ -925,12 +935,15 @@ class Sidebar(QWidget):
         """Keep lists at min height when empty, let them expand when populated."""
         widgets = (
             self.active_objects,
-            self.frame_tag_list,
+            self.tag_tree,
         )
         for widget in widgets:
             if widget is None:
                 continue
-            rows = widget.count()
+            if isinstance(widget, QTreeWidget):
+                rows = widget.topLevelItemCount()
+            else:
+                rows = widget.count()
             if rows == 0:
                 widget.setMinimumHeight(widget.minimumHeight())
                 widget.setMaximumHeight(16777215)
@@ -1030,12 +1043,14 @@ class Sidebar(QWidget):
         except Exception as exc:
             QMessageBox.critical(self, "Failed to add tag", str(exc))
 
-    def _open_edit_frame_tag_dialog(self, item: "QListWidgetItem") -> None:
+    def _open_edit_frame_tag_dialog(self, item: "QTreeWidgetItem") -> None:
         """Open a pre-filled dialog to edit the selected frame tag."""
-        payload = item.data(Qt.ItemDataRole.UserRole)
-        if not payload:
+        payload = item.data(0, Qt.ItemDataRole.UserRole)
+        if not payload or payload.get("kind") != "frame_tag":
             return
-        old_tag, old_start, old_end = payload
+        old_tag = payload["tag_name"]
+        old_start = payload["start"]
+        old_end = payload["end"]
 
         path = get_ontology_path()
         if path is None:
@@ -1114,24 +1129,166 @@ class Sidebar(QWidget):
             QMessageBox.critical(self, "Failed to edit tag", str(exc))
 
     def _refresh_active_frame_tags(self, frame_index: int) -> None:
-        """
-        Rebuild the 'Frame Tags' list to show only tags active at frame_index.
-        """
-        if not hasattr(self, "frame_tag_list") or self.frame_tag_list is None:
+        """Rebuild the 'Frame Tags' tree with frame tags and object tags active at frame_index."""
+        if not hasattr(self, "tag_tree") or self.tag_tree is None:
             return
-        try:
-            active = self.annotation_controller.active_frame_tags(int(frame_index))
-        except Exception:
-            active = []
 
-        with QSignalBlocker(self.frame_tag_list):
-            self.frame_tag_list.clear()
-            for tag, start, end in active:
-                item = QListWidgetItem(f"{tag} [{start}-{end}]")
-                item.setData(Qt.ItemDataRole.UserRole, (tag, int(start), int(end)))
-                self.frame_tag_list.addItem(item)
+        try:
+            active_frame_tags = self.annotation_controller.active_frame_tags(
+                int(frame_index)
+            )
+        except Exception:
+            active_frame_tags = []
+
+        try:
+            all_tag_details = (
+                self.project_state_controller.get_tag_frame_details()
+            )
+            object_tags_at_frame = [
+                d
+                for d in all_tag_details.get(int(frame_index), [])
+                if d.get("category") == "object_tag"
+            ]
+        except Exception:
+            object_tags_at_frame = []
+
+        # Preserve which top-level labels were expanded so we can restore state.
+        expanded_labels: set[str] = set()
+        for i in range(self.tag_tree.topLevelItemCount()):
+            it = self.tag_tree.topLevelItem(i)
+            if it is not None and it.isExpanded():
+                expanded_labels.add(it.text(0))
+
+        with QSignalBlocker(self.tag_tree):
+            self.tag_tree.clear()
+
+            for tag, start, end in active_frame_tags:
+                top_label = f"🏷 {tag} [{start}–{end}]"
+                top = QTreeWidgetItem(self.tag_tree, [top_label])
+                payload = {
+                    "kind": "frame_tag",
+                    "tag_name": tag,
+                    "start": int(start),
+                    "end": int(end),
+                }
+                top.setData(0, Qt.ItemDataRole.UserRole, payload)
+                top.setChildIndicatorPolicy(
+                    QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
+                )
+                child = QTreeWidgetItem(top)
+                child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                detail_widget = self._make_tag_detail_widget(
+                    f"Range {start}–{end}", payload
+                )
+                self.tag_tree.setItemWidget(child, 0, detail_widget)
+                if top_label in expanded_labels:
+                    top.setExpanded(True)
+
+            for detail in object_tags_at_frame:
+                obj_id = detail.get("object_id", "?")
+                obj_name = detail.get("object_name") or obj_id
+                tag_name = detail.get("tag_name", "")
+                top_label = f"❗ {obj_name}"
+                top = QTreeWidgetItem(self.tag_tree, [top_label])
+                payload = {
+                    "kind": "object_tag",
+                    "object_id": obj_id,
+                    "tag_name": tag_name,
+                    "frame_index": int(frame_index),
+                }
+                top.setData(0, Qt.ItemDataRole.UserRole, payload)
+                top.setChildIndicatorPolicy(
+                    QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
+                )
+                child = QTreeWidgetItem(top)
+                child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                detail_widget = self._make_tag_detail_widget(
+                    f"{tag_name}", payload
+                )
+                self.tag_tree.setItemWidget(child, 0, detail_widget)
+                if top_label in expanded_labels:
+                    top.setExpanded(True)
+
         self.adjust_list_sizes()
         self.refresh_confidence_issue_list(frame_index)
+
+    def _make_tag_detail_widget(self, info_text: str, payload: dict) -> QWidget:
+        """Return a small widget with an info label and a Remove button."""
+        container = QWidget()
+        root = QVBoxLayout(container)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        row1 = QHBoxLayout()
+        row1.setContentsMargins(4, 2, 4, 2)
+        row1.setSpacing(6)
+        lbl = QLabel(info_text)
+        lbl.setStyleSheet("color: palette(text);")
+        row1.addWidget(lbl, stretch=1)
+        root.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        row2.setContentsMargins(4, 2, 4, 2)
+        btn = QPushButton("Delete Tag")
+        btn.setFixedHeight(20)
+        btn.setStyleSheet("QPushButton { font-size: 10px; padding: 0 6px; }")
+        btn.clicked.connect(lambda _checked, p=payload: self._delete_tag_by_payload(p))
+        row2.addStretch(1)
+        row2.addWidget(btn)
+        root.addLayout(row2)
+
+        return container
+
+    def _delete_tag_by_payload(self, payload: dict) -> None:
+        """Execute an undoable remove for a tag described by payload."""
+        host_window = self.window()
+        try:
+            kind = payload.get("kind")
+            if kind == "frame_tag":
+                snapshot = FrameTagSnapshot(
+                    tag_name=payload["tag_name"],
+                    start_frame=int(payload["start"]),
+                    end_frame=int(payload["end"]),
+                )
+                if host_window is not None and hasattr(
+                    host_window, "execute_undoable_command"
+                ):
+                    host_window.execute_undoable_command(
+                        RemoveFrameTagCommand(snapshot)
+                    )
+                else:
+                    self.annotation_controller.remove_frame_tag(
+                        payload["tag_name"], payload["start"], payload["end"]
+                    )
+            elif kind == "object_tag":
+                snapshot = ObjectTagSnapshot(
+                    object_id=payload["object_id"],
+                    tag_name=payload["tag_name"],
+                    frame_index=int(payload["frame_index"]),
+                )
+                if host_window is not None and hasattr(
+                    host_window, "execute_undoable_command"
+                ):
+                    host_window.execute_undoable_command(
+                        RemoveObjectTagCommand(snapshot)
+                    )
+                else:
+                    self.annotation_controller.remove_object_tag(
+                        payload["object_id"],
+                        payload["tag_name"],
+                        payload["frame_index"],
+                    )
+            else:
+                return
+            current_index = int(self.video_controller.current_index())
+            self._refresh_active_frame_tags(current_index)
+        except Exception as exc:
+            QMessageBox.warning(self, "Remove Tag", str(exc))
+
+    def _on_tag_tree_item_clicked(self, item: QTreeWidgetItem, _column: int) -> None:
+        """Toggle expand/collapse on top-level tag items when clicked."""
+        if item.parent() is None:
+            item.setExpanded(not item.isExpanded())
 
     @pyqtSlot(int)
     def on_frame_changed(self, frame_index: int) -> None:
@@ -1196,9 +1353,9 @@ class Sidebar(QWidget):
         type_combo.blockSignals(False)
 
     def eventFilter(self, obj, event):
-        if obj is self.frame_tag_list and event.type() == QEvent.Type.KeyPress:
+        if obj is self.tag_tree and event.type() == QEvent.Type.KeyPress:
             if event.key() == Qt.Key.Key_Delete:
-                self._delete_selected_frame_tag()
+                self._delete_selected_tag()
                 event.accept()
                 return True
         return super().eventFilter(obj, event)
@@ -1208,51 +1365,19 @@ class Sidebar(QWidget):
             self._update_confidence_sort_buttons()
         super().changeEvent(event)
 
-    def _delete_selected_frame_tag(self):
-        item = self.frame_tag_list.currentItem()
-        if not item:
+    def _delete_selected_tag(self) -> None:
+        """Remove the currently selected tag (frame tag or object tag) via undo command."""
+        item = self.tag_tree.currentItem()
+        if item is None:
             return
-
-        payload = item.data(Qt.ItemDataRole.UserRole)
+        if item.parent() is not None:
+            item = item.parent()
+        if item is None:
+            return
+        payload = item.data(0, Qt.ItemDataRole.UserRole)
         if not payload:
-            QMessageBox.warning(
-                self, "Delete Frame Tag", "No tag data on the selected item."
-            )
             return
-
-        tag, start, end = payload
-        res = QMessageBox.question(
-            self,
-            "Delete Frame Tag",
-            f"Delete {tag} [{start}-{end}]?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if res != QMessageBox.StandardButton.Yes:
-            return
-
-        snapshot = FrameTagSnapshot(
-            tag_name=tag,
-            start_frame=int(start),
-            end_frame=int(end),
-        )
-        host_window = self.window()
-        try:
-            if host_window is not None and hasattr(
-                host_window, "execute_undoable_command"
-            ):
-                host_window.execute_undoable_command(RemoveFrameTagCommand(snapshot))
-            else:
-                removed = self.annotation_controller.remove_frame_tag(tag, start, end)
-                if not removed:
-                    QMessageBox.information(
-                        self, "Delete Frame Tag", "Nothing was deleted."
-                    )
-                    return
-            current_index = int(self.video_controller.current_index())
-            self._refresh_active_frame_tags(current_index)
-        except Exception as exc:
-            QMessageBox.warning(self, "Delete Frame Tag", str(exc))
+        self._delete_tag_by_payload(payload)
 
     def show_object_editor(self, object_id: str, *, expand: bool) -> None:
         """

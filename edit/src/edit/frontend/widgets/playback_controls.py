@@ -2,11 +2,9 @@ import math
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import (
-    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -83,33 +81,6 @@ class PlaybackControls(QWidget):
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(0, 10, 0, 10)
 
-        self.issue_info_widget = QWidget()
-        issue_layout = QVBoxLayout(self.issue_info_widget)
-        issue_layout.setContentsMargins(0, 0, 0, 0)
-        issue_layout.setSpacing(4)
-        self.issue_heading = QLabel("Frame Issues")
-        self.issue_heading.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.issue_heading.setStyleSheet("font-weight: bold;")
-        self.issue_heading.setSizePolicy(
-            self.issue_heading.sizePolicy().horizontalPolicy(),
-            self.issue_heading.sizePolicy().verticalPolicy(),
-        )
-        self.issue_details_label = QLabel()
-        self.issue_details_label.setWordWrap(True)
-        self.issue_details_label.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
-        )
-        self.issue_details_label.setObjectName("IssueInfoLabel")
-        self.issue_scroll = QScrollArea()
-        self.issue_scroll.setWidgetResizable(True)
-        self.issue_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.issue_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.issue_scroll.setWidget(self.issue_details_label)
-        issue_layout.addWidget(self.issue_heading)
-        issue_layout.addWidget(self.issue_scroll)
-
         # Annotation info widget (existing)
         self.info_widget = QWidget()
         self.info_widget.setObjectName("AnnotationInfoBar")
@@ -178,7 +149,6 @@ class PlaybackControls(QWidget):
         # Add the widgets to the main horizontal layout
         content_row = QHBoxLayout()
         content_row.setSpacing(20)
-        content_row.addWidget(self.issue_info_widget, stretch=1)
         content_row.addStretch(1)
         content_row.addWidget(controls_container, stretch=0)
         content_row.addStretch(1)
@@ -190,7 +160,6 @@ class PlaybackControls(QWidget):
         # Set initial visibility state
         self._issue_nav_visible = None
         self.clear_annotation_info()
-        self.clear_issue_details()
         self.set_issue_navigation_visible(False)
 
     def set_icon_paths(
@@ -265,28 +234,10 @@ class PlaybackControls(QWidget):
         self.rotation_label.setText("")
 
     def display_issue_details(self, entries: list[dict]):
-        """Render issue/tag details for the current frame."""
-        if not entries:
-            self.clear_issue_details()
-            return
-        self.issue_details_label.setStyleSheet("")
-        parts = []
-        for entry in entries:
-            parts.append(
-                "<b>Type:</b> {type}<br>"
-                "<b>Object:</b> {object}<br>"
-                "<b>Info:</b> {info}".format(
-                    type=entry.get("type", "Unknown"),
-                    object=entry.get("object", "Unknown"),
-                    info=entry.get("info", ""),
-                )
-            )
-        self.issue_details_label.setText("<br><br>".join(parts))
+        """No-op: Frame Issues panel has been moved to the sidebar."""
 
     def clear_issue_details(self):
-        """Show placeholder when no tags/warnings are active."""
-        self.issue_details_label.setStyleSheet("color: #888888; font-style: italic;")
-        self.issue_details_label.setText("No tags, warnings, or errors on this frame.")
+        """No-op: Frame Issues panel has been moved to the sidebar."""
 
     def set_issue_navigation_visible(self, visible: bool) -> None:
         visible = bool(visible)
