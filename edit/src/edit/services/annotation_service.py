@@ -15,6 +15,8 @@ from edit.models.OpenLabel import (
     ConfidenceData,
     FrameInterval,
     FrameLevelObject,
+    ObjectMetadataData,
+    ObjectMetadataVecEntry,
     OpenLabel,
     RotatedBBox,
 )
@@ -1123,3 +1125,66 @@ class AnnotationService:
             }
             for relationship in frame_relationships
         ]
+
+    def add_object_tag(
+        self, object_id: str, tag_name: str, frame_index: int
+    ) -> None:
+        """Add frame_index to the object tag named tag_name on the given object.
+
+        If no entry with that name exists, one is created. If the frame is already
+        present, this is a no-op (idempotent).
+        """
+        openlabel = self.project_state.annotation_config
+        if openlabel is None or object_id not in (openlabel.objects or {}):
+            raise ObjectNotFoundError(
+                f"Object '{object_id}' not found in annotation config."
+            )
+        metadata = openlabel.objects[object_id]
+        if metadata.object_data is None:
+            metadata.object_data = ObjectMetadataData()
+        if metadata.object_data.vec is None:
+            metadata.object_data.vec = []
+
+        for entry in metadata.object_data.vec:
+            if entry.name == tag_name:
+                vals = list(entry.val) if isinstance(entry.val, list) else [entry.val]
+                if frame_index not in vals:
+                    vals.append(frame_index)
+                    vals.sort()
+                    entry.val = vals
+                return
+
+        metadata.object_data.vec.append(
+            ObjectMetadataVecEntry(name=tag_name, val=[frame_index])
+        )
+
+    def remove_object_tag(
+        self, object_id: str, tag_name: str, frame_index: int
+    ) -> bool:
+        """Remove frame_index from the object tag named tag_name on the given object.
+
+        Removes the entire entry when no frames remain. Returns True if anything
+        was changed.
+        """
+        openlabel = self.project_state.annotation_config
+        if openlabel is None:
+            return False
+        metadata = (openlabel.objects or {}).get(object_id)
+        if metadata is None:
+            return False
+        vec = getattr(getattr(metadata, "object_data", None), "vec", None) or []
+        for i, entry in enumerate(vec):
+            if entry.name != tag_name:
+                continue
+            vals = list(entry.val) if isinstance(entry.val, list) else [entry.val]
+            if frame_index not in vals:
+                return False
+            vals.remove(frame_index)
+            if vals:
+                entry.val = vals
+            else:
+                del metadata.object_data.vec[i]
+                if not metadata.object_data.vec:
+                    metadata.object_data.vec = None
+            return True
+        return False

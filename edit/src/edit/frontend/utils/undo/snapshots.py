@@ -119,6 +119,15 @@ class EditFrameTagSnapshot:
 
 
 @dataclass(frozen=True)
+class ObjectTagSnapshot:
+    """Snapshot representing a single object-tag frame assignment."""
+
+    object_id: str
+    tag_name: str
+    frame_index: int
+
+
+@dataclass(frozen=True)
 class VLMTagSnapshot:
     """Snapshot of a VLM tag's data for undo/redo operations."""
 

@@ -14,6 +14,7 @@ from .snapshots import (
     FrameObjectSnapshot,
     FrameTagSnapshot,
     ObjectMetadataSnapshot,
+    ObjectTagSnapshot,
     RelationshipSnapshot,
     VLMTagSnapshot,
 )
@@ -608,6 +609,42 @@ class EditFrameTagCommand:
         if gateway is None:
             raise RuntimeError("No frame tag gateway configured.")
         gateway.edit_frame_tag(self.snapshot.new, self.snapshot.old)
+
+
+@dataclass
+class AddObjectTagCommand:
+    snapshot: ObjectTagSnapshot
+    description: str = "Add object tag"
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.object_tag_gateway
+        if gateway is None:
+            raise RuntimeError("No object tag gateway configured.")
+        gateway.add_object_tag(self.snapshot)
+
+    def undo(self, context: GatewayHolder) -> None:
+        gateway = context.object_tag_gateway
+        if gateway is None:
+            raise RuntimeError("No object tag gateway configured.")
+        gateway.remove_object_tag(self.snapshot)
+
+
+@dataclass
+class RemoveObjectTagCommand:
+    snapshot: ObjectTagSnapshot
+    description: str = "Remove object tag"
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.object_tag_gateway
+        if gateway is None:
+            raise RuntimeError("No object tag gateway configured.")
+        gateway.remove_object_tag(self.snapshot)
+
+    def undo(self, context: GatewayHolder) -> None:
+        gateway = context.object_tag_gateway
+        if gateway is None:
+            raise RuntimeError("No object tag gateway configured.")
+        gateway.add_object_tag(self.snapshot)
 
 
 @dataclass

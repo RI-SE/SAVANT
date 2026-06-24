@@ -120,24 +120,25 @@ def detect_ghost_frames(
     max_ghost_frames: int,
     start_frame: int = 0,
     end_frame: int | None = None,
-) -> set[int]:
-    """Return frame indices within [start_frame, end_frame] belonging to ghost objects.
+) -> dict[str, list[int]]:
+    """Return ghost objects mapped to their problem frame indices.
 
     A ghost object is one whose total annotated frame count is <= max_ghost_frames.
-    Only frames within the specified range are returned as problem frames.
+    Only frames within [start_frame, end_frame] are included.
+    Returns {object_id: [frame_indices]}.
     """
     object_ids = annotation_controller.list_object_ids()
-    problem_frames: set[int] = set()
+    result: dict[str, list[int]] = {}
     for obj_id in object_ids:
         frames = annotation_controller.frames_for_object(obj_id)
         if len(frames) <= max_ghost_frames:
-            for f in frames:
-                if f < start_frame:
-                    continue
-                if end_frame is not None and f > end_frame:
-                    continue
-                problem_frames.add(f)
-    return problem_frames
+            in_range = [
+                f for f in frames
+                if f >= start_frame and (end_frame is None or f <= end_frame)
+            ]
+            if in_range:
+                result[obj_id] = sorted(in_range)
+    return result
 
 
 def detect_double_frames(
@@ -147,48 +148,49 @@ def detect_double_frames(
     start_frame: int = 0,
     end_frame: int | None = None,
     progress_callback=None,
-) -> set[int]:
-    """Return frame indices within [start_frame, end_frame] where two bboxes overlap.
+) -> dict[int, list[str]]:
+    """Return frames where two bboxes overlap, mapped to the involved object IDs.
 
     progress_callback, if provided, is called with (frames_scanned, total_to_scan)
     after each frame is processed.
+    Returns {frame_idx: [obj_id_a, obj_id_b, ...]}.
     """
     frame_count = project_state_controller.get_frame_count()
     if frame_count <= 0:
-        return set()
+        return {}
 
     effective_end = min(
         frame_count - 1, end_frame if end_frame is not None else frame_count - 1
     )
     effective_start = max(0, start_frame)
     if effective_start > effective_end:
-        return set()
+        return {}
 
     frames_to_scan = range(effective_start, effective_end + 1)
     total = len(frames_to_scan)
     object_ids = annotation_controller.list_object_ids()
-    problem_frames: set[int] = set()
+    result: dict[int, list[str]] = {}
 
     for i, frame_idx in enumerate(frames_to_scan):
         if progress_callback is not None:
             progress_callback(i, total)
-        bboxes = []
+        # Build list of (obj_id, bbox) for objects present in this frame
+        present: list[tuple[str, object]] = []
         for obj_id in object_ids:
             val = annotation_controller.try_get_bbox(frame_idx, obj_id)
             if val is not None:
-                bboxes.append(val)
-        if len(bboxes) < 2:
+                present.append((obj_id, val))
+        if len(present) < 2:
             continue
-        found = False
-        for a in range(len(bboxes)):
-            if found:
-                break
-            for b in range(a + 1, len(bboxes)):
-                if _bboxes_overlap(bboxes[a], bboxes[b], overlap_threshold):
-                    problem_frames.add(frame_idx)
-                    found = True
-                    break
-    return problem_frames
+        involved: set[str] = set()
+        for a in range(len(present)):
+            for b in range(a + 1, len(present)):
+                if _bboxes_overlap(present[a][1], present[b][1], overlap_threshold):
+                    involved.add(present[a][0])
+                    involved.add(present[b][0])
+        if involved:
+            result[frame_idx] = sorted(involved)
+    return result
 
 
 def run_inspection(
@@ -200,18 +202,23 @@ def run_inspection(
     end_frame: int | None = None,
     progress_callback=None,
 ) -> dict:
-    """Run all detectors and return a dict with ghost_frames, double_frames, all_frames.
+    """Run all detectors and return ghost_detections, double_detections, all_frames.
 
     start_frame / end_frame restrict detection to that inclusive frame range.
-    progress_callback is forwarded to detect_double_frames and called with
-    (frames_scanned, total_to_scan) for each frame processed.
+    progress_callback is forwarded to detect_double_frames.
+    Returns:
+      {
+        "ghost_detections": dict[str, list[int]],   # obj_id → frames
+        "double_detections": dict[int, list[str]],  # frame_idx → obj_ids
+        "all_frames": list[int],
+      }
     """
     overlap_threshold = overlap_percent / 100.0
-    ghost_frames = detect_ghost_frames(
-        annotation_controller, max_ghost_frames, start_frame=start_frame,
-        end_frame=end_frame,
+    ghost_detections = detect_ghost_frames(
+        annotation_controller, max_ghost_frames,
+        start_frame=start_frame, end_frame=end_frame,
     )
-    double_frames = detect_double_frames(
+    double_detections = detect_double_frames(
         annotation_controller,
         project_state_controller,
         overlap_threshold,
@@ -219,9 +226,11 @@ def run_inspection(
         end_frame=end_frame,
         progress_callback=progress_callback,
     )
+    ghost_frames: set[int] = {f for frames in ghost_detections.values() for f in frames}
+    double_frames: set[int] = set(double_detections.keys())
     all_frames = sorted(ghost_frames | double_frames)
     return {
-        "ghost_frames": ghost_frames,
-        "double_frames": double_frames,
+        "ghost_detections": ghost_detections,
+        "double_detections": double_detections,
         "all_frames": all_frames,
     }

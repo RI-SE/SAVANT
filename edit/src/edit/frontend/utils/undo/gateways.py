@@ -12,6 +12,7 @@ from .snapshots import (
     FrameObjectSnapshot,
     FrameTagSnapshot,
     ObjectMetadataSnapshot,
+    ObjectTagSnapshot,
     VLMTagSnapshot,
 )
 
@@ -156,6 +157,15 @@ class FrameTagGateway(Protocol):
 
 
 @runtime_checkable
+class ObjectTagGateway(Protocol):
+    """API for adding/removing object-tag frame assignments."""
+
+    def add_object_tag(self, snapshot: ObjectTagSnapshot) -> None: ...
+
+    def remove_object_tag(self, snapshot: ObjectTagSnapshot) -> None: ...
+
+
+@runtime_checkable
 class VLMGateway(Protocol):
     """API for updating VLM tags."""
 
@@ -170,6 +180,7 @@ class GatewayHolder:
 
     annotation_gateway: AnnotationGateway
     frame_tag_gateway: Optional[FrameTagGateway] = None
+    object_tag_gateway: Optional[ObjectTagGateway] = None
     vlm_gateway: Optional[VLMGateway] = None
 
 
@@ -551,6 +562,31 @@ class ControllerFrameTagGateway:
         )
         if ok is False:
             raise UndoGatewayError("Frame tag edit failed; old snapshot not present.")
+
+
+@dataclass
+class ControllerObjectTagGateway:
+    """Adapter that exposes object-tag operations to undo/redo commands."""
+
+    annotation_controller: object
+
+    def add_object_tag(self, snapshot: ObjectTagSnapshot) -> None:
+        self.annotation_controller.add_object_tag(
+            snapshot.object_id,
+            snapshot.tag_name,
+            snapshot.frame_index,
+        )
+
+    def remove_object_tag(self, snapshot: ObjectTagSnapshot) -> None:
+        removed = self.annotation_controller.remove_object_tag(
+            snapshot.object_id,
+            snapshot.tag_name,
+            snapshot.frame_index,
+        )
+        if removed is False:
+            raise UndoGatewayError(
+                "Object tag removal failed; snapshot not present."
+            )
 
 
 @dataclass

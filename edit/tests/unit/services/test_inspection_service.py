@@ -121,22 +121,24 @@ class TestDetectGhostFrames:
     def test_objects_with_few_frames_are_flagged(self):
         ctrl = self._make_controller({"a": [0, 1, 2], "b": [5, 6, 7, 8, 9, 10]})
         result = detect_ghost_frames(ctrl, max_ghost_frames=5)
-        assert result == {0, 1, 2}
+        assert "a" in result
+        assert result["a"] == [0, 1, 2]
+        assert "b" not in result
 
     def test_objects_at_boundary_are_included(self):
         ctrl = self._make_controller({"a": [0, 1, 2, 3, 4]})
         result = detect_ghost_frames(ctrl, max_ghost_frames=5)
-        assert result == {0, 1, 2, 3, 4}
+        assert result == {"a": [0, 1, 2, 3, 4]}
 
     def test_objects_above_threshold_not_flagged(self):
         ctrl = self._make_controller({"a": [0, 1, 2, 3, 4, 5]})
         result = detect_ghost_frames(ctrl, max_ghost_frames=5)
-        assert result == set()
+        assert result == {}
 
     def test_multiple_ghost_objects_union(self):
         ctrl = self._make_controller({"a": [0, 1], "b": [3, 4]})
         result = detect_ghost_frames(ctrl, max_ghost_frames=5)
-        assert result == {0, 1, 3, 4}
+        assert result == {"a": [0, 1], "b": [3, 4]}
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +172,7 @@ class TestDetectDoubleFrames:
         ann = self._make_annotation_controller({0: {"obj1": a, "obj2": b}})
         state = self._make_state_controller(1)
         result = detect_double_frames(ann, state, 0.5)
-        assert result == set()
+        assert result == {}
 
     def test_overlapping_boxes_flagged(self):
         a = _make_bbox(0.0, 0.0, 2.0, 2.0)
@@ -179,6 +181,7 @@ class TestDetectDoubleFrames:
         state = self._make_state_controller(1)
         result = detect_double_frames(ann, state, 0.5)
         assert 0 in result
+        assert set(result[0]) == {"obj1", "obj2"}
 
     def test_only_problematic_frames_flagged(self):
         a = _make_bbox(0.0, 0.0, 2.0, 2.0)
@@ -189,7 +192,7 @@ class TestDetectDoubleFrames:
         )
         state = self._make_state_controller(2)
         result = detect_double_frames(ann, state, 0.5)
-        assert result == {1}
+        assert list(result.keys()) == [1]
 
 
 # ---------------------------------------------------------------------------
@@ -208,9 +211,9 @@ class TestRunInspection:
         state.get_frame_count.return_value = 10
 
         result = run_inspection(ann, state, max_ghost_frames=5, overlap_percent=50.0)
-        assert result["ghost_frames"] == {5, 6}
-        assert result["double_frames"] == set()
-        assert result["all_frames"] == sorted({5, 6})
+        assert result["ghost_detections"] == {"obj1": [5, 6]}
+        assert result["double_detections"] == {}
+        assert result["all_frames"] == [5, 6]
 
     def test_all_frames_is_sorted_list(self):
         ann = MagicMock()

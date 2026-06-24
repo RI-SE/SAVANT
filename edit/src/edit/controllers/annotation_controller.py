@@ -280,6 +280,22 @@ class AnnotationController:
         )
 
     @error_handler
+    def add_object_tag(
+        self, object_id: str, tag_name: str, frame_index: int
+    ) -> None:
+        """Add frame_index to the named object tag on object_id."""
+        self.annotation_service.add_object_tag(object_id, tag_name, frame_index)
+
+    @error_handler
+    def remove_object_tag(
+        self, object_id: str, tag_name: str, frame_index: int
+    ) -> bool:
+        """Remove frame_index from the named object tag on object_id."""
+        return self.annotation_service.remove_object_tag(
+            object_id, tag_name, frame_index
+        )
+
+    @error_handler
     def update_frame_tag(
         self,
         old_tag_name: str,
