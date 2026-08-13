@@ -1,6 +1,7 @@
 import json
 import shutil
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from PyQt6.QtWidgets import QMessageBox
@@ -35,6 +36,7 @@ from .project_config import (
 from .confidence_ops import apply_bookmark_markers
 from .playback import _stop as stop
 from .render import show_frame
+from edit.services.autosave_service import AUTOSAVE_DIR
 from edit.utils import read_json
 
 
@@ -350,9 +352,60 @@ def quick_save(main_window):
         )
         if should_save_settings == QMessageBox.StandardButton.Yes:
             persist_current_settings()
+
+    autosave_svc = getattr(main_window, "autosave_service", None)
+    if autosave_svc is not None:
+        ps = main_window.project_state_controller.project_state
+        if ps.open_label_path:
+            ol_path = Path(ps.open_label_path)
+            project_dir = ol_path.parent
+            autosave_svc.clear_dirty()
+            autosave_svc.delete_autosaves(project_dir, ol_path, PROJECT_CONFIG_FILENAME)
+
     QMessageBox.information(
         main_window, "Save Successful", "Project saved successfully."
     )
+
+
+def _check_and_offer_autosave_restore(main_window, json_path: Path) -> bool:
+    """Prompt to restore autosave if it exists and is newer than the normal save.
+
+    Returns True if the autosave was loaded (caller should skip re-loading normal file).
+    """
+    autosave_path = json_path.parent / AUTOSAVE_DIR / json_path.name
+    if not autosave_path.is_file():
+        return False
+    try:
+        normal_mtime = json_path.stat().st_mtime
+        autosave_mtime = autosave_path.stat().st_mtime
+    except OSError:
+        return False
+    if autosave_mtime <= normal_mtime:
+        return False
+
+    normal_ts = datetime.fromtimestamp(normal_mtime).strftime("%Y-%m-%d %H:%M:%S")
+    autosave_ts = datetime.fromtimestamp(autosave_mtime).strftime("%Y-%m-%d %H:%M:%S")
+
+    answer = QMessageBox.question(
+        main_window,
+        "Autosave Found",
+        (
+            f"An autosave file is newer than the last manual save.\n\n"
+            f"  Last saved:   {normal_ts}\n"
+            f"  Autosave:     {autosave_ts}\n\n"
+            "Load the autosave instead?"
+        ),
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.Yes,
+    )
+    if answer != QMessageBox.StandardButton.Yes:
+        return False
+
+    open_openlabel_config(main_window, str(autosave_path))
+    autosave_svc = getattr(main_window, "autosave_service", None)
+    if autosave_svc is not None:
+        autosave_svc.mark_dirty()
+    return True
 
 
 def on_open_project_dir(main_window, dir_path: str, project_name: str | None = None):
@@ -397,7 +450,9 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
         QMessageBox.critical(main_window, "Invalid Ontology", str(exc))
         return
 
-    open_openlabel_config(main_window, str(json_path))
+    autosave_loaded = _check_and_offer_autosave_restore(main_window, json_path)
+    if not autosave_loaded:
+        open_openlabel_config(main_window, str(json_path))
     # TODO: Refactor the getattr stuff?
     if (
         getattr(main_window.project_state_controller, "project_state", None)

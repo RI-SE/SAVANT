@@ -17,6 +17,7 @@ from edit.frontend.exceptions import (
 )
 from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
+    get_autosave_interval_minutes,
     get_bookmark_notes,
     get_error_range,
     get_frame_history_count,
@@ -29,6 +30,7 @@ from edit.frontend.utils.settings_store import (
     get_warning_range,
     get_zoom_rate,
     set_action_interval_offset,
+    set_autosave_interval_minutes,
     set_bookmarks,
     set_frame_history_count,
     set_movement_sensitivity,
@@ -149,6 +151,7 @@ def _snapshot_settings() -> Dict[str, Any]:
         "error_range": tuple(get_error_range()),
         "show_errors": get_show_errors(),
         "bookmarks": {str(k): v for k, v in get_bookmark_notes().items()},
+        "autosave_interval_minutes": get_autosave_interval_minutes(),
     }
 
 
@@ -264,6 +267,13 @@ def apply_project_settings(config: ProjectConfig | None) -> None:
     bookmarks = settings.get("bookmarks")
     if isinstance(bookmarks, (list, dict)):
         set_bookmarks(bookmarks)
+
+    autosave_interval = settings.get("autosave_interval_minutes")
+    if isinstance(autosave_interval, (int, float)):
+        try:
+            set_autosave_interval_minutes(int(autosave_interval))
+        except ValueError:
+            pass
 
 
 def restore_tag_option_states(project_dir: Path | None = None) -> None:

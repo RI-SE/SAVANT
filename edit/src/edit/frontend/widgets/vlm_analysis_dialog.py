@@ -51,6 +51,7 @@ class VLMAnalysisDialog(QDialog):
         frontend_state=None,
         undo_manager=None,
         undo_context=None,
+        on_change=None,
     ):
         super().__init__(parent)
         self.setWindowTitle("VLM Analysis")
@@ -62,6 +63,7 @@ class VLMAnalysisDialog(QDialog):
         self._frontend_state = frontend_state
         self._undo_manager = undo_manager
         self._undo_context = undo_context
+        self._on_change = on_change
 
         # Track editing state for each field
         self._field_widgets: dict[str, dict] = {}
@@ -594,6 +596,8 @@ class VLMAnalysisDialog(QDialog):
             after=after,
         )
         self._undo_manager.execute(command, self._undo_context)
+        if self._on_change is not None:
+            self._on_change()
 
         # Update local state
         self._tags[tag_id]["tag_data"] = new_data

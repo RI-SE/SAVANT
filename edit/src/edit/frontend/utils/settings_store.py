@@ -32,6 +32,7 @@ _bbox_zoom_padding: float = 2.5
 _frame_history_count: int = 50
 _video_buffer_frames: int = 30  # chunk size for VideoReader frame cache
 _bookmarks: dict[int, str] = {}  # frame -> note
+_autosave_interval_minutes: int = 5
 _DEFAULT_ONTOLOGY_FILES = ("1.3.1.ttl",)
 
 
@@ -215,6 +216,18 @@ def set_video_buffer_frames(value: int) -> None:
     if count < 1:
         raise InvalidFrameHistoryCountError("Video buffer must be at least 1 frame.")
     _video_buffer_frames = count
+
+
+def get_autosave_interval_minutes() -> int:
+    return int(_autosave_interval_minutes)
+
+
+def set_autosave_interval_minutes(value: int) -> None:
+    global _autosave_interval_minutes
+    minutes = int(value)
+    if minutes < 0:
+        raise ValueError("Autosave interval must be >= 0 (0 = disabled).")
+    _autosave_interval_minutes = minutes
 
 
 def update_tag_options(tag_data: dict[str, dict[str, Iterable[int]]]) -> None:

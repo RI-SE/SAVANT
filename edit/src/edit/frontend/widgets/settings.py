@@ -6,9 +6,10 @@
 
 from edit.frontend.theme.forms import style_checkbox
 
-# get_ontology_path,  # manual ontology picker; set_ontology_path,  # Manual ontology picker
+# get_ontology_path,  # manual ontology picker
 from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
+    get_autosave_interval_minutes,
     get_bbox_zoom_padding,
     get_error_range,
     get_movement_sensitivity,
@@ -146,6 +147,17 @@ class SettingsDialog(QDialog):
             "30 frames ≈ 2 GB for 4K video."
         )
         general_form.addRow("Video buffer size:", self.video_buffer_spin)
+
+        self.autosave_spin = QSpinBox()
+        self.autosave_spin.setRange(0, 60)
+        self.autosave_spin.setSingleStep(1)
+        self.autosave_spin.setSuffix(" min (0=off)")
+        self.autosave_spin.setValue(int(get_autosave_interval_minutes()))
+        self.autosave_spin.setToolTip(
+            "How often to autosave to .autosave/ in the project directory.\n"
+            "Set to 0 to disable autosave."
+        )
+        general_form.addRow("Autosave interval:", self.autosave_spin)
 
         form.addRow(general_group)
 
@@ -389,6 +401,7 @@ class SettingsDialog(QDialog):
             "rotation_sensitivity": float(self.rotation_sensitivity_spin.value()),
             "bbox_zoom_padding": float(self.bbox_zoom_padding_spin.value()),
             "video_buffer_frames": int(self.video_buffer_spin.value()),
+            "autosave_interval_minutes": int(self.autosave_spin.value()),
             "warning_range": (
                 float(self.warning_min_spin.value()),
                 float(self.warning_max_spin.value()),

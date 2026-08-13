@@ -18,6 +18,7 @@ from edit.frontend.states.sidebar_state import SidebarState
 from edit.frontend.widgets.annotator_dialog import AnnotatorDialog
 from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
+    get_autosave_interval_minutes,
     # get_ontology_path,  # legacy manual ontology picker
     get_warning_range,
     get_error_range,
@@ -29,6 +30,7 @@ from edit.frontend.utils.settings_store import (
     set_threshold_ranges,
     set_show_warnings,
     set_show_errors,
+    set_autosave_interval_minutes,
     set_tag_option_states,
     set_frame_history_count,
     set_zoom_rate,
@@ -66,6 +68,7 @@ from edit.frontend.widgets.seek_bar import SeekBar
 from edit.frontend.widgets.settings import SettingsDialog
 from edit.frontend.widgets.sidebar import Sidebar
 from edit.frontend.widgets.video_display import VideoDisplay
+from edit.services.autosave_service import AutosaveService
 from edit.services.tracking_service import TrackingService
 
 
@@ -76,6 +79,7 @@ class MainWindow(QMainWindow):
         video_controller,
         project_state_controller,
         annotation_controller,
+        autosave_service: AutosaveService | None = None,
     ):
         super().__init__()
         self.project_name = project_name
@@ -86,6 +90,7 @@ class MainWindow(QMainWindow):
         self.video_controller = video_controller
         self.annotation_controller = annotation_controller
         self.project_state_controller = project_state_controller
+        self.autosave_service = autosave_service
 
         self._annotator_suggestions: list[str] = []
 
@@ -311,6 +316,11 @@ class MainWindow(QMainWindow):
         """Open dialog showing VLM analysis data with editing support."""
         contexts = self.project_state_controller.get_vlm_contexts()
         tags = self.project_state_controller.get_vlm_tags()
+        on_change = (
+            self.autosave_service.mark_dirty
+            if self.autosave_service is not None
+            else None
+        )
         dialog = VLMAnalysisDialog(
             contexts,
             tags,
@@ -318,6 +328,7 @@ class MainWindow(QMainWindow):
             frontend_state=self.state,
             undo_manager=self.undo_manager,
             undo_context=self.undo_context,
+            on_change=on_change,
         )
         dialog.exec()
 
@@ -365,6 +376,10 @@ class MainWindow(QMainWindow):
             new_buf = vals.get("video_buffer_frames", get_video_buffer_frames())
             set_video_buffer_frames(new_buf)
             self.video_controller.reader.chunk_size = get_video_buffer_frames()
+            new_autosave = vals.get("autosave_interval_minutes", get_autosave_interval_minutes())
+            set_autosave_interval_minutes(new_autosave)
+            if self.autosave_service is not None:
+                self.autosave_service.set_interval(get_autosave_interval_minutes())
             warning_vals = vals.get("warning_range", get_warning_range())
             error_vals = vals.get("error_range", get_error_range())
             warning_range = tuple(float(v) for v in warning_vals)
@@ -466,15 +481,21 @@ class MainWindow(QMainWindow):
     def execute_undoable_command(self, command):
         self.undo_manager.execute(command, self.undo_context)
         self._refresh_undo_actions()
+        if self.autosave_service is not None:
+            self.autosave_service.mark_dirty()
 
     def undo_last_command(self):
         result = self.undo_manager.undo(self.undo_context)
         self._refresh_undo_actions()
+        if self.autosave_service is not None:
+            self.autosave_service.mark_dirty()
         return result
 
     def redo_last_command(self):
         result = self.undo_manager.redo(self.undo_context)
         self._refresh_undo_actions()
+        if self.autosave_service is not None:
+            self.autosave_service.mark_dirty()
         return result
 
     def undo(self):
