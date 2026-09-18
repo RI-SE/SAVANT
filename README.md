@@ -51,6 +51,10 @@ uv sync
 
 ![SAVANT edit screenshot](./docs/SAVANTedit.png)
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history (reconstructed from git history; not curated at release time).
+
 ## License
 
 SAVANT is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
