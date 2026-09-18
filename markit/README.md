@@ -604,6 +604,7 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--detection-method` | `yolo` | `yolo`, `optical_flow`, or `both` |
+| `--conf` | `0.25` | YOLO detection confidence threshold (0.0-1.0); detections below it are discarded before conflict resolution/postprocessing |
 | `--motion-threshold` | `0.5` | Optical flow motion threshold |
 | `--min-object-area` | `200` | Minimum object area (pixels²) |
 | `--aruco-dict` | `DICT_4X4_50` | ArUco dictionary type |

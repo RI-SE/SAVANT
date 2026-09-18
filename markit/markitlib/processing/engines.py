@@ -47,6 +47,7 @@ class YOLOEngine(BaseDetectionEngine):
         class_map: Optional[Dict[int, str]] = None,
         verbose: bool = False,
         id_manager: Optional["ObjectIDManager"] = None,
+        conf_threshold: float = 0.25,
     ):
         """Initialize YOLO engine.
 
@@ -55,12 +56,15 @@ class YOLOEngine(BaseDetectionEngine):
             class_map: Expected class mapping from ontology (for validation)
             verbose: Enable verbose logging
             id_manager: Optional ID manager for unified sequential IDs
+            conf_threshold: Minimum detection confidence passed to Ultralytics;
+                detections below it are never returned by the model
         """
         self.weights_path = weights_path
         self.model = None
         self.class_map = class_map
         self.verbose = verbose
         self.id_manager = id_manager
+        self.conf_threshold = conf_threshold
         # Track semantic dimensions and angles per object for continuity
         self.object_tracking: Dict[int, Dict[str, float]] = {}
         # Structure: {obj_id: {'w_sem': float, 'h_sem': float, 'angle': float}}
@@ -69,7 +73,10 @@ class YOLOEngine(BaseDetectionEngine):
     def _initialize(self) -> None:
         """Initialize YOLO model."""
         try:
-            logger.info(f"Loading YOLO model from {self.weights_path}")
+            logger.info(
+                f"Loading YOLO model from {self.weights_path} "
+                f"(confidence threshold: {self.conf_threshold})"
+            )
             self.model = YOLO(self.weights_path)
             self.model.verbose = False
 
@@ -160,7 +167,9 @@ class YOLOEngine(BaseDetectionEngine):
             List of YOLO detection results
         """
         try:
-            results = self.model.track(frame, persist=True, verbose=False)
+            results = self.model.track(
+                frame, persist=True, verbose=False, conf=self.conf_threshold
+            )
             detection_results = []
 
             for result in results:

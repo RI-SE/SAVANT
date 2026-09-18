@@ -253,6 +253,14 @@ Examples:
         help="Detection method(s) to use (default: yolo)",
     )
     detection.add_argument(
+        "--conf",
+        type=float,
+        default=0.25,
+        help="YOLO detection confidence threshold, 0.0-1.0 (default: 0.25, "
+        "the Ultralytics default). Detections below this are discarded "
+        "before conflict resolution/postprocessing ever see them.",
+    )
+    detection.add_argument(
         "--motion-threshold",
         type=float,
         default=2.0,
@@ -642,6 +650,7 @@ def build_arguments_string(args: argparse.Namespace) -> str:
     ]
     if args.detection_method in ["yolo", "both"]:
         parts.append(f"--weights {args.weights}")
+        parts.append(f"--conf {args.conf}")
     if args.housekeeping:
         parts.append("--housekeeping")
         parts.append(f"--duplicate-avg-iou {args.duplicate_avg_iou}")
@@ -1046,6 +1055,9 @@ def main():
                 "metadata": {
                     "input_video": args.input,
                     "output_json": args.output_json,
+                    "yolo_conf_threshold": args.conf
+                    if args.detection_method in ["yolo", "both"]
+                    else None,
                 },
                 "detection": detection_decision_log,
                 "housekeeping": housekeeping_decision_log,

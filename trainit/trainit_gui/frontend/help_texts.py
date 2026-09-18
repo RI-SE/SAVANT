@@ -4,7 +4,24 @@ This module contains all parameter documentation, group descriptions,
 and augmentation presets used throughout the GUI.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List
+
+
+# Preset model choices offered in the "Model" dropdown. The field also
+# accepts a free-text path to a local checkpoint, so the dropdown stays
+# editable rather than a closed enum.
+MODEL_PRESETS: List[str] = [
+    "yolo11n-obb.pt",
+    "yolo11s-obb.pt",
+    "yolo11m-obb.pt",
+    "yolo11l-obb.pt",
+    "yolo11x-obb.pt",
+    "yolo26n-obb.pt",
+    "yolo26s-obb.pt",
+    "yolo26m-obb.pt",
+    "yolo26l-obb.pt",
+    "yolo26x-obb.pt",
+]
 
 
 # Parameter help texts - displayed when clicking info buttons
@@ -13,16 +30,20 @@ PARAMETER_HELP: Dict[str, Dict[str, str]] = {
     "model": {
         "title": "Model",
         "text": (
-            "Pre-trained YOLO model to use as starting point.\n\n"
-            "Available sizes:\n"
+            "Pre-trained YOLO model to use as starting point, or a path to "
+            "a local .pt checkpoint to continue training from.\n\n"
+            "YOLO11-OBB sizes:\n"
             "  - yolo11n-obb (nano) - Fastest, least accurate\n"
             "  - yolo11s-obb (small) - Good balance\n"
             "  - yolo11m-obb (medium) - More accurate\n"
             "  - yolo11l-obb (large) - High accuracy\n"
             "  - yolo11x-obb (extra-large) - Best accuracy, slowest\n\n"
+            "YOLO26-OBB sizes (newer architecture, same n/s/m/l/x sizing):\n"
+            "  - yolo26n/s/m/l/x-obb - not yet benchmarked against YOLO11 "
+            "on our datasets; pick this to compare.\n\n"
             "Larger models need more GPU memory and train slower."
         ),
-        "tooltip": "YOLO model variant (n/s/m/l/x)",
+        "tooltip": "YOLO model variant (11 or 26, sizes n/s/m/l/x), or a local checkpoint path",
     },
     "epochs": {
         "title": "Epochs",

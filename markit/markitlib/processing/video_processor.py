@@ -74,6 +74,7 @@ class VideoProcessor:
                     config.class_map,
                     config.verbose,
                     id_manager=self.id_manager,
+                    conf_threshold=config.yolo_conf,
                 )
             )
         if config.use_optical_flow:

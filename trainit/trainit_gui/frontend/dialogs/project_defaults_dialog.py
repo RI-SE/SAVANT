@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-from ..help_texts import PARAMETER_HELP, GROUP_HELP
+from ..help_texts import PARAMETER_HELP, GROUP_HELP, MODEL_PRESETS
 from ...models.project import ProjectDefaults
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,9 @@ class ProjectDefaultsDialog(QDialog):
         core_inner.addLayout(core_layout)
         core_group.setLayout(core_inner)
 
-        self._add_optional_line(core_layout, "model", "Model:", "yolo11s-obb.pt")
+        self._add_optional_combo(
+            core_layout, "model", "Model:", MODEL_PRESETS, editable=True
+        )
         self._add_optional_spin(core_layout, "epochs", "Epochs:", 1, 1000, 50)
         self._add_optional_spin(core_layout, "imgsz", "Image Size:", 32, 2048, 640)
         self._add_optional_spin(core_layout, "batch", "Batch Size:", 1, 256, 30)
@@ -368,7 +370,12 @@ class ProjectDefaultsDialog(QDialog):
         self._widgets[name] = (checkbox, spin)
 
     def _add_optional_combo(
-        self, layout: QFormLayout, name: str, label: str, options: list
+        self,
+        layout: QFormLayout,
+        name: str,
+        label: str,
+        options: list,
+        editable: bool = False,
     ):
         """Add an optional combo box with checkbox."""
         container = QWidget()
@@ -379,6 +386,7 @@ class ProjectDefaultsDialog(QDialog):
         h_layout.addWidget(checkbox)
 
         combo = QComboBox()
+        combo.setEditable(editable)
         combo.addItems(options)
         combo.setEnabled(False)
         combo.setToolTip(_get_tooltip(name))
@@ -413,6 +421,8 @@ class ProjectDefaultsDialog(QDialog):
                     idx = widget.findText(str(value))
                     if idx >= 0:
                         widget.setCurrentIndex(idx)
+                    elif widget.isEditable():
+                        widget.setCurrentText(str(value))
                 elif isinstance(widget, QCheckBox):
                     widget.setChecked(bool(value))
 

@@ -123,6 +123,7 @@ class MarkitConfig:
             args: Parsed command line arguments
         """
         self.weights_path = args.weights
+        self.yolo_conf = getattr(args, "conf", 0.25)
         self.video_path = args.input
         self.output_json_path = args.output_json
         self.schema_path = args.schema
