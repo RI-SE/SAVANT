@@ -5,7 +5,7 @@ Contains abstract base class for all postprocessing operations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 class PostprocessingPass(ABC):
@@ -53,3 +53,15 @@ class PostprocessingPass(ABC):
             Dictionary with processing statistics
         """
         pass
+
+    def get_decision_log(self) -> List[Dict[str, Any]]:
+        """Return structured per-decision records explaining this pass's mutations.
+
+        Default implementation returns an empty list; passes that track
+        per-decision detail override this.
+
+        Returns:
+            List of decision record dicts (see PostprocessingPipeline for the
+            common envelope fields each record is expected to carry).
+        """
+        return []

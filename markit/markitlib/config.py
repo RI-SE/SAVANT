@@ -200,10 +200,15 @@ class MarkitConfig:
         self.static_threshold = args.static_threshold
         self.static_mark = args.static_mark
         self.min_duration = getattr(args, "min_duration", 15)
+        self.jitter_angle_threshold = getattr(args, "jitter_angle_threshold", 100.0)
+        self.jitter_min_run = getattr(args, "jitter_min_run", 3)
+        self.jitter_min_speed = getattr(args, "jitter_min_speed", 3.0)
+        self.jitter_mark = getattr(args, "jitter_mark", False)
 
         # Individual pass toggles (only relevant when housekeeping is enabled)
         self.no_gap_detection = getattr(args, "no_gap_detection", False)
         self.no_gap_filling = getattr(args, "no_gap_filling", False)
+        self.no_jitter_filter = getattr(args, "no_jitter_filter", False)
         self.max_gap_size = getattr(args, "max_gap_size", 30)
         self.no_first_detection_refinement = getattr(args, "no_first_detection_refinement", False)
         self.no_size_outlier_filter = getattr(args, "no_size_outlier_filter", False)

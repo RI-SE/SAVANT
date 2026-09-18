@@ -111,3 +111,19 @@ class ShortDurationPass(PostprocessingPass):
             "objects_removed": self.objects_removed,
             "frames_modified": self.frames_modified,
         }
+
+    def get_decision_log(self) -> List[Dict[str, Any]]:
+        """Return one record per removed short-duration object."""
+        return [
+            {
+                "action": "remove_object",
+                "object_id": detail["object_id"],
+                "reason": f"frame_count {detail['frame_count']} < min_frames {self.min_frames}",
+                "details": {
+                    "type": detail["type"],
+                    "frame_count": detail["frame_count"],
+                    "min_frames": self.min_frames,
+                },
+            }
+            for detail in self.removal_details
+        ]

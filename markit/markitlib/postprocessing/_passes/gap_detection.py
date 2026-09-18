@@ -3,7 +3,7 @@ GapDetectionPass - Gap detection postprocessing pass.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List
 from collections import defaultdict
 
 from ..base import PostprocessingPass
@@ -92,3 +92,23 @@ class GapDetectionPass(PostprocessingPass):
             "total_gaps_detected": total_gaps,
             "gap_details": self.gaps_detected,
         }
+
+    def get_decision_log(self) -> List[Dict[str, Any]]:
+        """Return one record per detected gap (informational, no mutation)."""
+        records = []
+        for obj_id, info in self.gaps_detected.items():
+            for gap in info["gaps"]:
+                records.append(
+                    {
+                        "action": "gap_detected",
+                        "object_id": obj_id,
+                        "frame_range": {
+                            "start": gap["start_frame"],
+                            "end": gap["end_frame"],
+                        },
+                        "reason": f"missing {gap['gap_size']} frame(s) between "
+                        f"{gap['start_frame']} and {gap['end_frame']}",
+                        "details": {"gap_size": gap["gap_size"]},
+                    }
+                )
+        return records

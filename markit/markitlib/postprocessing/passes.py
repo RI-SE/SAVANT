@@ -16,6 +16,7 @@ from ._passes import (  # noqa: F401
     FrameIntervalPass,
     StaticObjectRemovalPass,
     ShortDurationPass,
+    PositionalJitterPass,
     BboxSmoothingPass,
     SizeOutlierFilterPass,
     SizeStepDetectionPass,

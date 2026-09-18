@@ -15,6 +15,7 @@ Markit is a command-line tool for detecting and tracking objects using oriented 
 - **OpenLabel Export** - Schema-validated JSON output with per-frame timestamps and optional drone stream metadata
 - **Postprocessing Pipeline** - Gap filling, duplicate removal, rotation smoothing, static object handling
 - **Provenance Tracking** - W3C PROV-JSON format via dataprov
+- **Decision Log** - Optional structured JSON trail explaining housekeeping/detection decisions
 - **Video Rendering** - Optional annotated output video with drawn detections
 - **Drone Info** - Optionally populate a `streams` block from a DJI flight record for richer metadata
 
@@ -149,6 +150,7 @@ markit --input video.mp4 --output_json output.json --housekeeping
 | Pass | Description |
 |------|-------------|
 | Gap Detection | Identifies gaps in object tracking sequences |
+| Positional Jitter | Removes or flags short runs of erratic direction-reversing movement |
 | Gap Filling | Interpolates detections across small gaps |
 | Duplicate Removal | Removes overlapping detections using IoU thresholds |
 | First Detection Refinement | Refines initial detection angles using lookahead |
@@ -173,7 +175,10 @@ markit --input video.mp4 --output_json output.json --housekeeping \
        --angle-spline-interpolation 0.0 \
        --edge-distance 200 \
        --static-threshold 20 \
-       --static-mark  # Mark instead of remove
+       --static-mark \  # Mark instead of remove
+       --jitter-angle-threshold 100.0 \
+       --jitter-min-run 3 \
+       --jitter-mark  # Mark instead of remove
 ```
 
 ## VLM Scene Analysis
@@ -471,6 +476,21 @@ markit --input video.mp4 --output_json output.json --provenance provenance.json
 
 The provenance file records inputs, outputs, parameters, and processing steps.
 
+### Decision Log
+
+Write a structured JSON log explaining individual housekeeping and detection
+decisions (which objects/frames were removed, merged, marked, or dropped, and
+why) — useful for auditing what `--housekeeping` changed:
+
+```bash
+markit --input video.mp4 --output_json output.json --housekeeping --decision-log decisions.json
+```
+
+Not written unless a path is given. The file has a `detection` section
+(engine-conflict drops) and a `housekeeping` section (postprocessing pass
+decisions), each a list of records with `action`, `object_id`, `reason`, and
+a pass-specific `details` dict.
+
 ## ArUco Markers
 
 ArUco markers can be used as ground control points with known GPS positions. When detected, markers are added to the OpenLabel output with their associated coordinates (see TestVids/Saro_roundabout for example).
@@ -576,6 +596,7 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--aruco-csv` | - | CSV with ArUco marker positions |
 | `--visual-markers` | - | CSV with visual marker positions (same format as ArUco) |
 | `--provenance` | - | Provenance chain file path |
+| `--decision-log` | - | Path to write a structured JSON log of housekeeping/detection decisions |
 | `--drone-info` | - | Path to a DJI `FlightRecord*.video_stats.json` file; adds a `streams` block with camera and flight metadata to the OpenLabel output |
 
 ### Detection Options
@@ -608,6 +629,10 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--edge-distance` | `200` | Edge distance for sudden detection (pixels) |
 | `--static-threshold` | `20` | Static object movement threshold (pixels) |
 | `--static-mark` | false | Mark static objects instead of removing |
+| `--jitter-angle-threshold` | `100.0` | Turning angle (degrees) considered a sharp turn for jitter detection |
+| `--jitter-min-run` | `3` | Consecutive sharp-turn frames required to flag a jitter run |
+| `--jitter-min-speed` | `3.0` | Minimum per-frame displacement (pixels) for jitter direction detection |
+| `--jitter-mark` | false | Mark jitter frames instead of removing them |
 | `--angle-spline-interpolation` | disabled | Enable spline-based angle interpolation. Value is the smoothing factor for `splprep` (0 = exact interpolation, larger = smoother) |
 
 ### VLM Scene Analysis

@@ -5,7 +5,7 @@ Handles conflicts between different detection engines using Intersection over Un
 """
 
 import logging
-from typing import List
+from typing import Any, Dict, List
 
 from ..config import ConflictResolutionConfig, DetectionResult
 from ..geometry import BBoxOverlapCalculator
@@ -21,6 +21,7 @@ class DetectionConflictResolver:
         self.overlap_calc = BBoxOverlapCalculator()
         self.conflicts_resolved = 0
         self.total_conflicts = 0
+        self.decision_log: List[Dict[str, Any]] = []
 
         # Validate IoU threshold
         if not (0.0 <= self.config.iou_threshold <= 1.0):
@@ -111,16 +112,43 @@ class DetectionConflictResolver:
                 filtered_results.append(secondary_det)
             else:
                 self.conflicts_resolved += 1
+                secondary_id = secondary_det.object_id or "?"
+                primary_id = conflicting_primary.object_id or "?"
+                self.decision_log.append(
+                    {
+                        "stage": "detection",
+                        "source": "conflict_resolution",
+                        "action": "drop_detection",
+                        "object_id": secondary_id,
+                        "frame": frame_idx,
+                        "reason": f"IoU={max_iou:.2f} with yolo object {primary_id} "
+                        f">= threshold {self.config.iou_threshold}",
+                        "details": {
+                            "losing_engine": "optical_flow",
+                            "winning_engine": "yolo",
+                            "winning_object_id": primary_id,
+                            "iou": max_iou,
+                            "iou_threshold": self.config.iou_threshold,
+                        },
+                    }
+                )
                 if self.config.enable_logging:
                     frame_str = f"frame {frame_idx}: " if frame_idx is not None else ""
-                    secondary_id = secondary_det.object_id or "?"
-                    primary_id = conflicting_primary.object_id or "?"
                     logger.info(
                         f"{frame_str}conflict resolved: "
                         f"optical_flow obj {secondary_id} dropped (IoU={max_iou:.2f} with yolo obj {primary_id})"
                     )
 
         return filtered_results
+
+    def get_decision_log(self) -> List[Dict[str, Any]]:
+        """Return structured records of every conflict-resolved detection drop.
+
+        Returns:
+            List of decision record dicts, collected regardless of whether
+            --verbose-conflicts live logging is enabled.
+        """
+        return self.decision_log
 
     def get_conflict_statistics(self) -> dict:
         """Get statistics about resolved conflicts.

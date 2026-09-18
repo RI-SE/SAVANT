@@ -21,6 +21,7 @@ Optional Arguments:
     --output_video       Path to output annotated video file (optional)
     --aruco-csv          Path to CSV file with ArUco marker GPS positions (enables ArUco detection)
     --provenance         Path to provenance chain file for W3C PROV-JSON tracking (created if not exists)
+    --decision-log       Path to write a structured JSON log of housekeeping/detection decisions (optional)
 
 Detection Configuration:
     --detection-method   Detection method: yolo, optical_flow, or both (default: yolo)
@@ -56,8 +57,13 @@ Postprocessing (Housekeeping):
     --static-threshold   Movement threshold in pixels for static object removal (default: 20, negative disables)
     --static-mark        Mark static objects instead of removing them (adds "staticdynamic" annotation)
     --min-duration       Delete OF-origin objects appearing for fewer than N frames (default: 15; set to 0 to disable)
+    --jitter-angle-threshold  Turning angle in degrees considered a sharp turn for jitter detection (default: 100.0)
+    --jitter-min-run     Minimum consecutive sharp-turn frames to flag a jitter run (default: 3)
+    --jitter-min-speed   Minimum per-frame displacement in pixels for jitter direction detection (default: 3.0)
+    --jitter-mark        Mark jitter frames instead of removing them (adds a "jitter" annotation)
     --no-gap-detection   Disable gap detection pass
     --no-gap-filling     Disable gap filling pass
+    --no-jitter-filter   Disable positional jitter detection/removal pass
     --max-gap-size       Maximum gap size in frames to interpolate (default: 30)
     --no-first-detection-refinement  Disable first detection refinement pass
     --no-size-outlier-filter  Disable size outlier filter pass
@@ -100,6 +106,7 @@ Features:
 """
 
 import argparse
+import json
 import logging
 import sys
 
@@ -112,6 +119,7 @@ from markit.markitlib import MarkitConfig, __version__
 from savant_common.resources import get_ontology_path, get_schema_path, get_weights_path
 from markit.markitlib.processing import VideoProcessor
 from markit.markitlib.openlabel import OpenLabelHandler
+from markit.markitlib.openlabel.handler import NumpyEncoder
 from markit.markitlib.openlabel.drone_info import build_streams_entry, parse_drone_info
 from markit.markitlib.outputvideo import render_output_video
 from markit.markitlib.postprocessing import (
@@ -129,6 +137,7 @@ from markit.markitlib.postprocessing import (
     FrameIntervalPass,
     StaticObjectRemovalPass,
     ShortDurationPass,
+    PositionalJitterPass,
     AngleNormalizationPass,
     AngleSplineInterpolationPass,
 )
@@ -221,6 +230,13 @@ Examples:
     optional.add_argument(
         "--provenance",
         help="Path to provenance chain file (will be created if not exists)",
+    )
+    optional.add_argument(
+        "--decision-log",
+        dest="decision_log",
+        help="Path to write a structured JSON log of housekeeping and detection "
+        "decisions (object removals/merges/drops and why). Not written unless "
+        "a path is given.",
     )
     optional.add_argument(
         "--drone-info",
@@ -474,12 +490,42 @@ Examples:
         help="Delete OF-origin objects appearing for fewer than N frames (default: 15; set to 0 to disable)",
     )
     postproc.add_argument(
+        "--jitter-angle-threshold",
+        type=float,
+        default=100.0,
+        help="Turning angle in degrees between consecutive velocity vectors "
+        "considered a sharp turn for positional jitter detection (default: 100.0)",
+    )
+    postproc.add_argument(
+        "--jitter-min-run",
+        type=int,
+        default=3,
+        help="Minimum consecutive sharp-turn frames required to flag a "
+        "positional jitter run (default: 3)",
+    )
+    postproc.add_argument(
+        "--jitter-min-speed",
+        type=float,
+        default=3.0,
+        help="Minimum per-frame displacement in pixels for a velocity vector "
+        "to be considered directional in jitter detection (default: 3.0)",
+    )
+    postproc.add_argument(
+        "--jitter-mark",
+        action="store_true",
+        help='Mark positional jitter frames instead of removing them (adds a "jitter" annotation)',
+    )
+    postproc.add_argument(
         "--no-gap-detection", action="store_true",
         help="Disable gap detection pass",
     )
     postproc.add_argument(
         "--no-gap-filling", action="store_true",
         help="Disable gap filling pass",
+    )
+    postproc.add_argument(
+        "--no-jitter-filter", action="store_true",
+        help="Disable positional jitter detection/removal pass",
     )
     postproc.add_argument(
         "--max-gap-size",
@@ -609,9 +655,14 @@ def build_arguments_string(args: argparse.Namespace) -> str:
         parts.append(f"--static-threshold {args.static_threshold}")
         if args.static_mark:
             parts.append("--static-mark")
+        parts.append(f"--jitter-angle-threshold {args.jitter_angle_threshold}")
+        parts.append(f"--jitter-min-run {args.jitter_min_run}")
+        parts.append(f"--jitter-min-speed {args.jitter_min_speed}")
+        if args.jitter_mark:
+            parts.append("--jitter-mark")
         # Record disabled passes
         for flag in [
-            "no_gap_detection", "no_gap_filling",
+            "no_gap_detection", "no_gap_filling", "no_jitter_filter",
             "no_first_detection_refinement", "no_size_outlier_filter",
             "no_bbox_smoothing", "no_rotation_jump_fix",
             "no_rotation_adjustment", "no_duplicate_removal",
@@ -809,6 +860,7 @@ def main():
         process_video(video_processor, openlabel_handler, config)
 
         # Postprocessing pipeline (only if housekeeping enabled)
+        housekeeping_decision_log = []
         if config.enable_housekeeping:
             logger.info("Starting postprocessing...")
             postprocessing_pipeline = PostprocessingPipeline()
@@ -820,9 +872,25 @@ def main():
             postprocessing_pipeline.set_ontology_path(config.ontology_path)
 
             # Pipeline order (each pass can be disabled individually via --no-* flags):
-            # 1. Gap detection and filling
+            # 1. Gap detection
             if not config.no_gap_detection:
                 postprocessing_pipeline.add_pass(GapDetectionPass())
+
+            # 1b. Positional jitter detection/removal - runs BEFORE gap filling so
+            # excised jitter runs leave gaps that get cleanly interpolated below,
+            # and before short-duration filtering so objects that drop below
+            # min_duration as a side effect of jitter removal are cleaned up.
+            if not config.no_jitter_filter:
+                postprocessing_pipeline.add_pass(
+                    PositionalJitterPass(
+                        angle_threshold_deg=config.jitter_angle_threshold,
+                        min_run_length=config.jitter_min_run,
+                        min_speed_px=config.jitter_min_speed,
+                        mark_only=config.jitter_mark,
+                    )
+                )
+
+            # 1c. Gap filling
             if not config.no_gap_filling:
                 postprocessing_pipeline.add_pass(GapFillingPass(
                     max_gap_size=config.max_gap_size,
@@ -919,6 +987,7 @@ def main():
             openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
                 openlabel_handler.openlabel_data
             )
+            housekeeping_decision_log = postprocessing_pipeline.get_decision_log()
         else:
             logger.info("Housekeeping disabled, skipping postprocessing")
 
@@ -966,6 +1035,28 @@ def main():
 
         # Cleanup and save results
         cleanup(video_processor, openlabel_handler, config)
+
+        # Write structured decision log if enabled
+        if args.decision_log:
+            detection_decision_log = []
+            if video_processor.conflict_resolver:
+                detection_decision_log = video_processor.conflict_resolver.get_decision_log()
+
+            decision_log_data = {
+                "metadata": {
+                    "input_video": args.input,
+                    "output_json": args.output_json,
+                },
+                "detection": detection_decision_log,
+                "housekeeping": housekeeping_decision_log,
+            }
+            with open(args.decision_log, "w") as f:
+                json.dump(decision_log_data, f, indent=2, cls=NumpyEncoder)
+            logger.info(
+                f"Decision log written to {args.decision_log} "
+                f"({len(detection_decision_log)} detection, "
+                f"{len(housekeeping_decision_log)} housekeeping record(s))"
+            )
 
         # Record provenance if enabled
         if args.provenance:

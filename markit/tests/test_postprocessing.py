@@ -10,6 +10,9 @@ from markit.markitlib.postprocessing import (
     AngleNormalizationPass,
     DuplicateRemovalPass,
     FrameIntervalPass,
+    PositionalJitterPass,
+    ShortDurationPass,
+    StaticObjectRemovalPass,
 )
 
 
@@ -136,6 +139,37 @@ class TestPostprocessingPipeline:
         # Should execute all passes and return result
         assert "openlabel" in result
 
+    def test_get_decision_log_aggregates_passes(self):
+        """Decision records from every pass are collected with correct source tagging."""
+        frames = {
+            "0": {"objects": {"obj_short": _make_frame_object("oflow")}},
+            "1": {"objects": {"obj_short": _make_frame_object("oflow")}},
+            "5": {"objects": {"obj_gap": _make_frame_object("yolo")}},
+            "10": {"objects": {"obj_gap": _make_frame_object("yolo")}},
+        }
+        data = {
+            "openlabel": {
+                "frames": frames,
+                "objects": {
+                    "obj_short": {"name": "obj_short", "type": "car"},
+                    "obj_gap": {"name": "obj_gap", "type": "car"},
+                },
+            }
+        }
+
+        pipeline = PostprocessingPipeline()
+        pipeline.add_pass(GapDetectionPass())
+        pipeline.add_pass(ShortDurationPass(min_frames=3, oflow_only=False))
+        pipeline.execute(data)
+
+        log = pipeline.get_decision_log()
+        sources = {record["source"] for record in log}
+        assert "GapDetectionPass" in sources
+        assert "ShortDurationPass" in sources
+        short_records = [r for r in log if r["source"] == "ShortDurationPass"]
+        assert short_records[0]["object_id"] == "obj_short"
+        assert short_records[0]["action"] == "remove_object"
+
 
 class TestGapDetectionPass:
     """Tests for GapDetectionPass."""
@@ -164,6 +198,28 @@ class TestGapDetectionPass:
         assert "total_gaps_detected" in stats
         assert "objects_with_gaps" in stats
         assert "gap_details" in stats
+
+    def test_gap_detection_decision_log(self, sample_openlabel_data):
+        """get_decision_log returns one record per detected gap."""
+        frames = {
+            "0": {"objects": {"obj_1": _make_frame_object("yolo")}},
+            "5": {"objects": {"obj_1": _make_frame_object("yolo")}},
+        }
+        data = {
+            "openlabel": {
+                "frames": frames,
+                "objects": {"obj_1": {"name": "obj_1", "type": "car"}},
+            }
+        }
+        gap_pass = GapDetectionPass()
+        gap_pass.process(data)
+
+        log = gap_pass.get_decision_log()
+        assert len(log) == 1
+        assert log[0]["action"] == "gap_detected"
+        assert log[0]["object_id"] == "obj_1"
+        assert log[0]["frame_range"] == {"start": 0, "end": 5}
+        assert log[0]["details"]["gap_size"] == 4
 
 
 class TestAngleNormalizationPass:
@@ -415,3 +471,215 @@ class TestDuplicateRemovalPass:
         stats = dup_pass.get_statistics()
         assert "frames_merged" in stats
         assert stats["frames_merged"] == 0
+
+    def test_decision_log_includes_metrics(self):
+        """get_decision_log returns a merge_objects record with IoU metrics."""
+        frames = {}
+        for i in range(5):
+            frames[str(i)] = {
+                "objects": {
+                    "obj_yolo": _make_frame_object("yolo", x=100 + i * 5),
+                    "obj_oflow": _make_frame_object("oflow", x=101 + i * 5),
+                }
+            }
+        data = {
+            "openlabel": {
+                "frames": frames,
+                "objects": {
+                    "obj_yolo": {"name": "obj_yolo", "type": "car"},
+                    "obj_oflow": {"name": "obj_oflow", "type": "car"},
+                },
+            }
+        }
+
+        dup_pass = DuplicateRemovalPass()
+        dup_pass.process(data)
+
+        log = dup_pass.get_decision_log()
+        assert len(log) == 1
+        record = log[0]
+        assert record["action"] == "merge_objects"
+        assert set(record["object_ids"]) == {"obj_yolo", "obj_oflow"}
+        assert record["details"]["deleted_object"] == "obj_oflow"
+        assert record["details"]["kept_object"] == "obj_yolo"
+        assert "avg_iou" in record["details"]
+        assert record["reason"]
+
+
+def _make_track(xs, y=100, w=50, h=30, annotator="yolo"):
+    """Build an OpenLabel data structure with a single object 'obj_1' whose
+    bbox center x-coordinate follows the given sequence, one frame apart."""
+    frames = {
+        str(i): {"objects": {"obj_1": _make_frame_object(annotator, x=x, y=y, w=w, h=h)}}
+        for i, x in enumerate(xs)
+    }
+    return {
+        "openlabel": {
+            "frames": frames,
+            "objects": {"obj_1": {"name": "obj_1", "type": "car"}},
+        }
+    }
+
+
+class TestPositionalJitterPass:
+    """Tests for PositionalJitterPass."""
+
+    def test_no_jitter_on_straight_track(self):
+        """A steadily-moving track should not have any frames removed."""
+        data = _make_track([100 + 10 * i for i in range(10)])
+        jitter_pass = PositionalJitterPass()
+        result = jitter_pass.process(data)
+
+        assert len(result["openlabel"]["frames"]) == 10
+        for frame_data in result["openlabel"]["frames"].values():
+            assert "obj_1" in frame_data["objects"]
+        assert jitter_pass.frames_removed == 0
+
+    def test_brief_single_reversal_not_flagged(self):
+        """A single bounce (one direction reversal) is not sustained enough
+        to be jitter — only a repeated zig-zag run should be flagged."""
+        data = _make_track([100, 110, 120, 110, 120, 130, 140])
+        jitter_pass = PositionalJitterPass()
+        result = jitter_pass.process(data)
+
+        assert jitter_pass.frames_removed == 0
+        assert jitter_pass.objects_with_jitter == 0
+        for frame_data in result["openlabel"]["frames"].values():
+            assert "obj_1" in frame_data["objects"]
+
+    def test_zigzag_run_removed(self):
+        """A sustained zig-zag run is removed, preserving the track's first
+        and last frames as anchors."""
+        data = _make_track([100, 110, 100, 110, 100, 110])
+        jitter_pass = PositionalJitterPass()
+        result = jitter_pass.process(data)
+
+        frames = result["openlabel"]["frames"]
+        assert jitter_pass.objects_with_jitter == 1
+        assert jitter_pass.frames_removed == 4
+        assert "obj_1" in frames["0"]["objects"]
+        assert "obj_1" in frames["5"]["objects"]
+        for i in range(1, 5):
+            assert "obj_1" not in frames[str(i)]["objects"]
+
+    def test_mark_only_tags_instead_of_removing(self):
+        """With mark_only=True, jitter frames are tagged, not deleted."""
+        data = _make_track([100, 110, 100, 110, 100, 110])
+        jitter_pass = PositionalJitterPass(mark_only=True)
+        result = jitter_pass.process(data)
+
+        frames = result["openlabel"]["frames"]
+        assert jitter_pass.frames_removed == 0
+        assert jitter_pass.frames_marked == 4
+        for i in range(6):
+            assert "obj_1" in frames[str(i)]["objects"]
+        for i in range(1, 5):
+            annotator_vals = frames[str(i)]["objects"]["obj_1"]["object_data"]["vec"][0]["val"]
+            assert any("jitter" in val for val in annotator_vals)
+
+    def test_minimal_length_track_boundary(self):
+        """A track of exactly min_run_length+2 frames with jitter across all
+        interior corners is handled without error, endpoints preserved."""
+        data = _make_track([100, 110, 100, 110, 100])
+        jitter_pass = PositionalJitterPass(min_run_length=3)
+        result = jitter_pass.process(data)
+
+        frames = result["openlabel"]["frames"]
+        assert jitter_pass.frames_removed == 3
+        assert "obj_1" in frames["0"]["objects"]
+        assert "obj_1" in frames["4"]["objects"]
+
+    def test_statistics_keys(self):
+        """get_statistics returns the expected keys."""
+        jitter_pass = PositionalJitterPass()
+        stats = jitter_pass.get_statistics()
+        for key in (
+            "objects_checked",
+            "objects_with_jitter",
+            "jitter_runs_found",
+            "frames_removed",
+            "frames_marked",
+        ):
+            assert key in stats
+
+    def test_decision_log_contains_run_details(self):
+        """get_decision_log returns one record per removed jitter run."""
+        data = _make_track([100, 110, 100, 110, 100, 110])
+        jitter_pass = PositionalJitterPass()
+        jitter_pass.process(data)
+
+        log = jitter_pass.get_decision_log()
+        assert len(log) == 1
+        record = log[0]
+        assert record["action"] == "remove_frames"
+        assert record["object_id"] == "obj_1"
+        assert record["frame_indices"] == [1, 2, 3, 4]
+        assert record["details"]["run_length"] == 4
+        assert record["details"]["max_turn_angle_deg"] > record["details"]["angle_threshold_deg"]
+
+    def test_decision_log_mark_action(self):
+        """get_decision_log reports action='mark_frames' when mark_only=True."""
+        data = _make_track([100, 110, 100, 110, 100, 110])
+        jitter_pass = PositionalJitterPass(mark_only=True)
+        jitter_pass.process(data)
+
+        log = jitter_pass.get_decision_log()
+        assert len(log) == 1
+        assert log[0]["action"] == "mark_frames"
+
+
+class TestShortDurationPass:
+    """Tests for ShortDurationPass.get_decision_log()."""
+
+    def test_decision_log_for_removed_object(self):
+        """get_decision_log returns one record per removed short-duration object."""
+        data = _make_track([100, 110], w=50, h=30, annotator="oflow")
+        short_pass = ShortDurationPass(min_frames=5, oflow_only=False)
+        short_pass.process(data)
+
+        log = short_pass.get_decision_log()
+        assert len(log) == 1
+        record = log[0]
+        assert record["action"] == "remove_object"
+        assert record["object_id"] == "obj_1"
+        assert record["details"]["frame_count"] == 2
+        assert record["details"]["min_frames"] == 5
+        assert "2" in record["reason"] and "5" in record["reason"]
+
+    def test_decision_log_empty_when_nothing_removed(self):
+        """get_decision_log is empty when no object is short enough to remove."""
+        data = _make_track([100 + 10 * i for i in range(10)])
+        short_pass = ShortDurationPass(min_frames=5, oflow_only=False)
+        short_pass.process(data)
+
+        assert short_pass.get_decision_log() == []
+
+
+class TestStaticObjectRemovalPass:
+    """Tests for StaticObjectRemovalPass.get_decision_log()."""
+
+    def test_decision_log_for_removed_static_object(self, ontology_path):
+        """get_decision_log returns a remove_object record for a static object."""
+        data = _make_track([100, 101, 100, 101, 100], annotator="yolo")
+        static_pass = StaticObjectRemovalPass(static_threshold=20)
+        static_pass.set_ontology_path(ontology_path)
+        static_pass.process(data)
+
+        log = static_pass.get_decision_log()
+        assert len(log) == 1
+        record = log[0]
+        assert record["action"] == "remove_object"
+        assert record["object_id"] == "obj_1"
+        assert record["details"]["static_threshold"] == 20
+
+    def test_decision_log_for_marked_static_object(self, ontology_path):
+        """With mark_only=True, get_decision_log returns a mark_object record."""
+        data = _make_track([100, 101, 100, 101, 100], annotator="yolo")
+        static_pass = StaticObjectRemovalPass(static_threshold=20, mark_only=True)
+        static_pass.set_ontology_path(ontology_path)
+        static_pass.process(data)
+
+        log = static_pass.get_decision_log()
+        assert len(log) == 1
+        assert log[0]["action"] == "mark_object"
+        assert "frame" in log[0]

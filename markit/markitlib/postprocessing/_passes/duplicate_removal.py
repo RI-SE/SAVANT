@@ -3,7 +3,7 @@ DuplicateRemovalPass - Duplicate removal postprocessing pass.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
 import numpy as np
 
@@ -107,7 +107,10 @@ class DuplicateRemovalPass(PostprocessingPass):
                 if range_a[1] < range_b[0] or range_b[1] < range_a[0]:
                     continue
 
-                if self._are_duplicates(obj_a, obj_b, object_frame_map, frames):
+                is_duplicate, dup_metrics = self._are_duplicates(
+                    obj_a, obj_b, object_frame_map, frames
+                )
+                if is_duplicate:
                     self.duplicate_pairs_found += 1
 
                     obj_to_delete = self._choose_object_to_delete(
@@ -127,6 +130,7 @@ class DuplicateRemovalPass(PostprocessingPass):
                             "kept_engine": engine_kept,
                             "frame_start": frames_list[0] if frames_list else None,
                             "frame_end": frames_list[-1] if frames_list else None,
+                            "metrics": dup_metrics,
                         }
                     )
 
@@ -195,7 +199,7 @@ class DuplicateRemovalPass(PostprocessingPass):
         obj_b: str,
         object_frame_map: Dict[str, List[int]],
         frames: Dict[str, Any],
-    ) -> bool:
+    ) -> Tuple[bool, Dict[str, Any]]:
         """Check if two objects are duplicates based on IOU thresholds.
 
         Args:
@@ -205,14 +209,17 @@ class DuplicateRemovalPass(PostprocessingPass):
             frames: Frame data
 
         Returns:
-            True if objects are duplicates based on configured IoU thresholds
+            Tuple of (is_duplicate, metrics) where metrics contains the
+            computed shared_ratio/avg_iou/min_iou/avg_iomin/matched_by values
+            used to reach the decision (empty dict if no shared frames or no
+            valid bboxes were available to compute metrics from).
         """
         frames_a = set(object_frame_map.get(obj_a, []))
         frames_b = set(object_frame_map.get(obj_b, []))
         shared_frames = frames_a.intersection(frames_b)
 
         if len(shared_frames) == 0:
-            return False
+            return False, {}
 
         # Require shared frames to be a significant portion of the shorter object
         shorter_length = min(len(frames_a), len(frames_b))
@@ -225,7 +232,7 @@ class DuplicateRemovalPass(PostprocessingPass):
                 f"shared={len(shared_frames)}/{shorter_length} ({shared_ratio:.0%}) "
                 f"-> SKIP (below min_shared_ratio {self.min_shared_ratio})"
             )
-            return False
+            return False, {"shared_ratio": shared_ratio}
 
         ious = []
         iomins = []
@@ -249,7 +256,7 @@ class DuplicateRemovalPass(PostprocessingPass):
                 iomins.append(iomin)
 
         if len(ious) == 0:
-            return False
+            return False, {"shared_ratio": shared_ratio}
 
         avg_iou = sum(ious) / len(ious)
         min_iou = min(ious)
@@ -272,7 +279,14 @@ class DuplicateRemovalPass(PostprocessingPass):
             f"avg_iomin={avg_iomin:.2f} -> {result_str}{reason}"
         )
 
-        return is_duplicate
+        metrics = {
+            "shared_ratio": shared_ratio,
+            "avg_iou": avg_iou,
+            "min_iou": min_iou,
+            "avg_iomin": avg_iomin,
+            "matched_by": "iou" if by_iou else ("iomin" if by_iomin else None),
+        }
+        return is_duplicate, metrics
 
     def _extract_bbox(self, object_data: Dict[str, Any]) -> Optional[np.ndarray]:
         """Extract bounding box from object data and convert to corner points.
@@ -419,3 +433,38 @@ class DuplicateRemovalPass(PostprocessingPass):
             "frames_modified": self.frames_modified,
             "frames_merged": self.frames_merged,
         }
+
+    def get_decision_log(self) -> List[Dict[str, Any]]:
+        """Return one record per merged/deleted duplicate object."""
+        records = []
+        for detail in self.deletion_details:
+            metrics = detail.get("metrics", {})
+            matched_by = metrics.get("matched_by")
+            if matched_by == "iou":
+                reason = (
+                    f"avg_iou={metrics.get('avg_iou'):.2f} > {self.avg_iou_threshold} "
+                    f"and min_iou={metrics.get('min_iou'):.2f} > {self.min_iou_threshold}"
+                )
+            elif matched_by == "iomin":
+                reason = f"avg_iomin={metrics.get('avg_iomin'):.2f} > {self.iomin_threshold}"
+            else:
+                reason = "duplicate bbox overlap"
+            records.append(
+                {
+                    "action": "merge_objects",
+                    "object_ids": [detail["deleted_object"], detail["kept_object"]],
+                    "frame_range": {
+                        "start": detail["frame_start"],
+                        "end": detail["frame_end"],
+                    },
+                    "reason": reason,
+                    "details": {
+                        "deleted_object": detail["deleted_object"],
+                        "kept_object": detail["kept_object"],
+                        "deleted_engine": detail["deleted_engine"],
+                        "kept_engine": detail["kept_engine"],
+                        **metrics,
+                    },
+                }
+            )
+        return records
