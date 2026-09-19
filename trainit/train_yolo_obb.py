@@ -1105,6 +1105,8 @@ def main():
         # Record provenance if enabled
         if args.provenance and results is not None:
             from datetime import datetime, timezone
+            import torch
+            import ultralytics
             from dataprov import ProvenanceChain
 
             end_time = datetime.now(timezone.utc)
@@ -1114,6 +1116,7 @@ def main():
                 entity_id="savant_trainit_output",
                 initial_source=str(args.data),
                 description="SAVANT trainit YOLO OBB model training",
+                custom_namespaces={"savant": "https://ri-se.github.io/SAVANT/ns#"},
             )
 
             # Build arguments string
@@ -1142,6 +1145,11 @@ def main():
                 capture_agent=True,
                 agent_type="automated",
                 capture_environment=True,
+                custom_properties={
+                    "activity:savant:ultralytics_version": ultralytics.__version__,
+                    "activity:savant:torch_version": torch.__version__,
+                    "activity:savant:base_model": args.model,
+                },
             )
 
             chain.save(args.provenance)

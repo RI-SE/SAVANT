@@ -1042,6 +1042,9 @@ def main():
                 config, openlabel_handler.openlabel_data, openlabel_handler.debug_data
             )
 
+        # Capture YOLO model/library version info before cleanup releases the model
+        yolo_model_info = video_processor.get_yolo_model_info()
+
         # Cleanup and save results
         cleanup(video_processor, openlabel_handler, config)
 
@@ -1082,6 +1085,7 @@ def main():
                 entity_id="savant_markit_output",
                 initial_source=args.input,
                 description="SAVANT markit video processing",
+                custom_namespaces={"savant": "https://ri-se.github.io/SAVANT/ns#"},
             )
 
             # Build arguments string
@@ -1128,6 +1132,12 @@ def main():
                 capture_agent=True,
                 agent_type="automated",
                 capture_environment=True,
+                custom_properties={
+                    f"activity:savant:{k}": v
+                    for k, v in (yolo_model_info or {}).items()
+                    if v is not None
+                }
+                or None,
             )
 
             chain.save(args.provenance)

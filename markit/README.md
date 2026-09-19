@@ -475,6 +475,9 @@ markit --input video.mp4 --output_json output.json --provenance provenance.json
 ```
 
 The provenance file records inputs, outputs, parameters, and processing steps.
+When YOLO is used, it also records `ultralytics`/`torch` version, the YOLO task,
+and (read from the weights checkpoint itself) the architecture and `ultralytics`
+version the model was originally trained with, under the `savant:` namespace.
 
 ### Decision Log
 

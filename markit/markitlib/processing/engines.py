@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 import cv2
 
 import numpy as np
-
+import torch
+import ultralytics
 from ultralytics import YOLO
 
 if TYPE_CHECKING:
@@ -322,6 +323,27 @@ class YOLOEngine(BaseDetectionEngine):
         }
 
         return w_sem, h_sem, continuous_angle
+
+    def get_model_info(self) -> Dict[str, Optional[str]]:
+        """Return model/library version metadata for provenance recording.
+
+        Reads the checkpoint's own training metadata (architecture, ultralytics
+        version at training time) where available, since a weights *filename*
+        doesn't reliably say what architecture was actually trained.
+        """
+        info: Dict[str, Optional[str]] = {
+            "ultralytics_version": ultralytics.__version__,
+            "torch_version": torch.__version__,
+        }
+        if self.model is not None:
+            info["yolo_task"] = getattr(self.model, "task", None)
+            ckpt = getattr(self.model, "ckpt", None) or {}
+            train_args = ckpt.get("train_args", {}) if isinstance(ckpt, dict) else {}
+            info["trained_from_architecture"] = train_args.get("model")
+            info["trained_with_ultralytics_version"] = (
+                ckpt.get("version") if isinstance(ckpt, dict) else None
+            )
+        return info
 
     def cleanup(self) -> None:
         """Clean up YOLO engine resources."""

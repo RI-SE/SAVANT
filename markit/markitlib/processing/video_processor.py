@@ -220,6 +220,16 @@ class VideoProcessor:
 
         return stats
 
+    def get_yolo_model_info(self) -> Optional[Dict[str, Optional[str]]]:
+        """Return YOLO model/library version metadata, or None if YOLO wasn't used.
+
+        Must be called before `cleanup()`, which releases the underlying model.
+        """
+        for engine in self.engines:
+            if isinstance(engine, YOLOEngine):
+                return engine.get_model_info()
+        return None
+
     def cleanup(self) -> None:
         """Clean up video resources."""
         # Clean up engines
