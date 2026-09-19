@@ -211,3 +211,4 @@ __marimo__/
 **/.venv/
 .aider*
 datasets
+development.md
