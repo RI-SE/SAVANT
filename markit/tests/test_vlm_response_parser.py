@@ -700,3 +700,19 @@ class TestTagProvenanceFields:
 
         # Average of 0.9 and 0.7 is 0.8
         assert vec_items["precipitation_confidence"] == [0.8]
+
+
+def test_every_field_spec_survives_multi_frame_aggregation():
+    """Aggregation is driven by FIELD_SPECS, so a new field can't be silently dropped."""
+    from savant_common.scenario_tags import FIELD_SPECS
+
+    frame = {}
+    for spec in FIELD_SPECS.values():
+        value = 3 if spec.is_numeric else spec.choices[0]
+        frame.setdefault(spec.category, {})[spec.vlm_key] = value
+    results = [dict(frame, _frame_idx=0), dict(frame, _frame_idx=30)]
+
+    aggregated = VLMResponseParser._aggregate_results(results)
+
+    for spec in FIELD_SPECS.values():
+        assert spec.vlm_key in aggregated[spec.category], (spec.category, spec.vlm_key)

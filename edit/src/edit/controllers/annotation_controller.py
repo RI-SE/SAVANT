@@ -12,11 +12,6 @@ class AnnotationController:
         self.annotation_service = annotation_service
 
     @error_handler
-    def get_actor_types(self) -> list[str]:
-        """Get the list of all possible actor types."""
-        return self.annotation_service.get_actor_types()
-
-    @error_handler
     def create_new_object_bbox(
         self, frame_number: int, bbox_info: dict, annotator: str
     ) -> None:

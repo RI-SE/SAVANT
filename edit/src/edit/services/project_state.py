@@ -318,14 +318,6 @@ class ProjectState:
             for frame, entries in details.items()
         }
 
-    def get_actor_types(self) -> list[str]:
-        """Get the list of all possible actor types.
-
-        Returns:
-            A list of actor type strings.
-        """
-        return self.__ACTORS.copy()
-
     def boxes_for_frame(
         self, frame_idx: int
     ) -> List[Tuple[float, float, float, float, float]]:

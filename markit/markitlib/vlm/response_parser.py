@@ -124,6 +124,76 @@ def sanitize_response(data: Dict[str, Any]) -> Dict[str, Any]:
     return data
 
 
+# Numeric fields reported as whole numbers
+_ROUNDED_NUMERIC_FIELDS = {"lane_count"}
+# Booleans describing the road itself (vote); other booleans mean "seen at least once"
+_MAJORITY_BOOLEAN_FIELDS = {"divided", "lane_markings_visible"}
+
+
+def _aggregation_kind(key: str, spec) -> str:
+    """How values of one field combine across frames: vote, mean, round, majority, any."""
+    if spec is None:  # unmapped presence boolean such as junction.present
+        return "any"
+    if spec.is_numeric:
+        return "round" if key in _ROUNDED_NUMERIC_FIELDS else "mean"
+    if spec.is_boolean:
+        return "majority" if key in _MAJORITY_BOOLEAN_FIELDS else "any"
+    return "vote"
+
+
+def _category_fields(category: str) -> List[tuple]:
+    fields = [(spec.vlm_key, spec) for spec in FIELD_SPECS.values() if spec.category == category]
+    fields += [(key, None) for cat, key in _UNMAPPED_BOOL_FIELDS if cat == category]
+    return fields
+
+
+def _combine(kind: str, values: List[Any]) -> Any:
+    if kind == "vote":
+        return _most_common(values)
+    if kind == "mean":
+        return sum(values) / len(values)
+    if kind == "round":
+        return round(sum(values) / len(values))
+    if kind == "majority":
+        return sum(values) > len(values) / 2
+    return any(values)
+
+
+def _combine_rationales(key: str, kind: str, entries: List[tuple]) -> Optional[str]:
+    """Presence fields keep every frame's reason it was seen; others the first one given."""
+    rationale_key = f"{key}_rationale"
+    if kind == "any":
+        parts = [
+            f"[frame {frame}] {data[rationale_key]}" if frame is not None else data[rationale_key]
+            for frame, data in entries
+            if data.get(key) and data.get(rationale_key)
+        ]
+        return "; ".join(parts) or None
+    return next((data[rationale_key] for _, data in entries if data.get(rationale_key)), None)
+
+
+def _aggregate_category(category: str, entries: List[tuple]) -> Dict[str, Any]:
+    """Aggregate one response category over (frame_idx, data) entries."""
+    out: Dict[str, Any] = {}
+    for key, spec in _category_fields(category):
+        values = [data[key] for _, data in entries if data.get(key) is not None]
+        if not values:
+            continue
+        kind = _aggregation_kind(key, spec)
+        out[key] = _combine(kind, values)
+        confidences = [
+            data[f"{key}_confidence"] for _, data in entries
+            if data.get(f"{key}_confidence") is not None
+        ]
+        out[f"{key}_confidence"] = (
+            sum(confidences) / len(confidences) if confidences else DEFAULT_FIELD_CONFIDENCE
+        )
+        rationale = _combine_rationales(key, kind, entries)
+        if rationale:
+            out[f"{key}_rationale"] = rationale
+    return out
+
+
 class VLMResponseParser:
     """Parse VLM text responses into structured data."""
 
@@ -484,187 +554,21 @@ class VLMResponseParser:
 
     @staticmethod
     def _aggregate_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Aggregate multiple frame analyses using voting/averaging.
-
-        For per-field confidence values, averages are computed across frames.
-
-        Args:
-            results: List of analysis dicts from multiple frames
-
-        Returns:
-            Aggregated analysis dict with per-field confidence values
-        """
+        """Combine per-frame analyses into one, field by field (see _aggregation_kind)."""
         if not results:
             return {}
-
         if len(results) == 1:
             return results[0]
 
-        aggregated = {}
+        aggregated: Dict[str, Any] = {}
+        for category in RESPONSE_CATEGORIES:
+            entries = [(r.get("_frame_idx"), r[category]) for r in results if r.get(category)]
+            if entries:
+                aggregated[category] = _aggregate_category(category, entries)
 
-        # Helper to aggregate confidence values
-        def aggregate_confidence(field_name: str, category_data: List[Dict]) -> float:
-            conf_key = f"{field_name}_confidence"
-            confs = [d.get(conf_key) for d in category_data if d.get(conf_key) is not None]
-            return sum(confs) / len(confs) if confs else 0.5
-
-        # Aggregate weather using majority voting
-        weather_fields = [
-            "precipitation", "precipitation_intensity", "particulates",
-            "time_of_day", "sun_position", "cloud_cover"
-        ]
-        weather_rationale_fields = [f"{f}_rationale" for f in weather_fields]
-        weather_data = [r.get("weather", {}) for r in results if r.get("weather")]
-
-        if weather_data:
-            aggregated["weather"] = {}
-            for field in weather_fields:
-                values = [d.get(field) for d in weather_data if d.get(field) is not None]
-                if values:
-                    aggregated["weather"][field] = _most_common(values)
-                    # Average the confidence
-                    aggregated["weather"][f"{field}_confidence"] = aggregate_confidence(field, weather_data)
-
-            # Visibility is numeric - average
-            vis_values = [d.get("visibility_km") for d in weather_data if d.get("visibility_km") is not None]
-            if vis_values:
-                aggregated["weather"]["visibility_km"] = sum(vis_values) / len(vis_values)
-                aggregated["weather"]["visibility_km_confidence"] = aggregate_confidence("visibility_km", weather_data)
-
-            # Rationale fields: use first non-empty value
-            for rationale_field in weather_rationale_fields:
-                for d in weather_data:
-                    if d.get(rationale_field):
-                        aggregated["weather"][rationale_field] = d[rationale_field]
-                        break
-
-        # Aggregate road
-        road_text_fields = [
-            "drivable_area_type", "geometry_horizontal", "geometry_longitudinal",
-            "surface_type", "surface_condition", "surface_quality"
-        ]
-        road_bool_fields = ["divided", "lane_markings_visible"]
-        road_rationale_fields = [
-            "drivable_area_type_rationale", "surface_type_rationale",
-            "surface_condition_rationale", "surface_quality_rationale"
-        ]
-        road_data = [r.get("road", {}) for r in results if r.get("road")]
-
-        if road_data:
-            aggregated["road"] = {}
-            for field in road_text_fields:
-                values = [d.get(field) for d in road_data if d.get(field) is not None]
-                if values:
-                    aggregated["road"][field] = _most_common(values)
-                    aggregated["road"][f"{field}_confidence"] = aggregate_confidence(field, road_data)
-
-            # Boolean fields - majority voting
-            for field in road_bool_fields:
-                values = [d.get(field) for d in road_data if d.get(field) is not None]
-                if values:
-                    aggregated["road"][field] = sum(values) > len(values) / 2
-                    aggregated["road"][f"{field}_confidence"] = aggregate_confidence(field, road_data)
-
-            # Lane count - average and round
-            lane_values = [d.get("lane_count") for d in road_data if d.get("lane_count") is not None]
-            if lane_values:
-                aggregated["road"]["lane_count"] = round(sum(lane_values) / len(lane_values))
-                aggregated["road"]["lane_count_confidence"] = aggregate_confidence("lane_count", road_data)
-
-            # Rationale fields
-            for rationale_field in road_rationale_fields:
-                for d in road_data:
-                    if d.get(rationale_field):
-                        aggregated["road"][rationale_field] = d[rationale_field]
-                        break
-
-        # Aggregate traffic
-        traffic_text_fields = ["density", "flow", "temporary_structures"]
-        traffic_bool_fields = ["pedestrians_present", "cyclists_present", "special_vehicles_present"]
-        traffic_rationale_fields = ["density_rationale", "flow_rationale", "temporary_structures_rationale"]
-        traffic_data = [r.get("traffic", {}) for r in results if r.get("traffic")]
-
-        if traffic_data:
-            aggregated["traffic"] = {}
-            for field in traffic_text_fields:
-                values = [d.get(field) for d in traffic_data if d.get(field) is not None]
-                if values:
-                    aggregated["traffic"][field] = _most_common(values)
-                    aggregated["traffic"][f"{field}_confidence"] = aggregate_confidence(field, traffic_data)
-
-            # Boolean fields - any True wins, with frame tracking for rationales
-            for field in traffic_bool_fields:
-                values = [d.get(field) for d in traffic_data if d.get(field) is not None]
-                if values:
-                    aggregated["traffic"][field] = any(values)
-                    aggregated["traffic"][f"{field}_confidence"] = aggregate_confidence(field, traffic_data)
-
-                    # Aggregate rationales with frame info for presence fields
-                    rationale_field = f"{field}_rationale"
-                    rationales_with_frames = []
-                    for r in results:
-                        traffic = r.get("traffic", {})
-                        if traffic.get(field) and traffic.get(rationale_field):
-                            frame_idx = r.get("_frame_idx")
-                            rationale = traffic[rationale_field]
-                            if frame_idx is not None:
-                                rationales_with_frames.append(f"[frame {frame_idx}] {rationale}")
-                            else:
-                                rationales_with_frames.append(rationale)
-                    if rationales_with_frames:
-                        aggregated["traffic"][rationale_field] = "; ".join(rationales_with_frames)
-
-            # Rationale fields (text fields)
-            for rationale_field in traffic_rationale_fields:
-                for d in traffic_data:
-                    if d.get(rationale_field):
-                        aggregated["traffic"][rationale_field] = d[rationale_field]
-                        break
-
-        # Aggregate junction
-        junction_text_fields = ["type", "roundabout_type"]
-        junction_bool_fields = ["present", "signalized", "pedestrian_crossing", "rail_crossing"]
-        junction_data = [r.get("junction", {}) for r in results if r.get("junction")]
-
-        if junction_data:
-            aggregated["junction"] = {}
-            for field in junction_text_fields:
-                values = [d.get(field) for d in junction_data if d.get(field) is not None]
-                if values:
-                    aggregated["junction"][field] = _most_common(values)
-                    aggregated["junction"][f"{field}_confidence"] = aggregate_confidence(field, junction_data)
-
-            # Boolean fields - any True wins
-            for field in junction_bool_fields:
-                values = [d.get(field) for d in junction_data if d.get(field) is not None]
-                if values:
-                    aggregated["junction"][field] = any(values)
-                    aggregated["junction"][f"{field}_confidence"] = aggregate_confidence(field, junction_data)
-
-        # Aggregate structures
-        structures_bool_fields = ["bridge", "tunnel", "toll_plaza", "barriers_present"]
-        structures_data = [r.get("structures", {}) for r in results if r.get("structures")]
-
-        if structures_data:
-            aggregated["structures"] = {}
-            # Street lighting is text
-            sl_values = [d.get("street_lighting") for d in structures_data if d.get("street_lighting") is not None]
-            if sl_values:
-                aggregated["structures"]["street_lighting"] = _most_common(sl_values)
-                aggregated["structures"]["street_lighting_confidence"] = aggregate_confidence("street_lighting", structures_data)
-
-            # Boolean fields - any True wins
-            for field in structures_bool_fields:
-                values = [d.get(field) for d in structures_data if d.get(field) is not None]
-                if values:
-                    aggregated["structures"][field] = any(values)
-                    aggregated["structures"][f"{field}_confidence"] = aggregate_confidence(field, structures_data)
-
-        # Copy through overall confidence
         confidences = [r.get("confidence") for r in results if "confidence" in r]
         if confidences:
             aggregated["confidence"] = sum(confidences) / len(confidences)
-
         return aggregated
 
     @staticmethod

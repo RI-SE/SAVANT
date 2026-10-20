@@ -12,45 +12,12 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from savant_common.ontology import SAVANT_ONTOLOGY_URI
+from savant_common.openlabel import NumpyEncoder, normalize_angle_to_2pi_range
 
 from ..config import Constants, DetectionResult
-from ..utils import normalize_angle_to_2pi_range
 from .. import __version__
 
 logger = logging.getLogger(__name__)
-
-
-class NumpyEncoder(json.JSONEncoder):
-    """Custom JSON encoder that handles NumPy data types and rounds floats to 4 decimals."""
-
-    def default(self, obj):
-        if isinstance(obj, (np.integer, np.int32, np.int64)):
-            return int(obj)
-        elif isinstance(obj, (np.floating, np.float32, np.float64)):
-            return round(float(obj), 4)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super().default(obj)
-
-    def encode(self, obj):
-        """Override encode to round all Python floats to 4 decimals."""
-        if isinstance(obj, float):
-            return format(round(obj, 4), ".4f").rstrip("0").rstrip(".")
-        return super().encode(obj)
-
-    def iterencode(self, obj, _one_shot=False):
-        """Override iterencode to round floats in nested structures."""
-
-        def round_floats(o):
-            if isinstance(o, float):
-                return round(o, 4)
-            elif isinstance(o, dict):
-                return {k: round_floats(v) for k, v in o.items()}
-            elif isinstance(o, (list, tuple)):
-                return [round_floats(item) for item in o]
-            return o
-
-        return super().iterencode(round_floats(obj), _one_shot)
 
 
 def _frame_to_timestamp(frame_idx: int, fps: float) -> str:

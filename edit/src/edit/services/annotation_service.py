@@ -933,16 +933,6 @@ class AnnotationService:
                 "No frames to interpolate between start and end frame"
             )
 
-        # Extract center control points from the control_points dictionary
-        # center_control_points = []
-        # if 'center_x' in control_points and 'center_y' in control_points:
-        #    xs = control_points['center_x']
-        #    ys = control_points['center_y']
-        #    if len(xs) == len(ys):
-        #        center_control_points = list(zip(xs, ys))
-
-        # print(xs, ys, center_control_points)
-
         # Interpolate bboxes for intermediate frames using the new spline method
         interpolated_bboxes = InterpolationService.interpolate_annotations(
             start_bbox,

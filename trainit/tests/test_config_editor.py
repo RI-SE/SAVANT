@@ -51,3 +51,14 @@ def test_empty_model_and_project_save_defaults(qapp):
     saved = controller.update_config.call_args.args[0]
     assert saved.model == TrainingConfig.model_fields["model"].default
     assert saved.project == TrainingConfig.model_fields["project"].default
+
+
+def test_fractional_warmup_epochs_round_trip(qapp):
+    app_state = AppState()
+    controller = MagicMock()
+    editor = ConfigEditor(app_state, controller)
+    app_state.current_config = TrainingConfig(name="cfg", warmup_epochs=2.5)
+
+    editor._on_save()
+
+    assert controller.update_config.call_args.args[0].warmup_epochs == 2.5

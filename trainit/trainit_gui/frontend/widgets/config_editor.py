@@ -25,7 +25,7 @@ from PyQt6.QtCore import Qt
 from ..states.app_state import AppState
 from ..help_texts import PARAMETER_HELP, GROUP_HELP, AUGMENTATION_PRESETS, MODEL_PRESETS
 from ...controllers.config_controller import ConfigController
-from ...models.project import TrainingConfig
+from ...models.project import OPTIONAL_TRAINING_PARAMS, TrainingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -189,8 +189,8 @@ class ConfigEditor(QWidget):
             ["auto", "SGD", "Adam", "AdamW", "NAdam", "RAdam", "RMSProp"],
             optional=True,
         )
-        self._add_optional_spin(
-            advanced_layout, "warmup_epochs", "Warmup Epochs:", 0, 10, 3
+        self._add_optional_double(
+            advanced_layout, "warmup_epochs", "Warmup Epochs:", 0, 10, 3.0
         )
         self._add_optional_double(
             advanced_layout, "warmup_momentum", "Warmup Momentum:", 0, 1, 0.8
@@ -502,7 +502,7 @@ class ConfigEditor(QWidget):
             # Advanced parameters
             "lr0": (0.01, True),
             "lrf": (0.01, True),
-            "warmup_epochs": (3, True),
+            "warmup_epochs": (3.0, True),
             "warmup_momentum": (0.8, True),
             "patience": (50, True),
             "save_period": (-1, True),
@@ -580,33 +580,8 @@ class ConfigEditor(QWidget):
             self._set_value("device", config.device)
             self._set_value("project", config.project)
 
-            # Optional values
-            self._set_optional_value("lr0", config.lr0)
-            self._set_optional_value("lrf", config.lrf)
-            self._set_optional_value("optimizer", config.optimizer)
-            self._set_optional_value("warmup_epochs", config.warmup_epochs)
-            self._set_optional_value("warmup_momentum", config.warmup_momentum)
-            self._set_optional_value("patience", config.patience)
-            self._set_optional_value("save_period", config.save_period)
-            self._set_optional_value("cache", config.cache)
-            self._set_optional_value("workers", config.workers)
-            self._set_optional_value("close_mosaic", config.close_mosaic)
-            self._set_optional_value("freeze", config.freeze)
-            self._set_optional_value("box", config.box)
-            self._set_optional_value("cls", config.cls)
-            self._set_optional_value("dfl", config.dfl)
-            self._set_optional_value("hsv_h", config.hsv_h)
-            self._set_optional_value("hsv_s", config.hsv_s)
-            self._set_optional_value("hsv_v", config.hsv_v)
-            self._set_optional_value("degrees", config.degrees)
-            self._set_optional_value("translate", config.translate)
-            self._set_optional_value("scale", config.scale)
-            self._set_optional_value("shear", config.shear)
-            self._set_optional_value("perspective", config.perspective)
-            self._set_optional_value("fliplr", config.fliplr)
-            self._set_optional_value("flipud", config.flipud)
-            self._set_optional_value("mosaic", config.mosaic)
-            self._set_optional_value("mixup", config.mixup)
+            for name in OPTIONAL_TRAINING_PARAMS:
+                self._set_optional_value(name, getattr(config, name))
 
             # Update unchecked parameters to show project defaults
             self._update_widget_defaults()
@@ -734,32 +709,7 @@ class ConfigEditor(QWidget):
             batch=self._get_value("batch"),
             device=self._get_value("device") or "auto",
             project=self._text_or_default("project"),
-            lr0=self._get_optional_value("lr0"),
-            lrf=self._get_optional_value("lrf"),
-            optimizer=self._get_optional_value("optimizer"),
-            warmup_epochs=self._get_optional_value("warmup_epochs"),
-            warmup_momentum=self._get_optional_value("warmup_momentum"),
-            patience=self._get_optional_value("patience"),
-            save_period=self._get_optional_value("save_period"),
-            cache=self._get_optional_value("cache"),
-            workers=self._get_optional_value("workers"),
-            close_mosaic=self._get_optional_value("close_mosaic"),
-            freeze=self._get_optional_value("freeze"),
-            box=self._get_optional_value("box"),
-            cls=self._get_optional_value("cls"),
-            dfl=self._get_optional_value("dfl"),
-            hsv_h=self._get_optional_value("hsv_h"),
-            hsv_s=self._get_optional_value("hsv_s"),
-            hsv_v=self._get_optional_value("hsv_v"),
-            degrees=self._get_optional_value("degrees"),
-            translate=self._get_optional_value("translate"),
-            scale=self._get_optional_value("scale"),
-            shear=self._get_optional_value("shear"),
-            perspective=self._get_optional_value("perspective"),
-            fliplr=self._get_optional_value("fliplr"),
-            flipud=self._get_optional_value("flipud"),
-            mosaic=self._get_optional_value("mosaic"),
-            mixup=self._get_optional_value("mixup"),
+            **{name: self._get_optional_value(name) for name in OPTIONAL_TRAINING_PARAMS},
         )
         config = TrainingConfig(**{**self.app_state.current_config.model_dump(), **edited})
 

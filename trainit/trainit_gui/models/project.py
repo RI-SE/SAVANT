@@ -182,6 +182,13 @@ class TrainingConfig(BaseModel):
         return result
 
 
+# Training options left to YOLO's defaults unless set (all None-default TrainingConfig
+# fields). Drives the config editor; must match train_yolo_obb.OPTIONAL_PARAMS.
+OPTIONAL_TRAINING_PARAMS = tuple(
+    name for name, info in TrainingConfig.model_fields.items() if info.default is None
+)
+
+
 class ProjectDefaults(BaseModel):
     """Default training parameters for new configurations in a project.
 
