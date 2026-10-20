@@ -24,8 +24,6 @@ def _make_service_with_object(object_id="obj1", vec=None):
 
     service = object.__new__(AnnotationService)
     service.project_state = project_state
-    service._frame_tag_lookup_cache = None
-    service._frame_tag_lookup_source = None
     service._tag_cache_key = None
     service._tag_cache_vals = None
     service._bbox_cache_key = None

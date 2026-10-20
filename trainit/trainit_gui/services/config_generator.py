@@ -3,9 +3,10 @@
 import json
 import logging
 import shutil
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import yaml
 
@@ -17,6 +18,26 @@ from .manifest_service import ManifestService
 from .split_service import SplitService
 
 logger = logging.getLogger(__name__)
+
+# progress(phase, done, total) -> True to cancel; total is 0 when unknown
+ProgressCallback = Callable[[str, int, int], bool]
+
+
+class GenerationCancelled(Exception):
+    """Raised when the progress callback asks to stop generation."""
+
+
+class _ProgressReporter:
+    """Counts processed files per phase and forwards them to an optional callback."""
+
+    def __init__(self, callback: Optional[ProgressCallback] = None):
+        self.callback = callback
+        self.counts: dict[str, int] = defaultdict(int)
+
+    def step(self, phase: str, total: int = 0) -> None:
+        self.counts[phase] += 1
+        if self.callback and self.callback(phase, self.counts[phase], total):
+            raise GenerationCancelled(f"Generation cancelled during {phase.lower()}")
 
 
 class ConfigGenerator:
@@ -36,6 +57,7 @@ class ConfigGenerator:
         self.dataset_service = dataset_service or DatasetService()
         self.manifest_service = manifest_service or ManifestService()
         self.split_service = split_service or SplitService()
+        self._progress = _ProgressReporter()
 
     def generate_training_files(
         self,
@@ -44,8 +66,12 @@ class ConfigGenerator:
         output_dir: str,
         copy_images: bool = False,
         generate_manifest: bool = True,
+        progress: Optional[ProgressCallback] = None,
     ) -> tuple[str, str, Optional[str]]:
         """Generate training configuration files for a config.
+
+        progress is called per file linked/copied and hashed; returning True raises
+        GenerationCancelled (the partial output is cleared on the next generation).
 
         Args:
             project: The project containing dataset references
@@ -61,6 +87,7 @@ class ConfigGenerator:
             ValueError: If datasets have mismatched class definitions
             FileNotFoundError: If datasets don't exist
         """
+        self._progress = _ProgressReporter(progress)
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
 
@@ -134,7 +161,10 @@ class ConfigGenerator:
                 source_datasets=config.selected_datasets,
             )
             manifest = self.manifest_service.generate_manifest(
-                output_dir=output_path, info=manifest_info, file_mappings=file_mappings
+                output_dir=output_path,
+                info=manifest_info,
+                file_mappings=file_mappings,
+                on_file=lambda: self._progress.step("Hashing", len(file_mappings)),
             )
             self.manifest_service.save_manifest(manifest, manifest_file)
             manifest_path = str(manifest_file)
@@ -367,6 +397,7 @@ class ConfigGenerator:
 
     def _create_link_or_copy(self, src: Path, dst: Path, copy: bool) -> None:
         """Create symlink or copy file."""
+        self._progress.step("Copying" if copy else "Linking")
         if dst.is_symlink() or dst.exists():
             dst.unlink()
 

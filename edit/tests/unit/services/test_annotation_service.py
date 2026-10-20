@@ -783,3 +783,19 @@ class TestMarkConfidenceResolved:
         vec = [AnnotatorData(val=deque(["bobby"])), ConfidenceData(val=deque([0.3]))]
         result, _ = self._resolve(vec, annotator="bob")
         assert result["annotator"] == ["bob", "bobby"]
+
+
+def test_active_frame_tags_follow_in_place_changes():
+    from edit.models.OpenLabel import ActionMetadata, FrameInterval
+
+    actions = {
+        "rain": ActionMetadata(name="rain", type="FrameTag",
+                               frame_intervals=[FrameInterval(frame_start=0, frame_end=10)]),
+    }
+    service = AnnotationService(project_state=SimpleNamespace(annotation_config=SimpleNamespace(actions=actions)))
+    assert service.get_active_frame_tags(5) == [("rain", 0, 10)]
+
+    # Same dict object mutated (e.g. by an undo gateway): no stale result
+    actions["rain"].frame_intervals = [FrameInterval(frame_start=20, frame_end=30)]
+    assert service.get_active_frame_tags(5) == []
+    assert service.get_active_frame_tags(25) == [("rain", 20, 30)]

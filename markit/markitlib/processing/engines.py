@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .id_manager import ObjectIDManager
 
 from ..config import DetectionResult, OpticalFlowParams
+from ..geometry import BBoxOverlapCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -506,109 +507,8 @@ class SimpleTracker:
             return new_id
 
     def _calculate_iou(self, bbox1: np.ndarray, bbox2: np.ndarray) -> float:
-        """Calculate IoU between two rotated bboxes.
-
-        Uses the Sutherland-Hodgman algorithm for polygon intersection.
-
-        Args:
-            bbox1: First bbox as 4 corner points (4x2 array)
-            bbox2: Second bbox as 4 corner points (4x2 array)
-
-        Returns:
-            IoU value between 0 and 1
-        """
-        try:
-            # Ensure correct format
-            pts1 = np.array(bbox1, dtype=np.float32).reshape(-1, 2)
-            pts2 = np.array(bbox2, dtype=np.float32).reshape(-1, 2)
-
-            # Calculate areas using the shoelace formula
-            area1 = self._polygon_area(pts1)
-            area2 = self._polygon_area(pts2)
-
-            if area1 <= 0 or area2 <= 0:
-                return 0.0
-
-            # Find intersection using Sutherland-Hodgman clipping
-            intersection_pts = self._sutherland_hodgman_clip(pts1, pts2)
-
-            if len(intersection_pts) < 3:
-                return 0.0
-
-            intersection_area = self._polygon_area(intersection_pts)
-            if intersection_area <= 0:
-                return 0.0
-
-            union_area = area1 + area2 - intersection_area
-            if union_area <= 0:
-                return 0.0
-
-            return intersection_area / union_area
-
-        except Exception:
-            return 0.0
-
-    @staticmethod
-    def _polygon_area(points: np.ndarray) -> float:
-        """Calculate polygon area using the shoelace formula."""
-        if len(points) < 3:
-            return 0.0
-        x = points[:, 0]
-        y = points[:, 1]
-        return 0.5 * abs(
-            sum(
-                x[i] * y[(i + 1) % len(x)] - x[(i + 1) % len(x)] * y[i]
-                for i in range(len(x))
-            )
-        )
-
-    @staticmethod
-    def _sutherland_hodgman_clip(
-        subject_polygon: np.ndarray, clip_polygon: np.ndarray
-    ) -> np.ndarray:
-        """Clip subject polygon against clip polygon."""
-
-        def _is_inside(point, edge_start, edge_end):
-            edge_vec = edge_end - edge_start
-            point_vec = point - edge_start
-            return (edge_vec[0] * point_vec[1] - edge_vec[1] * point_vec[0]) >= 0
-
-        def _intersection_point(p1, p2, edge_start, edge_end):
-            d1 = edge_end - edge_start
-            d2 = p2 - p1
-            denominator = d1[0] * d2[1] - d1[1] * d2[0]
-            if abs(denominator) < 1e-10:
-                return p1
-            p1_vec = p1 - edge_start
-            t = (p1_vec[0] * d2[1] - p1_vec[1] * d2[0]) / denominator
-            return edge_start + t * d1
-
-        output_list = subject_polygon.tolist()
-
-        for i in range(len(clip_polygon)):
-            if not output_list:
-                break
-
-            edge_start = clip_polygon[i]
-            edge_end = clip_polygon[(i + 1) % len(clip_polygon)]
-            input_list = output_list
-            output_list = []
-
-            if not input_list:
-                continue
-
-            s = np.array(input_list[-1])
-            for vertex in input_list:
-                e = np.array(vertex)
-                if _is_inside(e, edge_start, edge_end):
-                    if not _is_inside(s, edge_start, edge_end):
-                        output_list.append(_intersection_point(s, e, edge_start, edge_end).tolist())
-                    output_list.append(e.tolist())
-                elif _is_inside(s, edge_start, edge_end):
-                    output_list.append(_intersection_point(s, e, edge_start, edge_end).tolist())
-                s = e
-
-        return np.array(output_list) if output_list else np.array([])
+        """IoU between two rotated bboxes (4 corner points each)."""
+        return BBoxOverlapCalculator.calculate_intersection_over_union(bbox1, bbox2)
 
     def end_frame(self) -> None:
         """Called at end of frame processing to clean up expired tracks."""

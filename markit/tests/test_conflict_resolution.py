@@ -76,3 +76,27 @@ class TestDetectionConflictResolverDecisionLog:
         resolver.resolve_conflicts(results, frame_idx=5)
 
         assert len(resolver.get_decision_log()) == 1
+
+    def test_no_records_kept_without_decision_log(self, sample_obb_bbox):
+        """Without --decision-log nothing accumulates, but the drop still happens."""
+        resolver = DetectionConflictResolver(
+            ConflictResolutionConfig(iou_threshold=0.3, record_decisions=False)
+        )
+        results = [
+            _make_detection("obj_yolo_1", "yolo", sample_obb_bbox),
+            _make_detection("obj_oflow_1", "optical_flow", sample_obb_bbox),
+        ]
+
+        kept = resolver.resolve_conflicts(results, frame_idx=5)
+
+        assert resolver.get_decision_log() == []
+        assert [d.object_id for d in kept] == ["obj_yolo_1"]
+
+    def test_object_id_zero_is_recorded(self, sample_obb_bbox):
+        resolver = DetectionConflictResolver(ConflictResolutionConfig(iou_threshold=0.3))
+        results = [
+            _make_detection(0, "yolo", sample_obb_bbox),
+            _make_detection(7, "optical_flow", sample_obb_bbox),
+        ]
+        resolver.resolve_conflicts(results, frame_idx=1)
+        assert resolver.get_decision_log()[0]["details"]["winning_object_id"] == 0

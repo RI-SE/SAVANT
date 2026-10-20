@@ -14,6 +14,9 @@ from .config import SamplingStrategy
 
 logger = logging.getLogger(__name__)
 
+# Frame gaps up to this size are skipped with grab() rather than a seek
+MAX_GRAB_SKIP = 30
+
 
 class FrameSampler(ABC):
     """Abstract base for frame sampling strategies."""
@@ -142,9 +145,17 @@ class SceneChangeSampler(FrameSampler):
         selected = [frame_indices[0]]  # Always include first frame
         prev_hist = None
 
+        position = 0  # index of the next frame the capture will return
         for frame_idx in frame_indices:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            # Seeking decodes from the previous keyframe, so step forward through
+            # nearby frames instead; only seek for backward or long jumps
+            if frame_idx < position or frame_idx - position > MAX_GRAB_SKIP:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+                position = frame_idx
+            while position < frame_idx and cap.grab():
+                position += 1
             ret, frame = cap.read()
+            position += 1
             if not ret:
                 continue
 

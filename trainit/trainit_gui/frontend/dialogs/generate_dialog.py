@@ -19,11 +19,18 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QWidget,
     QScrollArea,
+    QApplication,
+    QProgressDialog,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 from ..states.app_state import AppState
 from ...controllers.config_controller import ConfigController
+
+
+PREVIEW_DELAY_MS = 300
+# Repainting per file would dominate for fast symlinking
+PROGRESS_EVERY_N_FILES = 25
 
 
 class GenerateDialog(QDialog):
@@ -40,8 +47,28 @@ class GenerateDialog(QDialog):
         self.setWindowTitle("Generate Training Files")
         self.setMinimumWidth(600)
 
+        # The preview reads every dataset's file list; wait for typing to pause
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(PREVIEW_DELAY_MS)
+        self._preview_timer.timeout.connect(self._update_preview)
+
         self._setup_ui()
         self._update_preview()
+
+    @staticmethod
+    def _on_generation_progress(dialog, phase: str, done: int, total: int) -> bool:
+        """Update the progress dialog every few files; return True if cancelled."""
+        if done % PROGRESS_EVERY_N_FILES == 0 or done == total:
+            dialog.setMaximum(total)
+            dialog.setValue(done if total else 0)
+            dialog.setLabelText(f"{phase} files: {done}" + (f" / {total}" if total else ""))
+            QApplication.processEvents()
+        return dialog.wasCanceled()
+
+    def _schedule_preview(self, *_):
+        """Restart the debounce timer; the preview runs once input settles."""
+        self._preview_timer.start()
 
     def _setup_ui(self):
         """Setup the UI."""
@@ -69,7 +96,7 @@ class GenerateDialog(QDialog):
         dir_layout = QHBoxLayout()
         self.output_dir_edit = QLineEdit()
         self.output_dir_edit.setPlaceholderText("Select output directory...")
-        self.output_dir_edit.textChanged.connect(self._update_preview)
+        self.output_dir_edit.textChanged.connect(self._schedule_preview)
         dir_layout.addWidget(self.output_dir_edit)
 
         browse_btn = QPushButton("Browse...")
@@ -93,7 +120,7 @@ class GenerateDialog(QDialog):
             "Generate a JSON manifest with SHA256 hashes of all source files.\n"
             "Useful for validating that source files haven't changed."
         )
-        self.generate_manifest_cb.stateChanged.connect(self._update_preview)
+        self.generate_manifest_cb.stateChanged.connect(self._schedule_preview)
         output_layout.addRow("", self.generate_manifest_cb)
 
         layout.addWidget(output_group)
@@ -133,14 +160,14 @@ class GenerateDialog(QDialog):
         self.split_ratio_spin.setToolTip(
             "Fraction of data for training (e.g., 0.9 = 90% train)"
         )
-        self.split_ratio_spin.valueChanged.connect(self._update_preview)
+        self.split_ratio_spin.valueChanged.connect(self._schedule_preview)
         split_params_layout.addRow("Train Ratio:", self.split_ratio_spin)
 
         self.split_seed_spin = QSpinBox()
         self.split_seed_spin.setRange(0, 999999)
         self.split_seed_spin.setValue(default_seed)
         self.split_seed_spin.setToolTip("Random seed for reproducible splits")
-        self.split_seed_spin.valueChanged.connect(self._update_preview)
+        self.split_seed_spin.valueChanged.connect(self._schedule_preview)
         split_params_layout.addRow("Seed:", self.split_seed_spin)
 
         # Per-dataset val inclusion (with scroll area for many datasets)
@@ -170,7 +197,7 @@ class GenerateDialog(QDialog):
             for ds_name in config.selected_datasets:
                 cb = QCheckBox(ds_name)
                 cb.setChecked(config.include_val_in_pool.get(ds_name, False))
-                cb.stateChanged.connect(self._update_preview)
+                cb.stateChanged.connect(self._schedule_preview)
                 self.val_pool_checkboxes[ds_name] = cb
                 self.val_pool_layout.addWidget(cb)
 
@@ -348,13 +375,23 @@ Summary:
         # Apply UI settings to config
         self._apply_ui_to_config()
 
-        # Generate files
+        # Generate files (modal progress keeps the UI responsive and cancellable)
         generate_manifest = self.generate_manifest_cb.isChecked()
-        result = self.config_controller.generate_files(
-            output_dir=output_dir,
-            copy_images=self.copy_images_cb.isChecked(),
-            generate_manifest=generate_manifest,
-        )
+        progress_dialog = QProgressDialog("Generating training files...", "Cancel", 0, 0, self)
+        progress_dialog.setWindowTitle("Generate Training Files")
+        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        progress_dialog.setMinimumDuration(500)
+        try:
+            result = self.config_controller.generate_files(
+                output_dir=output_dir,
+                copy_images=self.copy_images_cb.isChecked(),
+                generate_manifest=generate_manifest,
+                progress=lambda phase, done, total: self._on_generation_progress(
+                    progress_dialog, phase, done, total
+                ),
+            )
+        finally:
+            progress_dialog.close()
 
         if result[0]:  # success
             _, yaml_path, json_path, manifest_path = result

@@ -7,10 +7,15 @@ from .gateways import GatewayHolder
 from .commands import UndoableCommand
 
 
+# Each command holds deep-copied snapshots; bound memory on long editing sessions
+MAX_UNDO_DEPTH = 500
+
+
 @dataclass
 class UndoRedoManager:
-    """Simple two-stack undo/redo manager."""
+    """Simple two-stack undo/redo manager; keeps at most max_depth undo steps."""
 
+    max_depth: int = MAX_UNDO_DEPTH
     _undo_stack: list[UndoableCommand] = field(default_factory=list)
     _redo_stack: list[UndoableCommand] = field(default_factory=list)
 
@@ -27,6 +32,8 @@ class UndoRedoManager:
     def execute(self, command: UndoableCommand, context: GatewayHolder) -> None:
         command.do(context)
         self._undo_stack.append(command)
+        if len(self._undo_stack) > self.max_depth:
+            del self._undo_stack[: len(self._undo_stack) - self.max_depth]
         self._redo_stack.clear()
 
     def undo(self, context: GatewayHolder) -> Optional[UndoableCommand]:

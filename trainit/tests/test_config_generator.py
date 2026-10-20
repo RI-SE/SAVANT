@@ -36,3 +36,30 @@ def test_output_inside_source_dataset_is_refused(mock_datasets_root: Path):
     with pytest.raises(ValueError, match="overlaps source dataset"):
         _generate(mock_datasets_root, source)
     assert len(_names(source / "images" / "train")) == 3
+
+
+def test_progress_reports_linking_and_hashing(mock_datasets_root: Path, temp_dir: Path):
+    calls = []
+    project = Project(name="p", datasets_root=str(mock_datasets_root))
+    config = TrainingConfig(name="cfg", selected_datasets=["dataset_a"])
+
+    ConfigGenerator().generate_training_files(
+        project, config, str(temp_dir / "out"),
+        progress=lambda phase, done, total: calls.append((phase, done, total)) and False,
+    )
+
+    phases = {phase for phase, _, _ in calls}
+    assert phases == {"Linking", "Hashing"}
+    hashing = [c for c in calls if c[0] == "Hashing"]
+    assert hashing[-1][1] == hashing[-1][2] == len(hashing)
+
+
+def test_progress_can_cancel(mock_datasets_root: Path, temp_dir: Path):
+    from trainit.trainit_gui.services.config_generator import GenerationCancelled
+
+    project = Project(name="p", datasets_root=str(mock_datasets_root))
+    config = TrainingConfig(name="cfg", selected_datasets=["dataset_a"])
+    with pytest.raises(GenerationCancelled):
+        ConfigGenerator().generate_training_files(
+            project, config, str(temp_dir / "out"), progress=lambda *_: True
+        )

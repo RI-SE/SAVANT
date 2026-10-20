@@ -5,7 +5,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from ..models.manifest import Manifest, ManifestInfo, FileEntry
 
@@ -61,6 +61,7 @@ class ManifestService:
         output_dir: Path,
         info: ManifestInfo,
         file_mappings: list[tuple[Path, Path]],
+        on_file: Optional[Callable[[], None]] = None,
     ) -> Manifest:
         """Generate manifest from file mappings.
 
@@ -75,6 +76,8 @@ class ManifestService:
         manifest = Manifest(info=info)
 
         for dest_path, source_path in file_mappings:
+            if on_file:
+                on_file()
             try:
                 relative = dest_path.relative_to(output_dir)
                 sha256 = self.compute_sha256(source_path)

@@ -100,6 +100,7 @@ class VideoProcessor:
                 iou_threshold=config.iou_threshold,
                 yolo_precedence=True,
                 enable_logging=config.verbose_conflicts,
+                record_decisions=config.record_decisions,
             )
             self.conflict_resolver = DetectionConflictResolver(conflict_config)
 

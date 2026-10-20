@@ -35,3 +35,20 @@ def test_unsaved_changes_follow_edits_and_saves(qapp, mock_datasets_root: Path, 
 
     controller.app_state.config_dirty = True
     assert controller.has_unsaved_changes()
+
+
+def test_analysis_reads_each_dataset_once(qapp, mock_datasets_root: Path):
+    from unittest.mock import patch
+
+    from trainit.trainit_gui.controllers.dataset_controller import DatasetController
+
+    app_state = AppState()
+    app_state.datasets_root = str(mock_datasets_root)
+    app_state.selected_datasets = ["dataset_a", "dataset_b"]
+    service = DatasetService()
+    controller = DatasetController(app_state, service)
+
+    with patch.object(service, "load_dataset_info", wraps=service.load_dataset_info) as load:
+        assert controller.analyze_selected()
+    assert load.call_count == 2
+    assert app_state.analysis.total_images == 6

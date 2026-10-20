@@ -112,26 +112,10 @@ class DetectionConflictResolver:
                 filtered_results.append(secondary_det)
             else:
                 self.conflicts_resolved += 1
-                secondary_id = secondary_det.object_id or "?"
-                primary_id = conflicting_primary.object_id or "?"
-                self.decision_log.append(
-                    {
-                        "stage": "detection",
-                        "source": "conflict_resolution",
-                        "action": "drop_detection",
-                        "object_id": secondary_id,
-                        "frame": frame_idx,
-                        "reason": f"IoU={max_iou:.2f} with yolo object {primary_id} "
-                        f">= threshold {self.config.iou_threshold}",
-                        "details": {
-                            "losing_engine": "optical_flow",
-                            "winning_engine": "yolo",
-                            "winning_object_id": primary_id,
-                            "iou": max_iou,
-                            "iou_threshold": self.config.iou_threshold,
-                        },
-                    }
-                )
+                secondary_id = "?" if secondary_det.object_id is None else secondary_det.object_id
+                primary_id = "?" if conflicting_primary.object_id is None else conflicting_primary.object_id
+                if self.config.record_decisions:
+                    self._record_drop(secondary_id, primary_id, frame_idx, max_iou)
                 if self.config.enable_logging:
                     frame_str = f"frame {frame_idx}: " if frame_idx is not None else ""
                     logger.info(
@@ -140,6 +124,27 @@ class DetectionConflictResolver:
                     )
 
         return filtered_results
+
+    def _record_drop(self, secondary_id, primary_id, frame_idx, max_iou) -> None:
+        """Append a decision-log entry for an optical-flow detection dropped in favour of YOLO."""
+        self.decision_log.append(
+            {
+                "stage": "detection",
+                "source": "conflict_resolution",
+                "action": "drop_detection",
+                "object_id": secondary_id,
+                "frame": frame_idx,
+                "reason": f"IoU={max_iou:.2f} with yolo object {primary_id} "
+                f">= threshold {self.config.iou_threshold}",
+                "details": {
+                    "losing_engine": "optical_flow",
+                    "winning_engine": "yolo",
+                    "winning_object_id": primary_id,
+                    "iou": max_iou,
+                    "iou_threshold": self.config.iou_threshold,
+                },
+            }
+        )
 
     def get_decision_log(self) -> List[Dict[str, Any]]:
         """Return structured records of every conflict-resolved detection drop.

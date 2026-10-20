@@ -1,11 +1,12 @@
 """Controller for dataset operations."""
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 from ..frontend.states.app_state import AppState
+from ..models.dataset import AggregatedStats, DatasetInfo
 from ..services.dataset_service import DatasetService
-from ..models.dataset import DatasetInfo
 
 logger = logging.getLogger(__name__)
 
@@ -50,24 +51,21 @@ class DatasetController:
         try:
             self.app_state.status_message.emit("Analyzing datasets...")
 
-            # Get aggregated stats
-            stats = self.dataset_service.analyze_datasets(
-                self.app_state.datasets_root, self.app_state.selected_datasets
-            )
-
-            if not stats.is_valid:
-                self.app_state.error_occurred.emit(stats.error_message)
-                self.app_state.analysis = None
-                return False
-
-            # Cache individual dataset info
+            # Load each dataset once (fresh, so re-analysis sees changes on disk),
+            # cache it, and aggregate from the same infos
+            infos = []
             for name in self.app_state.selected_datasets:
-                if not self.app_state.get_dataset_info(name):
-                    from pathlib import Path
-
-                    dataset_path = Path(self.app_state.datasets_root) / name
-                    info = self.dataset_service.load_dataset_info(str(dataset_path))
-                    self.app_state.set_dataset_info(name, info)
+                dataset_path = Path(self.app_state.datasets_root) / name
+                info = self.dataset_service.load_dataset_info(str(dataset_path))
+                self.app_state.set_dataset_info(name, info)
+                if not info.is_valid:
+                    self.app_state.error_occurred.emit(
+                        f"Invalid dataset '{name}': {info.error_message}"
+                    )
+                    self.app_state.analysis = None
+                    return False
+                infos.append(info)
+            stats = AggregatedStats.from_datasets(infos)
 
             self.app_state.analysis = stats
             self.app_state.status_message.emit(

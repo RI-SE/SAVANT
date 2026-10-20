@@ -568,3 +568,15 @@ def test_delete_missing_relationship_is_noop():
     command.do(GatewayHolder(annotation_gateway=gateway))
     command.undo(GatewayHolder(annotation_gateway=gateway))
     assert gateway.restored == []
+
+
+def test_undo_history_is_bounded(undo_context):
+    manager = UndoRedoManager(max_depth=3)
+    commands = [DummyCommand() for _ in range(5)]
+    for command in commands:
+        manager.execute(command, undo_context)
+
+    undone = []
+    while manager.can_undo():
+        undone.append(manager.undo(undo_context))
+    assert undone == commands[:1:-1]  # newest three, newest first

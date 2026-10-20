@@ -88,51 +88,42 @@ class DuplicateRemovalPass(PostprocessingPass):
 
         objects_to_delete = set()
         object_ids = list(objects.keys())
-        n_objects = len(object_ids)
-        logger.info(f"DuplicateRemoval: checking {n_objects * (n_objects - 1) // 2} pairs from {n_objects} objects")
+        candidate_pairs = self._temporally_overlapping_pairs(object_ids, object_frame_range)
+        logger.info(
+            f"DuplicateRemoval: checking {len(candidate_pairs)} temporally overlapping pairs "
+            f"from {len(object_ids)} objects"
+        )
 
-        for i in range(n_objects):
-            for j in range(i + 1, n_objects):
-                obj_a = object_ids[i]
-                obj_b = object_ids[j]
+        for obj_a, obj_b in candidate_pairs:
+            if obj_a in objects_to_delete or obj_b in objects_to_delete:
+                continue
 
-                if obj_a in objects_to_delete or obj_b in objects_to_delete:
-                    continue
+            is_duplicate, dup_metrics = self._are_duplicates(
+                obj_a, obj_b, object_frame_map, frames
+            )
+            if is_duplicate:
+                self.duplicate_pairs_found += 1
 
-                # Skip pairs with no temporal overlap
-                range_a = object_frame_range.get(obj_a)
-                range_b = object_frame_range.get(obj_b)
-                if not range_a or not range_b:
-                    continue
-                if range_a[1] < range_b[0] or range_b[1] < range_a[0]:
-                    continue
-
-                is_duplicate, dup_metrics = self._are_duplicates(
+                obj_to_delete = self._choose_object_to_delete(
                     obj_a, obj_b, object_frame_map, frames
                 )
-                if is_duplicate:
-                    self.duplicate_pairs_found += 1
+                obj_to_keep = obj_b if obj_to_delete == obj_a else obj_a
+                objects_to_delete.add(obj_to_delete)
 
-                    obj_to_delete = self._choose_object_to_delete(
-                        obj_a, obj_b, object_frame_map, frames
-                    )
-                    obj_to_keep = obj_b if obj_to_delete == obj_a else obj_a
-                    objects_to_delete.add(obj_to_delete)
-
-                    frames_list = sorted(object_frame_map[obj_to_delete])
-                    engine_deleted = self._get_source_engine(obj_to_delete, object_frame_map, frames)
-                    engine_kept = self._get_source_engine(obj_to_keep, object_frame_map, frames)
-                    self.deletion_details.append(
-                        {
-                            "deleted_object": obj_to_delete,
-                            "kept_object": obj_to_keep,
-                            "deleted_engine": engine_deleted,
-                            "kept_engine": engine_kept,
-                            "frame_start": frames_list[0] if frames_list else None,
-                            "frame_end": frames_list[-1] if frames_list else None,
-                            "metrics": dup_metrics,
-                        }
-                    )
+                frames_list = sorted(object_frame_map[obj_to_delete])
+                engine_deleted = self._get_source_engine(obj_to_delete, object_frame_map, frames)
+                engine_kept = self._get_source_engine(obj_to_keep, object_frame_map, frames)
+                self.deletion_details.append(
+                    {
+                        "deleted_object": obj_to_delete,
+                        "kept_object": obj_to_keep,
+                        "deleted_engine": engine_deleted,
+                        "kept_engine": engine_kept,
+                        "frame_start": frames_list[0] if frames_list else None,
+                        "frame_end": frames_list[-1] if frames_list else None,
+                        "metrics": dup_metrics,
+                    }
+                )
 
         kept_for = {d["deleted_object"]: d["kept_object"] for d in self.deletion_details}
 
@@ -143,23 +134,20 @@ class DuplicateRemovalPass(PostprocessingPass):
                 target = kept_for[target]
             return target
 
+        # Live object -> frames index, updated as frames are transferred, so cascades
+        # (frames moved into an object that is itself deleted later) stay correct
+        frames_of: Dict[str, set] = defaultdict(set)
+        for obj_id, frame_list in object_frame_map.items():
+            frames_of[obj_id].update(frame_list)
+
         for obj_id in sorted(objects_to_delete):
             obj_to_keep = final_keeper(obj_id)
-
-            # Scan actual frame data for ALL frames containing obj_id, not just the stale
-            # object_frame_map entry.  This prevents orphaned frames when a cascade deletion
-            # transfers frames to an intermediate object that is itself later deleted: the
-            # stale map would miss those transferred frames and leave them unclean.
-            actual_deleted_frames: set[int] = set()
-            actual_kept_frames: set[int] = set()
-            for fk, fv in frames.items():
-                fobjs = fv.get("objects", {})
-                if obj_id in fobjs:
-                    actual_deleted_frames.add(int(fk))
-                if obj_to_keep and obj_to_keep in fobjs:
-                    actual_kept_frames.add(int(fk))
+            actual_deleted_frames = frames_of.pop(obj_id, set())
+            actual_kept_frames = frames_of[obj_to_keep] if obj_to_keep else set()
 
             exclusive_frames = actual_deleted_frames - actual_kept_frames
+            if obj_to_keep:
+                actual_kept_frames |= exclusive_frames
 
             # Transfer exclusive frames to the kept object
             for frame_idx in exclusive_frames:
@@ -196,6 +184,28 @@ class DuplicateRemovalPass(PostprocessingPass):
             )
 
         return openlabel_data
+
+    @staticmethod
+    def _temporally_overlapping_pairs(object_ids, object_frame_range):
+        """Pairs (a, b) with overlapping frame ranges, in the original (i < j) order.
+
+        A sweep over objects sorted by start frame finds them without testing all
+        n² pairs; returning them in the original order keeps the greedy results identical.
+        """
+        position = {obj_id: i for i, obj_id in enumerate(object_ids)}
+        ranged = sorted(
+            (obj_id for obj_id in object_ids if obj_id in object_frame_range),
+            key=lambda o: object_frame_range[o][0],
+        )
+        pairs = []
+        for i, obj_a in enumerate(ranged):
+            end_a = object_frame_range[obj_a][1]
+            for obj_b in ranged[i + 1:]:
+                if object_frame_range[obj_b][0] > end_a:
+                    break
+                pairs.append(tuple(sorted((obj_a, obj_b), key=position.__getitem__)))
+        pairs.sort(key=lambda pair: (position[pair[0]], position[pair[1]]))
+        return pairs
 
     def _are_duplicates(
         self,
@@ -250,13 +260,8 @@ class DuplicateRemovalPass(PostprocessingPass):
             bbox_b = self._extract_bbox(frame_objects[obj_b])
 
             if bbox_a is not None and bbox_b is not None:
-                iou = self.iou_calculator.calculate_intersection_over_union(
-                    bbox_a, bbox_b
-                )
+                iou, iomin = self.iou_calculator.calculate_iou_and_iomin(bbox_a, bbox_b)
                 ious.append(iou)
-                iomin = self.iou_calculator.calculate_intersection_over_min(
-                    bbox_a, bbox_b
-                )
                 iomins.append(iomin)
 
         if len(ious) == 0:

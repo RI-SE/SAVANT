@@ -111,6 +111,7 @@ class ConflictResolutionConfig:
     iou_threshold: float = 0.3  # IoU threshold for conflict detection (0.0-1.0)
     yolo_precedence: bool = True  # YOLO takes precedence over optical flow
     enable_logging: bool = False  # Log conflicts for debugging
+    record_decisions: bool = True  # Keep per-drop records for --decision-log (memory grows per drop)
 
 
 class MarkitConfig:
@@ -183,6 +184,7 @@ class MarkitConfig:
 
         # IoU-based conflict resolution configuration
         self.iou_threshold = args.iou_threshold
+        self.record_decisions = bool(getattr(args, "decision_log", None))
         self.verbose_conflicts = args.verbose_conflicts
         self.enable_conflict_resolution = not args.disable_conflict_resolution
 

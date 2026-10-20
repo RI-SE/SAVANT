@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from savant_common.geometry import BBoxOverlapCalculator
+
 if TYPE_CHECKING:
     from edit.controllers.annotation_controller import AnnotationController
     from edit.controllers.project_state_controller import ProjectStateController
@@ -24,95 +26,20 @@ def _bbox_corners(val) -> np.ndarray:
     return (offsets @ rot.T) + np.array([cx, cy], dtype=np.float64)
 
 
-def _polygon_area(pts: np.ndarray) -> float:
-    """Signed area via the shoelace formula. Returns the absolute value."""
-    n = len(pts)
-    if n < 3:
-        return 0.0
-    xs, ys = pts[:, 0], pts[:, 1]
-    return abs(
-        float(np.dot(xs, np.roll(ys, -1)) - np.dot(ys, np.roll(xs, -1))) * 0.5
-    )
-
-
-def _clip_polygon_by_half_plane(
-    polygon: list, edge_p1: np.ndarray, edge_p2: np.ndarray
-) -> list:
-    """Sutherland-Hodgman: clip *polygon* against the half-plane left of p1→p2."""
-    if not polygon:
-        return []
-    output = []
-    n = len(polygon)
-    for i in range(n):
-        cur = polygon[i]
-        prv = polygon[(i - 1) % n]
-        # cross product sign: >= 0 means cur is on the left (inside) side
-
-        def _inside(p):
-            return (
-                (edge_p2[0] - edge_p1[0]) * (p[1] - edge_p1[1])
-                - (edge_p2[1] - edge_p1[1]) * (p[0] - edge_p1[0])
-            ) >= 0.0
-
-        if _inside(cur):
-            if not _inside(prv):
-                # compute intersection of prv→cur with the edge
-                d_cur = np.array(cur, dtype=np.float64)
-                d_prv = np.array(prv, dtype=np.float64)
-                d1 = d_cur - d_prv
-                d2 = edge_p2 - edge_p1
-                denom = d1[0] * d2[1] - d1[1] * d2[0]
-                if abs(denom) > 1e-12:
-                    t = (
-                        (edge_p1[0] - d_prv[0]) * d2[1]
-                        - (edge_p1[1] - d_prv[1]) * d2[0]
-                    ) / denom
-                    intersection = d_prv + t * d1
-                    output.append(intersection.tolist())
-            output.append(cur)
-        elif _inside(prv):
-            d_cur = np.array(cur, dtype=np.float64)
-            d_prv = np.array(prv, dtype=np.float64)
-            d1 = d_cur - d_prv
-            d2 = edge_p2 - edge_p1
-            denom = d1[0] * d2[1] - d1[1] * d2[0]
-            if abs(denom) > 1e-12:
-                t = (
-                    (edge_p1[0] - d_prv[0]) * d2[1]
-                    - (edge_p1[1] - d_prv[1]) * d2[0]
-                ) / denom
-                intersection = d_prv + t * d1
-                output.append(intersection.tolist())
-    return output
+_polygon_area = BBoxOverlapCalculator._polygon_area
 
 
 def _intersection_area(corners_a: np.ndarray, corners_b: np.ndarray) -> float:
-    """Compute the area of intersection of two convex polygons (Sutherland-Hodgman)."""
-    subject = corners_a.tolist()
-    clip = corners_b
-    n = len(clip)
-    for i in range(n):
-        p1 = clip[i]
-        p2 = clip[(i + 1) % n]
-        subject = _clip_polygon_by_half_plane(subject, p1, p2)
-        if not subject:
-            return 0.0
-    if len(subject) < 3:
-        return 0.0
-    return _polygon_area(np.array(subject, dtype=np.float64))
+    """Area of intersection of two convex polygons."""
+    return BBoxOverlapCalculator.overlap_areas(corners_a, corners_b)[0]
 
 
 def _bboxes_overlap(val_a, val_b, threshold: float) -> bool:
     """Return True if the intersection / min(area_a, area_b) >= threshold."""
-    corners_a = _bbox_corners(val_a)
-    corners_b = _bbox_corners(val_b)
-    area_a = _polygon_area(corners_a)
-    area_b = _polygon_area(corners_b)
-    min_area = min(area_a, area_b)
-    if min_area <= 0.0:
-        return False
-    inter = _intersection_area(corners_a, corners_b)
-    return (inter / min_area) >= threshold
+    iomin = BBoxOverlapCalculator.calculate_intersection_over_min(
+        _bbox_corners(val_a), _bbox_corners(val_b)
+    )
+    return iomin >= threshold
 
 
 def detect_ghost_frames(
