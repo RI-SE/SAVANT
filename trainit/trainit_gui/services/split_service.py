@@ -76,12 +76,12 @@ class SplitService:
         return files
 
     def _list_images(self, directory: Path) -> list[Path]:
-        """List all image files in directory."""
-        return [
+        """List image files in directory, sorted so a seed gives the same split everywhere."""
+        return sorted(
             f
             for f in directory.iterdir()
             if f.is_file() and f.suffix.lower() in self.IMAGE_EXTENSIONS
-        ]
+        )
 
     def split_files(
         self, files: list[Path], train_ratio: float, seed: int
@@ -117,10 +117,16 @@ class SplitService:
             return self._random_split(files, train_ratio, seed)
 
     def _group_by_sequence(self, files: list[Path]) -> dict[str, list[Path]]:
-        """Group files by sequence ID."""
+        """Group files by dataset and sequence ID.
+
+        The dataset is part of the key because extracted datasets all name frames
+        "frame_NNNNNN", which would otherwise put every dataset in one sequence.
+        Assumes the <dataset>/images/<split>/<file> layout.
+        """
         sequences = defaultdict(list)
         for f in files:
-            seq_id = self.extract_sequence_id(f.name)
+            dataset_name = f.parent.parent.parent.name
+            seq_id = f"{dataset_name}/{self.extract_sequence_id(f.name)}"
             sequences[seq_id].append(f)
         return dict(sequences)
 

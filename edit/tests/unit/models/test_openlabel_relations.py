@@ -106,3 +106,27 @@ def test_delete_relationship(sample_openlabel_with_relations):
 
     # Try to delete from empty relations
     assert not openlabel.delete_relationship("0")
+
+
+def test_get_relationships_from_frame_returns_relation_keys(sample_openlabel_with_relations):
+    openlabel = sample_openlabel_with_relations
+    openlabel.relations["3"] = RelationMetadata(
+        name="no-intervals",
+        type="spatial",
+        ontology_uid="0",
+        rdf_subjects=[RDFItem(type="object", uid="1")],
+        rdf_objects=[RDFItem(type="object", uid="2")],
+    )
+
+    result = openlabel.get_relationships_from_frame(5)
+
+    assert [r["relation_id"] for r in result] == ["0"]
+
+
+def test_new_relation_id_ignores_non_numeric_keys(sample_openlabel_with_relations):
+    openlabel = sample_openlabel_with_relations
+    openlabel.relations["rel-x"] = openlabel.relations.pop("1")
+
+    new_id = openlabel.add_object_relationship("spatial", "0", "1", "2", [(0, 1)])
+
+    assert new_id == "3"

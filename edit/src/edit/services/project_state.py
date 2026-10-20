@@ -1,5 +1,6 @@
 """Class representing and managing the complete state of an annotation project."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -87,6 +88,7 @@ class ProjectState:
         self.interpolation_metadata = (
             set()
         )  # Stores frame numbers with interpolated metadata
+        self._saved_digest: str | None = None  # digest of the config as last loaded/saved
 
     def load_openlabel_config(self, path: str) -> None:
         """Load and validate OpenLabel configuration from JSON file.
@@ -105,6 +107,7 @@ class ProjectState:
             config = read_json(path)
             self.annotation_config = OpenLabel(**config["openlabel"])
             self.open_label_path = path
+            self._saved_digest = self._config_digest()
         except KeyError as e:
             raise OpenLabelFileNotValid(
                 f"File does not appear to be a SAVANT OpenLabel file "
@@ -133,6 +136,16 @@ class ProjectState:
         except BaseException:
             Path(tmp_name).unlink(missing_ok=True)
             raise
+        self._saved_digest = self._config_digest()
+
+    def _config_digest(self) -> str | None:
+        if self.annotation_config is None:
+            return None
+        return hashlib.sha256(self.annotation_config.model_dump_json().encode()).hexdigest()
+
+    def has_unsaved_changes(self) -> bool:
+        """Compare against the last load/save, so edits made outside the undo stack count too."""
+        return self._config_digest() != self._saved_digest
 
     def get_tag_categories(self) -> dict[str, dict[str, list[int]]]:
         """Collect object metadata tags and action tags mapped to their frames."""

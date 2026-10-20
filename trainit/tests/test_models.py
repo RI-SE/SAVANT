@@ -417,3 +417,12 @@ class TestManifestInfo:
         assert info.split_ratio == 0.8
         assert info.split_seed == 42
         assert info.split_method == "stratified"
+
+
+def test_project_default_auto_optimizer_applies_cleanly():
+    from trainit.trainit_gui.models.project import ProjectDefaults, TrainingConfig
+
+    defaults = ProjectDefaults(optimizer="auto", epochs=10)
+    config = defaults.apply_to_config(TrainingConfig(name="c"))
+
+    assert config.optimizer is None and config.epochs == 10

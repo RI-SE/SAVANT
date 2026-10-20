@@ -407,6 +407,19 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
     json_path = _prefer_openlabel_file(contents.openlabel_files)
     video_path = contents.video_files[0]
 
+    # Validate the ontology before touching any project state, so a failure leaves the
+    # previously open project intact
+    try:
+        ontology_path, _ = resolve_ontology_path(contents.directory, json_path)
+    except FrontendException as exc:
+        QMessageBox.critical(main_window, "Ontology Error", str(exc))
+        return
+    try:
+        set_ontology_path(ontology_path)
+    except ValueError as exc:
+        QMessageBox.critical(main_window, "Invalid Ontology", str(exc))
+        return
+
     set_active_project_dir(contents.directory)
     config = ensure_project_config(contents.directory)
     available_annotators = list(config.annotators or [])
@@ -432,17 +445,6 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
         else:
             main_window.project_name = resolved_name
             main_window.update_title()
-
-    try:
-        ontology_path, _ = resolve_ontology_path(contents.directory, json_path)
-    except FrontendException as exc:
-        QMessageBox.critical(main_window, "Ontology Error", str(exc))
-        return
-    try:
-        set_ontology_path(ontology_path)
-    except ValueError as exc:
-        QMessageBox.critical(main_window, "Invalid Ontology", str(exc))
-        return
 
     open_openlabel_config(main_window, str(json_path))
     # TODO: Refactor the getattr stuff?

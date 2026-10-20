@@ -135,6 +135,6 @@ class TestUpdateFrameTagController:
         mock_annotation_service.update_frame_tag.return_value = True
         result = annotation_controller.update_frame_tag("lanechange", 0, 10, "overtake", 0, 10)
         mock_annotation_service.update_frame_tag.assert_called_once_with(
-            "lanechange", 0, 10, "overtake", 0, 10
+            "lanechange", 0, 10, "overtake", 0, 10, True
         )
         assert result is True

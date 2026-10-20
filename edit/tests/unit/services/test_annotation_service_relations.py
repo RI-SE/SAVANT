@@ -76,6 +76,7 @@ def test_delete_relationship(mock_project_state):
         "type": "spatial",
         "object": "2",
         "ontology_uid": "123",
+        "frame_intervals": [(0, 10)],
     }
     assert result == expected_result
     mock_project_state.annotation_config.delete_relationship.assert_called_once_with(

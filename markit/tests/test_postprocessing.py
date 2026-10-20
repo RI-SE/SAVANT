@@ -264,6 +264,17 @@ class TestFrameIntervalPass:
         # Should return data structure
         assert "openlabel" in result
 
+    def test_gaps_split_intervals(self):
+        frames = {str(f): {"objects": {"1": {}}} for f in (0, 1, 2, 10, 11)}
+        data = {"openlabel": {"frames": frames, "objects": {"1": {"name": "1", "type": "car"}}}}
+
+        result = FrameIntervalPass().process(data)
+
+        assert result["openlabel"]["objects"]["1"]["frame_intervals"] == [
+            {"frame_start": 0, "frame_end": 2},
+            {"frame_start": 10, "frame_end": 11},
+        ]
+
     def test_frame_interval_statistics(self, sample_openlabel_data):
         """Test frame interval statistics."""
         interval_pass = FrameIntervalPass()
@@ -295,6 +306,26 @@ class TestDuplicateRemovalPass:
         dup_pass = DuplicateRemovalPass()
         assert dup_pass.objects_deleted == 0
         assert dup_pass.frames_merged == 0
+
+    def test_chained_merge_lands_in_final_keeper(self, monkeypatch):
+        """B merges into A, then A into C: B's exclusive frames must end up in C."""
+        frames = {
+            "0": {"objects": {"A": _make_frame_object("yolo"), "B": _make_frame_object("oflow"),
+                              "C": _make_frame_object("yolo")}},
+            "1": {"objects": {"B": _make_frame_object("oflow")}},
+        }
+        data = {"openlabel": {"frames": frames, "objects": {k: {"name": k, "type": "car"} for k in "ABC"}}}
+        dup_pass = DuplicateRemovalPass()
+        monkeypatch.setattr(dup_pass, "_are_duplicates", lambda a, b, *args: (True, {}))
+        # Pairs are visited (A,B), (A,C): drop B for A, then A for C
+        monkeypatch.setattr(
+            dup_pass, "_choose_object_to_delete", lambda a, b, *args: {("A", "B"): "B", ("A", "C"): "A"}[(a, b)]
+        )
+
+        result = dup_pass.process(data)["openlabel"]
+
+        assert list(result["objects"]) == ["C"]
+        assert list(result["frames"]["1"]["objects"]) == ["C"]
 
     def test_duplicate_blanket_delete_shared_frames(self):
         """Test that shared frames are deleted from the duplicate, not transferred."""

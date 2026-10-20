@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from savant_common.ontology import SAVANT_ONTOLOGY_URI
+
 from ..config import Constants, DetectionResult
 from ..utils import normalize_angle_to_2pi_range
 from .. import __version__
@@ -148,17 +150,12 @@ class OpenLabelHandler:
         Args:
             ontology_uri: The ontology namespace URI to use
         """
-        if ontology_uri:
-            if (
-                "openlabel" in self.openlabel_data
-                and "ontologies" in self.openlabel_data["openlabel"]
-            ):
-                self.openlabel_data["openlabel"]["ontologies"]["0"] = ontology_uri
-                logger.info(f"Ontology set: {ontology_uri}")
-            else:
-                logger.warning(
-                    "Could not set ontology: openlabel.ontologies not found in structure"
-                )
+        # Objects reference ontology_uid "0", so it must always be registered
+        if not ontology_uri:
+            ontology_uri = SAVANT_ONTOLOGY_URI
+            logger.warning(f"No ontology URI given; using default {ontology_uri}")
+        self.openlabel_data["openlabel"].setdefault("ontologies", {})["0"] = ontology_uri
+        logger.info(f"Ontology set: {ontology_uri}")
 
     def add_aruco_objects(
         self,

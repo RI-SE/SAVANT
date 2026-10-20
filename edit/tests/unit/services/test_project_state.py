@@ -159,3 +159,18 @@ def test_failed_save_keeps_original_file(tmp_path, monkeypatch):
 
     assert target.read_text() == original
     assert [p.name for p in tmp_path.iterdir()] == [target.name]
+
+
+def test_unsaved_changes_tracks_edits_since_load_and_save(tmp_path):
+    source = Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json"
+    target = tmp_path / source.name
+    shutil.copy2(source, target)
+    project_state = ProjectState()
+    project_state.load_openlabel_config(str(target))
+    assert not project_state.has_unsaved_changes()
+
+    project_state.annotation_config.ontologies["0"] = "changed"
+    assert project_state.has_unsaved_changes()
+
+    project_state.save_openlabel_config()
+    assert not project_state.has_unsaved_changes()

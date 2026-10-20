@@ -3,6 +3,8 @@ from typing import Optional
 
 from rdflib import Graph, Namespace, RDF, RDFS
 
+SAVANT_ONTOLOGY_URI = "https://ri-se.github.io/SAVANT/ontology/savant#"
+
 
 def read_ontology_classes(ttl_path):
     """
@@ -21,7 +23,7 @@ def read_ontology_classes(ttl_path):
     g = Graph()
     g.parse(ttl_path, format="turtle")
 
-    SAVANT = Namespace("https://ri-se.github.io/SAVANT/ontology/savant#")
+    SAVANT = Namespace(SAVANT_ONTOLOGY_URI)
 
     def extract_class_name(uri_str):
         """Extract the class name from a URI (part after #)."""
@@ -58,7 +60,7 @@ def read_ontology_classes(ttl_path):
 
         # If parent is outside SAVANT namespace, current class is top-level
         parent_str = str(parent)
-        if not parent_str.startswith("https://ri-se.github.io/SAVANT/ontology/savant#"):
+        if not parent_str.startswith(SAVANT_ONTOLOGY_URI):
             return str(class_uri), extract_class_name(str(class_uri))
 
         # Otherwise, recurse up the chain

@@ -6,7 +6,12 @@ import pytest
 
 from edit.models.OpenLabel import AnnotatorData, ConfidenceData, OpenLabel
 from edit.services.annotation_service import AnnotationService
-from edit.services.exceptions import ObjectLinkConflictError, ObjectNotFoundError
+from edit.services.exceptions import (
+    InvalidFrameRangeError,
+    ObjectLinkConflictError,
+    ObjectNotFoundError,
+    UnsportedTagTypeError,
+)
 from edit.services.project_state import ProjectState
 
 
@@ -734,6 +739,19 @@ class TestUpdateFrameTag:
         mocker.patch.object(service_with_tag, "get_frame_tags", return_value=["lanechange"])
         result = service_with_tag.update_frame_tag("lanechange", 0, 5, "lanechange", 0, 5)
         assert result is False
+
+    @pytest.mark.parametrize("new_tag, start, end", [("unknown", 10, 20), ("lanechange", 30, 5)])
+    def test_invalid_update_keeps_original_interval(self, service_with_tag, mocker, new_tag, start, end):
+        mocker.patch.object(service_with_tag, "get_frame_tags", return_value=["lanechange"])
+        with pytest.raises((UnsportedTagTypeError, InvalidFrameRangeError)):
+            service_with_tag.update_frame_tag("lanechange", 10, 20, new_tag, start, end)
+        intervals = service_with_tag.project_state.annotation_config.actions["lanechange"].frame_intervals
+        assert [(i.frame_start, i.frame_end) for i in intervals] == [(10, 20)]
+
+    def test_restore_allows_tag_outside_ontology(self, service_with_tag, mocker):
+        mocker.patch.object(service_with_tag, "get_frame_tags", return_value=[])
+        service_with_tag.add_frame_tag("legacy", 1, 2, require_in_ontology=False)
+        assert "legacy" in service_with_tag.project_state.annotation_config.actions
 
 
 class TestMarkConfidenceResolved:

@@ -171,6 +171,13 @@ class TestMarkitConfig:
         assert config.use_optical_flow is False
         assert config.use_aruco is False
 
+        # Flow options missing from args fall back to the dataclass defaults
+        defaults = OpticalFlowParams()
+        flow = config.optical_flow_params
+        assert (flow.mask_mode, flow.dilate_kernel_size, flow.morph_close_size, flow.morph_open_size) == (
+            defaults.mask_mode, defaults.dilate_kernel_size, defaults.morph_close_size, defaults.morph_open_size
+        )
+
     def test_optical_flow_detection_method(
         self, test_video_path, schema_path, ontology_path
     ):

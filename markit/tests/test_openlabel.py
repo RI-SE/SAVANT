@@ -257,3 +257,16 @@ class TestOpenLabelStructure:
         assert metadata is not None
         # Check for expected metadata fields (schema-dependent)
         assert "schema_version" in metadata or "annotator" in metadata
+
+
+class TestSetOntology:
+    def test_missing_uri_still_registers_uid_zero(self, schema_path):
+        from savant_common.ontology import SAVANT_ONTOLOGY_URI
+        from savant_common.scenario_tags import SCENARIO_ONTOLOGY_URI, get_or_add_ontology_uid
+
+        handler = OpenLabelHandler(schema_path)
+        handler.set_ontology(None)
+
+        ontologies = handler.openlabel_data["openlabel"]["ontologies"]
+        assert ontologies["0"] == SAVANT_ONTOLOGY_URI
+        assert get_or_add_ontology_uid(ontologies, SCENARIO_ONTOLOGY_URI) != "0"

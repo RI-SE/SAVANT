@@ -512,7 +512,7 @@ class MainWindow(QMainWindow):
             set_frame_history_count(vals["previous_frame_count"])
             self.sidebar_state.historic_obj_frame_count = get_frame_history_count()
             # self.sidebar.refresh_confidence_issue_list()
-            new_buf = vals.get("video_buffer_frameself.sidebar.refresh_confidence_issue_list()s", get_video_buffer_frames())
+            new_buf = vals.get("video_buffer_frames", get_video_buffer_frames())
             set_video_buffer_frames(new_buf)
             self.video_controller.reader.chunk_size = get_video_buffer_frames()
             # warning_vals = vals.get("warning_range", get_warning_range())
@@ -644,7 +644,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Prompt to save unsaved work before exiting."""
-        if self.undo_manager.can_undo():
+        if self.project_state_controller.has_unsaved_changes():
             reply = QMessageBox.question(
                 self,
                 "Unsaved Changes",
@@ -656,7 +656,11 @@ class MainWindow(QMainWindow):
             )
             if reply == QMessageBox.StandardButton.Save:
                 self.quick_save_project()
-                event.accept()
+                # Stay open if the save failed (the error was already reported)
+                if self.project_state_controller.has_unsaved_changes():
+                    event.ignore()
+                else:
+                    event.accept()
             elif reply == QMessageBox.StandardButton.Discard:
                 event.accept()
             else:

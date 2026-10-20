@@ -134,17 +134,38 @@ class UpdateBBoxGeometryCommand:
     after: BBoxGeometrySnapshot
     annotator: str
     description: str = "Update bounding box geometry"
+    # Full frame objects, so undo/redo also restore annotator/confidence history
+    _before_object: Optional[FrameObjectSnapshot] = field(
+        default=None, init=False, repr=False
+    )
+    _after_object: Optional[FrameObjectSnapshot] = field(
+        default=None, init=False, repr=False
+    )
 
     def do(self, context: GatewayHolder) -> None:
-        context.annotation_gateway.apply_geometry(
+        gateway = context.annotation_gateway
+        if self._after_object is not None:
+            gateway.restore_bbox(self._after_object)
+            return
+        self._before_object = gateway.capture_frame_object(
+            self.frame_number, self.object_id
+        )
+        gateway.apply_geometry(
             frame_number=self.frame_number,
             object_id=self.object_id,
             geometry=self.after,
             annotator=self.annotator,
         )
+        self._after_object = gateway.capture_frame_object(
+            self.frame_number, self.object_id
+        )
 
     def undo(self, context: GatewayHolder) -> None:
-        context.annotation_gateway.apply_geometry(
+        gateway = context.annotation_gateway
+        if self._before_object is not None:
+            gateway.restore_bbox(self._before_object)
+            return
+        gateway.apply_geometry(
             frame_number=self.frame_number,
             object_id=self.object_id,
             geometry=self.before,
@@ -434,6 +455,11 @@ class LinkObjectIdsCommand:
     _metadata_snapshot: Optional[ObjectMetadataSnapshot] = field(
         default=None, init=False, repr=False
     )
+    # Linking merges object tags into the primary and repoints relations
+    _primary_metadata_snapshot: Optional[ObjectMetadataSnapshot] = field(
+        default=None, init=False, repr=False
+    )
+    _relations_snapshot: Optional[dict] = field(default=None, init=False, repr=False)
     _moved_frames: List[int] = field(default_factory=list, init=False, repr=False)
     _conflict_frames: List[int] = field(default_factory=list, init=False, repr=False)
 
@@ -459,6 +485,10 @@ class LinkObjectIdsCommand:
             self._metadata_snapshot = gateway.capture_object_metadata(
                 self.secondary_object_id
             )
+            self._primary_metadata_snapshot = gateway.capture_object_metadata(
+                self.primary_object_id
+            )
+            self._relations_snapshot = gateway.capture_relations()
             self._conflict_frames = sorted(conflict_frames)
             secondary_set = set(all_secondary_frames)
             self._moved_frames = sorted(secondary_set - conflict_frames)
@@ -490,10 +520,15 @@ class LinkObjectIdsCommand:
             gateway.restore_bbox(snapshot.clone())
         if self._metadata_snapshot is not None:
             gateway.ensure_object_metadata(self._metadata_snapshot)
+        if self._primary_metadata_snapshot is not None:
+            gateway.ensure_object_metadata(self._primary_metadata_snapshot)
+        gateway.restore_relations(self._relations_snapshot)
         # Reset so do() can re-snapshot if executed again.
         self._secondary_snapshots = []
         self._conflict_primary_snapshots = []
         self._metadata_snapshot = None
+        self._primary_metadata_snapshot = None
+        self._relations_snapshot = None
         self._moved_frames = []
         self._conflict_frames = []
 
@@ -590,7 +625,7 @@ class RemoveFrameTagCommand:
         gateway = context.frame_tag_gateway
         if gateway is None:
             raise RuntimeError("No frame tag gateway configured.")
-        gateway.add_frame_tag(self.snapshot)
+        gateway.restore_frame_tag(self.snapshot)
 
 
 @dataclass
@@ -608,7 +643,7 @@ class EditFrameTagCommand:
         gateway = context.frame_tag_gateway
         if gateway is None:
             raise RuntimeError("No frame tag gateway configured.")
-        gateway.edit_frame_tag(self.snapshot.new, self.snapshot.old)
+        gateway.edit_frame_tag(self.snapshot.new, self.snapshot.old, restoring=True)
 
 
 @dataclass
@@ -735,6 +770,7 @@ class CreateObjectRelationshipCommand:
 @dataclass
 class DeleteRelationshipCommand:
     relationship_id: str
+    description: str = "Delete relationship"
     _snapshot: Optional[RelationshipSnapshot] = field(
         default=None, init=False, repr=False
     )
@@ -742,10 +778,13 @@ class DeleteRelationshipCommand:
 
     def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
-        deleted_relationship = gateway.delete_relationship(self.relationship_id)
-        snapshot = RelationshipSnapshot(**deleted_relationship)
-        self._snapshot = snapshot
-        self._exists = snapshot is not None
+        deleted = gateway.delete_relationship(self.relationship_id)
+        if deleted is None:
+            self._snapshot, self._exists = None, False
+            return
+        deleted["frame_intervals"] = tuple(deleted.get("frame_intervals") or ())
+        self._snapshot = RelationshipSnapshot(**deleted)
+        self._exists = True
 
     def undo(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
@@ -757,6 +796,7 @@ class DeleteRelationshipCommand:
             ontology_uid=self._snapshot.ontology_uid,
             subject_object_id=self._snapshot.subject,
             object_object_id=self._snapshot.object,
+            frame_intervals=list(self._snapshot.frame_intervals),
         )
 
 
@@ -801,19 +841,18 @@ class TrackObjectCommand:
     def do(self, context: GatewayHolder) -> None:
         gateway = context.annotation_gateway
 
-        if not self._snapshots:
-            # First execution: create bboxes and capture snapshots
+        if self._snapshots:
+            # Redo: restore from snapshots
+            for snapshot in self._snapshots:
+                gateway.restore_bbox(snapshot)
+            return
+
+        # First execution: create bboxes and capture snapshots; all or nothing
+        try:
             for tf in self.tracked_frames:
-                coordinates = (
-                    tf.center_x,
-                    tf.center_y,
-                    tf.width,
-                    tf.height,
-                    tf.theta,
-                )
                 bbox_info = {
                     "object_id": self.object_id,
-                    "coordinates": coordinates,
+                    "coordinates": (tf.center_x, tf.center_y, tf.width, tf.height, tf.theta),
                 }
                 snapshots = gateway.add_bbox_to_existing_object(
                     frame_number=tf.frame_idx,
@@ -822,17 +861,18 @@ class TrackObjectCommand:
                 )
                 if snapshots:
                     self._snapshots.extend(snapshots)
-        else:
-            # Redo: restore from snapshots
-            for snapshot in self._snapshots:
-                gateway.restore_bbox(snapshot)
+        except Exception:
+            self.undo(context)
+            self._snapshots.clear()
+            raise
 
     def undo(self, context: GatewayHolder) -> None:
+        # Only remove the boxes this command added
         gateway = context.annotation_gateway
-        for tf in self.tracked_frames:
+        for snapshot in self._snapshots:
             gateway.delete_bbox(
-                frame_number=tf.frame_idx,
-                object_id=self.object_id,
+                frame_number=snapshot.frame_number,
+                object_id=snapshot.object_id,
             )
 
 

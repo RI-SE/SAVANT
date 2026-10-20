@@ -8,6 +8,7 @@ Schema aligned with BSI PAS-1883 ODD taxonomy.
 import json
 import logging
 import re
+from collections import Counter
 from typing import Any, Dict, List, Optional
 
 from savant_common.scenario_tags import (
@@ -30,6 +31,12 @@ RESPONSE_CATEGORIES = ("weather", "road", "traffic", "junction", "structures")
 # Boolean schema fields without a FieldSpec (not mapped to tags)
 _UNMAPPED_BOOL_FIELDS = (("junction", "present"),)
 _INVALID = object()
+
+
+def _most_common(values: List[Any]) -> Any:
+    """Majority vote; ties go to the value seen first, so results are reproducible."""
+    counts = Counter(values)
+    return max(dict.fromkeys(values), key=counts.__getitem__)
 
 
 def _coerce_bool(value: Any) -> Any:
@@ -182,9 +189,9 @@ class VLMResponseParser:
 
         return data
 
-    # Minimum interval length in frames. Intervals shorter than this are considered
-    # potential VLM noise and will be merged with adjacent intervals.
-    MIN_CONTEXT_INTERVAL_FRAMES = 2
+    # Minimum number of agreeing samples in a segment. Segments with fewer are
+    # considered potential VLM noise and will be merged with adjacent segments.
+    MIN_CONTEXT_SAMPLES = 2
 
     @staticmethod
     def to_openlabel_contexts(
@@ -253,11 +260,14 @@ class VLMResponseParser:
             video_end: Last frame of video (for extending final segment)
 
         Returns:
-            List of segment dicts with keys: start, end, key, data
+            List of segment dicts with keys: start, end, key, data, samples
+
+        Assumes a sampled value holds until the next sample, so segments tile the
+        whole video without gaps (the first starts at video_start).
         """
         segments = []
         current_segment = None
-        prev_frame = video_start
+        last_frame = video_start
 
         for result in sorted_results:
             frame_idx = result.get("_frame_idx", 0)
@@ -265,23 +275,21 @@ class VLMResponseParser:
             key_value = data.get(key_field)
 
             if current_segment is None or key_value != current_segment["key"]:
-                # Close previous segment
                 if current_segment is not None:
-                    current_segment["end"] = prev_frame
+                    current_segment["end"] = frame_idx - 1
                     segments.append(current_segment)
-                # Start new segment
                 current_segment = {
                     "key": key_value,
-                    "start": frame_idx,
+                    "start": video_start if current_segment is None else frame_idx,
                     "end": None,
                     "data": data,
+                    "samples": 0,
                 }
+            current_segment["samples"] += 1
+            last_frame = frame_idx
 
-            prev_frame = frame_idx
-
-        # Close final segment
         if current_segment is not None:
-            current_segment["end"] = video_end if video_end is not None else prev_frame
+            current_segment["end"] = video_end if video_end is not None else last_frame
             segments.append(current_segment)
 
         return segments
@@ -295,7 +303,7 @@ class VLMResponseParser:
     ) -> List[Dict[str, Any]]:
         """Merge single-frame intervals with adjacent segments using most common value.
 
-        Single-frame intervals are likely VLM noise. They should be merged into the
+        Single-sample segments are likely VLM noise. They should be merged into the
         adjacent interval that has the most common value for the key field.
 
         Args:
@@ -319,30 +327,32 @@ class VLMResponseParser:
         if not values:
             return segments
 
-        most_common = max(set(values), key=values.count)
+        most_common = _most_common(values)
 
         # Find short intervals and merge them
         merged = []
         i = 0
         while i < len(segments):
             segment = segments[i]
-            interval_length = segment["end"] - segment["start"]
 
-            if interval_length < VLMResponseParser.MIN_CONTEXT_INTERVAL_FRAMES:
+            if segment["samples"] < VLMResponseParser.MIN_CONTEXT_SAMPLES:
                 # Short interval - merge with adjacent using most common value
-                if i > 0 and merged[-1]["key"] == most_common:
+                if merged and merged[-1]["key"] == most_common:
                     # Extend previous segment to cover this one
                     merged[-1]["end"] = segment["end"]
                 elif i < len(segments) - 1 and segments[i + 1]["key"] == most_common:
                     # Will be absorbed by next segment - skip this one
                     # Extend next segment's start backwards
                     segments[i + 1]["start"] = segment["start"]
-                elif i > 0:
+                elif merged:
                     # No ideal match - just extend previous segment
                     merged[-1]["end"] = segment["end"]
                 else:
                     # First segment and short - keep it but it will be merged next iteration
                     merged.append(segment)
+            elif merged and merged[-1]["key"] == segment["key"]:
+                # Same value on both sides of a merged-away segment: one context
+                merged[-1]["end"] = segment["end"]
             else:
                 merged.append(segment)
 
@@ -511,7 +521,7 @@ class VLMResponseParser:
             for field in weather_fields:
                 values = [d.get(field) for d in weather_data if d.get(field) is not None]
                 if values:
-                    aggregated["weather"][field] = max(set(values), key=values.count)
+                    aggregated["weather"][field] = _most_common(values)
                     # Average the confidence
                     aggregated["weather"][f"{field}_confidence"] = aggregate_confidence(field, weather_data)
 
@@ -545,7 +555,7 @@ class VLMResponseParser:
             for field in road_text_fields:
                 values = [d.get(field) for d in road_data if d.get(field) is not None]
                 if values:
-                    aggregated["road"][field] = max(set(values), key=values.count)
+                    aggregated["road"][field] = _most_common(values)
                     aggregated["road"][f"{field}_confidence"] = aggregate_confidence(field, road_data)
 
             # Boolean fields - majority voting
@@ -579,7 +589,7 @@ class VLMResponseParser:
             for field in traffic_text_fields:
                 values = [d.get(field) for d in traffic_data if d.get(field) is not None]
                 if values:
-                    aggregated["traffic"][field] = max(set(values), key=values.count)
+                    aggregated["traffic"][field] = _most_common(values)
                     aggregated["traffic"][f"{field}_confidence"] = aggregate_confidence(field, traffic_data)
 
             # Boolean fields - any True wins, with frame tracking for rationales
@@ -621,7 +631,7 @@ class VLMResponseParser:
             for field in junction_text_fields:
                 values = [d.get(field) for d in junction_data if d.get(field) is not None]
                 if values:
-                    aggregated["junction"][field] = max(set(values), key=values.count)
+                    aggregated["junction"][field] = _most_common(values)
                     aggregated["junction"][f"{field}_confidence"] = aggregate_confidence(field, junction_data)
 
             # Boolean fields - any True wins
@@ -640,7 +650,7 @@ class VLMResponseParser:
             # Street lighting is text
             sl_values = [d.get("street_lighting") for d in structures_data if d.get("street_lighting") is not None]
             if sl_values:
-                aggregated["structures"]["street_lighting"] = max(set(sl_values), key=sl_values.count)
+                aggregated["structures"]["street_lighting"] = _most_common(sl_values)
                 aggregated["structures"]["street_lighting_confidence"] = aggregate_confidence("street_lighting", structures_data)
 
             # Boolean fields - any True wins

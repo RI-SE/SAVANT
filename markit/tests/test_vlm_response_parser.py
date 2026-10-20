@@ -325,10 +325,9 @@ class TestToOpenlabelContexts:
         }
 
     def test_condition_change_creates_new_context(self):
-        """Changing conditions create new context segments; classless values leave gaps.
+        """Changing conditions create new context segments; a value holds until the next sample.
 
-        Note: Intervals must be long enough (>= MIN_CONTEXT_INTERVAL_FRAMES)
-        to avoid being merged as noise.
+        Note: Segments need >= MIN_CONTEXT_SAMPLES samples to avoid being merged as noise.
         """
         results = [
             {"_frame_idx": 0, "weather": {"precipitation": "snow"}, "traffic": {"density": "sparse"}},
@@ -341,7 +340,7 @@ class TestToOpenlabelContexts:
         contexts = _to_contexts(results, frame_intervals)
 
         by_type = {c["type"]: c["frame_intervals"][0] for c in contexts.values()}
-        assert by_type["WeatherSnow"] == {"frame_start": 0, "frame_end": 10}
+        assert by_type["WeatherSnow"] == {"frame_start": 0, "frame_end": 49}
         assert by_type["WeatherRain"] == {"frame_start": 50, "frame_end": 100}
         assert by_type["TrafficDensitySparse"] == {"frame_start": 0, "frame_end": 100}
 
@@ -374,7 +373,29 @@ class TestToOpenlabelContexts:
         ]
         contexts = _to_contexts(results, [{"frame_start": 0, "frame_end": 200}])
 
-        assert "WeatherRain" not in {c["type"] for c in contexts.values()}
+        intervals = [c["frame_intervals"] for c in contexts.values() if c["type"] == "WeatherSnow"]
+        assert intervals == [[{"frame_start": 0, "frame_end": 200}]]
+
+    def test_segments_cover_whole_video_without_gaps(self):
+        results = [
+            {"_frame_idx": 5, "weather": {"precipitation": "rain"}},
+            {"_frame_idx": 30, "weather": {"precipitation": "rain"}},
+            {"_frame_idx": 60, "weather": {"precipitation": "snow"}},
+            {"_frame_idx": 90, "weather": {"precipitation": "snow"}},
+        ]
+        contexts = _to_contexts(results, [{"frame_start": 0, "frame_end": 120}])
+
+        by_type = {c["type"]: c["frame_intervals"][0] for c in contexts.values()}
+        assert by_type["WeatherRain"] == {"frame_start": 0, "frame_end": 59}
+        assert by_type["WeatherSnow"] == {"frame_start": 60, "frame_end": 120}
+
+    def test_majority_vote_tie_goes_to_first_seen_value(self):
+        results = [
+            {"_frame_idx": 0, "road": {"surface_condition": "wet"}},
+            {"_frame_idx": 30, "road": {"surface_condition": "dry"}},
+        ]
+        types = {t["type"] for t in _to_tags(results, frames_analyzed=2).values()}
+        assert "SurfaceConditionWet" in types and "SurfaceConditionDry" not in types
 
 
 # --- OpenLABEL Tags Tests ---

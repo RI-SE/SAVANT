@@ -100,6 +100,7 @@ class RelationshipSnapshot:
     type: str
     object: str
     ontology_uid: str
+    frame_intervals: Optional[tuple] = None
 
 
 @dataclass(frozen=True)

@@ -32,15 +32,16 @@ class UndoRedoManager:
     def undo(self, context: GatewayHolder) -> Optional[UndoableCommand]:
         if not self._undo_stack:
             return None
-        command = self._undo_stack.pop()
+        # Pop only after success, so a failing command stays retryable instead of vanishing
+        command = self._undo_stack[-1]
         command.undo(context)
-        self._redo_stack.append(command)
+        self._redo_stack.append(self._undo_stack.pop())
         return command
 
     def redo(self, context: GatewayHolder) -> Optional[UndoableCommand]:
         if not self._redo_stack:
             return None
-        command = self._redo_stack.pop()
+        command = self._redo_stack[-1]
         command.do(context)
-        self._undo_stack.append(command)
+        self._undo_stack.append(self._redo_stack.pop())
         return command

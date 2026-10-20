@@ -1,6 +1,7 @@
 """Service for loading and saving project files."""
 
 import json
+import os
 import logging
 from pathlib import Path
 
@@ -100,11 +101,15 @@ class ProjectService:
         path = Path(project_file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Write to a temp file and rename, so a failed save never truncates project.json
+        tmp_path = path.with_name(f".{path.name}.tmp")
         try:
-            with open(path, "w") as f:
+            with open(tmp_path, "w") as f:
                 json.dump(project.model_dump(), f, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, path)
             logger.info(f"Saved project to {path}")
         except Exception as e:
+            tmp_path.unlink(missing_ok=True)
             logger.error(f"Failed to save project: {e}")
             raise
 

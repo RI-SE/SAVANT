@@ -134,13 +134,17 @@ class DuplicateRemovalPass(PostprocessingPass):
                         }
                     )
 
-        for obj_id in objects_to_delete:
-            # Find which object this duplicate should merge into
-            detail = next(
-                (d for d in self.deletion_details if d["deleted_object"] == obj_id),
-                None,
-            )
-            obj_to_keep = detail["kept_object"] if detail else None
+        kept_for = {d["deleted_object"]: d["kept_object"] for d in self.deletion_details}
+
+        def final_keeper(obj_id):
+            # A keeper may itself be merged later (B->A, A->C): follow the chain to C
+            target = kept_for.get(obj_id)
+            while target in kept_for:
+                target = kept_for[target]
+            return target
+
+        for obj_id in sorted(objects_to_delete):
+            obj_to_keep = final_keeper(obj_id)
 
             # Scan actual frame data for ALL frames containing obj_id, not just the stale
             # object_frame_map entry.  This prevents orphaned frames when a cascade deletion

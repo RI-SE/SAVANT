@@ -570,11 +570,21 @@ def get_default_device() -> str:
 
 
 def parse_arguments() -> argparse.Namespace:
-    """Parse command line arguments.
+    """Parse command line arguments."""
+    return build_parser().parse_args()
 
-    Returns:
-        Parsed arguments namespace
-    """
+
+def explicit_cli_dests(argv: Optional[list] = None) -> set:
+    """Return the dests given explicitly on the command line (these beat config values)."""
+    parser = build_parser()
+    for action in parser._actions:
+        action.default = argparse.SUPPRESS
+    explicit, _ = parser.parse_known_args(argv)
+    return set(vars(explicit))
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the training CLI parser."""
     parser = argparse.ArgumentParser(
         description="Train YOLO OBB models for oriented bounding box object detection",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -849,7 +859,7 @@ Examples:
         help="Mixup augmentation probability (YOLO default: 0.0)",
     )
 
-    return parser.parse_args()
+    return parser
 
 
 def load_config_file(config_path: str) -> dict:
@@ -886,66 +896,29 @@ def load_config_file(config_path: str) -> dict:
 
 
 def merge_config_with_args(
-    args: argparse.Namespace, config: dict
+    args: argparse.Namespace, config: dict, explicit: Optional[set] = None
 ) -> argparse.Namespace:
-    """Merge JSON config with CLI arguments.
+    """Apply config file values, except for options given explicitly on the CLI.
 
-    CLI arguments take precedence over config file values.
-    Only updates args that are at their default values.
-
-    Args:
-        args: Parsed CLI arguments
-        config: Dictionary from config file
-
-    Returns:
-        Updated args namespace
+    explicit defaults to the options present in sys.argv (see explicit_cli_dests).
+    A config device of "auto" keeps the detected default device.
     """
-    # Map of config keys to argparse attribute names
-    # (handles hyphen vs underscore differences)
-    key_mapping = {
-        "warmup_epochs": "warmup_epochs",
-        "warmup_momentum": "warmup_momentum",
-        "save_period": "save_period",
-        "close_mosaic": "close_mosaic",
-        "hsv_h": "hsv_h",
-        "hsv_s": "hsv_s",
-        "hsv_v": "hsv_v",
-    }
-
-    # Default values from parse_arguments (to detect if CLI arg was provided)
-    defaults = {
-        "model": "yolo11s-obb.pt",
-        "epochs": 50,
-        "imgsz": 640,
-        "batch": 30,
-        "project": "runs/obb",
-        "name": "train",
-    }
+    if explicit is None:
+        explicit = explicit_cli_dests()
 
     for key, value in config.items():
         if value is None:
             continue
-
-        # Map config key to argparse attribute name
-        attr_name = key_mapping.get(key, key.replace("-", "_"))
-
-        # Check if this is a valid attribute
+        attr_name = key.replace("-", "_")
         if not hasattr(args, attr_name):
             logger.warning(f"Unknown config parameter ignored: {key}")
             continue
-
-        current_value = getattr(args, attr_name)
-
-        # For parameters with defaults, only override if CLI matches default
-        if attr_name in defaults:
-            if current_value == defaults[attr_name]:
-                setattr(args, attr_name, value)
-                logger.debug(f"Using config value for {attr_name}: {value}")
-        else:
-            # For optional parameters (default None), only override if not set
-            if current_value is None:
-                setattr(args, attr_name, value)
-                logger.debug(f"Using config value for {attr_name}: {value}")
+        if attr_name in explicit:
+            continue
+        if attr_name == "device" and value == "auto":
+            continue
+        setattr(args, attr_name, value)
+        logger.debug(f"Using config value for {attr_name}: {value}")
 
     return args
 

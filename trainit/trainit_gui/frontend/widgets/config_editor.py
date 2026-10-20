@@ -685,6 +685,10 @@ class ConfigEditor(QWidget):
 
         return None
 
+    def _text_or_default(self, name: str) -> str:
+        """Empty text fields show the default as placeholder, so save that default."""
+        return (self._get_value(name) or "").strip() or TrainingConfig.model_fields[name].default
+
     def _get_optional_value(self, name: str) -> Optional[Any]:
         """Get an optional widget value."""
         widget = self._widgets.get(name)
@@ -724,12 +728,12 @@ class ConfigEditor(QWidget):
         edited = dict(
             description=self.description_edit.toPlainText(),
             selected_datasets=list(self.app_state.selected_datasets),
-            model=self._get_value("model"),
+            model=self._text_or_default("model"),
             epochs=self._get_value("epochs"),
             imgsz=self._get_value("imgsz"),
             batch=self._get_value("batch"),
             device=self._get_value("device") or "auto",
-            project=self._get_value("project"),
+            project=self._text_or_default("project"),
             lr0=self._get_optional_value("lr0"),
             lrf=self._get_optional_value("lrf"),
             optimizer=self._get_optional_value("optimizer"),

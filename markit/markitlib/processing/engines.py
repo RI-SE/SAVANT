@@ -379,6 +379,8 @@ class SimpleTracker:
         self.tracks: Dict[int, Dict] = {}
         self.id_manager = id_manager
         self._current_frame = 0
+        # Tracks already assigned in the current frame (one detection per track)
+        self._claimed: set = set()
         # Local tracking ID for ID manager lookup (sequential per tracker)
         self._next_local_id = 1
         # Fallback for legacy mode without ID manager
@@ -400,14 +402,17 @@ class SimpleTracker:
         Returns:
             Object ID (remapped if ID manager available)
         """
-        if frame_idx is not None:
+        if frame_idx is not None and frame_idx != self._current_frame:
             self._current_frame = frame_idx
+            self._claimed = set()
 
         best_score = float("inf")
         best_track_id = None
 
         # Find best matching track (lowest score = best match)
         for track_id, track_data in list(self.tracks.items()):
+            if track_id in self._claimed:
+                continue
             # Skip expired tracks
             age = self._current_frame - track_data["last_seen"]
             if age > self.max_age:
@@ -445,6 +450,7 @@ class SimpleTracker:
             self.tracks[best_track_id]["last_seen"] = self._current_frame
             if bbox is not None:
                 self.tracks[best_track_id]["bbox"] = bbox.copy()
+            self._claimed.add(best_track_id)
             return best_track_id
         else:
             # Create new track with remapped ID
@@ -463,6 +469,7 @@ class SimpleTracker:
                 "last_seen": self._current_frame,
                 "bbox": bbox.copy() if bbox is not None else None,
             }
+            self._claimed.add(new_id)
             return new_id
 
     def _calculate_iou(self, bbox1: np.ndarray, bbox2: np.ndarray) -> float:
@@ -1459,6 +1466,10 @@ class ArUcoEngine(BaseDetectionEngine):
                         p2 = marker_corners[(j + 1) % 4]
                         edge_lengths.append(np.linalg.norm(p2 - p1))
 
+                    # Width along the angle direction (edges 0->1, 2->3), height across it
+                    marker_width = float((edge_lengths[0] + edge_lengths[2]) / 2)
+                    marker_height = float((edge_lengths[1] + edge_lengths[3]) / 2)
+
                     # Confidence is higher when edges are more uniform
                     avg_length = np.mean(edge_lengths)
                     length_variance = np.var(edge_lengths)
@@ -1475,6 +1486,8 @@ class ArUcoEngine(BaseDetectionEngine):
                         oriented_bbox=marker_corners.astype(np.float32),
                         center=(center_x, center_y),
                         angle=angle,
+                        width=marker_width,
+                        height=marker_height,
                         source_engine="aruco",
                     )
 

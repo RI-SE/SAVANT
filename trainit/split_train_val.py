@@ -50,6 +50,8 @@ from pathlib import Path
 from collections import defaultdict
 import random
 
+DEFAULT_TRAIN_RATIO = 0.9
+
 
 class DatasetSplitter:
     """Handles splitting train/val datasets by sequence."""
@@ -57,7 +59,7 @@ class DatasetSplitter:
     def __init__(
         self,
         dataset_path: Path,
-        train_ratio: float = 0.9,
+        train_ratio: float = DEFAULT_TRAIN_RATIO,
         seed: int = 42,
         verbose: bool = False,
     ):
@@ -430,8 +432,9 @@ def parse_arguments():
     parser.add_argument(
         "--train-ratio",
         type=float,
-        default=0.9,
-        help="Ratio of data to keep in train (default: 0.9 for 90/10 split)",
+        default=None,
+        help=f"Ratio of data to keep in train (default: {DEFAULT_TRAIN_RATIO} for a 90/10 split). "
+        "With --remove-orphans, the split only runs if this is given.",
     )
     parser.add_argument(
         "--dataset-path", type=str, required=True, help="Path to dataset root directory"
@@ -467,6 +470,9 @@ def parse_arguments():
 def main():
     """Main entry point."""
     args = parse_arguments()
+    split_requested = args.train_ratio is not None
+    if args.train_ratio is None:
+        args.train_ratio = DEFAULT_TRAIN_RATIO
 
     # Validate train ratio
     if not 0.0 < args.train_ratio < 1.0:
@@ -496,8 +502,8 @@ def main():
             if args.dry_run:
                 print("\nDry run complete - no files were removed")
 
-            # If only removing orphans (not splitting), exit here
-            if args.restore or not args.train_ratio:
+            # Orphan removal alone does not split; --restore or --train-ratio continue
+            if not args.restore and not split_requested:
                 sys.exit(0)
 
         if args.restore:

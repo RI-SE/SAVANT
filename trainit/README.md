@@ -710,7 +710,7 @@ split-train-val --dataset-path datasets/UAV_yolo_obb --train-ratio 0.8
 # Dry run to preview the split
 split-train-val --dataset-path datasets/UAV_yolo_obb --dry-run
 
-# Remove orphaned images (images without labels) before splitting
+# Remove orphaned images (images without labels) only; add --train-ratio to also split
 split-train-val --dataset-path datasets/UAV_yolo_obb --remove-orphans
 
 # Restore validation data back to training
@@ -727,7 +727,7 @@ split-train-val --dataset-path datasets/UAV_yolo_obb --verbose
 - `--seed` - Random seed for reproducibility (default: 42)
 - `--dry-run` - Show what would be moved without actually moving files
 - `--restore` - Restore val data back to train (undo split)
-- `--remove-orphans` - Remove images without corresponding label files
+- `--remove-orphans` - Remove images without corresponding label files (no split unless `--train-ratio` or `--restore` is also given)
 - `--verbose`, `-v` - Show detailed output
 
 **Dataset Structure Expected:**

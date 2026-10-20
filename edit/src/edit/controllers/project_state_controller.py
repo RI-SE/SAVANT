@@ -22,6 +22,9 @@ class ProjectStateController:
     def save_openlabel_config(self) -> None:
         self.project_state.save_openlabel_config()
 
+    def has_unsaved_changes(self) -> bool:
+        return self.project_state.has_unsaved_changes()
+
     @error_handler
     def get_actor_types(self) -> list[str]:
         return self.project_state.get_actor_types()

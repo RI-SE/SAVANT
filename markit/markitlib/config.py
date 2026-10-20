@@ -159,25 +159,26 @@ class MarkitConfig:
         self.use_yolo = args.detection_method in ["yolo", "both"]
         self.use_optical_flow = args.detection_method in ["optical_flow", "both"]
 
-        # Optical flow parameters
+        # Optical flow parameters; fallbacks come from the dataclass so they can't drift
+        flow_defaults = OpticalFlowParams()
         self.optical_flow_params = OpticalFlowParams(
             motion_threshold=args.motion_threshold,
             min_area=args.min_object_area,
-            max_area=getattr(args, "max_object_area", 30000),
-            algorithm=getattr(args, "flow_algorithm", "dis"),
-            temporal_smoothing=getattr(args, "flow_temporal_smoothing", 0.3),
-            pyramid_levels=getattr(args, "flow_pyramid_levels", 7),
-            window_size=getattr(args, "flow_window_size", 25),
-            iterations=getattr(args, "flow_iterations", 5),
-            median_filter_size=getattr(args, "flow_median_filter", 5),
-            debug_visualization=getattr(args, "debug_flow", False),
-            processing_scale=getattr(args, "flow_scale", 0.5),
-            track_max_age=getattr(args, "track_max_age", 5),
-            mask_mode=getattr(args, "flow_mask_mode", "or"),
-            dilate_kernel_size=getattr(args, "flow_dilate_size", 5),
-            morph_close_size=getattr(args, "flow_morph_close", 5),
-            morph_open_size=getattr(args, "flow_morph_open", 5),
-            exclusion_mask=getattr(args, "exclusion_mask", None),
+            max_area=getattr(args, "max_object_area", flow_defaults.max_area),
+            algorithm=getattr(args, "flow_algorithm", flow_defaults.algorithm),
+            temporal_smoothing=getattr(args, "flow_temporal_smoothing", flow_defaults.temporal_smoothing),
+            pyramid_levels=getattr(args, "flow_pyramid_levels", flow_defaults.pyramid_levels),
+            window_size=getattr(args, "flow_window_size", flow_defaults.window_size),
+            iterations=getattr(args, "flow_iterations", flow_defaults.iterations),
+            median_filter_size=getattr(args, "flow_median_filter", flow_defaults.median_filter_size),
+            debug_visualization=getattr(args, "debug_flow", flow_defaults.debug_visualization),
+            processing_scale=getattr(args, "flow_scale", flow_defaults.processing_scale),
+            track_max_age=getattr(args, "track_max_age", flow_defaults.track_max_age),
+            mask_mode=getattr(args, "flow_mask_mode", flow_defaults.mask_mode),
+            dilate_kernel_size=getattr(args, "flow_dilate_size", flow_defaults.dilate_kernel_size),
+            morph_close_size=getattr(args, "flow_morph_close", flow_defaults.morph_close_size),
+            morph_open_size=getattr(args, "flow_morph_open", flow_defaults.morph_open_size),
+            exclusion_mask=getattr(args, "exclusion_mask", flow_defaults.exclusion_mask),
         )
 
         # IoU-based conflict resolution configuration

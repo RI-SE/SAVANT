@@ -150,11 +150,12 @@ logger = logging.getLogger(__name__)
 
 
 def parse_arguments() -> argparse.Namespace:
-    """Parse command line arguments.
+    """Parse command line arguments."""
+    return build_parser().parse_args()
 
-    Returns:
-        Parsed arguments namespace
-    """
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the markit CLI parser."""
     parser = argparse.ArgumentParser(
         description="Advanced markit tool with multi-engine detection and IoU-based conflict resolution",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -629,86 +630,48 @@ Examples:
     vlm_group.add_argument('--vlm-rationale', action='store_true',
                            help='Request rationale explanations for weather fields (increases token usage)')
 
-    return parser.parse_args()
+    return parser
+
+
+# Options never written to provenance
+SECRET_ARGUMENTS = {"vlm_api_key"}
 
 
 def build_arguments_string(args: argparse.Namespace) -> str:
-    """Build a string representation of relevant CLI arguments for provenance.
-
-    Args:
-        args: Parsed command line arguments
-
-    Returns:
-        Space-separated string of CLI arguments used
-    """
-    parts = [
-        f"--input {args.input}",
-        f"--output_json {args.output_json}",
-        f"--detection-method {args.detection_method}",
-        f"--schema {args.schema}",
-        f"--ontology {args.ontology}",
-    ]
-    if args.detection_method in ["yolo", "both"]:
-        parts.append(f"--weights {args.weights}")
-        parts.append(f"--conf {args.conf}")
-    if args.housekeeping:
-        parts.append("--housekeeping")
-        parts.append(f"--duplicate-avg-iou {args.duplicate_avg_iou}")
-        parts.append(f"--duplicate-min-iou {args.duplicate_min_iou}")
-        parts.append(f"--rotation-threshold {args.rotation_threshold}")
-        parts.append(f"--min-movement-pixels {args.min_movement_pixels}")
-        parts.append(f"--rotation-smoothing {args.rotation_smoothing}")
-        parts.append(f"--min-total-movement {args.min_total_movement}")
-        parts.append(f"--max-rotation-change {args.max_rotation_change}")
-        parts.append(f"--edge-distance {args.edge_distance}")
-        parts.append(f"--static-threshold {args.static_threshold}")
-        if args.static_mark:
-            parts.append("--static-mark")
-        parts.append(f"--jitter-angle-threshold {args.jitter_angle_threshold}")
-        parts.append(f"--jitter-min-run {args.jitter_min_run}")
-        parts.append(f"--jitter-min-speed {args.jitter_min_speed}")
-        if args.jitter_mark:
-            parts.append("--jitter-mark")
-        # Record disabled passes
-        for flag in [
-            "no_gap_detection", "no_gap_filling", "no_jitter_filter",
-            "no_first_detection_refinement", "no_size_outlier_filter",
-            "no_bbox_smoothing", "no_rotation_jump_fix",
-            "no_rotation_adjustment", "no_duplicate_removal",
-            "no_sudden_detection", "no_size_step_detection",
-            "no_frame_intervals", "no_angle_normalization",
-        ]:
-            if getattr(args, flag, False):
-                parts.append(f"--{flag.replace('_', '-')}")
-        # Record spline interpolation if enabled
-        spline_s = getattr(args, "angle_spline_interpolation", None)
-        if spline_s is not None:
-            parts.append(f"--angle-spline-interpolation {spline_s}")
-    if args.output_video:
-        parts.append(f"--output_video {args.output_video}")
-    if args.aruco_csv:
-        parts.append(f"--aruco-csv {args.aruco_csv}")
-        parts.append(f"--aruco-dict {args.aruco_dict}")
-    if args.detection_method in ["optical_flow", "both"]:
-        parts.append(f"--motion-threshold {args.motion_threshold}")
-        parts.append(f"--min-object-area {args.min_object_area}")
-        parts.append(f"--max-object-area {args.max_object_area}")
-        parts.append(f"--flow-algorithm {args.flow_algorithm}")
-        parts.append(f"--flow-temporal-smoothing {args.flow_temporal_smoothing}")
-        parts.append(f"--flow-scale {args.flow_scale}")
-        parts.append(f"--flow-mask-mode {args.flow_mask_mode}")
-        parts.append(f"--flow-dilate-size {args.flow_dilate_size}")
-        parts.append(f"--flow-morph-close {args.flow_morph_close}")
-        parts.append(f"--flow-morph-open {args.flow_morph_open}")
-        if args.flow_algorithm == "farneback":
-            parts.append(f"--flow-pyramid-levels {args.flow_pyramid_levels}")
-            parts.append(f"--flow-window-size {args.flow_window_size}")
-            parts.append(f"--flow-iterations {args.flow_iterations}")
-        if args.flow_median_filter > 0:
-            parts.append(f"--flow-median-filter {args.flow_median_filter}")
-    if args.detection_method == "both" and not args.disable_conflict_resolution:
-        parts.append(f"--iou-threshold {args.iou_threshold}")
+    """Return every CLI option (defaults included) as a reproducible argument string."""
+    parts = []
+    for action in build_parser()._actions:
+        if not action.option_strings or action.dest in SECRET_ARGUMENTS or action.dest == "help":
+            continue
+        value = getattr(args, action.dest, None)
+        flag = action.option_strings[0]
+        if isinstance(action, argparse._StoreTrueAction):
+            if value:
+                parts.append(flag)
+        elif isinstance(action, argparse._StoreFalseAction):
+            if not value:
+                parts.append(flag)
+        elif value is not None:
+            values = value if isinstance(value, (list, tuple)) else [value]
+            parts.append(" ".join([flag, *map(str, values)]))
     return " ".join(parts)
+
+
+def provenance_inputs(args: argparse.Namespace) -> tuple[list, list]:
+    """Return (paths, formats) of all input files the run read."""
+    candidates = [
+        (args.input, "MP4"),
+        (args.schema, "JSON"),
+        (args.ontology, "TTL"),
+        (args.weights if args.detection_method in ["yolo", "both"] else None, "PT"),
+        (args.aruco_csv, "CSV"),
+        (getattr(args, "visual_markers", None), "CSV"),
+        (getattr(args, "drone_info", None), "JSON"),
+        (getattr(args, "exclusion_mask", None), "IMAGE"),
+        (getattr(args, "vlm_prompts", None) if getattr(args, "vlm", False) else None, "JSON"),
+    ]
+    present = [(path, fmt) for path, fmt in candidates if path]
+    return [path for path, _ in present], [fmt for _, fmt in present]
 
 
 def process_video(
@@ -1101,25 +1064,7 @@ def main():
             # Build arguments string
             arguments = build_arguments_string(args)
 
-            # Collect all input files used
-            inputs = [args.input]
-            input_formats = ["MP4"]
-
-            # Add schema and ontology (always used)
-            inputs.append(args.schema)
-            input_formats.append("JSON")
-            inputs.append(args.ontology)
-            input_formats.append("TTL")
-
-            # Add weights if YOLO detection used
-            if args.detection_method in ["yolo", "both"]:
-                inputs.append(args.weights)
-                input_formats.append("PT")
-
-            # Add ArUco CSV if provided
-            if args.aruco_csv:
-                inputs.append(args.aruco_csv)
-                input_formats.append("CSV")
+            inputs, input_formats = provenance_inputs(args)
 
             # Collect outputs (JSON always, video if specified)
             outputs = [args.output_json]

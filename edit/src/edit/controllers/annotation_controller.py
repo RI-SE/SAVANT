@@ -242,16 +242,17 @@ class AnnotationController:
         return self.annotation_service.get_frame_tags()
 
     @error_handler
-    def add_frame_tag(self, tag_name: str, frame_start: int, frame_end: int) -> None:
-        """
-        Add a new frame tag interval via the annotation service.
-
-        Args:
-            tag_name: Name of the tag.
-            frame_start: Index of the start frame.
-            frame_end: Index of the end frame.
-        """
-        self.annotation_service.add_frame_tag(tag_name, frame_start, frame_end)
+    def add_frame_tag(
+        self,
+        tag_name: str,
+        frame_start: int,
+        frame_end: int,
+        require_in_ontology: bool = True,
+    ) -> None:
+        """Add a new frame tag interval via the annotation service."""
+        self.annotation_service.add_frame_tag(
+            tag_name, frame_start, frame_end, require_in_ontology
+        )
 
     @error_handler
     def active_frame_tags(self, frame_index: int) -> list[tuple[str, int, int]]:
@@ -304,9 +305,11 @@ class AnnotationController:
         new_tag_name: str,
         new_start: int,
         new_end: int,
+        require_in_ontology: bool = True,
     ) -> bool:
         return self.annotation_service.update_frame_tag(
-            old_tag_name, old_start, old_end, new_tag_name, new_start, new_end
+            old_tag_name, old_start, old_end, new_tag_name, new_start, new_end,
+            require_in_ontology,
         )
 
     @error_handler
@@ -388,6 +391,7 @@ class AnnotationController:
         ontology_uid: str,
         subject_object_id: str,
         object_object_id: str,
+        frame_intervals: Optional[list[tuple]] = None,
     ) -> None:
         """Restore an object relationship with a specific ID."""
         self.annotation_service.restore_relationship(
@@ -396,6 +400,7 @@ class AnnotationController:
             ontology_uid,
             subject_object_id,
             object_object_id,
+            frame_intervals,
         )
 
     @error_handler

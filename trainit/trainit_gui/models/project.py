@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class TrainingConfig(BaseModel):
@@ -211,6 +211,12 @@ class ProjectDefaults(BaseModel):
     split_enabled: Optional[bool] = None
     split_ratio: Optional[float] = Field(default=None, ge=0.5, le=0.99)
     split_seed: Optional[int] = Field(default=None, ge=0)
+
+    @field_validator("optimizer")
+    @classmethod
+    def _auto_optimizer_means_unset(cls, value: Optional[str]) -> Optional[str]:
+        """"auto" is YOLO's own default; TrainingConfig expresses that as None."""
+        return None if value == "auto" else value
 
     def apply_to_config(self, config: "TrainingConfig") -> "TrainingConfig":
         """Apply these defaults to a config, only overriding trainit defaults."""
