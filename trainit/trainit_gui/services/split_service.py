@@ -6,6 +6,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ...chunk_split import DEFAULT_CHUNK_FRAMES, DEFAULT_GAP_FRAMES, chunked_split
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,7 +17,8 @@ class SplitResult:
 
     train_files: list[Path] = field(default_factory=list)
     val_files: list[Path] = field(default_factory=list)
-    method: str = "random"  # "stratified" or "random"
+    excluded_files: list[Path] = field(default_factory=list)  # chunk-gap frames
+    method: str = "random"  # "chunked:<chunk>/<gap>", "stratified" or "random"
     sequences_found: int = 0
 
 
@@ -108,6 +111,26 @@ class SplitService:
         num_sequences = len(sequences)
 
         logger.debug(f"Found {num_sequences} sequences in {len(files)} files")
+
+        # Prefer holding out whole frame chunks: per-frame sampling leaks
+        # near-identical neighbouring frames into val
+        chunked = chunked_split(sequences, train_ratio, seed)
+        if chunked is not None:
+            logger.info(
+                f"Chunked split: {len(chunked.train)} train, {len(chunked.val)} val, "
+                f"{len(chunked.excluded)} gap frames excluded"
+            )
+            return SplitResult(
+                train_files=chunked.train,
+                val_files=chunked.val,
+                excluded_files=chunked.excluded,
+                method=f"chunked:{DEFAULT_CHUNK_FRAMES}/{DEFAULT_GAP_FRAMES}",
+                sequences_found=num_sequences,
+            )
+        logger.warning(
+            "No sequence spans two frame chunks; falling back to per-frame split "
+            "(neighbouring frames may leak between train and val)"
+        )
 
         # Determine if stratification is meaningful
         # (at least 2 sequences with reasonable distribution)

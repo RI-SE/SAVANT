@@ -140,8 +140,10 @@ The generation dialog (File → Generate Training Files) creates:
 
 When enabled, the generator can redistribute train/val sets:
 - Pools files from selected datasets (optionally including val folders)
-- Uses stratified sampling by sequence ID (prefix before underscore in filename)
-- Falls back to random split if sequences aren't detected
+- Holds out whole 600-frame chunks (20 s at 30 fps, by filename frame number) per
+  dataset/sequence for val, and drops train frames within 120 frames (4 s) of a val chunk,
+  so neighbouring frames don't leak
+- Falls back to per-frame stratified/random sampling if no sequence spans two chunks
 - Configurable train ratio (default 0.9) and random seed
 
 **Example workflow:**
@@ -696,7 +698,7 @@ Natural camera tilt only; preserve up/down orientation.
 
 ### split_train_val.py
 
-Splits YOLO train datasets into train/val sets by sampling from each video sequence, ensuring both datasets have diverse representation across all sequences.
+Splits YOLO train datasets into train/val sets by holding out whole chunks of frames from each video sequence, so both sets cover all sequences while near-identical neighbouring frames don't leak between them.
 
 **Usage:**
 
@@ -728,6 +730,8 @@ split-train-val --dataset-path datasets/UAV_yolo_obb --verbose
 - `--dry-run` - Show what would be moved without actually moving files
 - `--restore` - Restore val data back to train (undo split)
 - `--remove-orphans` - Remove images without corresponding label files (no split unless `--train-ratio` or `--restore` is also given)
+- `--chunk-frames` - Frames per held-out val chunk, by filename frame number (default: 600 = 20 s at 30 fps)
+- `--gap-frames` - Train frames within this distance of a val chunk are moved to `images/excluded`/`labels/excluded` and used by neither set; `--restore` moves them back (default: 120 = 4 s at 30 fps)
 - `--verbose`, `-v` - Show detailed output
 
 **Dataset Structure Expected:**
@@ -890,7 +894,7 @@ train-yolo-obb --config output/my_config_params.json
 
 - **Use trainit-gui** for visual dataset management and configuration when working with multiple datasets
 - **Always use `--dry-run` first** with `split-train-val` to preview changes
-- The splitter preserves sequence diversity by sampling from each video sequence
+- The splitter holds out whole frame chunks from each video sequence, keeping sequence diversity without leaking neighbouring frames into val
 - Label files should be in YOLO format: `<class_id> <x> <y> <w> <h> <angle>`
 - Training results are saved to `runs/obb/train/` by default
 - Use `--cache ram` for faster training if you have sufficient memory

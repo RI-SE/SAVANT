@@ -2,14 +2,17 @@
 """
 split_train_val.py
 
-Splits train dataset into train/val by taking a percentage of images from EACH sequence,
-ensuring both datasets have diverse representation across all video sequences.
+Splits train dataset into train/val by holding out whole chunks of frames from EACH
+sequence, so val covers every video without near-identical neighbouring frames leaking
+between train and val.
 
 This script:
 1. Identifies all sequences in the train directory
-2. Calculates how many images from each sequence should go to validation
-3. Randomly selects images from each sequence for validation
-4. Moves selected images and their corresponding labels to val directories
+2. Cuts each sequence into chunks of --chunk-frames (by filename frame number)
+3. Picks random chunks per sequence for validation (about 1 - train-ratio of images)
+4. Moves val chunks to val/, and train frames within --gap-frames of a val chunk
+   to excluded/ (used by neither set; --restore moves them back)
+Falls back to per-frame random sampling if no sequence spans two chunks.
 
 Usage:
     python split_train_val.py [options]
@@ -21,6 +24,8 @@ Arguments:
     --dry-run          Show what would be moved without actually moving
     --restore          Restore val data back to train (undo split)
     --remove-orphans   Remove images without corresponding label files
+    --chunk-frames     Frames per held-out val chunk (default: 600 = 20 s at 30 fps)
+    --gap-frames       Gap excluded around val chunks (default: 120 = 4 s at 30 fps)
     --verbose, -v      Show detailed output
 
 Examples:
@@ -50,6 +55,8 @@ from pathlib import Path
 from collections import defaultdict
 import random
 
+from trainit.chunk_split import DEFAULT_CHUNK_FRAMES, DEFAULT_GAP_FRAMES, chunked_split
+
 DEFAULT_TRAIN_RATIO = 0.9
 
 
@@ -62,6 +69,8 @@ class DatasetSplitter:
         train_ratio: float = DEFAULT_TRAIN_RATIO,
         seed: int = 42,
         verbose: bool = False,
+        chunk_frames: int = DEFAULT_CHUNK_FRAMES,
+        gap_frames: int = DEFAULT_GAP_FRAMES,
     ):
         """Initialize dataset splitter.
 
@@ -70,12 +79,16 @@ class DatasetSplitter:
             train_ratio: Ratio of data to keep in train (0.0 to 1.0)
             seed: Random seed for reproducibility
             verbose: Enable verbose output
+            chunk_frames: Frames per held-out val chunk (see chunk_split)
+            gap_frames: Train frames this close to a val chunk are moved to excluded/
         """
         self.dataset_path = dataset_path
         self.train_ratio = train_ratio
         self.val_ratio = 1.0 - train_ratio
         self.seed = seed
         self.verbose = verbose
+        self.chunk_frames = chunk_frames
+        self.gap_frames = gap_frames
 
         # Set random seed
         random.seed(seed)
@@ -85,6 +98,8 @@ class DatasetSplitter:
         self.train_labels_dir = dataset_path / "labels" / "train"
         self.val_images_dir = dataset_path / "images" / "val"
         self.val_labels_dir = dataset_path / "labels" / "val"
+        self.excluded_images_dir = dataset_path / "images" / "excluded"
+        self.excluded_labels_dir = dataset_path / "labels" / "excluded"
 
     def validate_directories(self) -> bool:
         """Validate that required directories exist.
@@ -148,7 +163,9 @@ class DatasetSplitter:
         self.val_labels_dir.mkdir(parents=True, exist_ok=True)
 
     def split_dataset(self, dry_run: bool = False) -> dict:
-        """Split dataset into train/val by sampling from each sequence.
+        """Split dataset into train/val by holding out frame chunks from each sequence.
+
+        Falls back to per-frame random sampling when no sequence spans two chunks.
 
         Args:
             dry_run: If True, don't actually move files
@@ -193,66 +210,79 @@ class DatasetSplitter:
             "sequence_details": {},
         }
 
+        plan = chunked_split(
+            sequences, self.train_ratio, self.seed, self.chunk_frames, self.gap_frames
+        )
+        if plan is None:
+            print(
+                "Warning: no sequence spans two chunks; using per-frame random split "
+                "(neighbouring frames may leak between train and val)"
+            )
+        val_set = set(plan.val) if plan else set()
+        excluded_set = set(plan.excluded) if plan else set()
+        stats["excluded_images"] = 0
+
         print(f"\n{'Dry run - ' if dry_run else ''}Splitting sequences:")
 
         for seq_id, images in sorted(sequences.items()):
-            num_images = len(images)
-            num_val = int(num_images * self.val_ratio)
-            num_train = num_images - num_val
+            if plan:
+                val_images = [img for img in images if img in val_set]
+                excluded_images = [img for img in images if img in excluded_set]
+            else:
+                val_images = random.sample(images, int(len(images) * self.val_ratio))
+                excluded_images = []
+            num_val = len(val_images)
+            num_train = len(images) - num_val - len(excluded_images)
 
-            stats["total_images"] += num_images
+            stats["total_images"] += len(images)
             stats["train_images"] += num_train
             stats["val_images"] += num_val
+            stats["excluded_images"] += len(excluded_images)
 
-            # Randomly select images for validation
-            val_images = random.sample(images, num_val)
-
-            # Move images and labels
-            moved_images = 0
-            moved_labels = 0
-            missing_labels = 0
-
-            for img_path in val_images:
-                label_path = self.get_label_path(img_path)
-
-                # Check if label exists
-                if not label_path.exists():
-                    missing_labels += 1
-                    if self.verbose:
-                        print(f"  Warning: Label not found for {img_path.name}")
-                    continue
-
-                if not dry_run:
-                    # Move image
-                    dest_img = self.val_images_dir / img_path.name
-                    shutil.move(str(img_path), str(dest_img))
-                    moved_images += 1
-
-                    # Move label
-                    dest_label = self.val_labels_dir / label_path.name
-                    shutil.move(str(label_path), str(dest_label))
-                    moved_labels += 1
-                else:
-                    moved_images += 1
-                    moved_labels += 1
-
-            stats["moved_images"] += moved_images
-            stats["moved_labels"] += moved_labels
-            stats["missing_labels"] += missing_labels
+            moved, missing = self._move_images(
+                val_images, self.val_images_dir, self.val_labels_dir, dry_run
+            )
+            moved_excluded, missing_excluded = self._move_images(
+                excluded_images, self.excluded_images_dir, self.excluded_labels_dir, dry_run
+            )
+            stats["moved_images"] += moved + moved_excluded
+            stats["moved_labels"] += moved + moved_excluded
+            stats["missing_labels"] += missing + missing_excluded
 
             stats["sequence_details"][seq_id] = {
-                "total": num_images,
+                "total": len(images),
                 "train": num_train,
                 "val": num_val,
-                "moved": moved_images,
+                "excluded": len(excluded_images),
+                "moved": moved,
             }
 
             print(
-                f"  {seq_id}: {num_train} train / {num_val} val "
-                f"({moved_images} {'would be ' if dry_run else ''}moved)"
+                f"  {seq_id}: {num_train} train / {num_val} val / {len(excluded_images)} excluded "
+                f"({moved} {'would be ' if dry_run else ''}moved)"
             )
 
         return stats
+
+    def _move_images(
+        self, images: list, images_dir: Path, labels_dir: Path, dry_run: bool
+    ) -> tuple[int, int]:
+        """Move images and their labels; return (moved, missing_labels). Skips unlabeled images."""
+        moved = missing = 0
+        for img_path in images:
+            label_path = self.get_label_path(img_path)
+            if not label_path.exists():
+                missing += 1
+                if self.verbose:
+                    print(f"  Warning: Label not found for {img_path.name}")
+                continue
+            if not dry_run:
+                images_dir.mkdir(parents=True, exist_ok=True)
+                labels_dir.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(img_path), str(images_dir / img_path.name))
+                shutil.move(str(label_path), str(labels_dir / label_path.name))
+            moved += 1
+        return moved, missing
 
     def restore_dataset(self, dry_run: bool = False) -> dict:
         """Restore validation data back to training.
@@ -273,11 +303,19 @@ class DatasetSplitter:
 
         stats = {"restored_images": 0, "restored_labels": 0, "missing_labels": 0}
 
-        # Restore images
-        for img_path in self.val_images_dir.glob("*.*"):
+        # Restore val and excluded (gap) images
+        sources = [(self.val_images_dir, self.val_labels_dir)]
+        if self.excluded_images_dir.exists():
+            sources.append((self.excluded_images_dir, self.excluded_labels_dir))
+        restorable = [
+            (img_path, labels_dir)
+            for images_dir, labels_dir in sources
+            for img_path in images_dir.glob("*.*")
+        ]
+        for img_path, labels_dir in restorable:
             if img_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
                 label_name = img_path.stem + ".txt"
-                label_path = self.val_labels_dir / label_name
+                label_path = labels_dir / label_name
 
                 if not label_path.exists():
                     stats["missing_labels"] += 1
@@ -414,6 +452,8 @@ class DatasetSplitter:
         print(
             f"Val images: {stats['val_images']} ({stats['val_images']/stats['total_images']:.1%})"
         )
+        if stats.get("excluded_images"):
+            print(f"Excluded (gap) images: {stats['excluded_images']} (moved to excluded/)")
         print(f"Moved images: {stats['moved_images']}")
         print(f"Moved labels: {stats['moved_labels']}")
         if stats["missing_labels"] > 0:
@@ -461,6 +501,18 @@ def parse_arguments():
         help="Remove images without corresponding label files",
     )
     parser.add_argument(
+        "--chunk-frames",
+        type=int,
+        default=DEFAULT_CHUNK_FRAMES,
+        help=f"Frames per held-out val chunk, by filename frame number (default: {DEFAULT_CHUNK_FRAMES})",
+    )
+    parser.add_argument(
+        "--gap-frames",
+        type=int,
+        default=DEFAULT_GAP_FRAMES,
+        help=f"Train frames within this distance of a val chunk go to excluded/ (default: {DEFAULT_GAP_FRAMES})",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Show verbose output"
     )
 
@@ -491,6 +543,8 @@ def main():
         train_ratio=args.train_ratio,
         seed=args.seed,
         verbose=args.verbose,
+        chunk_frames=args.chunk_frames,
+        gap_frames=args.gap_frames,
     )
 
     try:

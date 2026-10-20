@@ -287,7 +287,12 @@ class GenerateDialog(QDialog):
 
         split_info = ""
         if preview.get("split_enabled"):
-            split_info = f"\n  - Split: {preview['split_ratio']:.0%} train, seed={preview['split_seed']}"
+            split_info = (
+                f"\n  - Split: {preview['split_ratio']:.0%} train, seed={preview['split_seed']}, "
+                f"method={preview.get('split_method')}"
+            )
+            if preview.get("excluded_gap_images"):
+                split_info += f"\n  - Excluded (gap around val chunks): {preview['excluded_gap_images']}"
 
         text = f"""Output Directory: {preview['output_dir']}
 

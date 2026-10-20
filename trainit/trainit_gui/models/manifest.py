@@ -26,7 +26,7 @@ class ManifestInfo:
     source_datasets: list[str] = field(default_factory=list)
     split_ratio: Optional[float] = None
     split_seed: Optional[int] = None
-    split_method: Optional[str] = None  # "stratified" or "random"
+    split_method: Optional[str] = None  # "chunked:<chunk>/<gap>", "stratified" or "random"
 
 
 @dataclass

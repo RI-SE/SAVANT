@@ -486,20 +486,23 @@ class ConfigGenerator:
             total_val = sum(ds.val_images for ds in datasets)
             total_objects = sum(ds.total_objects for ds in datasets)
 
-            # Calculate totals considering split settings
+            # Run the actual split (filenames only) so chunking and gap exclusion show
+            split_method = None
+            excluded = 0
             if config.split_enabled:
-                # Count total files that would be pooled
-                total_pooled = 0
+                pooled = []
                 for ds in datasets:
-                    ds_path = Path(ds.path)
                     include_val = config.include_val_in_pool.get(ds.name, False)
-                    files = self.split_service.collect_files_from_dataset(
-                        ds_path, include_val
+                    pooled.extend(
+                        self.split_service.collect_files_from_dataset(Path(ds.path), include_val)
                     )
-                    total_pooled += len(files)
-
-                estimated_train = int(total_pooled * config.split_ratio)
-                estimated_val = total_pooled - estimated_train
+                split_result = self.split_service.split_files(
+                    pooled, config.split_ratio, config.split_seed
+                )
+                estimated_train = len(split_result.train_files)
+                estimated_val = len(split_result.val_files)
+                excluded = len(split_result.excluded_files)
+                split_method = split_result.method
             else:
                 estimated_train = total_train
                 estimated_val = total_val
@@ -517,6 +520,8 @@ class ConfigGenerator:
                 "split_enabled": config.split_enabled,
                 "split_ratio": config.split_ratio if config.split_enabled else None,
                 "split_seed": config.split_seed if config.split_enabled else None,
+                "split_method": split_method,
+                "excluded_gap_images": excluded,
             }
 
             if generate_manifest:
