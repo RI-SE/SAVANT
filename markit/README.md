@@ -532,7 +532,7 @@ Marker position is included in the OpenLabel output as objects with additional o
 ```json
      "2000017": {
         "name": "GbgSaroRound_17",
-        "type": "ArUco",
+        "type": "Aruco",
         "ontology_uid": "0",
         "object_data": {
           "vec": [

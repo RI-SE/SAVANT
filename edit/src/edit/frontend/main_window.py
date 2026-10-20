@@ -475,7 +475,7 @@ class MainWindow(QMainWindow):
         # Refresh sidebar tag tree
         try:
             current_index = int(self.video_controller.current_index())
-            self.sidebar._refresh_active_frame_tags(current_index)
+            self.sidebar.refresh_active_frame_tags(current_index)
         except Exception:
             logger.warning("Could not refresh sidebar tags after inspection", exc_info=True)
 

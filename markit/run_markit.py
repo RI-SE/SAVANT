@@ -789,10 +789,302 @@ def run_vlm_analysis(args, config, video_processor, openlabel_data):
     return openlabel_data
 
 
+def log_startup(args: argparse.Namespace) -> list:
+    """Log version info and return the names of the engines that will run."""
+    # Determine which engines will be used (before config to log first)
+    engines = []
+    if args.detection_method in ["yolo", "both"]:
+        engines.append("YOLO")
+    if args.detection_method in ["optical_flow", "both"]:
+        engines.append("OpticalFlow")
+    if args.aruco_csv:
+        engines.append("ArUco")
+
+    # Log startup message first
+    logger.info(
+        f"SAVANT markit v{__version__} starting with engines: {', '.join(engines)}"
+    )
+    logger.info(
+        f"Library versions: OpenCV {cv2.__version__}, NumPy {np.__version__}, Ultralytics {ultralytics_version}"
+    )
+    return engines
+
+
+def resolve_resource_paths(args: argparse.Namespace) -> None:
+    """Fill in default ontology, schema and weights paths."""
+    # Resolve resource paths (package data or fallbacks)
+    args.ontology = args.ontology or get_ontology_path()
+    args.schema = args.schema or get_schema_path()
+    if args.detection_method in ["yolo", "both"]:
+        args.weights = args.weights or get_weights_path()
+
+
+def setup_annotation(config: MarkitConfig):
+    """Open the video and start the OpenLABEL output with metadata and known markers."""
+    # Initialize components
+    video_processor = VideoProcessor(config)
+    openlabel_handler = OpenLabelHandler(config.schema_path, verbose=config.verbose)
+
+    # Initialize video processing
+    video_processor.initialize()
+    openlabel_handler.add_metadata(config.video_path)
+    openlabel_handler.set_ontology(config.ontology_uri)
+    openlabel_handler.set_fps(video_processor.fps)
+
+    # Add drone streams metadata if provided
+    if config.drone_info_path:
+        drone_info = parse_drone_info(config.drone_info_path)
+        streams = build_streams_entry(
+            config.video_path, video_processor.fps, drone_info
+        )
+        openlabel_handler.add_streams(streams)
+
+    # Pre-populate ArUco markers from GPS data (if ArUco detection enabled)
+    aruco_gps = video_processor.get_aruco_gps_data()
+    if aruco_gps:
+        gps_data, csv_name = aruco_gps
+        id_mapping = video_processor.get_aruco_id_mapping()
+        openlabel_handler.add_aruco_objects(gps_data, csv_name, id_mapping)
+
+    # Pre-populate visual markers from GPS data (if provided)
+    visual_marker_result = video_processor.get_visual_marker_data()
+    if visual_marker_result:
+        visual_marker_data, vm_id_mapping = visual_marker_result
+        openlabel_handler.add_visual_marker_objects(
+            visual_marker_data.gps_data,
+            visual_marker_data.marker_names,
+            vm_id_mapping,
+            visual_marker_data.csv_name,
+        )
+    return video_processor, openlabel_handler
+
+
+def build_postprocessing_pipeline(
+    config: MarkitConfig, video_processor: VideoProcessor
+) -> PostprocessingPipeline:
+    """Assemble the housekeeping passes in order; each can be disabled with --no-*."""
+    postprocessing_pipeline = PostprocessingPipeline()
+    postprocessing_pipeline.set_video_properties(
+        video_processor.frame_width,
+        video_processor.frame_height,
+        video_processor.fps,
+    )
+    postprocessing_pipeline.set_ontology_path(config.ontology_path)
+
+    # Pipeline order (each pass can be disabled individually via --no-* flags):
+    # 1. Gap detection
+    if not config.no_gap_detection:
+        postprocessing_pipeline.add_pass(GapDetectionPass())
+
+    # 1b. Positional jitter detection/removal - runs BEFORE gap filling so
+    # excised jitter runs leave gaps that get cleanly interpolated below,
+    # and before short-duration filtering so objects that drop below
+    # min_duration as a side effect of jitter removal are cleaned up.
+    if not config.no_jitter_filter:
+        postprocessing_pipeline.add_pass(
+            PositionalJitterPass(
+                angle_threshold_deg=config.jitter_angle_threshold,
+                min_run_length=config.jitter_min_run,
+                min_speed_px=config.jitter_min_speed,
+                mark_only=config.jitter_mark,
+            )
+        )
+
+    # 1c. Gap filling
+    if not config.no_gap_filling:
+        postprocessing_pipeline.add_pass(GapFillingPass(
+            max_gap_size=config.max_gap_size,
+        ))
+
+    # 2. Short-duration object filter (runs before static removal to reduce noise early)
+    if config.min_duration > 0:
+        postprocessing_pipeline.add_pass(
+            ShortDurationPass(min_frames=config.min_duration)
+        )
+
+    # 3. Static object removal (if enabled via threshold)
+    if config.static_threshold >= 0:
+        postprocessing_pipeline.add_pass(
+            StaticObjectRemovalPass(
+                static_threshold=config.static_threshold,
+                mark_only=config.static_mark,
+            )
+        )
+
+    # 4. Refine initial detection angles using lookahead
+    if not config.no_first_detection_refinement:
+        postprocessing_pipeline.add_pass(
+            FirstDetectionRefinementPass(
+                lookahead_frames=5, min_movement_pixels=5.0
+            )
+        )
+
+    # 5. Filter size outliers (motion streaks, sudden elongation)
+    # Run BEFORE smoothing to detect raw spikes before EMA blends them
+    if not config.no_size_outlier_filter:
+        postprocessing_pipeline.add_pass(SizeOutlierFilterPass())
+
+    # 6. Bbox smoothing (size always smoothed; position smoothed by default)
+    # Run after outlier filter so smoothing works on clean data
+    if not config.no_bbox_smoothing:
+        postprocessing_pipeline.add_pass(
+            BboxSmoothingPass(smooth_position=config.smooth_position)
+        )
+
+    # 7. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
+    if not config.no_rotation_jump_fix:
+        postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
+
+    # 8. Adjust rotation based on movement direction
+    if not config.no_rotation_adjustment:
+        postprocessing_pipeline.add_pass(
+            RotationAdjustmentPass(
+                rotation_threshold=config.rotation_threshold,
+                min_movement_pixels=config.min_movement_pixels,
+                min_total_movement=config.min_total_movement,
+                temporal_smoothing=config.rotation_smoothing,
+                max_rotation_change=config.max_rotation_change,
+            )
+        )
+
+    # 8b. Spline-based angle interpolation (opt-in)
+    if config.angle_spline_smoothing is not None:
+        postprocessing_pipeline.add_pass(
+            AngleSplineInterpolationPass(
+                smoothing_factor=config.angle_spline_smoothing,
+            )
+        )
+
+    # 9. Duplicate removal - runs AFTER all rotation fixes so IoU is accurate
+    if not config.no_duplicate_removal:
+        postprocessing_pipeline.add_pass(
+            DuplicateRemovalPass(
+                avg_iou_threshold=config.duplicate_avg_iou,
+                min_iou_threshold=config.duplicate_min_iou,
+                min_shared_ratio=config.duplicate_min_shared_ratio,
+                iomin_threshold=config.duplicate_iomin,
+            )
+        )
+
+    # 10. Detect sudden appear/disappear events
+    if not config.no_sudden_detection:
+        postprocessing_pipeline.add_pass(
+            SuddenPass(edge_distance=config.edge_distance)
+        )
+
+    # 11. Detect persistent size changes (step changes) for manual review
+    if not config.no_size_step_detection:
+        postprocessing_pipeline.add_pass(SizeStepDetectionPass())
+
+    # 12. Add frame intervals
+    if not config.no_frame_intervals:
+        postprocessing_pipeline.add_pass(FrameIntervalPass())
+
+    # 13. Normalize all angles to [0, 2π) for OpenLabel output
+    if not config.no_angle_normalization:
+        postprocessing_pipeline.add_pass(AngleNormalizationPass())
+    return postprocessing_pipeline
+
+
+def run_postprocessing(
+    config: MarkitConfig, video_processor: VideoProcessor, openlabel_handler: OpenLabelHandler
+) -> list:
+    """Run housekeeping if enabled; return its decision log."""
+    if not config.enable_housekeeping:
+        logger.info("Housekeeping disabled, skipping postprocessing")
+        return []
+    logger.info("Starting postprocessing...")
+    postprocessing_pipeline = build_postprocessing_pipeline(config, video_processor)
+    openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
+        openlabel_handler.openlabel_data
+    )
+    return postprocessing_pipeline.get_decision_log()
+
+
+def write_decision_log(
+    args: argparse.Namespace, video_processor: VideoProcessor, housekeeping_decision_log: list
+) -> None:
+    """Write detection and housekeeping decisions to --decision-log."""
+    detection_decision_log = []
+    if video_processor.conflict_resolver:
+        detection_decision_log = video_processor.conflict_resolver.get_decision_log()
+
+    decision_log_data = {
+        "metadata": {
+            "input_video": args.input,
+            "output_json": args.output_json,
+            "yolo_conf_threshold": args.conf
+            if args.detection_method in ["yolo", "both"]
+            else None,
+        },
+        "detection": detection_decision_log,
+        "housekeeping": housekeeping_decision_log,
+    }
+    with open(args.decision_log, "w") as f:
+        json.dump(decision_log_data, f, indent=2, cls=NumpyEncoder)
+    logger.info(
+        f"Decision log written to {args.decision_log} "
+        f"({len(detection_decision_log)} detection, "
+        f"{len(housekeeping_decision_log)} housekeeping record(s))"
+    )
+
+
+def record_provenance(args: argparse.Namespace, start_time, yolo_model_info) -> None:
+    """Append this run to the --provenance chain."""
+    from datetime import datetime, timezone
+    from dataprov import ProvenanceChain
+
+    end_time = datetime.now(timezone.utc)
+
+    chain = ProvenanceChain.load_or_create(
+        args.provenance,
+        entity_id="savant_markit_output",
+        initial_source=args.input,
+        description="SAVANT markit video processing",
+        custom_namespaces={"savant": "https://ri-se.github.io/SAVANT/ns#"},
+    )
+
+    # Build arguments string
+    arguments = build_arguments_string(args)
+
+    inputs, input_formats = provenance_inputs(args)
+
+    # Collect outputs (JSON always, video if specified)
+    outputs = [args.output_json]
+    output_formats = ["JSON"]
+    if args.output_video:
+        outputs.append(args.output_video)
+        output_formats.append("MP4")
+
+    chain.add(
+        started_at=start_time.isoformat().replace("+00:00", "Z"),
+        ended_at=end_time.isoformat().replace("+00:00", "Z"),
+        tool_name="run_markit",
+        tool_version=__version__,
+        operation="object detection and tracking",
+        inputs=inputs,
+        input_formats=input_formats,
+        outputs=outputs,
+        output_formats=output_formats,
+        arguments=arguments,
+        capture_agent=True,
+        agent_type="automated",
+        capture_environment=True,
+        custom_properties={
+            f"activity:savant:{k}": v
+            for k, v in (yolo_model_info or {}).items()
+            if v is not None
+        }
+        or None,
+    )
+
+    chain.save(args.provenance)
+    logger.info(f"Provenance recorded to {args.provenance}")
+
+
 def main():
     """Main function to orchestrate the multi-engine video processing workflow."""
     try:
-        # Parse arguments
         args = parse_arguments()
 
         # Capture start time for provenance tracking
@@ -802,30 +1094,8 @@ def main():
 
             start_time = datetime.now(timezone.utc)
 
-        # Determine which engines will be used (before config to log first)
-        engines = []
-        if args.detection_method in ["yolo", "both"]:
-            engines.append("YOLO")
-        if args.detection_method in ["optical_flow", "both"]:
-            engines.append("OpticalFlow")
-        if args.aruco_csv:
-            engines.append("ArUco")
-
-        # Log startup message first
-        logger.info(
-            f"SAVANT markit v{__version__} starting with engines: {', '.join(engines)}"
-        )
-        logger.info(
-            f"Library versions: OpenCV {cv2.__version__}, NumPy {np.__version__}, Ultralytics {ultralytics_version}"
-        )
-
-        # Resolve resource paths (package data or fallbacks)
-        args.ontology = args.ontology or get_ontology_path()
-        args.schema = args.schema or get_schema_path()
-        if args.detection_method in ["yolo", "both"]:
-            args.weights = args.weights or get_weights_path()
-
-        # Create configuration
+        engines = log_startup(args)
+        resolve_resource_paths(args)
         config = MarkitConfig(args)
 
         if config.enable_conflict_resolution and len(engines) > 1:
@@ -833,178 +1103,10 @@ def main():
                 f"Conflict resolution enabled with IoU threshold: {config.iou_threshold:.2f}"
             )
 
-        # Initialize components
-        video_processor = VideoProcessor(config)
-        openlabel_handler = OpenLabelHandler(config.schema_path, verbose=config.verbose)
-
-        # Initialize video processing
-        video_processor.initialize()
-        openlabel_handler.add_metadata(config.video_path)
-        openlabel_handler.set_ontology(config.ontology_uri)
-        openlabel_handler.set_fps(video_processor.fps)
-
-        # Add drone streams metadata if provided
-        if config.drone_info_path:
-            drone_info = parse_drone_info(config.drone_info_path)
-            streams = build_streams_entry(
-                config.video_path, video_processor.fps, drone_info
-            )
-            openlabel_handler.add_streams(streams)
-
-        # Pre-populate ArUco markers from GPS data (if ArUco detection enabled)
-        aruco_gps = video_processor.get_aruco_gps_data()
-        if aruco_gps:
-            gps_data, csv_name = aruco_gps
-            id_mapping = video_processor.get_aruco_id_mapping()
-            openlabel_handler.add_aruco_objects(gps_data, csv_name, id_mapping)
-
-        # Pre-populate visual markers from GPS data (if provided)
-        visual_marker_result = video_processor.get_visual_marker_data()
-        if visual_marker_result:
-            visual_marker_data, vm_id_mapping = visual_marker_result
-            openlabel_handler.add_visual_marker_objects(
-                visual_marker_data.gps_data,
-                visual_marker_data.marker_names,
-                vm_id_mapping,
-                visual_marker_data.csv_name,
-            )
-
-        # Process video
+        video_processor, openlabel_handler = setup_annotation(config)
         process_video(video_processor, openlabel_handler, config)
+        housekeeping_decision_log = run_postprocessing(config, video_processor, openlabel_handler)
 
-        # Postprocessing pipeline (only if housekeeping enabled)
-        housekeeping_decision_log = []
-        if config.enable_housekeeping:
-            logger.info("Starting postprocessing...")
-            postprocessing_pipeline = PostprocessingPipeline()
-            postprocessing_pipeline.set_video_properties(
-                video_processor.frame_width,
-                video_processor.frame_height,
-                video_processor.fps,
-            )
-            postprocessing_pipeline.set_ontology_path(config.ontology_path)
-
-            # Pipeline order (each pass can be disabled individually via --no-* flags):
-            # 1. Gap detection
-            if not config.no_gap_detection:
-                postprocessing_pipeline.add_pass(GapDetectionPass())
-
-            # 1b. Positional jitter detection/removal - runs BEFORE gap filling so
-            # excised jitter runs leave gaps that get cleanly interpolated below,
-            # and before short-duration filtering so objects that drop below
-            # min_duration as a side effect of jitter removal are cleaned up.
-            if not config.no_jitter_filter:
-                postprocessing_pipeline.add_pass(
-                    PositionalJitterPass(
-                        angle_threshold_deg=config.jitter_angle_threshold,
-                        min_run_length=config.jitter_min_run,
-                        min_speed_px=config.jitter_min_speed,
-                        mark_only=config.jitter_mark,
-                    )
-                )
-
-            # 1c. Gap filling
-            if not config.no_gap_filling:
-                postprocessing_pipeline.add_pass(GapFillingPass(
-                    max_gap_size=config.max_gap_size,
-                ))
-
-            # 2. Short-duration object filter (runs before static removal to reduce noise early)
-            if config.min_duration > 0:
-                postprocessing_pipeline.add_pass(
-                    ShortDurationPass(min_frames=config.min_duration)
-                )
-
-            # 3. Static object removal (if enabled via threshold)
-            if config.static_threshold >= 0:
-                postprocessing_pipeline.add_pass(
-                    StaticObjectRemovalPass(
-                        static_threshold=config.static_threshold,
-                        mark_only=config.static_mark,
-                    )
-                )
-
-            # 4. Refine initial detection angles using lookahead
-            if not config.no_first_detection_refinement:
-                postprocessing_pipeline.add_pass(
-                    FirstDetectionRefinementPass(
-                        lookahead_frames=5, min_movement_pixels=5.0
-                    )
-                )
-
-            # 5. Filter size outliers (motion streaks, sudden elongation)
-            # Run BEFORE smoothing to detect raw spikes before EMA blends them
-            if not config.no_size_outlier_filter:
-                postprocessing_pipeline.add_pass(SizeOutlierFilterPass())
-
-            # 6. Bbox smoothing (size always smoothed; position smoothed by default)
-            # Run after outlier filter so smoothing works on clean data
-            if not config.no_bbox_smoothing:
-                postprocessing_pipeline.add_pass(
-                    BboxSmoothingPass(smooth_position=config.smooth_position)
-                )
-
-            # 7. Fix 90° and 180° rotation jumps from minAreaRect ambiguity
-            if not config.no_rotation_jump_fix:
-                postprocessing_pipeline.add_pass(Rotation90JumpFixPass())
-
-            # 8. Adjust rotation based on movement direction
-            if not config.no_rotation_adjustment:
-                postprocessing_pipeline.add_pass(
-                    RotationAdjustmentPass(
-                        rotation_threshold=config.rotation_threshold,
-                        min_movement_pixels=config.min_movement_pixels,
-                        min_total_movement=config.min_total_movement,
-                        temporal_smoothing=config.rotation_smoothing,
-                        max_rotation_change=config.max_rotation_change,
-                    )
-                )
-
-            # 8b. Spline-based angle interpolation (opt-in)
-            if config.angle_spline_smoothing is not None:
-                postprocessing_pipeline.add_pass(
-                    AngleSplineInterpolationPass(
-                        smoothing_factor=config.angle_spline_smoothing,
-                    )
-                )
-
-            # 9. Duplicate removal - runs AFTER all rotation fixes so IoU is accurate
-            if not config.no_duplicate_removal:
-                postprocessing_pipeline.add_pass(
-                    DuplicateRemovalPass(
-                        avg_iou_threshold=config.duplicate_avg_iou,
-                        min_iou_threshold=config.duplicate_min_iou,
-                        min_shared_ratio=config.duplicate_min_shared_ratio,
-                        iomin_threshold=config.duplicate_iomin,
-                    )
-                )
-
-            # 10. Detect sudden appear/disappear events
-            if not config.no_sudden_detection:
-                postprocessing_pipeline.add_pass(
-                    SuddenPass(edge_distance=config.edge_distance)
-                )
-
-            # 11. Detect persistent size changes (step changes) for manual review
-            if not config.no_size_step_detection:
-                postprocessing_pipeline.add_pass(SizeStepDetectionPass())
-
-            # 12. Add frame intervals
-            if not config.no_frame_intervals:
-                postprocessing_pipeline.add_pass(FrameIntervalPass())
-
-            # 13. Normalize all angles to [0, 2π) for OpenLabel output
-            if not config.no_angle_normalization:
-                postprocessing_pipeline.add_pass(AngleNormalizationPass())
-
-            openlabel_handler.openlabel_data = postprocessing_pipeline.execute(
-                openlabel_handler.openlabel_data
-            )
-            housekeeping_decision_log = postprocessing_pipeline.get_decision_log()
-        else:
-            logger.info("Housekeeping disabled, skipping postprocessing")
-
-        # VLM Scene Analysis (if enabled)
         if args.vlm:
             openlabel_handler.openlabel_data = run_vlm_analysis(
                 args, config, video_processor, openlabel_handler.openlabel_data
@@ -1022,82 +1124,10 @@ def main():
         # Cleanup and save results
         cleanup(video_processor, openlabel_handler, config)
 
-        # Write structured decision log if enabled
         if args.decision_log:
-            detection_decision_log = []
-            if video_processor.conflict_resolver:
-                detection_decision_log = video_processor.conflict_resolver.get_decision_log()
-
-            decision_log_data = {
-                "metadata": {
-                    "input_video": args.input,
-                    "output_json": args.output_json,
-                    "yolo_conf_threshold": args.conf
-                    if args.detection_method in ["yolo", "both"]
-                    else None,
-                },
-                "detection": detection_decision_log,
-                "housekeeping": housekeeping_decision_log,
-            }
-            with open(args.decision_log, "w") as f:
-                json.dump(decision_log_data, f, indent=2, cls=NumpyEncoder)
-            logger.info(
-                f"Decision log written to {args.decision_log} "
-                f"({len(detection_decision_log)} detection, "
-                f"{len(housekeeping_decision_log)} housekeeping record(s))"
-            )
-
-        # Record provenance if enabled
+            write_decision_log(args, video_processor, housekeeping_decision_log)
         if args.provenance:
-            from datetime import datetime, timezone
-            from dataprov import ProvenanceChain
-
-            end_time = datetime.now(timezone.utc)
-
-            chain = ProvenanceChain.load_or_create(
-                args.provenance,
-                entity_id="savant_markit_output",
-                initial_source=args.input,
-                description="SAVANT markit video processing",
-                custom_namespaces={"savant": "https://ri-se.github.io/SAVANT/ns#"},
-            )
-
-            # Build arguments string
-            arguments = build_arguments_string(args)
-
-            inputs, input_formats = provenance_inputs(args)
-
-            # Collect outputs (JSON always, video if specified)
-            outputs = [args.output_json]
-            output_formats = ["JSON"]
-            if args.output_video:
-                outputs.append(args.output_video)
-                output_formats.append("MP4")
-
-            chain.add(
-                started_at=start_time.isoformat().replace("+00:00", "Z"),
-                ended_at=end_time.isoformat().replace("+00:00", "Z"),
-                tool_name="run_markit",
-                tool_version=__version__,
-                operation="object detection and tracking",
-                inputs=inputs,
-                input_formats=input_formats,
-                outputs=outputs,
-                output_formats=output_formats,
-                arguments=arguments,
-                capture_agent=True,
-                agent_type="automated",
-                capture_environment=True,
-                custom_properties={
-                    f"activity:savant:{k}": v
-                    for k, v in (yolo_model_info or {}).items()
-                    if v is not None
-                }
-                or None,
-            )
-
-            chain.save(args.provenance)
-            logger.info(f"Provenance recorded to {args.provenance}")
+            record_provenance(args, start_time, yolo_model_info)
 
         logger.info("Multi-engine video processing completed successfully")
 

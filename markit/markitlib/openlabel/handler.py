@@ -19,6 +19,9 @@ from .. import __version__
 
 logger = logging.getLogger(__name__)
 
+# Object type for ArUco markers: the rdfs:label of :MarkerAruco in savant.ttl
+ARUCO_TYPE = "Aruco"
+
 
 def _frame_to_timestamp(frame_idx: int, fps: float) -> str:
     """Convert a frame index to a timestamp string (HH:MM:SS.ffffff)."""
@@ -159,7 +162,7 @@ class OpenLabelHandler:
                 altitudes.append(str(corner_data.get("alt", 0)))
 
             # Build object with GPS data at object level
-            aruco_object = {"name": object_name, "type": "ArUco", "ontology_uid": "0"}
+            aruco_object = {"name": object_name, "type": ARUCO_TYPE, "ontology_uid": "0"}
 
             # Add object_data.vec with GPS coordinates
             if corner_ids:
@@ -299,7 +302,7 @@ class OpenLabelHandler:
                         # Build object with GPS data at object level (not per-frame)
                         aruco_object = {
                             "name": object_name,
-                            "type": "ArUco",
+                            "type": ARUCO_TYPE,
                             "ontology_uid": "0",
                         }
 

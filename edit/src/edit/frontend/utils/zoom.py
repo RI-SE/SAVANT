@@ -195,7 +195,7 @@ def wire(main_window, initial: float | None = None):
     def pan_to_selected_bbox():
         """Pan so the currently selected bbox is centred in the viewport (zoom unchanged).
 
-        Uses the overlay's own _compute_transform() so the computed pan is guaranteed
+        Uses the overlay's own compute_transform() so the computed pan is guaranteed
         to match exactly how the overlay renders the selected box — regardless of any
         difference between the video pixmap size and the overlay's frame_size.
         """
@@ -203,12 +203,12 @@ def wire(main_window, initial: float | None = None):
         overlay = getattr(main_window, "overlay", None)
         if overlay is None:
             return
-        bbox = overlay._get_selected_bbox()
+        bbox = overlay.selected_bbox()
         if bbox is None:
             return
 
-        # _compute_transform returns (scale, off_x, off_y, base_scale)
-        scale, off_x, off_y, _ = overlay._compute_transform()
+        # compute_transform returns (scale, off_x, off_y, base_scale)
+        scale, off_x, off_y, _ = overlay.compute_transform()
         if scale <= 0:
             return
 
@@ -224,8 +224,9 @@ def wire(main_window, initial: float | None = None):
         dy = display_h / 2 - current_screen_y
 
         # New pan = current overlay pan + required delta.
-        new_pan_x = overlay._pan_x + dx
-        new_pan_y = overlay._pan_y + dy
+        pan_x, pan_y = overlay.pan
+        new_pan_x = pan_x + dx
+        new_pan_y = pan_y + dy
 
         # Use exact pan (no clamping) so edge bboxes reach the true centre.
         vw.set_pan_exact(new_pan_x, new_pan_y)

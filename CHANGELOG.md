@@ -5,14 +5,64 @@
 >
 > **Versioning discontinuity:** versions `1.0.0`–`1.3.2` belong to an earlier, pre-monorepo project (a single `savant_app`, no root `pyproject.toml`). The restructure into today's `markit` / `edit` / `trainit` / `savant_common` layout (commit `acde3ea`, 2025-11-25) introduced the current root `pyproject.toml`, which restarted its own version count at `1.0.0` and then jumped straight to `2.0.0` twelve days later ("Bump versions", commit `1092f13`) to mark the restructure. So `2.0.0` is the first version of the project *as it exists today*; the `1.x` entries below describe the predecessor codebase.
 
-## [Unreleased]
-_Commits since `v2.4.1` (2026-06-17), including the untagged `2.4.2` version bump._
+## [2.5.0] - 2026-10-20
+_Changes since `v2.4.1` (2026-06-17), including the untagged `2.4.2` version bump._
 
 - Object/frame tag and confidence-warning UI overhaul in `edit`: new tag/warning navigator widget, moved object tags to sidebar with removal support, corrected confidence-warning display, auto-generation of additional standard object tags.
 - Fixed a markit bug leaving orphaned frame objects behind when cascading duplicate-frame removal.
 - Added "inspection mode" and pre-selection for the "Fix range" action in `edit`.
 - Fix to persist the bbox centring setting.
 - General postprocessing fixes; `uv.lock` refresh; lint cleanup; removed accidentally committed files.
+- YOLO model choice (YOLO11/YOLO26) in `trainit`; `--conf` threshold in markit; richer provenance (library versions, model architecture).
+
+### Scenario ontology and VLM output (2026-10)
+- `savant_scenario.ttl` 2.0.0: URI now `https://ri-se.github.io/SAVANT/ontology/savant_scenario#`; classes mirror ASAM OpenLABEL scenario tagging 1:1 (same names/hierarchy, only those used) with SAVANT extension subclasses; uids moved to 1000+ (disjoint from `savant.ttl`); unused classes removed.
+- VLM tags/contexts are now typed by scenario-ontology class, one tag per field value; the field→class mapping is shared by markit and edit (`savant_common.scenario_tags`).
+- Relations and VLM output reference the scenario ontology by its key in the `ontologies` section (was a hardcoded/invalid `ontology_uid`); edit's VLM dialog re-types tags when values are edited.
+- The third-party OpenLABEL ontology file is no longer tracked (gitignored, not redistributed).
+
+### Code review fixes (2026-10-20)
+Whole-repo review; details and remaining items in `development.md`.
+
+**Behaviour changes to be aware of**
+- markit: object `frame_intervals` are now one interval per contiguous run of frames (gaps no longer reported as presence).
+- markit: ArUco objects use the ontology label `"Aruco"` (was `"ArUco"`).
+- markit: YOLO weights are never downloaded; uses `--weights` or the repo's `markit/markit_yolo.pt`, else stops with an error.
+- markit: VLM weather/traffic contexts cover the whole video (a sampled value holds until the next sample); single-sample segments are merged as noise; majority-vote ties are deterministic.
+- markit: provenance records every CLI option (never the API key) and all input files.
+- markit: the VLM API key can be given as `$SAVANT_VLM_API_KEY`; warning when a key would be sent over plain HTTP.
+- markit: a detection engine failing on 10 consecutive frames aborts the run instead of silently writing empty detections.
+- edit: on save, object `frame_intervals` are rebuilt from the boxes; objects with no boxes (and relations to them) are not written.
+- edit: ontology paths referenced by an OpenLABEL file are only used if they lie inside the project folder.
+- trainit: train/val re-split holds out whole 600-frame chunks (20 s at 30 fps) per dataset/sequence and excludes a 120-frame gap around them, removing leakage of neighbouring frames (GUI and `split-train-val`; new `--chunk-frames`/`--gap-frames`, gap frames go to `excluded/`).
+- trainit: `split-train-val --remove-orphans` no longer also splits.
+- trainit: explicit CLI options override `--config` values (also when equal to the default); the GUI's device choice is now honoured.
+- trainit: `settings.yaml` disables Ultralytics analytics (`sync`) and all tracker integrations.
+- trainit: extraction clips boxes at the image edge to the visible part (instead of clamping corners) and drops boxes fully outside the image.
+
+**Fixed — data loss and crashes**
+- markit: a VLM failure no longer loses the whole run (detections are still saved); `scene_change`/`keyframes` sampling no longer crashes; malformed VLM replies are validated/coerced instead of crashing or producing false tags.
+- edit: "mark confidence resolved" crashed; undo history from a previous project could modify a newly opened one; the new-project dialog could delete the selected file; saving is now atomic.
+- trainit: saving a config dropped the split settings; regenerating left stale links that leaked val images into train; `project.json` saves are atomic.
+
+**Fixed — wrong results**
+- markit: one optical-flow track could take two detections in a frame; ArUco boxes were always 50×50; chained duplicate merges could lose frames; ontology uid `"0"` could collide with the scenario ontology; fallback config defaults disagreed with the CLI.
+- markit/edit: oriented-box IoU assumed counter-clockwise corners (wrong for clockwise boxes such as Ultralytics'); now one shared OpenCV-based implementation.
+- edit: relationships were sent to the overlay with a wrong id; video-buffer setting never applied; annotator check matched substrings; non-numeric relation ids broke relation creation; the unsaved-changes prompt is now based on the actual model state.
+- edit undo: tracking undo removed manual boxes and partial tracking was not rolled back; geometry undo rewrote annotator/confidence history; a failing undo dropped the command; deleting/restoring relations lost their intervals; invalid frame-tag edits lost the original; linking objects dropped object tags and left dangling relations; undo of tags not in the ontology failed.
+- edit: failed ontology checks left a half-switched project; inspection silently skipped failed tags.
+- trainit: split was not reproducible across machines; all extracted datasets were pooled as one sequence; optimizer `"auto"` in project defaults broke new configs; empty model/project fields were saved as `""`; `warmup_epochs` could not take decimals; unsaved changes were never detected.
+- trainit: names containing path separators (`../`) are rejected; manifest generation fails instead of silently omitting files it can't hash.
+
+**Performance**
+- markit: VLM scene-change sampling reads frames sequentially (~27× faster); duplicate removal ~4.7× faster with identical results; ontology parsing cached (was re-parsed per object); conflict decisions only kept when `--decision-log` is given.
+- edit: undo history capped at 500 steps; frame-tag lookup no longer caches stale data.
+- trainit: generate preview debounced; datasets read once per analysis; generation shows a cancellable progress dialog.
+
+**Internal**
+- VLM multi-frame aggregation and trainit training parameters are each driven by one list, with tests guarding against drift; duplicated geometry, `NumpyEncoder` and angle helpers consolidated in `savant_common`.
+- `run_markit.main` split into stage functions; edit frontend no longer reaches into services or other widgets' private members; dead code removed; broad exception handlers that hid failures now log.
+- Many new regression tests (suite: 665 passed).
 
 ## [2.4.1] - 2026-06-17
 - Added spline-based angle interpolation for bounding-box rotation, both as a markit postprocessing pass (`AngleSplineInterpolationPass`, documented) and as an `edit` context-menu action.

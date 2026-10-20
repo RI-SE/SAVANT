@@ -270,3 +270,16 @@ class TestSetOntology:
         ontologies = handler.openlabel_data["openlabel"]["ontologies"]
         assert ontologies["0"] == SAVANT_ONTOLOGY_URI
         assert get_or_add_ontology_uid(ontologies, SCENARIO_ONTOLOGY_URI) != "0"
+
+
+def test_aruco_objects_use_the_ontology_label(schema_path):
+    from markit.markitlib.openlabel.handler import ARUCO_TYPE
+    from savant_common.ontology import read_ontology_classes
+    from savant_common.resources import get_ontology_path
+
+    labels = {c["class_name"]: c["label"] for c in read_ontology_classes(get_ontology_path())}
+    assert ARUCO_TYPE == labels["MarkerAruco"]
+
+    handler = OpenLabelHandler(schema_path)
+    handler.add_aruco_objects({3: {"a": {"lat": 1.0, "lon": 2.0}}}, "Test_markers")
+    assert {o["type"] for o in handler.openlabel_data["openlabel"]["objects"].values()} == {ARUCO_TYPE}

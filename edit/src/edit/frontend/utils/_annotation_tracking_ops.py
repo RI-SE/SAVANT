@@ -45,7 +45,7 @@ def _validate_tracking_preconditions(main_window, object_id, direction, frontend
         return None
 
     current_frame = int(main_window.video_controller.current_index())
-    bbox = main_window.overlay._get_selected_bbox()
+    bbox = main_window.overlay.selected_bbox()
     if not bbox:
         QMessageBox.warning(main_window, "Tracking", "No bounding box selected.")
         return None
