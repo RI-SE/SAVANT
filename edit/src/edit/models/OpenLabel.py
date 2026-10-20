@@ -543,7 +543,8 @@ class OpenLabel(BaseModel):
         """Internal: Update annotator data for a bbox."""
         # Check if the annotator making the update is already
         # the latest annotator.
-        if annotater not in current_annotator_data.val[0]:
+        latest = current_annotator_data.val[0] if current_annotator_data.val else None
+        if annotater != latest:
             current_annotator_data.val.appendleft(annotater)
             current_confidence_data.val.appendleft(confidence)
 

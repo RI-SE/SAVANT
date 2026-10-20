@@ -785,6 +785,46 @@ def cleanup(
         raise
 
 
+def run_vlm_analysis(args, config, video_processor, openlabel_data):
+    """Add VLM scene contexts/tags; on failure log and return the data so the run is still saved."""
+    logger.info("Starting VLM scene analysis...")
+    from markit.markitlib.vlm import VLMConfig, VLMProvider, SamplingStrategy, VLMAnalysisPass
+
+    vlm_config = VLMConfig(
+        enabled=True,
+        provider=VLMProvider.VLLM,
+        model_name=args.vlm_model,
+        base_url=args.vlm_url,
+        api_key=args.vlm_api_key,
+        timeout=args.vlm_timeout,
+        sampling_strategy=SamplingStrategy(args.vlm_sampling),
+        sample_interval=args.vlm_interval,
+        max_samples=args.vlm_max_frames,
+        max_resolution=args.vlm_max_resolution,
+        request_delay=args.vlm_delay,
+        prompts_file=args.vlm_prompts,
+        rationale_enabled=args.vlm_rationale,
+    )
+
+    vlm_pass = VLMAnalysisPass(vlm_config)
+    vlm_pass.set_video_path(config.video_path)
+    vlm_pass.set_video_properties(
+        video_processor.frame_width,
+        video_processor.frame_height,
+        video_processor.fps
+    )
+
+    try:
+        openlabel_data = vlm_pass.process(openlabel_data)
+    except Exception as e:
+        logger.error(f"VLM analysis failed, saving results without VLM output: {e}")
+        return openlabel_data
+
+    vlm_stats = vlm_pass.get_statistics()
+    logger.info(f"VLM analysis statistics: {vlm_stats}")
+    return openlabel_data
+
+
 def main():
     """Main function to orchestrate the multi-engine video processing workflow."""
     try:
@@ -1002,39 +1042,9 @@ def main():
 
         # VLM Scene Analysis (if enabled)
         if args.vlm:
-            logger.info("Starting VLM scene analysis...")
-            from markit.markitlib.vlm import VLMConfig, VLMProvider, SamplingStrategy, VLMAnalysisPass
-
-            vlm_config = VLMConfig(
-                enabled=True,
-                provider=VLMProvider.VLLM,
-                model_name=args.vlm_model,
-                base_url=args.vlm_url,
-                api_key=args.vlm_api_key,
-                timeout=args.vlm_timeout,
-                sampling_strategy=SamplingStrategy(args.vlm_sampling),
-                sample_interval=args.vlm_interval,
-                max_samples=args.vlm_max_frames,
-                max_resolution=args.vlm_max_resolution,
-                request_delay=args.vlm_delay,
-                prompts_file=args.vlm_prompts,
-                rationale_enabled=args.vlm_rationale,
+            openlabel_handler.openlabel_data = run_vlm_analysis(
+                args, config, video_processor, openlabel_handler.openlabel_data
             )
-
-            vlm_pass = VLMAnalysisPass(vlm_config)
-            vlm_pass.set_video_path(config.video_path)
-            vlm_pass.set_video_properties(
-                video_processor.frame_width,
-                video_processor.frame_height,
-                video_processor.fps
-            )
-
-            openlabel_handler.openlabel_data = vlm_pass.process(
-                openlabel_handler.openlabel_data
-            )
-
-            vlm_stats = vlm_pass.get_statistics()
-            logger.info(f"VLM analysis statistics: {vlm_stats}")
 
         # Render output video from postprocessed data (if requested)
         if config.output_video_path:

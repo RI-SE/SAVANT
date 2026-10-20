@@ -1,7 +1,11 @@
 """Class representing and managing the complete state of an annotation project."""
 
 import json
+import os
+import shutil
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Literal, Tuple
 
 from edit.models.OpenLabel import OpenLabel
@@ -116,18 +120,19 @@ class ProjectState:
             ) from e
 
     def save_openlabel_config(self) -> None:
-        """Save the adjusted OpenLabel configuration to a JSON file.
-
-        Args:
-            adjusted_config: The OpenLabel instance containing the adjusted configuration
-        """
-        # Save the configuration to a JSON file
-        with open(self.open_label_path, "w") as f:
-            json.dump(
-                {"openlabel": self.annotation_config.model_dump(mode="json")},
-                f,
-                indent=2,
-            )
+        """Save the OpenLabel configuration; the file is replaced only after a complete write."""
+        payload = {"openlabel": self.annotation_config.model_dump(mode="json")}
+        target = Path(self.open_label_path)
+        fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(payload, f, indent=2)
+            if target.exists():
+                shutil.copymode(target, tmp_name)
+            os.replace(tmp_name, target)
+        except BaseException:
+            Path(tmp_name).unlink(missing_ok=True)
+            raise
 
     def get_tag_categories(self) -> dict[str, dict[str, list[int]]]:
         """Collect object metadata tags and action tags mapped to their frames."""

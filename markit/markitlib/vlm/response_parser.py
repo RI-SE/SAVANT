@@ -26,6 +26,96 @@ VLM_ANNOTATOR = "markit_vlm"
 # Confidence used for context fields lacking a per-field confidence
 DEFAULT_FIELD_CONFIDENCE = 0.5
 
+RESPONSE_CATEGORIES = ("weather", "road", "traffic", "junction", "structures")
+# Boolean schema fields without a FieldSpec (not mapped to tags)
+_UNMAPPED_BOOL_FIELDS = (("junction", "present"),)
+_INVALID = object()
+
+
+def _coerce_bool(value: Any) -> Any:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip().lower() in ("true", "false"):
+        return value.strip().lower() == "true"
+    return _INVALID
+
+
+def _coerce_number(value: Any) -> Any:
+    if isinstance(value, bool):
+        return _INVALID
+    if isinstance(value, (int, float)):
+        return value
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return _INVALID
+    return int(number) if number.is_integer() else number
+
+
+def _coerce_choice(value: Any, choices: tuple) -> Any:
+    if isinstance(value, str) and value.strip().lower() in choices:
+        return value.strip().lower()
+    return _INVALID
+
+
+def _coerce_confidence(value: Any) -> Any:
+    number = _coerce_number(value)
+    return float(number) if number is not _INVALID and 0.0 <= number <= 1.0 else _INVALID
+
+
+def _coerce_field(spec, value: Any) -> Any:
+    """Return value coerced to the spec's type/vocabulary, or _INVALID."""
+    if spec.is_boolean:
+        return _coerce_bool(value)
+    if spec.is_numeric:
+        return _coerce_number(value)
+    return _coerce_choice(value, spec.choices)
+
+
+def _sanitize_category(category: str, data: Dict[str, Any]) -> None:
+    """Coerce or drop (with a warning) values in one category dict, in place."""
+    coercers = {
+        spec.vlm_key: (lambda v, s=spec: _coerce_field(s, v))
+        for spec in FIELD_SPECS.values() if spec.category == category
+    }
+    coercers.update({key: _coerce_bool for cat, key in _UNMAPPED_BOOL_FIELDS if cat == category})
+    for key in list(data):
+        value = data[key]
+        if value is None:
+            continue
+        if key.endswith("_confidence"):
+            coerced = _coerce_confidence(value)
+        elif key.endswith("_rationale"):
+            coerced = value if isinstance(value, str) else _INVALID
+        elif key in coercers:
+            coerced = coercers[key](value)
+        else:
+            continue
+        if coerced is _INVALID:
+            logger.warning(f"VLM response: dropping invalid {category}.{key}={value!r}")
+            del data[key]
+        else:
+            data[key] = coerced
+
+
+def sanitize_response(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Coerce VLM output to the expected types in place; drop values that can't be."""
+    for category in RESPONSE_CATEGORIES:
+        if category not in data:
+            continue
+        if isinstance(data[category], dict):
+            _sanitize_category(category, data[category])
+        else:
+            logger.warning(f"VLM response: dropping non-object {category}={data[category]!r}")
+            del data[category]
+    if "confidence" in data and _coerce_confidence(data["confidence"]) is _INVALID:
+        del data["confidence"]
+    elif "confidence" in data:
+        data["confidence"] = _coerce_confidence(data["confidence"])
+    if "notes" in data and not isinstance(data["notes"], str):
+        del data["notes"]
+    return data
+
 
 class VLMResponseParser:
     """Parse VLM text responses into structured data."""
@@ -75,12 +165,12 @@ class VLMResponseParser:
             Parsed analysis dict or None if parsing fails
         """
         data = VLMResponseParser.extract_json(response)
-        if not data:
+        if not isinstance(data, dict) or not data:
             return None
+        sanitize_response(data)
 
         # Validate expected structure (at least some keys should be present)
-        expected_keys = ["weather", "road", "traffic", "junction", "structures"]
-        found_keys = [key for key in expected_keys if key in data]
+        found_keys = [key for key in RESPONSE_CATEGORIES if key in data]
 
         if len(found_keys) < 2:
             logger.warning(

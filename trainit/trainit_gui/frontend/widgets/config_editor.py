@@ -720,9 +720,8 @@ class ConfigEditor(QWidget):
         if not self.app_state.current_config:
             return
 
-        # Build updated config
-        config = TrainingConfig(
-            name=self.app_state.current_config.name,
+        # Start from the current config so fields not edited here (e.g. split settings) survive
+        edited = dict(
             description=self.description_edit.toPlainText(),
             selected_datasets=list(self.app_state.selected_datasets),
             model=self._get_value("model"),
@@ -758,6 +757,7 @@ class ConfigEditor(QWidget):
             mosaic=self._get_optional_value("mosaic"),
             mixup=self._get_optional_value("mixup"),
         )
+        config = TrainingConfig(**{**self.app_state.current_config.model_dump(), **edited})
 
         self.config_controller.update_config(config)
         self.app_state.config_dirty = False

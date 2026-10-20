@@ -225,6 +225,48 @@ class TestParseComprehensiveResponse:
         result = VLMResponseParser.parse_comprehensive_response("not json")
         assert result is None
 
+    def test_parse_returns_none_for_non_object(self):
+        assert VLMResponseParser.parse_comprehensive_response('["weather", "road"]') is None
+
+    def test_malformed_values_are_coerced_or_dropped(self):
+        malformed = {
+            "weather": "sunny",
+            "road": {
+                "surface_condition": "Wet",
+                "surface_condition_confidence": "0.8",
+                "lane_count": "3",
+                "surface_type": "gravel",
+                "divided": "false",
+                "divided_confidence": 7,
+            },
+            "traffic": {"special_vehicles_present": "false", "pedestrians_present": "maybe"},
+            "junction": {"present": "true"},
+            "confidence": "high",
+        }
+        result = VLMResponseParser.parse_comprehensive_response(json.dumps(malformed))
+        assert "weather" not in result
+        assert "confidence" not in result
+        assert result["road"] == {
+            "surface_condition": "wet",
+            "surface_condition_confidence": 0.8,
+            "lane_count": 3,
+            "divided": False,
+        }
+        assert result["traffic"] == {"special_vehicles_present": False}
+        assert result["junction"] == {"present": True}
+
+    def test_malformed_response_produces_tags_without_crash(self):
+        malformed = {
+            "road": {"surface_condition": "wet", "surface_condition_confidence": "0.8"},
+            "traffic": {"special_vehicles_present": "false"},
+            "structures": 5,
+        }
+        parsed = VLMResponseParser.parse_comprehensive_response(json.dumps(malformed))
+        results = [dict(parsed, _frame_idx=0), dict(parsed, _frame_idx=30)]
+        types = {tag["type"] for tag in _to_tags(results, frames_analyzed=2).values()}
+        assert "SurfaceConditionWet" in types
+        assert "TrafficSpecialVehicle" not in types
+
 
 # --- Context Creation Tests ---
 

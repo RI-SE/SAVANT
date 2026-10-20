@@ -100,12 +100,7 @@ class VLMAnalysisPass(PostprocessingPass):
         )
 
         # Select frames to analyze
-        sampler = create_sampler(
-            self.config.sampling_strategy,
-            interval=self.config.sample_interval
-            if self.config.sampling_strategy == SamplingStrategy.UNIFORM
-            else 30,
-        )
+        sampler = self._create_sampler()
 
         frame_indices = sampler.select_frames(
             self.video_path, openlabel_data, self.config.max_samples
@@ -145,19 +140,10 @@ class VLMAnalysisPass(PostprocessingPass):
                 }
             ]
 
-        # Convert to OpenLABEL contexts
+        # Build contexts and tags before inserting either, so a parse error adds nothing
         contexts = VLMResponseParser.to_openlabel_contexts(
             analysis_results, frame_intervals, ontology_uid
         )
-
-        # Add contexts to OpenLABEL
-        if "contexts" not in openlabel_data["openlabel"]:
-            openlabel_data["openlabel"]["contexts"] = {}
-
-        openlabel_data["openlabel"]["contexts"].update(contexts)
-        self.contexts_added = len(contexts)
-
-        # Convert to OpenLABEL tags
         tags = VLMResponseParser.to_openlabel_tags(
             analysis_results,
             model_name=self.config.model_name,
@@ -165,11 +151,9 @@ class VLMAnalysisPass(PostprocessingPass):
             ontology_uid=ontology_uid,
         )
 
-        # Add tags to OpenLABEL
-        if "tags" not in openlabel_data["openlabel"]:
-            openlabel_data["openlabel"]["tags"] = {}
-
-        openlabel_data["openlabel"]["tags"].update(tags)
+        openlabel_data["openlabel"].setdefault("contexts", {}).update(contexts)
+        self.contexts_added = len(contexts)
+        openlabel_data["openlabel"].setdefault("tags", {}).update(tags)
         self.tags_added = len(tags)
 
         logger.info(
@@ -269,6 +253,15 @@ class VLMAnalysisPass(PostprocessingPass):
 
         cap.release()
         return analysis_results
+
+    def _create_sampler(self):
+        """Create the configured sampler; only uniform sampling takes an interval."""
+        kwargs = (
+            {"interval": self.config.sample_interval}
+            if self.config.sampling_strategy == SamplingStrategy.UNIFORM
+            else {}
+        )
+        return create_sampler(self.config.sampling_strategy, **kwargs)
 
     def _register_scenario_ontology(self, openlabel_data: Dict[str, Any]) -> str:
         """Ensure the SAVANT scenario ontology is listed in ontologies; return its uid."""

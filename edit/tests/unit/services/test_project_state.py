@@ -135,3 +135,27 @@ class TestProjectState:
             entry["tag_name"] == "lanechange" and entry["category"] == "frame_tag"
             for entry in details[7]
         )
+
+
+def test_failed_save_keeps_original_file(tmp_path, monkeypatch):
+    import src.edit.services.project_state as project_state_module
+
+    source = Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json"
+    target = tmp_path / source.name
+    shutil.copy2(source, target)
+    original = target.read_text()
+    project_state = ProjectState()
+    project_state.load_openlabel_config(str(target))
+
+    def failing_dump(obj, f, **kwargs):
+        f.write("{partial")
+        raise RuntimeError("serialization failed")
+
+    monkeypatch.setattr(project_state_module.json, "dump", failing_dump)
+    try:
+        project_state.save_openlabel_config()
+    except RuntimeError:
+        pass
+
+    assert target.read_text() == original
+    assert [p.name for p in tmp_path.iterdir()] == [target.name]

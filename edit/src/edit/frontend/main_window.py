@@ -633,6 +633,11 @@ class MainWindow(QMainWindow):
     def redo(self):
         self.redo_last_command()
 
+    def reset_undo_history(self):
+        """Drop undo/redo history; commands from a previous project must not touch a new one."""
+        self.undo_manager.clear()
+        self._refresh_undo_actions()
+
     def _refresh_undo_actions(self):
         self.menu.undo_action.setEnabled(self.undo_manager.can_undo())
         self.menu.redo_action.setEnabled(self.undo_manager.can_redo())

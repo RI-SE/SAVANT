@@ -1,5 +1,7 @@
 import json
+import os
 import shutil
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -111,24 +113,30 @@ def _prefer_openlabel_file(json_files: list[Path]) -> Path:
     return preferred[0] if preferred else json_files[0]
 
 
-def import_video_file(destination_dir: Path, source_path: str | Path) -> Path:
+def import_video_file(
+    destination_dir: Path, source_path: str | Path, replace: Iterable[Path] = ()
+) -> Path:
     """Copy a user-provided video file into the project directory."""
 
     return _copy_file_into_project(
         destination_dir=destination_dir,
         source_path=source_path,
+        replace=replace,
         allowed_extensions=VIDEO_EXTENSIONS,
         error_type=InvalidVideoFileError,
         error_message="Unsupported video format selected.",
     )
 
 
-def import_openlabel_file(destination_dir: Path, source_path: str | Path) -> Path:
+def import_openlabel_file(
+    destination_dir: Path, source_path: str | Path, replace: Iterable[Path] = ()
+) -> Path:
     """Copy a user-provided OpenLabel file into the project directory."""
 
     return _copy_file_into_project(
         destination_dir=destination_dir,
         source_path=source_path,
+        replace=replace,
         allowed_extensions=OPENLABEL_EXTENSIONS,
         error_type=InvalidConfigFileError,
         error_message="OpenLabel configs must be JSON files.",
@@ -140,8 +148,9 @@ def create_openlabel_template(
     *,
     video_filename: str | None = None,
     template_name: str | None = None,
+    replace: Iterable[Path] = (),
 ) -> Path:
-    """Create a minimal OpenLabel template file in the project directory."""
+    """Create a minimal OpenLabel template file, then remove the files in replace."""
 
     folder = Path(destination_dir).expanduser()
     if not folder.is_dir():
@@ -149,7 +158,8 @@ def create_openlabel_template(
 
     default_name = template_name or f"{folder.name}_openlabel.json"
     destination_path = folder / default_name
-    if destination_path.exists():
+    replace = _resolved(replace)
+    if destination_path.exists() and _resolve(destination_path) not in replace:
         raise TemplateCreationError(
             f"The file '{destination_path.name}' already exists in this project."
         )
@@ -169,10 +179,13 @@ def create_openlabel_template(
         }
     }
 
+    staging = _staging_path(destination_path)
     try:
-        with destination_path.open("w", encoding="utf-8") as output_file:
+        with staging.open("w", encoding="utf-8") as output_file:
             json.dump(template_payload, output_file, indent=2)
+        _commit_staged(staging, destination_path, replace)
     except OSError as exc:
+        staging.unlink(missing_ok=True)
         raise TemplateCreationError(f"Failed to create template file: {exc}") from exc
 
     return destination_path
@@ -249,11 +262,12 @@ def _copy_file_into_project(
     *,
     destination_dir: Path,
     source_path: str | Path,
+    replace: Iterable[Path],
     allowed_extensions: set[str],
     error_type: type[FrontendException],
     error_message: str,
 ) -> Path:
-    """Copy a file into the project directory after validation."""
+    """Copy a file into the project directory; files in replace are removed only after the copy succeeds."""
 
     folder = Path(destination_dir).expanduser()
     if not folder.is_dir():
@@ -267,25 +281,51 @@ def _copy_file_into_project(
         raise error_type(error_message)
 
     destination = folder / source.name
-    if destination.exists():
-        try:
-            if destination.resolve() == source.resolve():
-                # The user selected the already-present file. Nothing to do.
-                return destination
-        except OSError:
-            # Fallback to copying if resolve fails.
-            pass
-        raise FileOperationError(
-            f"{destination.name} already exists in the project directory. "
-            "Remove it before importing a replacement."
-        )
-
+    replace = _resolved(replace) - {_resolve(source)}
     try:
-        shutil.copy2(source, destination)
+        if _resolve(destination) == _resolve(source):
+            # The user selected the already-present file: only drop the others.
+            _commit_staged(None, destination, replace)
+            return destination
+        if destination.exists() and _resolve(destination) not in replace:
+            raise FileOperationError(
+                f"{destination.name} already exists in the project directory. "
+                "Remove it before importing a replacement."
+            )
+        staging = _staging_path(destination)
+        try:
+            shutil.copy2(source, staging)
+            _commit_staged(staging, destination, replace)
+        finally:
+            staging.unlink(missing_ok=True)
     except OSError as exc:
-        raise FileOperationError(f"Failed to copy '{source.name}': {exc}") from exc
+        raise FileOperationError(f"Failed to import '{source.name}': {exc}") from exc
 
     return destination
+
+
+def _resolve(path: Path) -> Path:
+    try:
+        return path.expanduser().resolve()
+    except OSError:
+        return path.expanduser().absolute()
+
+
+def _resolved(paths: Iterable[Path]) -> set[Path]:
+    return {_resolve(Path(path)) for path in paths}
+
+
+def _staging_path(destination: Path) -> Path:
+    return destination.with_name(f".{destination.name}.importing")
+
+
+def _commit_staged(staging: Path | None, destination: Path, replace: set[Path]) -> None:
+    """Remove replaced files only once the new file is fully written, then move it in place."""
+    for old_path in replace:
+        if old_path != _resolve(destination):
+            old_path.unlink(missing_ok=True)
+    if staging is not None:
+        os.replace(staging, destination)
 
 
 def wire(main_window):
@@ -318,6 +358,8 @@ def on_open_video(main_window, path: str):
 
 def open_openlabel_config(main_window, path: str):
     main_window.project_state_controller.load_openlabel_config(path)
+    if hasattr(main_window, "reset_undo_history"):
+        main_window.reset_undo_history()
     try:
         set_active_project_dir(Path(path).expanduser().resolve().parent)
     except OSError:

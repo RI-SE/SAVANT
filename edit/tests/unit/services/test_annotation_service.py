@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, call
 
 import pytest
 
-from edit.models.OpenLabel import OpenLabel
+from edit.models.OpenLabel import AnnotatorData, ConfidenceData, OpenLabel
 from edit.services.annotation_service import AnnotationService
 from edit.services.exceptions import ObjectLinkConflictError, ObjectNotFoundError
 from edit.services.project_state import ProjectState
@@ -734,3 +734,34 @@ class TestUpdateFrameTag:
         mocker.patch.object(service_with_tag, "get_frame_tags", return_value=["lanechange"])
         result = service_with_tag.update_frame_tag("lanechange", 0, 5, "lanechange", 0, 5)
         assert result is False
+
+
+class TestMarkConfidenceResolved:
+    @staticmethod
+    def _resolve(vec, annotator="alice"):
+        frame_obj = SimpleNamespace(object_data=SimpleNamespace(vec=vec))
+        model = SimpleNamespace(
+            frames={"0": SimpleNamespace(objects={"1": frame_obj})},
+            update_annotator=lambda *args: OpenLabel.update_annotator(None, *args),
+        )
+        service = AnnotationService(project_state=SimpleNamespace(annotation_config=model))
+        service.mark_confidence_resolved(0, "1", annotator)
+        return {entry.name: list(entry.val) for entry in frame_obj.object_data.vec}, len(vec)
+
+    def test_without_provenance_creates_entries(self):
+        assert self._resolve([]) == ({"annotator": ["alice"], "confidence": [1.0]}, 2)
+
+    def test_new_annotator_is_stacked_on_existing_entries(self):
+        vec = [AnnotatorData(val=deque(["markit"])), ConfidenceData(val=deque([0.3]))]
+        assert self._resolve(vec) == (
+            {"annotator": ["alice", "markit"], "confidence": [1.0, 0.3]}, 2
+        )
+
+    def test_same_annotator_overwrites_confidence(self):
+        vec = [AnnotatorData(val=deque(["alice"])), ConfidenceData(val=deque([0.3]))]
+        assert self._resolve(vec) == ({"annotator": ["alice"], "confidence": [1.0]}, 2)
+
+    def test_annotator_prefix_is_not_treated_as_same(self):
+        vec = [AnnotatorData(val=deque(["bobby"])), ConfidenceData(val=deque([0.3]))]
+        result, _ = self._resolve(vec, annotator="bob")
+        assert result["annotator"] == ["bob", "bobby"]

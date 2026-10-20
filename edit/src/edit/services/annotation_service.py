@@ -566,22 +566,26 @@ class AnnotationService:
             vec_entries = []
             frame_obj.object_data.vec = vec_entries
 
-        confidence_entry = None
-        for entry in vec_entries:
-            if getattr(entry, "name", None) == "confidence":
-                confidence_entry = entry
-                break
+        def find_entry(name):
+            return next((e for e in vec_entries if getattr(e, "name", None) == name), None)
 
+        confidence_entry = find_entry("confidence")
         if confidence_entry is None:
             confidence_entry = ConfidenceData(val=deque())
             vec_entries.append(confidence_entry)
 
-        annotator_entry = AnnotatorData(val=deque())
-        vec_entries.insert(0, annotator_entry)
+        annotator_entry = find_entry("annotator")
+        if annotator_entry is None:
+            annotator_entry = AnnotatorData(val=deque())
+            vec_entries.insert(0, annotator_entry)
 
-        openlabel_model.update_annotator(
-            annotator, annotator_entry, 1.0, confidence_entry
-        )
+        if annotator_entry.val and annotator_entry.val[0] == annotator and confidence_entry.val:
+            # Same annotator already latest: overwrite their confidence instead of stacking
+            confidence_entry.val[0] = 1.0
+        else:
+            openlabel_model.update_annotator(
+                annotator, annotator_entry, 1.0, confidence_entry
+            )
 
     def _add_new_object(self, obj_type: str, obj_id: str) -> None:
         self.project_state.annotation_config.add_new_object(

@@ -72,6 +72,9 @@ class ConfigGenerator:
         # Validate class compatibility
         self._validate_class_compatibility(datasets)
 
+        # Drop links/files from earlier generations so a changed split can't leak
+        self._clear_generated_dirs(output_path, datasets)
+
         # Create output directories
         images_train_dir = output_path / "images" / "train"
         images_val_dir = output_path / "images" / "val"
@@ -345,9 +348,26 @@ class ConfigGenerator:
 
         return None
 
+    @staticmethod
+    def _clear_generated_dirs(output_path: Path, datasets: list[DatasetInfo]) -> None:
+        """Remove the generated images/ and labels/ trees; refuse if they could hold source data."""
+        out = output_path.resolve()
+        for ds in datasets:
+            src = Path(ds.path).resolve()
+            if out == src or out in src.parents or src in out.parents:
+                raise ValueError(
+                    f"Output folder {out} overlaps source dataset {src}; choose a separate folder."
+                )
+        for sub in ("images", "labels"):
+            target = output_path / sub
+            if target.is_symlink():
+                target.unlink()
+            elif target.exists():
+                shutil.rmtree(target)
+
     def _create_link_or_copy(self, src: Path, dst: Path, copy: bool) -> None:
         """Create symlink or copy file."""
-        if dst.exists():
+        if dst.is_symlink() or dst.exists():
             dst.unlink()
 
         if copy:
