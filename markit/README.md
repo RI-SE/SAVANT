@@ -365,7 +365,7 @@ Markit exports detections in OpenLabel (subset) JSON format, including informati
     },
     "ontologies": {
       "0": "https://ri-se.github.io/SAVANT/ontology/savant#",
-      "1": "https://github.com/RI-SE/SAVANT/tree/main/ontology/savant-scenario#"
+      "1": "https://ri-se.github.io/SAVANT/ontology/savant_scenario#"
     },
     "streams": {
       "drone_camera": {

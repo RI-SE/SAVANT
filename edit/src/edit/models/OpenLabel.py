@@ -545,6 +545,24 @@ class OpenLabel(BaseModel):
             current_annotator_data.val.appendleft(annotater)
             current_confidence_data.val.appendleft(confidence)
 
+    def get_or_add_ontology_uid(self, namespace: str) -> str:
+        """Return the ontologies key matching namespace, registering it under the next free key if absent."""
+
+        def _normalize(uri: str) -> str:
+            # Treat "...savant#", "...savant/" and "...savant" as the same ontology
+            return uri.strip().rstrip("#/")
+
+        target = _normalize(namespace)
+        for key, entry in self.ontologies.items():
+            uri = entry.uri if isinstance(entry, OntologyDetails) else entry
+            if _normalize(uri) == target:
+                return key
+
+        numeric_keys = [int(key) for key in self.ontologies if key.isdigit()]
+        new_key = str(max(numeric_keys) + 1) if numeric_keys else "0"
+        self.ontologies[new_key] = namespace
+        return new_key
+
     def add_object_relationship(
         self,
         relationship_type: str,

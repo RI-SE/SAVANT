@@ -360,6 +360,11 @@ class AnnotationController:
         )
 
     @error_handler
+    def get_relation_ontology_uid(self) -> str:
+        """Return the ontologies key of the active ontology namespace."""
+        return self.annotation_service.get_relation_ontology_uid()
+
+    @error_handler
     def add_object_relationship(
         self,
         relationship_type: str,

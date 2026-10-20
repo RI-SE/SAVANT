@@ -266,8 +266,7 @@ def _on_create_relationship(
     main_window, subject_id: str, object_id: str, relationship_type: str
 ):
     """Handle the creation of a new object relationship."""
-    # Temporarily hard coded until we implement ontology uid management
-    ontology_uid = "1.3.0"
+    ontology_uid = main_window.annotation_controller.get_relation_ontology_uid()
 
     command = CreateObjectRelationshipCommand(
         relationship_type=relationship_type,

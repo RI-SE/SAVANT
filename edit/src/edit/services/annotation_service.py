@@ -8,7 +8,10 @@ from edit.frontend.utils.ontology_utils import (
     get_action_labels,
     get_bbox_type_labels,
 )
-from edit.frontend.utils.settings_store import get_ontology_path
+from edit.frontend.utils.settings_store import (
+    get_ontology_namespace,
+    get_ontology_path,
+)
 from edit.models.OpenLabel import (
     ActionMetadata,
     AnnotatorData,
@@ -969,6 +972,11 @@ class AnnotationService:
             )
 
         return frames
+
+    def get_relation_ontology_uid(self) -> str:
+        """Return the ontologies key of the active ontology namespace."""
+        openlabel = self.project_state.annotation_config
+        return openlabel.get_or_add_ontology_uid(get_ontology_namespace())
 
     def add_object_relationship(
         self,
