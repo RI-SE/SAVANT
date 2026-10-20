@@ -20,6 +20,9 @@ jobs:
           python-version: '3.12'
           enable-cache: true
 
+      - name: Install Qt runtime libraries (headless GUI tests)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
+
       - name: Sync dependencies
         working-directory: ./edit/
         run: uv sync --dev --group edit
@@ -30,4 +33,6 @@ jobs:
           uv tool run flake8 .
 
       - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: uv run test-edit
