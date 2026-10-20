@@ -5,21 +5,11 @@ SAVANT is installed as a package or running from the source repository.
 
 Search order:
 - Ontology/Schema: CLI arg → Package data → Relative path
-- Weights: CLI arg → Relative path → Cache → Auto-download from GitHub
+- Weights: CLI arg → Relative path (never downloaded: .pt files are pickles that can
+  run code, and a moving download source makes runs irreproducible)
 """
 
-import urllib.request
 from pathlib import Path
-
-
-CACHE_DIR = Path.home() / ".cache" / "savant"
-GITHUB_RAW_BASE = "https://raw.githubusercontent.com/RI-SE/SAVANT/main"
-
-
-def get_cache_dir() -> Path:
-    """Get or create cache directory for downloaded files."""
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    return CACHE_DIR
 
 
 def get_ontology_path() -> str:
@@ -85,36 +75,15 @@ def get_schema_path() -> str:
 
 
 def get_weights_path(filename: str = "markit_yolo.pt") -> str:
-    """Get YOLO weights, downloading from GitHub if needed.
-
-    Args:
-        filename: Weights filename (default: markit_yolo.pt)
-
-    Returns:
-        Path to weights file
+    """Return the weights bundled with the source repository.
 
     Raises:
-        FileNotFoundError: If weights cannot be found or downloaded
+        FileNotFoundError: If not running from a repo checkout; pass --weights instead
     """
-    # 1. Try relative path (running from repo)
     repo_path = Path(__file__).parent.parent / "markit" / filename
     if repo_path.exists():
         return str(repo_path)
-
-    # 2. Try cache
-    cache_path = get_cache_dir() / filename
-    if cache_path.exists():
-        return str(cache_path)
-
-    # 3. Download from GitHub
-    url = f"{GITHUB_RAW_BASE}/markit/{filename}"
-    print(f"Downloading {filename} from GitHub...")
-    try:
-        urllib.request.urlretrieve(url, cache_path)
-        print(f"Downloaded to {cache_path}")
-        return str(cache_path)
-    except Exception as e:
-        raise FileNotFoundError(
-            f"Could not find or download {filename}. "
-            f"Download manually from {url} or specify --weights path."
-        ) from e
+    raise FileNotFoundError(
+        f"No YOLO weights found (looked for {repo_path}). "
+        "Pass the weights file explicitly with --weights PATH."
+    )

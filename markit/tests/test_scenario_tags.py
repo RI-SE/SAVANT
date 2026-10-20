@@ -199,3 +199,23 @@ class TestGetOrAddOntologyUid:
         ontologies = {"0": "a", "3": "b"}
         assert get_or_add_ontology_uid(ontologies, SCENARIO_ONTOLOGY_URI) == "4"
         assert ontologies["4"] == SCENARIO_ONTOLOGY_URI
+
+
+class TestOntologyCache:
+    def test_reparses_when_file_changes_and_isolates_callers(self, tmp_path):
+        import os
+
+        from savant_common.ontology import read_ontology_classes
+
+        ttl = tmp_path / "o.ttl"
+        body = SAVANT_TTL.read_text()
+        ttl.write_text(body)
+        first = read_ontology_classes(ttl)
+        first[0]["label"] = "mutated"
+        assert read_ontology_classes(ttl)[0]["label"] != "mutated"
+
+        ttl.write_text(body.replace('rdfs:label "Car"', 'rdfs:label "Automobile"'))
+        stat = ttl.stat()
+        os.utime(ttl, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+        labels = {c["label"] for c in read_ontology_classes(ttl)}
+        assert "Automobile" in labels and "Car" not in labels

@@ -22,3 +22,17 @@ def test_explicit_cli_value_wins_even_if_equal_to_default():
 def test_auto_device_keeps_detected_default():
     default_device = build_parser().parse_args([]).device
     assert _merge([], {"device": "auto"}).device == default_device
+
+
+def test_local_settings_disable_analytics_and_integrations(tmp_path, monkeypatch):
+    import yaml
+
+    from trainit.train_yolo_obb import setup_ultralytics_settings
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("YOLO_CONFIG_DIR", str(tmp_path))  # restored after the test
+
+    settings = yaml.safe_load(setup_ultralytics_settings().read_text())
+
+    flags = ["sync", "clearml", "comet", "dvc", "hub", "mlflow", "neptune", "raytune", "tensorboard", "wandb"]
+    assert all(settings[flag] is False for flag in flags)

@@ -2,19 +2,24 @@
 
 import hashlib
 import json
+import logging
 import os
 import shutil
 import tempfile
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Literal, Tuple
 
 from edit.models.OpenLabel import OpenLabel
+from savant_common.openlabel import contiguous_intervals
 from edit.utils import read_json
 from pydantic import ValidationError
 
 from .exceptions import OpenLabelFileNotValid, OverlayIndexError
 from .types import VideoMetadata
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -124,7 +129,7 @@ class ProjectState:
 
     def save_openlabel_config(self) -> None:
         """Save the OpenLabel configuration; the file is replaced only after a complete write."""
-        payload = {"openlabel": self.annotation_config.model_dump(mode="json")}
+        payload = {"openlabel": self._export_config()}
         target = Path(self.open_label_path)
         fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".tmp")
         try:
@@ -137,6 +142,44 @@ class ProjectState:
             Path(tmp_name).unlink(missing_ok=True)
             raise
         self._saved_digest = self._config_digest()
+
+    def _export_config(self) -> dict:
+        """Serialize the config with object frame_intervals rebuilt from the boxes.
+
+        Edits change boxes but never the intervals markit wrote, so they are recomputed.
+        Objects left without any box are dropped together with relations that reference
+        them; downstream tools would silently ignore them anyway. Only the written copy
+        changes: the in-memory model keeps them, so undo can still restore their boxes.
+        """
+        data = self.annotation_config.model_dump(mode="json")
+        frames_by_object = defaultdict(list)
+        for frame_key, frame in (data.get("frames") or {}).items():
+            if not str(frame_key).isdigit():
+                continue
+            for obj_id in (frame.get("objects") or {}):
+                frames_by_object[obj_id].append(int(frame_key))
+
+        objects = data.get("objects") or {}
+        orphans = {obj_id for obj_id in objects if obj_id not in frames_by_object}
+        for obj_id in orphans:
+            del objects[obj_id]
+        for obj_id, metadata in objects.items():
+            metadata["frame_intervals"] = contiguous_intervals(frames_by_object[obj_id])
+
+        relations = data.get("relations") or {}
+        dangling = [
+            rel_id for rel_id, rel in relations.items()
+            if any(item["uid"] in orphans for item in rel["rdf_subjects"] + rel["rdf_objects"])
+        ]
+        for rel_id in dangling:
+            del relations[rel_id]
+
+        if orphans:
+            logger.warning(
+                f"Not saving {len(orphans)} object(s) without any bounding box: "
+                f"{sorted(orphans)}; {len(dangling)} relation(s) referencing them dropped"
+            )
+        return data
 
     def _config_digest(self) -> str | None:
         if self.annotation_config is None:

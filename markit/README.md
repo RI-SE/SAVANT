@@ -266,7 +266,7 @@ With `--vlm-rationale`, the VLM provides brief explanations for weather classifi
 | `--vlm` | false | Enable VLM scene analysis |
 | `--vlm-model` | `llama-3.2-11b-vision-instruct` | Model name on the vLLM server |
 | `--vlm-url` | `http://localhost:8000` | vLLM API base URL |
-| `--vlm-api-key` | - | API key for authentication (if required) |
+| `--vlm-api-key` | - | API key for authentication (if required). Prefer the `SAVANT_VLM_API_KEY` environment variable, which keeps the key out of `ps` and shell history |
 | `--vlm-sampling` | `uniform` | Sampling strategy: `uniform`, `scene_change`, `keyframes` |
 | `--vlm-interval` | `30` | Frame interval for uniform sampling |
 | `--vlm-max-frames` | `20` | Maximum number of frames to analyze |
@@ -651,7 +651,7 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--vlm` | false | Enable VLM scene analysis |
 | `--vlm-model` | `llama-3.2-11b-vision-instruct` | Model name on the vLLM server |
 | `--vlm-url` | `http://localhost:8000` | vLLM API base URL |
-| `--vlm-api-key` | - | API key for authentication |
+| `--vlm-api-key` | - | API key for authentication (or set `SAVANT_VLM_API_KEY`) |
 | `--vlm-sampling` | `uniform` | Frame sampling strategy |
 | `--vlm-interval` | `30` | Frame interval for uniform sampling |
 | `--vlm-max-frames` | `20` | Maximum frames to analyze |

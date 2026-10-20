@@ -152,18 +152,20 @@ def setup_ultralytics_settings(project_dir: str = "runs/obb") -> Path:
         "weights_dir": str(weights_dir),
         "runs_dir": str(runs_dir),
         "uuid": settings_uuid,
-        "sync": True,
+        # Nothing leaves the machine: no Ultralytics analytics and no experiment
+        # tracker integrations (they would activate if such a package got installed)
+        "sync": False,
         "api_key": "",
         "openai_api_key": "",
-        "clearml": True,
-        "comet": True,
-        "dvc": True,
-        "hub": True,
-        "mlflow": True,
-        "neptune": True,
-        "raytune": True,
-        "tensorboard": True,
-        "wandb": True,
+        "clearml": False,
+        "comet": False,
+        "dvc": False,
+        "hub": False,
+        "mlflow": False,
+        "neptune": False,
+        "raytune": False,
+        "tensorboard": False,
+        "wandb": False,
     }
 
     # Write settings to local file

@@ -2,21 +2,12 @@
 FrameIntervalPass - Frame interval calculation postprocessing pass.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 from collections import defaultdict
 
+from savant_common.openlabel import contiguous_intervals
+
 from ..base import PostprocessingPass
-
-
-def contiguous_intervals(frame_indices) -> List[Dict[str, int]]:
-    """One interval per run of consecutive frames, so absences are not reported as presence."""
-    intervals: List[Dict[str, int]] = []
-    for frame in sorted(set(frame_indices)):
-        if intervals and frame == intervals[-1]["frame_end"] + 1:
-            intervals[-1]["frame_end"] = frame
-        else:
-            intervals.append({"frame_start": frame, "frame_end": frame})
-    return intervals
 
 
 class FrameIntervalPass(PostprocessingPass):

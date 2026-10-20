@@ -1,4 +1,6 @@
 import re
+from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
 from rdflib import Graph, Namespace, RDF, RDFS
@@ -10,6 +12,9 @@ def read_ontology_classes(ttl_path):
     """
     Reads a Turtle ontology file and returns a list of classes with their labels and UIDs.
 
+    Parsed results are cached per file (invalidated when the file changes), so the
+    lookup helpers below are cheap to call repeatedly; callers get their own copy.
+
     Returns a list of dictionaries with:
     - uri: Full URI of the class
     - class_name: Short class name (extracted from URI)
@@ -20,6 +25,14 @@ def read_ontology_classes(ttl_path):
     - top_level_class: Root class in the inheritance chain URI (or None)
     - top_level_class_name: Root class name (or None)
     """
+    path = Path(ttl_path).resolve()
+    # Values are str/int/None, so copying each dict isolates callers
+    return [dict(c) for c in _parse_ontology_classes(str(path), path.stat().st_mtime_ns)]
+
+
+@lru_cache(maxsize=8)
+def _parse_ontology_classes(ttl_path: str, _mtime_ns: int) -> list:
+    """Parse the ontology; _mtime_ns is only part of the cache key."""
     g = Graph()
     g.parse(ttl_path, format="turtle")
 

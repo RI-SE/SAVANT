@@ -81,7 +81,7 @@ VLM Scene Analysis:
     --vlm                Enable VLM-based scene analysis for scenario tagging
     --vlm-model          VLM model name on the vLLM server (default: llama-3.2-11b-vision-instruct)
     --vlm-url            vLLM API base URL (default: http://localhost:8000)
-    --vlm-api-key        API key for vLLM server (if required)
+    --vlm-api-key        API key for vLLM server (if required; prefer $SAVANT_VLM_API_KEY)
     --vlm-sampling       Frame sampling strategy: uniform, scene_change, keyframes (default: uniform)
     --vlm-interval       Frame interval for uniform sampling (default: 30)
     --vlm-max-frames     Maximum frames to analyze with VLM (default: 20)
@@ -200,7 +200,7 @@ Examples:
     optional.add_argument(
         "--weights",
         default=None,
-        help="Path to YOLO weights file (.pt) (auto-downloads if not found)",
+        help="Path to YOLO weights file (.pt) (default: markit/markit_yolo.pt in a repo checkout)",
     )
     optional.add_argument(
         "--schema",
@@ -611,7 +611,8 @@ Examples:
     vlm_group.add_argument('--vlm-url', default='http://localhost:8000',
                            help='vLLM API base URL (default: http://localhost:8000)')
     vlm_group.add_argument('--vlm-api-key',
-                           help='API key for vLLM server (if required)')
+                           help='API key for vLLM server (if required). Prefer setting '
+                                '$SAVANT_VLM_API_KEY: command-line arguments are visible to other users')
     vlm_group.add_argument('--vlm-sampling', choices=['uniform', 'scene_change', 'keyframes'],
                            default='uniform',
                            help='Frame sampling strategy for VLM analysis (default: uniform)')
