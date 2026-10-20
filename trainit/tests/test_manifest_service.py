@@ -387,3 +387,13 @@ class TestVerificationResult:
 
         assert result.files_changed == []
         assert result.files_missing == []
+
+
+def test_unreadable_source_fails_manifest_generation(temp_dir: Path, sample_manifest_info):
+    service = ManifestService()
+    dest = temp_dir / "out"
+    dest.mkdir()
+    mappings = [(dest / "images" / "train" / "a.jpg", temp_dir / "missing.jpg")]
+
+    with pytest.raises(OSError, match="Failed to hash"):
+        service.generate_manifest(dest, sample_manifest_info, mappings)

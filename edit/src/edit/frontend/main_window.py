@@ -1,3 +1,4 @@
+import logging
 from typing import Sequence
 
 # main_window.py
@@ -71,6 +72,9 @@ from edit.frontend.widgets.sidebar import Sidebar
 from edit.frontend.widgets.video_display import VideoDisplay
 from edit.services.tracking_service import TrackingService
 from edit.services import inspection_service
+
+
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -442,46 +446,43 @@ class MainWindow(QMainWindow):
         ghost_detections: dict = result["ghost_detections"]
         double_detections: dict = result["double_detections"]
 
+        planned = [
+            (obj_id, "ghost_detection", frame_idx)
+            for obj_id, frames in ghost_detections.items()
+            for frame_idx in frames
+        ] + [
+            (obj_id, "double_detection", frame_idx)
+            for frame_idx, obj_ids in double_detections.items()
+            for obj_id in obj_ids
+        ]
         tags_added = 0
-        for obj_id, frames in ghost_detections.items():
-            for frame_idx in frames:
-                try:
-                    self.annotation_controller.add_object_tag(
-                        obj_id, "ghost_detection", frame_idx
-                    )
-                    tags_added += 1
-                except Exception:
-                    pass
-
-        for frame_idx, obj_ids in double_detections.items():
-            for obj_id in obj_ids:
-                try:
-                    self.annotation_controller.add_object_tag(
-                        obj_id, "double_detection", frame_idx
-                    )
-                    tags_added += 1
-                except Exception:
-                    pass
+        failed = 0
+        for obj_id, tag_name, frame_idx in planned:
+            try:
+                self.annotation_controller.add_object_tag(obj_id, tag_name, frame_idx)
+                tags_added += 1
+            except Exception as exc:
+                failed += 1
+                logger.warning(f"Could not tag object {obj_id} frame {frame_idx} as {tag_name}: {exc}")
 
         # Sync _tag_options in settings store so new tags appear in the navigator
         try:
             tag_map = self.project_state_controller.get_tag_categories() or {}
             update_tag_options(tag_map)
         except Exception:
-            pass
+            logger.warning("Could not refresh tag options after inspection", exc_info=True)
 
         # Refresh sidebar tag tree
         try:
             current_index = int(self.video_controller.current_index())
             self.sidebar._refresh_active_frame_tags(current_index)
         except Exception:
-            pass
+            logger.warning("Could not refresh sidebar tags after inspection", exc_info=True)
 
-        QMessageBox.information(
-            self,
-            "Inspection complete",
-            f"Added {tags_added} object tag(s).",
-        )
+        message = f"Added {tags_added} object tag(s)."
+        if failed:
+            message += f"\n{failed} tag(s) could not be added; see the log for details."
+        QMessageBox.information(self, "Inspection complete", message)
 
     def update_vlm_menu_state(self):
         """Enable/disable VLM Analysis menu item based on data availability."""

@@ -69,3 +69,14 @@ def test_template_replaces_existing_files(tmp_path):
 
     assert path == old and "openlabel" in path.read_text()
     assert not other.exists()
+
+
+def test_ontology_reference_outside_project_is_ignored(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    (tmp_path / "outside.ttl").write_text("")
+    (project / "inside.ttl").write_text("")
+
+    assert project_io._resolve_local_path("inside.ttl", project) == (project / "inside.ttl").resolve()
+    assert project_io._resolve_local_path("../outside.ttl", project) is None
+    assert project_io._resolve_local_path(str(tmp_path / "outside.ttl"), project) is None

@@ -14,6 +14,8 @@ from .config import VLMConfig, VLMProvider
 
 logger = logging.getLogger(__name__)
 
+MAX_LOGGED_BODY_CHARS = 500
+
 
 class VLMClient(ABC):
     """Abstract base class for VLM clients."""
@@ -110,7 +112,10 @@ class VLLMClient(VLMClient):
             timeout=self.timeout,
         )
         if response.status_code != 200:
-            logger.error(f"VLM request failed: {response.status_code} - {response.text}")
+            # Bodies can be large or echo request content; keep the log line short
+            logger.error(
+                f"VLM request failed: {response.status_code} - {response.text[:MAX_LOGGED_BODY_CHARS]}"
+            )
         response.raise_for_status()
 
         result = response.json()

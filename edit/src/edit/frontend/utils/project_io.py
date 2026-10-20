@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import shutil
 from collections.abc import Iterable
@@ -43,6 +44,9 @@ from edit.utils import read_json
 
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".mpg", ".mpeg", ".m4v"}
 OPENLABEL_EXTENSIONS = {".json"}
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -223,13 +227,19 @@ def discover_ontology_references(openlabel_path: Path) -> list[str]:
 
 
 def _resolve_local_path(reference: str, *search_dirs: Path) -> Path | None:
-    candidate = Path(reference)
-    if candidate.is_absolute() and candidate.is_file():
-        return candidate
-    for base in search_dirs:
+    """Resolve reference against search_dirs, accepting only files inside one of them.
+
+    References come from the (possibly shared) OpenLabel file, so absolute paths and
+    "../" escapes outside the project are ignored.
+    """
+    roots = [base.resolve() for base in search_dirs]
+    for base in roots:
         resolved = (base / reference).resolve()
-        if resolved.is_file():
+        if not resolved.is_file():
+            continue
+        if any(resolved.is_relative_to(root) for root in roots):
             return resolved
+        logger.warning(f"Ignoring ontology reference outside the project: {reference}")
     return None
 
 

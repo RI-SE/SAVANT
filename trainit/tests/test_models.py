@@ -426,3 +426,15 @@ def test_project_default_auto_optimizer_applies_cleanly():
     config = defaults.apply_to_config(TrainingConfig(name="c"))
 
     assert config.optimizer is None and config.epochs == 10
+
+
+@pytest.mark.parametrize("bad", ["../escape", "a/b", "a\\b", "..", ""])
+def test_config_and_dataset_names_cannot_escape_their_folder(bad):
+    from pydantic import ValidationError
+
+    from trainit.trainit_gui.models.project import TrainingConfig
+
+    with pytest.raises(ValidationError):
+        TrainingConfig(name=bad)
+    with pytest.raises(ValidationError):
+        TrainingConfig(name="ok", selected_datasets=[bad])

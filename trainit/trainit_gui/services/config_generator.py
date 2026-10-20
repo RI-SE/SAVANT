@@ -531,5 +531,8 @@ class ConfigGenerator:
 
             return result
 
-        except Exception as e:
+        except (ValueError, OSError) as e:  # bad datasets/paths: expected, shown to user
             return {"valid": False, "error": str(e)}
+        except Exception as e:
+            logger.exception("Unexpected error while previewing generation")
+            return {"valid": False, "error": f"Internal error: {e}"}

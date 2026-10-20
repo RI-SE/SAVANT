@@ -517,7 +517,8 @@ class TrackingService:
                         logger.info("Tracking cancelled by user")
                         break
                 except Exception:
-                    pass
+                    # A broken progress UI must not abort tracking, but should be visible
+                    logger.warning("Tracking progress callback failed", exc_info=True)
 
             prev_cx, prev_cy = new_cx, new_cy
             prev_theta = new_theta

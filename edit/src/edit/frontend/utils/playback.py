@@ -1,4 +1,6 @@
 # edit/frontend/utils/playback.py
+import logging
+
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QKeySequence, QShortcut
 
@@ -13,6 +15,8 @@ from edit.frontend.utils.settings_store import (
 
 from .confidence_ops import apply_bookmark_markers
 from .render import show_frame
+
+logger = logging.getLogger(__name__)
 
 
 def wire(main_window):
@@ -249,7 +253,7 @@ def _jump_to_bookmark(main_window, direction: int):
         pixmap, idx = main_window.video_controller.jump_to_frame(target)
         show_frame(main_window, pixmap, idx)
     except Exception:
-        pass
+        logger.warning(f"Could not jump to frame {target}", exc_info=True)
 
 
 def _collect_visible_issue_frames(main_window) -> list[int]:

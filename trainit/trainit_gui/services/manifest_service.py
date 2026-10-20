@@ -85,8 +85,9 @@ class ManifestService:
                     sha256=sha256,
                 )
                 manifest.files.append(entry)
-            except Exception as e:
-                logger.warning(f"Failed to hash {source_path}: {e}")
+            except OSError as e:
+                # A manifest silently missing files would wrongly claim reproducibility
+                raise OSError(f"Failed to hash {source_path}: {e}") from e
 
         return manifest
 

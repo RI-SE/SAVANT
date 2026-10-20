@@ -12,6 +12,7 @@ import numpy as np
 
 from ..config import Constants, ConflictResolutionConfig, DetectionResult, MarkitConfig
 from .engines import (
+    EngineFailureError,
     YOLOEngine,
     OpticalFlowEngine,
     ArUcoEngine,
@@ -192,6 +193,8 @@ class VideoProcessor:
             try:
                 engine_results = engine.process_frame(frame)
                 all_results.extend(engine_results)
+            except EngineFailureError:
+                raise
             except Exception as e:
                 logger.error(f"Error in {engine.__class__.__name__}: {e}")
 

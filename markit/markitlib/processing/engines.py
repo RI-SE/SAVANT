@@ -24,6 +24,38 @@ from ..config import DetectionResult, OpticalFlowParams
 
 logger = logging.getLogger(__name__)
 
+# Isolated per-frame errors are logged and skipped; this many in a row aborts the run
+MAX_CONSECUTIVE_FRAME_FAILURES = 10
+
+
+class EngineFailureError(RuntimeError):
+    """An engine kept failing; the run must stop rather than write empty results."""
+
+
+class FrameFailureGuard:
+    """Tolerate isolated per-frame engine errors, but raise once they persist.
+
+    Persistent failures (CUDA OOM, broken model) would otherwise produce empty
+    output for the whole video while the run still reports success.
+    """
+
+    def __init__(self, engine_name: str, limit: int = MAX_CONSECUTIVE_FRAME_FAILURES):
+        self.engine_name = engine_name
+        self.limit = limit
+        self.consecutive = 0
+
+    def succeeded(self) -> None:
+        self.consecutive = 0
+
+    def failed(self, exc: Exception) -> List[DetectionResult]:
+        self.consecutive += 1
+        logger.error(f"Error processing frame with {self.engine_name}: {exc}")
+        if self.consecutive >= self.limit:
+            raise EngineFailureError(
+                f"{self.engine_name} failed on {self.consecutive} consecutive frames; aborting"
+            ) from exc
+        return []
+
 
 class BaseDetectionEngine(ABC):
     """Abstract base class for detection engines."""
@@ -62,6 +94,7 @@ class YOLOEngine(BaseDetectionEngine):
         """
         self.weights_path = weights_path
         self.model = None
+        self._failures = FrameFailureGuard("YOLO")
         self.class_map = class_map
         self.verbose = verbose
         self.id_manager = id_manager
@@ -234,11 +267,11 @@ class YOLOEngine(BaseDetectionEngine):
                             )
                         )
 
+            self._failures.succeeded()
             return detection_results
 
         except Exception as e:
-            logger.error(f"Error processing frame with YOLO: {e}")
-            return []
+            return self._failures.failed(e)
 
     def _yolo_to_semantic(
         self, obj_id: Optional[int], w_yolo: float, h_yolo: float, r_yolo: float
@@ -603,6 +636,7 @@ class OpticalFlowEngine(BaseDetectionEngine):
         """
         self.params = params
         self.id_manager = id_manager
+        self._failures = FrameFailureGuard("optical flow")
         self.back_sub = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
         self.prev_gray = None
         self.prev_flow = None  # For temporal smoothing
@@ -935,10 +969,13 @@ class OpticalFlowEngine(BaseDetectionEngine):
             gray = cv2.GaussianBlur(gray, (5, 5), 0)
             motion_mask = np.zeros_like(fg_mask)
 
+            # A failed flow computation only affects this frame (falls back to bg mask)
+            flow_ok = False
             if self.optical_flow_available and self.prev_gray is not None:
                 try:
                     magnitude = self._calculate_optical_flow(self.prev_gray, gray)
                     if magnitude is not None:
+                        flow_ok = True
                         # Cache magnitude for debug visualization
                         if self.params.debug_visualization:
                             self.last_magnitude = magnitude.copy()
@@ -960,14 +997,11 @@ class OpticalFlowEngine(BaseDetectionEngine):
                         # Cache motion mask for debug visualization
                         if self.params.debug_visualization:
                             self.last_motion_mask = motion_mask.copy()
-                    else:
-                        self.optical_flow_available = False
-                except Exception as e:
-                    logger.warning(f"Optical flow calculation failed: {e}")
-                    self.optical_flow_available = False
+                except cv2.error as e:
+                    logger.warning(f"Optical flow calculation failed for this frame: {e}")
 
             # 3. Combine masks based on mask_mode parameter
-            if self.optical_flow_available and self.prev_gray is not None:
+            if flow_ok:
                 if self.params.mask_mode == "or":
                     combined_mask = cv2.bitwise_or(fg_mask, motion_mask)
                 elif self.params.mask_mode == "and":
@@ -1070,11 +1104,11 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
             self.prev_gray = gray.copy()
             self.object_tracker.end_frame()  # Clean up expired tracks
+            self._failures.succeeded()
             return results
 
         except Exception as e:
-            logger.error(f"Error processing frame with optical flow: {e}")
-            return []
+            return self._failures.failed(e)
 
     def get_debug_visualization(self) -> Optional[Dict[str, np.ndarray]]:
         """Return cached intermediate data for visualization.
@@ -1380,6 +1414,7 @@ class ArUcoEngine(BaseDetectionEngine):
         self.csv_path = csv_path
         self.class_id = class_id
         self.aruco_dict_name = aruco_dict_name
+        self._failures = FrameFailureGuard("ArUco")
         self.id_manager = id_manager
         self.gps_data = None
         self.aruco_dict = None
@@ -1498,11 +1533,11 @@ class ArUcoEngine(BaseDetectionEngine):
 
                     results.append(detection)
 
+            self._failures.succeeded()
             return results
 
         except Exception as e:
-            logger.error(f"Error processing frame with ArUco detector: {e}")
-            return []
+            return self._failures.failed(e)
 
     def cleanup(self) -> None:
         """Clean up ArUco engine resources."""
