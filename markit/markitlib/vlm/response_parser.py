@@ -10,14 +10,21 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+from savant_common.scenario_tags import (
+    CONTEXT_FIELDS,
+    FIELD_SPECS,
+    NOTES_TAG,
+    VLM_ANALYSIS_TAG,
+    tag_class_for,
+)
 
-# SAVANT scenario ontology namespace and URI
-SCENARIO_ONTOLOGY_UID = "1"
-SCENARIO_ONTOLOGY_URI = "https://ri-se.github.io/SAVANT/ontology/savant_scenario#"
+logger = logging.getLogger(__name__)
 
 # Default annotator name for VLM-generated data
 VLM_ANNOTATOR = "markit_vlm"
+
+# Confidence used for context fields lacking a per-field confidence
+DEFAULT_FIELD_CONFIDENCE = 0.5
 
 
 class VLMResponseParser:
@@ -93,19 +100,18 @@ class VLMResponseParser:
     def to_openlabel_contexts(
         analysis_results: List[Dict[str, Any]],
         frame_intervals: List[Dict[str, int]],
+        ontology_uid: str,
     ) -> Dict[str, Dict[str, Any]]:
         """Convert VLM analysis results to OpenLABEL contexts with frame intervals.
 
-        Creates contexts that track when conditions change over time. A new context
-        is only created when a condition differs from the previous analyzed frame.
-
-        Note: Only dynamic context types (weather, traffic) are generated as contexts.
-        Static types (road, junction, structures) are only included in tags since
-        they don't change in a static aerial view.
+        One context per segment where a CONTEXT_FIELDS value stays constant, typed by the
+        value's tag class. Segments whose value has no class (e.g. no precipitation) are
+        omitted. Static fields (road, junction, structures) are only included in tags.
 
         Args:
             analysis_results: List of parsed VLM analysis dicts (must have _frame_idx)
             frame_intervals: Video frame range for extending final segment
+            ontology_uid: Ontologies-section uid of the SAVANT scenario ontology
 
         Returns:
             OpenLABEL contexts dict with frame_intervals for each condition segment
@@ -113,49 +119,31 @@ class VLMResponseParser:
         if not analysis_results:
             return {}
 
-        # Sort results by frame index
         sorted_results = sorted(
             analysis_results, key=lambda x: x.get("_frame_idx", 0)
         )
-
-        # Get video frame range for final segment extension
         video_start = frame_intervals[0]["frame_start"] if frame_intervals else 0
         video_end = frame_intervals[0]["frame_end"] if frame_intervals else None
 
-        # Build raw segments for dynamic context types only
-        # Static types (road, junction, structures) are only in tags
-        weather_segments = VLMResponseParser._build_segments(
-            sorted_results, "weather", "precipitation", video_start, video_end
-        )
-        traffic_segments = VLMResponseParser._build_segments(
-            sorted_results, "traffic", "density", video_start, video_end
-        )
-
-        # Merge single-frame intervals with adjacent segments
-        weather_segments = VLMResponseParser._merge_short_intervals(
-            weather_segments, sorted_results, "weather", "precipitation"
-        )
-        traffic_segments = VLMResponseParser._merge_short_intervals(
-            traffic_segments, sorted_results, "traffic", "density"
-        )
-
-        # Build contexts dict
-        contexts = {}
-        context_id = 0
-
-        for segment in weather_segments:
-            contexts[str(context_id)] = VLMResponseParser._create_weather_context(
-                segment["data"], segment["start"], segment["end"]
+        contexts = []
+        for field_name in CONTEXT_FIELDS:
+            spec = FIELD_SPECS[field_name]
+            segments = VLMResponseParser._build_segments(
+                sorted_results, spec.category, spec.vlm_key, video_start, video_end
             )
-            context_id += 1
-
-        for segment in traffic_segments:
-            contexts[str(context_id)] = VLMResponseParser._create_traffic_context(
-                segment["data"], segment["start"], segment["end"]
+            # Merge single-frame intervals with adjacent segments
+            segments = VLMResponseParser._merge_short_intervals(
+                segments, sorted_results, spec.category, spec.vlm_key
             )
-            context_id += 1
+            for segment in segments:
+                context = VLMResponseParser._create_field_context(
+                    field_name, segment["data"], segment["start"], segment["end"],
+                    ontology_uid,
+                )
+                if context:
+                    contexts.append(context)
 
-        return contexts
+        return {str(i): context for i, context in enumerate(contexts)}
 
     @staticmethod
     def _build_segments(
@@ -273,347 +261,97 @@ class VLMResponseParser:
         return merged
 
     @staticmethod
-    def _create_weather_context(
-        weather: Dict[str, Any], frame_start: int, frame_end: int
-    ) -> Dict[str, Any]:
-        """Create a weather context for a frame interval."""
-        context_data = {"text": [], "num": [], "vec": []}
-
-        # Weather fields and their confidence
-        weather_fields = [
-            "precipitation", "precipitation_intensity", "particulates",
-            "time_of_day", "sun_position", "cloud_cover"
-        ]
-
-        for field in weather_fields:
-            if weather.get(field):
-                context_data["text"].append({"name": field, "val": weather[field]})
-                # Add per-field annotator and confidence
-                context_data["vec"].append(
-                    {"name": f"{field}_annotator", "val": [VLM_ANNOTATOR]}
-                )
-                conf = weather.get(f"{field}_confidence", 0.5)
-                context_data["vec"].append(
-                    {"name": f"{field}_confidence", "val": [round(conf, 4)]}
-                )
-                # Add rationale if present
-                rationale = weather.get(f"{field}_rationale")
-                if rationale:
-                    context_data["text"].append({"name": f"{field}_rationale", "val": rationale})
-
-        # Visibility is numeric
-        if weather.get("visibility_km") is not None:
-            context_data["num"].append(
-                {"name": "visibility_km", "val": float(weather["visibility_km"])}
-            )
-            context_data["vec"].append(
-                {"name": "visibility_km_annotator", "val": [VLM_ANNOTATOR]}
-            )
-            conf = weather.get("visibility_km_confidence", 0.5)
-            context_data["vec"].append(
-                {"name": "visibility_km_confidence", "val": [round(conf, 4)]}
-            )
-
-        context_data = {k: v for k, v in context_data.items() if v}
-
-        return {
-            "name": "weather_conditions",
-            "type": "WeatherContext",
-            "ontology_uid": SCENARIO_ONTOLOGY_UID,
-            "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
-            "context_data": context_data,
-        }
-
-    @staticmethod
-    def _create_traffic_context(
-        traffic: Dict[str, Any], frame_start: int, frame_end: int
-    ) -> Dict[str, Any]:
-        """Create a traffic context for a frame interval."""
-        context_data = {"text": [], "boolean": [], "vec": []}
-
-        # Text fields
-        text_fields = ["density", "flow", "temporary_structures"]
-        for field in text_fields:
-            if traffic.get(field):
-                context_data["text"].append({"name": field, "val": traffic[field]})
-                context_data["vec"].append(
-                    {"name": f"{field}_annotator", "val": [VLM_ANNOTATOR]}
-                )
-                conf = traffic.get(f"{field}_confidence", 0.5)
-                context_data["vec"].append(
-                    {"name": f"{field}_confidence", "val": [round(conf, 4)]}
-                )
-                # Add rationale if present
-                rationale = traffic.get(f"{field}_rationale")
-                if rationale:
-                    context_data["text"].append({"name": f"{field}_rationale", "val": rationale})
-
-        # Boolean fields
-        bool_fields = ["pedestrians_present", "cyclists_present", "special_vehicles_present"]
-        for field in bool_fields:
-            if field in traffic:
-                context_data["boolean"].append({"name": field, "val": traffic[field]})
-                context_data["vec"].append(
-                    {"name": f"{field}_annotator", "val": [VLM_ANNOTATOR]}
-                )
-                conf = traffic.get(f"{field}_confidence", 0.5)
-                context_data["vec"].append(
-                    {"name": f"{field}_confidence", "val": [round(conf, 4)]}
-                )
-                # Add rationale if present
-                rationale = traffic.get(f"{field}_rationale")
-                if rationale:
-                    context_data["text"].append({"name": f"{field}_rationale", "val": rationale})
-
-        context_data = {k: v for k, v in context_data.items() if v}
-
-        return {
-            "name": "traffic_conditions",
-            "type": "TrafficContext",
-            "ontology_uid": SCENARIO_ONTOLOGY_UID,
-            "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
-            "context_data": context_data,
-        }
-
-    @staticmethod
-    def _add_field_provenance(
-        tag_data: Dict[str, Any],
+    def _create_field_context(
         field_name: str,
-        confidence: float,
-    ) -> None:
-        """Add per-field annotator and confidence to tag_data vec array.
+        data: Dict[str, Any],
+        frame_start: int,
+        frame_end: int,
+        ontology_uid: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Create a context for one field over a frame interval, or None if its value has no class."""
+        spec = FIELD_SPECS[field_name]
+        type_name = tag_class_for(field_name, data.get(spec.vlm_key))
+        if type_name is None:
+            return None
+        return {
+            "name": field_name,
+            "type": type_name,
+            "ontology_uid": ontology_uid,
+            "frame_intervals": [{"frame_start": frame_start, "frame_end": frame_end}],
+            "context_data": VLMResponseParser._field_data(
+                field_name, data, DEFAULT_FIELD_CONFIDENCE
+            ),
+        }
 
-        Args:
-            tag_data: The tag_data dict to augment
-            field_name: Name of the field
-            confidence: The confidence value for this field
-        """
-        if "vec" not in tag_data:
-            tag_data["vec"] = []
-        tag_data["vec"].append({"name": f"{field_name}_annotator", "val": [VLM_ANNOTATOR]})
-        tag_data["vec"].append({"name": f"{field_name}_confidence", "val": [round(confidence, 4)]})
+    @staticmethod
+    def _field_data(
+        field_name: str, data: Dict[str, Any], default_confidence: float
+    ) -> Dict[str, Any]:
+        """Build tag/context data for one field: value, rationale and per-field provenance."""
+        spec = FIELD_SPECS[field_name]
+        name = spec.data_name or field_name
+        value_type = "num" if spec.is_numeric else "boolean" if spec.is_boolean else "text"
+        result: Dict[str, List[Dict[str, Any]]] = {"text": [], "num": [], "boolean": []}
+        result[value_type].append({"name": name, "val": data[spec.vlm_key]})
+        result["text"].extend({"name": n, "val": v} for n, v in spec.extra_text)
+
+        rationale = data.get(f"{spec.vlm_key}_rationale")
+        if rationale:
+            result["text"].append({"name": f"{name}_rationale", "val": rationale})
+
+        confidence = data.get(f"{spec.vlm_key}_confidence", default_confidence)
+        result["vec"] = [
+            {"name": f"{name}_annotator", "val": [VLM_ANNOTATOR]},
+            {"name": f"{name}_confidence", "val": [round(confidence, 4)]},
+        ]
+        return {k: v for k, v in result.items() if v}
+
+    @staticmethod
+    def _make_tag(
+        type_name: str, tag_data: Dict[str, Any], ontology_uid: str
+    ) -> Dict[str, Any]:
+        """Create an OpenLABEL tag of the given class."""
+        return {
+            "type": type_name,
+            "ontology_uid": ontology_uid,
+            "tag_data": tag_data,
+        }
 
     @staticmethod
     def to_openlabel_tags(
         analysis_results: List[Dict[str, Any]],
         model_name: str,
         frames_analyzed: int,
+        ontology_uid: str,
     ) -> Dict[str, Dict[str, Any]]:
-        """Convert VLM analysis to OpenLABEL tags for scenario-level metadata.
+        """Convert VLM analysis to OpenLABEL scenario tags.
 
-        Per OpenLABEL spec, tags are for scenario categorization and organization.
-        Each field has its own annotator and confidence in the vec array.
+        Each aggregated field value with a tag class becomes one tag typed by that class
+        in the SAVANT scenario ontology (see savant_common.scenario_tags), carrying the
+        source value and its provenance.
 
         Args:
             analysis_results: List of parsed VLM analysis dicts
             model_name: Name of the VLM model used
             frames_analyzed: Number of frames that were analyzed
+            ontology_uid: Ontologies-section uid of the SAVANT scenario ontology
 
         Returns:
             OpenLABEL tags dict ready for insertion
         """
-        tags = {}
-        tag_id = 0
-
         aggregated = VLMResponseParser._aggregate_results(analysis_results)
         avg_confidence = VLMResponseParser._average_confidence(analysis_results)
+        tags = []
 
-        # Weather tag
-        if "weather" in aggregated:
-            weather = aggregated["weather"]
-            tag_data = {"text": [], "num": [], "vec": []}
-
-            # Text fields with per-field provenance
-            text_fields = [
-                "precipitation", "precipitation_intensity", "particulates",
-                "time_of_day", "sun_position", "cloud_cover"
-            ]
-            for field in text_fields:
-                if field in weather:
-                    tag_data["text"].append({"name": field, "val": weather[field]})
-                    conf = weather.get(f"{field}_confidence", avg_confidence)
-                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
-                    # Add rationale if present
-                    rationale = weather.get(f"{field}_rationale")
-                    if rationale:
-                        tag_data["text"].append({"name": f"{field}_rationale", "val": rationale})
-
-            # Numeric field
-            if weather.get("visibility_km") is not None:
-                tag_data["num"].append(
-                    {"name": "visibility_km", "val": float(weather["visibility_km"])}
-                )
-                conf = weather.get("visibility_km_confidence", avg_confidence)
-                VLMResponseParser._add_field_provenance(tag_data, "visibility_km", conf)
-
-            tag_data = {k: v for k, v in tag_data.items() if v}
-
-            if tag_data:
-                tags[str(tag_id)] = {
-                    "name": "weather_conditions",
-                    "type": "WeatherTag",
-                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                    "tag_data": tag_data,
-                }
-                tag_id += 1
-
-        # Road tag
-        if "road" in aggregated:
-            road = aggregated["road"]
-            tag_data = {"text": [], "num": [], "boolean": [], "vec": []}
-
-            # Text fields
-            text_fields = [
-                "drivable_area_type", "geometry_horizontal", "geometry_longitudinal",
-                "surface_type", "surface_condition", "surface_quality"
-            ]
-            for field in text_fields:
-                if field in road:
-                    tag_data["text"].append({"name": field, "val": road[field]})
-                    conf = road.get(f"{field}_confidence", avg_confidence)
-                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
-                    # Add rationale if present
-                    rationale = road.get(f"{field}_rationale")
-                    if rationale:
-                        tag_data["text"].append({"name": f"{field}_rationale", "val": rationale})
-
-            # Numeric field
-            if road.get("lane_count") is not None:
-                tag_data["num"].append(
-                    {"name": "lane_count", "val": int(road["lane_count"])}
-                )
-                conf = road.get("lane_count_confidence", avg_confidence)
-                VLMResponseParser._add_field_provenance(tag_data, "lane_count", conf)
-
-            # Boolean fields
-            bool_fields = ["divided", "lane_markings_visible"]
-            for field in bool_fields:
-                if field in road:
-                    tag_data["boolean"].append({"name": field, "val": road[field]})
-                    conf = road.get(f"{field}_confidence", avg_confidence)
-                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
-
-            tag_data = {k: v for k, v in tag_data.items() if v}
-
-            if tag_data:
-                tags[str(tag_id)] = {
-                    "name": "road_infrastructure",
-                    "type": "RoadTag",
-                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                    "tag_data": tag_data,
-                }
-                tag_id += 1
-
-        # Traffic tag
-        if "traffic" in aggregated:
-            traffic = aggregated["traffic"]
-            tag_data = {"text": [], "boolean": [], "vec": []}
-
-            # Text fields
-            text_fields = ["density", "flow", "temporary_structures"]
-            for field in text_fields:
-                if field in traffic:
-                    tag_data["text"].append({"name": field, "val": traffic[field]})
-                    conf = traffic.get(f"{field}_confidence", avg_confidence)
-                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
-                    # Add rationale if present
-                    rationale = traffic.get(f"{field}_rationale")
-                    if rationale:
-                        tag_data["text"].append({"name": f"{field}_rationale", "val": rationale})
-
-            # Boolean fields
-            bool_fields = ["pedestrians_present", "cyclists_present", "special_vehicles_present"]
-            for field in bool_fields:
-                if field in traffic:
-                    tag_data["boolean"].append({"name": field, "val": traffic[field]})
-                    conf = traffic.get(f"{field}_confidence", avg_confidence)
-                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
-                    # Add rationale if present (includes frame info)
-                    rationale = traffic.get(f"{field}_rationale")
-                    if rationale:
-                        tag_data["text"].append({"name": f"{field}_rationale", "val": rationale})
-
-            tag_data = {k: v for k, v in tag_data.items() if v}
-
-            if tag_data:
-                tags[str(tag_id)] = {
-                    "name": "traffic_conditions",
-                    "type": "TrafficTag",
-                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                    "tag_data": tag_data,
-                }
-                tag_id += 1
-
-        # Junction tag
-        if "junction" in aggregated:
-            junction = aggregated["junction"]
-            tag_data = {"text": [], "boolean": [], "vec": []}
-
-            # Text fields
-            text_fields = ["type", "roundabout_type"]
-            field_names = {"type": "junction_type", "roundabout_type": "roundabout_type"}
-            for field in text_fields:
-                if field in junction:
-                    tag_data["text"].append({"name": field_names[field], "val": junction[field]})
-                    conf = junction.get(f"{field}_confidence", avg_confidence)
-                    VLMResponseParser._add_field_provenance(tag_data, field_names[field], conf)
-
-            # Boolean fields
-            bool_fields = ["present", "signalized", "pedestrian_crossing", "rail_crossing"]
-            bool_names = {
-                "present": "junction_present",
-                "signalized": "signalized",
-                "pedestrian_crossing": "pedestrian_crossing",
-                "rail_crossing": "rail_crossing"
-            }
-            for field in bool_fields:
-                if field in junction:
-                    tag_data["boolean"].append({"name": bool_names[field], "val": junction[field]})
-                    conf = junction.get(f"{field}_confidence", avg_confidence)
-                    VLMResponseParser._add_field_provenance(tag_data, bool_names[field], conf)
-
-            tag_data = {k: v for k, v in tag_data.items() if v}
-
-            if tag_data:
-                tags[str(tag_id)] = {
-                    "name": "junction_info",
-                    "type": "JunctionTag",
-                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                    "tag_data": tag_data,
-                }
-                tag_id += 1
-
-        # Structures tag
-        if "structures" in aggregated:
-            structures = aggregated["structures"]
-            tag_data = {"text": [], "boolean": [], "vec": []}
-
-            # Text field
-            if "street_lighting" in structures:
-                tag_data["text"].append(
-                    {"name": "street_lighting", "val": structures["street_lighting"]}
-                )
-                conf = structures.get("street_lighting_confidence", avg_confidence)
-                VLMResponseParser._add_field_provenance(tag_data, "street_lighting", conf)
-
-            # Boolean fields
-            bool_fields = ["bridge", "tunnel", "toll_plaza", "barriers_present"]
-            for field in bool_fields:
-                if field in structures:
-                    tag_data["boolean"].append({"name": field, "val": structures[field]})
-                    conf = structures.get(f"{field}_confidence", avg_confidence)
-                    VLMResponseParser._add_field_provenance(tag_data, field, conf)
-
-            tag_data = {k: v for k, v in tag_data.items() if v}
-
-            if tag_data:
-                tags[str(tag_id)] = {
-                    "name": "structures_info",
-                    "type": "StructuresTag",
-                    "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                    "tag_data": tag_data,
-                }
-                tag_id += 1
+        for field_name, spec in FIELD_SPECS.items():
+            data = aggregated.get(spec.category) or {}
+            if data.get(spec.vlm_key) is None:
+                continue
+            type_name = tag_class_for(field_name, data[spec.vlm_key])
+            if type_name is None:
+                continue
+            tag_data = VLMResponseParser._field_data(field_name, data, avg_confidence)
+            tags.append(VLMResponseParser._make_tag(type_name, tag_data, ontology_uid))
 
         # Notes tag - use only the first frame's notes since static scenes
         # produce similar (but differently phrased) observations
@@ -628,32 +366,21 @@ class VLMResponseParser:
                     {"name": "notes_confidence", "val": [round(avg_confidence, 4)]},
                 ],
             }
-            tags[str(tag_id)] = {
-                "name": "scene_notes",
-                "type": "NotesTag",
-                "ontology_uid": SCENARIO_ONTOLOGY_UID,
-                "tag_data": tag_data,
-            }
-            tag_id += 1
+            tags.append(VLMResponseParser._make_tag(NOTES_TAG, tag_data, ontology_uid))
 
-        # VLM analysis metadata tag
-        tags[str(tag_id)] = {
-            "name": "vlm_analysis_metadata",
-            "type": "VLMAnalysisTag",
-            "ontology_uid": SCENARIO_ONTOLOGY_UID,
-            "tag_data": {
-                "text": [
-                    {"name": "analyzer", "val": "markit_vlm"},
-                    {"name": "model", "val": model_name},
-                ],
-                "num": [
-                    {"name": "frames_analyzed", "val": frames_analyzed},
-                    {"name": "average_confidence", "val": round(avg_confidence, 4)},
-                ],
-            },
+        tag_data = {
+            "text": [
+                {"name": "analyzer", "val": "markit_vlm"},
+                {"name": "model", "val": model_name},
+            ],
+            "num": [
+                {"name": "frames_analyzed", "val": frames_analyzed},
+                {"name": "average_confidence", "val": round(avg_confidence, 4)},
+            ],
         }
+        tags.append(VLMResponseParser._make_tag(VLM_ANALYSIS_TAG, tag_data, ontology_uid))
 
-        return tags
+        return {str(i): tag for i, tag in enumerate(tags)}
 
     @staticmethod
     def _aggregate_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:

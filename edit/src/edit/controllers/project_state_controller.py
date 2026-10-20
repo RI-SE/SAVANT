@@ -110,12 +110,15 @@ class ProjectStateController:
         return None
 
     @error_handler
-    def update_vlm_tag(self, tag_id: str, tag_data: dict) -> None:
-        """Update a VLM tag's data."""
-        if self.project_state.annotation_config is None:
+    def set_vlm_tag(self, tag_id: str, tag: dict | None) -> None:
+        """Replace a VLM tag, or remove it when tag is None."""
+        config = self.project_state.annotation_config
+        if config is None:
             return
-        tags = self.project_state.annotation_config.tags
-        if tags is None:
+        if tag is None:
+            if config.tags:
+                config.tags.pop(tag_id, None)
             return
-        if tag_id in tags:
-            tags[tag_id]["tag_data"] = tag_data
+        if config.tags is None:
+            config.tags = {}
+        config.tags[tag_id] = tag

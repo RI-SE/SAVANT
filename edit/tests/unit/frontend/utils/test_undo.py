@@ -12,7 +12,10 @@ from edit.frontend.utils.undo import (
     FrameObjectSnapshot,
     GatewayHolder,
     UndoRedoManager,
+    UpdateVLMTagCommand,
+    VLMTagSnapshot,
 )
+from edit.frontend.utils.undo.gateways import ControllerVLMGateway
 
 
 class DummyCommand:
@@ -397,3 +400,43 @@ class TestEditFrameTagCommand:
         ctx = GatewayHolder(annotation_gateway=annotation_gateway)
         with pytest.raises(RuntimeError, match="No frame tag gateway"):
             cmd.do(ctx)
+
+
+class FakeVLMTagController:
+    def __init__(self, tags):
+        self.tags = tags
+
+    def get_vlm_tags(self):
+        return self.tags
+
+    def set_vlm_tag(self, tag_id, tag):
+        if tag is None:
+            self.tags.pop(tag_id, None)
+        else:
+            self.tags[tag_id] = tag
+
+
+@pytest.mark.parametrize(
+    "new_tag",
+    [
+        {"type": "SurfaceTypeSegmented", "ontology_uid": "1", "tag_data": {}},
+        None,
+    ],
+    ids=["retype", "remove"],
+)
+def test_update_vlm_tag_command_replaces_and_restores_whole_tag(new_tag):
+    original = {"type": "SurfaceTypeAsphalt", "ontology_uid": "2", "tag_data": {"x": 1}}
+    controller = FakeVLMTagController({"0": dict(original)})
+    gateway = ControllerVLMGateway(controller)
+    context = GatewayHolder(annotation_gateway=SimpleNamespace(), vlm_gateway=gateway)
+    command = UpdateVLMTagCommand(
+        tag_id="0",
+        before=gateway.capture_tag("0"),
+        after=VLMTagSnapshot(tag_id="0", tag=new_tag),
+    )
+
+    command.do(context)
+    assert controller.tags.get("0") == new_tag
+
+    command.undo(context)
+    assert controller.tags["0"] == original

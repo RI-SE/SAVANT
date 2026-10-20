@@ -13,12 +13,15 @@ from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
+from savant_common.scenario_tags import SCENARIO_ONTOLOGY_URI, get_or_add_ontology_uid
+
 from ..postprocessing.base import PostprocessingPass
 from .config import VLMConfig, SamplingStrategy
 from .client import create_vlm_client, VLMClient
 from .sampling import create_sampler
 from .prompts import load_prompts
-from .response_parser import VLMResponseParser, SCENARIO_ONTOLOGY_URI
+from .response_parser import VLMResponseParser
+
 
 logger = logging.getLogger(__name__)
 
@@ -121,8 +124,7 @@ class VLMAnalysisPass(PostprocessingPass):
             logger.warning("No successful VLM analyses, skipping context/tag creation")
             return openlabel_data
 
-        # Add scenario ontology to ontologies section
-        self._add_scenario_ontology(openlabel_data)
+        ontology_uid = self._register_scenario_ontology(openlabel_data)
 
         # Determine frame intervals for contexts
         frames = openlabel_data.get("openlabel", {}).get("frames", {})
@@ -145,7 +147,7 @@ class VLMAnalysisPass(PostprocessingPass):
 
         # Convert to OpenLABEL contexts
         contexts = VLMResponseParser.to_openlabel_contexts(
-            analysis_results, frame_intervals
+            analysis_results, frame_intervals, ontology_uid
         )
 
         # Add contexts to OpenLABEL
@@ -160,6 +162,7 @@ class VLMAnalysisPass(PostprocessingPass):
             analysis_results,
             model_name=self.config.model_name,
             frames_analyzed=self.successful_analyses,
+            ontology_uid=ontology_uid,
         )
 
         # Add tags to OpenLABEL
@@ -267,17 +270,10 @@ class VLMAnalysisPass(PostprocessingPass):
         cap.release()
         return analysis_results
 
-    def _add_scenario_ontology(self, openlabel_data: Dict[str, Any]) -> None:
-        """Add scenario ontology reference to OpenLABEL ontologies section.
-
-        Args:
-            openlabel_data: OpenLABEL data to modify
-        """
-        ontologies = openlabel_data.get("openlabel", {}).get("ontologies", {})
-
-        if "1" not in ontologies:
-            openlabel_data["openlabel"]["ontologies"]["1"] = SCENARIO_ONTOLOGY_URI
-            logger.debug("Added scenario ontology as ontology UID 1")
+    def _register_scenario_ontology(self, openlabel_data: Dict[str, Any]) -> str:
+        """Ensure the SAVANT scenario ontology is listed in ontologies; return its uid."""
+        ontologies = openlabel_data["openlabel"].setdefault("ontologies", {})
+        return get_or_add_ontology_uid(ontologies, SCENARIO_ONTOLOGY_URI)
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get VLM analysis statistics.

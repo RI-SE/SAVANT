@@ -762,7 +762,7 @@ class DeleteRelationshipCommand:
 
 @dataclass
 class UpdateVLMTagCommand:
-    """Command to update a VLM tag's data with undo support."""
+    """Command to update, re-type or remove a VLM tag with undo support."""
 
     tag_id: str
     before: VLMTagSnapshot
@@ -773,13 +773,13 @@ class UpdateVLMTagCommand:
         gateway = context.vlm_gateway
         if gateway is None:
             raise RuntimeError("No VLM gateway configured.")
-        gateway.update_tag(self.tag_id, self.after.tag_data)
+        gateway.set_tag(self.tag_id, self.after.tag)
 
     def undo(self, context: GatewayHolder) -> None:
         gateway = context.vlm_gateway
         if gateway is None:
             raise RuntimeError("No VLM gateway configured.")
-        gateway.update_tag(self.tag_id, self.before.tag_data)
+        gateway.set_tag(self.tag_id, self.before.tag)
 
 
 @dataclass

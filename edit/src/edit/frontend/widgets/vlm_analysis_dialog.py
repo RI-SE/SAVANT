@@ -8,6 +8,7 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
+    QComboBox,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -22,21 +23,16 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from savant_common.scenario_tags import FIELD_SPECS, tag_class_for
 
-# Fields that support rationales, organized by tag type
-RATIONALE_FIELDS = {
-    "Weather": [
-        "precipitation", "precipitation_intensity", "particulates",
-        "time_of_day", "sun_position", "cloud_cover",
-    ],
-    "Traffic": [
-        "density", "flow", "temporary_structures",
-        "pedestrians_present", "cyclists_present", "special_vehicles_present",
-    ],
-    "Road": [
-        "drivable_area_type", "surface_type", "surface_condition", "surface_quality",
-    ],
-}
+# Fields that support rationales
+RATIONALE_FIELDS = (
+    "precipitation", "precipitation_intensity", "particulates",
+    "time_of_day", "sun_position", "cloud_cover",
+    "density", "flow", "temporary_structures",
+    "pedestrians_present", "cyclists_present", "special_vehicles_present",
+    "drivable_area_type", "surface_type", "surface_condition", "surface_quality",
+)
 
 
 class VLMAnalysisDialog(QDialog):
@@ -66,6 +62,7 @@ class VLMAnalysisDialog(QDialog):
         # Track editing state for each field
         self._field_widgets: dict[str, dict] = {}
         self._tag_containers: dict[str, QWidget] = {}
+        self._tag_titles: dict[str, QLabel] = {}
 
         self._setup_ui()
 
@@ -129,9 +126,7 @@ class VLMAnalysisDialog(QDialog):
         for tag_id, tag in self._tags.items():
             tag_type = tag.get("type", "Unknown")
             tag_data = tag.get("tag_data", {})
-            widget = self._create_tag_widget(
-                tag_id, tag_type.replace("Tag", ""), tag_data
-            )
+            widget = self._create_tag_widget(tag_id, tag_type, tag_data)
             self._tag_containers[tag_id] = widget
             layout.addWidget(widget)
 
@@ -152,10 +147,8 @@ class VLMAnalysisDialog(QDialog):
             )
             layout.addWidget(
                 self._create_data_widget(
-                    f"{ctx_type.replace('Context', '')} (frames {interval_str})",
+                    f"{ctx_type} (frames {interval_str})",
                     ctx_data,
-                    tag_type=ctx_type.replace("Context", ""),
-                    editable=False,
                 )
             )
 
@@ -163,10 +156,6 @@ class VLMAnalysisDialog(QDialog):
         label = QLabel(text)
         label.setStyleSheet("color: #888; font-style: italic; margin-left: 8px;")
         return label
-
-    def _get_rationale_fields_for_tag(self, tag_type: str) -> list[str]:
-        """Get fields that support rationales for a tag type."""
-        return RATIONALE_FIELDS.get(tag_type, [])
 
     def _get_field_value(self, data: dict, field_name: str) -> Any:
         """Get a field value from tag data."""
@@ -201,21 +190,19 @@ class VLMAnalysisDialog(QDialog):
         # Title
         title_label = QLabel(f"<b>{title}</b>")
         vlayout.addWidget(title_label)
+        self._tag_titles[tag_id] = title_label
 
         # Create field rows
-        self._populate_tag_fields(vlayout, tag_id, data, tag_type=title)
+        self._populate_tag_fields(vlayout, tag_id, data)
 
         return widget
 
-    def _populate_tag_fields(
-        self, layout: QVBoxLayout, tag_id: str, data: dict, tag_type: str = ""
-    ) -> None:
+    def _populate_tag_fields(self, layout: QVBoxLayout, tag_id: str, data: dict) -> None:
         """Populate a layout with per-field displays/editors."""
-        rationale_fields = self._get_rationale_fields_for_tag(tag_type)
         displayed_fields = set()
 
         # Fields with rationale support - display grouped
-        for field_name in rationale_fields:
+        for field_name in RATIONALE_FIELDS:
             field_val = self._get_field_value(data, field_name)
             if field_val is None:
                 continue
@@ -226,7 +213,7 @@ class VLMAnalysisDialog(QDialog):
             displayed_fields.add(f"{field_name}_human_rationale")
 
             field_widget = self._create_field_row(
-                tag_id, field_name, field_val, data, has_rationale=True, tag_type=tag_type
+                tag_id, field_name, field_val, data, has_rationale=True
             )
             layout.addWidget(field_widget)
 
@@ -237,7 +224,7 @@ class VLMAnalysisDialog(QDialog):
                 continue
             val = item.get("val") or ""
             field_widget = self._create_field_row(
-                tag_id, name, val, data, has_rationale=False, field_type="text", tag_type=tag_type
+                tag_id, name, val, data, has_rationale=False, field_type="text"
             )
             layout.addWidget(field_widget)
             displayed_fields.add(name)
@@ -249,7 +236,7 @@ class VLMAnalysisDialog(QDialog):
                 continue
             val = item.get("val", 0)
             field_widget = self._create_field_row(
-                tag_id, name, val, data, has_rationale=False, field_type="num", tag_type=tag_type
+                tag_id, name, val, data, has_rationale=False, field_type="num"
             )
             layout.addWidget(field_widget)
             displayed_fields.add(name)
@@ -261,7 +248,7 @@ class VLMAnalysisDialog(QDialog):
                 continue
             val = item.get("val", False)
             field_widget = self._create_field_row(
-                tag_id, name, val, data, has_rationale=False, field_type="boolean", tag_type=tag_type
+                tag_id, name, val, data, has_rationale=False, field_type="boolean"
             )
             layout.addWidget(field_widget)
             displayed_fields.add(name)
@@ -274,7 +261,6 @@ class VLMAnalysisDialog(QDialog):
         data: dict,
         has_rationale: bool = False,
         field_type: str = "text",
-        tag_type: str = "",
     ) -> QWidget:
         """Create a row for a single field with inline editing on click."""
         widget = QWidget()
@@ -301,11 +287,13 @@ class VLMAnalysisDialog(QDialog):
             display_val = str(field_val)
 
         # Value label (clickable)
+        field_key = f"{tag_id}:{field_name}"
         value_label = QLabel(f"  <b>{field_name}</b>: {display_val}")
         value_label.setCursor(Qt.CursorShape.PointingHandCursor)
         if self._can_edit():
-            value_label.mousePressEvent = lambda e, tid=tag_id, fn=field_name, fv=field_val, ft=field_type, d=data, tt=tag_type: (  # noqa: E501
-                self._start_field_edit(tid, fn, fv, ft, d, tt)
+            # Look up current value/data at click time; both change on each edit
+            value_label.mousePressEvent = lambda e, key=field_key: self._start_field_edit(
+                **{k: self._field_widgets[key][k] for k in self._EDIT_KEYS}
             )
         value_row.addWidget(value_label)
 
@@ -322,15 +310,14 @@ class VLMAnalysisDialog(QDialog):
         vlayout.addWidget(value_container)
 
         # Store reference for potential editing
-        field_key = f"{tag_id}:{field_name}"
         self._field_widgets[field_key] = {
             "widget": widget,
             "value_label": value_label,
             "tag_id": tag_id,
             "field_name": field_name,
+            "field_val": field_val,
             "field_type": field_type,
             "data": data,
-            "tag_type": tag_type,
         }
 
         # Rationale section (if applicable)
@@ -364,6 +351,8 @@ class VLMAnalysisDialog(QDialog):
 
         return widget
 
+    _EDIT_KEYS = ("tag_id", "field_name", "field_val", "field_type", "data")
+
     def _start_field_edit(
         self,
         tag_id: str,
@@ -371,7 +360,6 @@ class VLMAnalysisDialog(QDialog):
         field_val: Any,
         field_type: str,
         data: dict,
-        tag_type: str,
     ) -> None:
         """Start inline editing for a single field."""
         from PyQt6.QtWidgets import QDialog as QD, QDialogButtonBox
@@ -398,22 +386,25 @@ class VLMAnalysisDialog(QDialog):
         # Field value editor
         dlg_layout.addWidget(QLabel(f"<b>{field_name}</b>:"))
 
+        spec = FIELD_SPECS.get(field_name)
         if field_type == "boolean":
             value_editor = QCheckBox("Value")
             value_editor.setChecked(bool(field_val))
-        elif field_type == "num":
-            value_editor = QLineEdit(str(field_val))
+        elif field_type == "text" and spec is not None and spec.choices:
+            # Restrict to values the tag class mapping knows
+            value_editor = QComboBox()
+            value_editor.addItems(spec.choices)
+            value_editor.setCurrentText(str(field_val))
         else:
             value_editor = QLineEdit(str(field_val))
 
         dlg_layout.addWidget(value_editor)
 
         # Rationale section (if this field supports it)
-        rationale_fields = self._get_rationale_fields_for_tag(tag_type)
         rating_group = None
         human_editor = None
 
-        if field_name in rationale_fields:
+        if field_name in RATIONALE_FIELDS:
             vlm_rationale = self._get_field_value(data, f"{field_name}_rationale")
 
             if vlm_rationale:
@@ -498,6 +489,8 @@ class VLMAnalysisDialog(QDialog):
         # Get new value
         if field_type == "boolean":
             new_val = value_editor.isChecked()
+        elif isinstance(value_editor, QComboBox):
+            new_val = value_editor.currentText()
         elif field_type == "num":
             try:
                 new_val = float(value_editor.text())
@@ -581,28 +574,19 @@ class VLMAnalysisDialog(QDialog):
                     if item.get("name") != f"{field_name}_human_rationale"
                 ]
 
-        # Execute via undo system
-        from edit.frontend.utils.undo.commands import UpdateVLMTagCommand
-        from edit.frontend.utils.undo.snapshots import VLMTagSnapshot
-
-        before = VLMTagSnapshot(tag_id=tag_id, tag_data=deepcopy(old_data))
-        after = VLMTagSnapshot(tag_id=tag_id, tag_data=new_data)
-
-        command = UpdateVLMTagCommand(
-            tag_id=tag_id,
-            before=before,
-            after=after,
-        )
-        self._undo_manager.execute(command, self._undo_context)
-
-        # Update local state
-        self._tags[tag_id]["tag_data"] = new_data
+        new_tag = self._retyped_tag(tag_id, field_name, new_val, new_data)
+        if new_tag is None and not self._confirm_tag_removal(field_name, new_val):
+            return
+        self._execute_tag_change(tag_id, new_tag)
+        if new_tag is None:
+            return
 
         # Update the field widget display
         field_key = f"{tag_id}:{field_name}"
         if field_key in self._field_widgets:
             info = self._field_widgets[field_key]
             info["data"] = new_data
+            info["field_val"] = new_val
             # Update label
             if isinstance(new_val, bool):
                 display_val = "Yes" if new_val else "No"
@@ -612,9 +596,54 @@ class VLMAnalysisDialog(QDialog):
                 display_val = str(new_val)
             info["value_label"].setText(f"  <b>{field_name}</b>: {display_val}")
 
-    def _create_data_widget(
-        self, title: str, data: dict, tag_type: str = "", editable: bool = False
-    ) -> QWidget:
+    def _retyped_tag(
+        self, tag_id: str, field_name: str, new_val: Any, new_data: dict
+    ) -> dict | None:
+        """Return the tag with new data, typed by new_val's class; None if new_val has no class."""
+        tag = {**self._tags[tag_id], "tag_data": new_data}
+        spec = FIELD_SPECS.get(field_name)
+        if spec is None or spec.is_numeric:
+            return tag
+        type_name = tag_class_for(field_name, new_val)
+        if type_name is None:
+            return None
+        tag["type"] = type_name
+        return tag
+
+    def _confirm_tag_removal(self, field_name: str, new_val: Any) -> bool:
+        """Ask whether to remove a tag whose new value has no ontology class."""
+        answer = QMessageBox.question(
+            self,
+            "Remove Tag",
+            f"'{field_name}' = '{new_val}' has no scenario ontology class, "
+            "so the tag will be removed. Continue?",
+        )
+        return answer == QMessageBox.StandardButton.Yes
+
+    def _execute_tag_change(self, tag_id: str, new_tag: dict | None) -> None:
+        """Apply a tag replacement (or removal) via the undo system and refresh the view."""
+        from edit.frontend.utils.undo.commands import UpdateVLMTagCommand
+        from edit.frontend.utils.undo.snapshots import VLMTagSnapshot
+
+        command = UpdateVLMTagCommand(
+            tag_id=tag_id,
+            before=VLMTagSnapshot(tag_id=tag_id, tag=deepcopy(self._tags[tag_id])),
+            after=VLMTagSnapshot(tag_id=tag_id, tag=deepcopy(new_tag)),
+        )
+        self._undo_manager.execute(command, self._undo_context)
+
+        # self._tags may be the project's tags dict itself, so pop/assign tolerantly
+        if new_tag is None:
+            self._tags.pop(tag_id, None)
+            self._tag_containers[tag_id].hide()
+        else:
+            self._tags[tag_id] = new_tag
+            self._tag_titles[tag_id].setText(f"<b>{new_tag['type']}</b>")
+            for info in self._field_widgets.values():
+                if info["tag_id"] == tag_id:
+                    info["data"] = new_tag["tag_data"]
+
+    def _create_data_widget(self, title: str, data: dict) -> QWidget:
         """Create a read-only widget for context data."""
         widget = QWidget()
         widget.setStyleSheet(

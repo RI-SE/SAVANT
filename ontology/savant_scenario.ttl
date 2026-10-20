@@ -7,102 +7,778 @@
 
 # Ontology metadata
 <https://ri-se.github.io/SAVANT/ontology/savant_scenario> a owl:Ontology ;
-    owl:versionInfo "1.2.0" ;
-    owl:versionIRI <https://ri-se.github.io/SAVANT/ontology/savant_scenario/1.2.0> ;
+    owl:versionInfo "2.0.0" ;
+    owl:versionIRI <https://ri-se.github.io/SAVANT/ontology/savant_scenario/2.0.0> ;
     rdfs:label "SAVANT Scenario Ontology" ;
-    rdfs:comment "Ontology for scenario tagging (Tags) and temporal contexts (Contexts), aligned with ASAM OpenLABEL. Tags are for scenario-level categorization (database search). Contexts are for frame-interval based temporal annotations." .
+    rdfs:comment "Scenario tags and contexts used by SAVANT. Classes and properties marked with rdfs:seeAlso openlabel:<Name> mirror the ASAM OpenLABEL V1.0.0 scenario tagging ontology with identical names and hierarchy (only the subset SAVANT uses), so this ontology can be replaced by OpenLABEL 1:1. Remaining classes are SAVANT extensions subclassing mirrored classes." .
 
 :uid a owl:AnnotationProperty ;
     rdfs:label "UID" ;
-    rdfs:comment "A unique identifier assigned to a class or resource" ;
+    rdfs:comment "A unique identifier assigned to a class or resource. Scenario ontology uids start at 1000 to stay disjoint from savant.ttl" ;
     rdfs:range xsd:integer .
 
 # =============================================================================
-# Tag classes (UID 100-199) - for scenario-level categorization/search
-# Aligned with ASAM OpenLABEL scenario tagging ontology
+# Classes mirrored from ASAM OpenLABEL V1.0.0 (UID 1000-1999), in OpenLABEL file order
 # =============================================================================
 
 :Tag a rdfs:Class ;
-    rdfs:label "Tag" ;
-    rdfs:comment "Base class for scenario-level metadata tags. Tags describe the entire scenario for database categorization and search." ;
+    rdfs:label "Base Tag"@en ;
     rdfs:seeAlso openlabel:Tag ;
-    :uid 100 .
+    :uid 1000 .
 
-# Weather tag - aligned with OpenLABEL OddEnvironment/EnvironmentWeather
-:WeatherTag a rdfs:Class ;
+:Odd a rdfs:Class ;
     rdfs:subClassOf :Tag ;
-    rdfs:label "WeatherTag" ;
-    rdfs:comment "Scenario-level weather classification for database search. Aligned with ASAM OpenLABEL EnvironmentWeather." ;
+    rdfs:label "ODD"@en ;
+    rdfs:seeAlso openlabel:Odd ;
+    :uid 1001 .
+
+:OddEnvironment a rdfs:Class ;
+    rdfs:subClassOf :Odd ;
+    rdfs:label "Environmental Conditions"@en ;
+    rdfs:seeAlso openlabel:OddEnvironment ;
+    :uid 1002 .
+
+:EnvironmentWeather a rdfs:Class ;
+    rdfs:subClassOf :OddEnvironment ;
+    rdfs:label "Weather"@en ;
     rdfs:seeAlso openlabel:EnvironmentWeather ;
-    :uid 101 .
+    :uid 1003 .
 
-# Road tag - aligned with OpenLABEL SceneryDrivableArea
-:RoadTag a rdfs:Class ;
-    rdfs:subClassOf :Tag ;
-    rdfs:label "RoadTag" ;
-    rdfs:comment "Scenario-level road infrastructure classification. Aligned with ASAM OpenLABEL SceneryDrivableArea." ;
+:WeatherRain a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentWeather ;
+    rdfs:label "Rainfall"@en ;
+    rdfs:seeAlso openlabel:WeatherRain ;
+    :uid 1004 .
+
+:WeatherSnow a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentWeather ;
+    rdfs:label "Snowfall"@en ;
+    rdfs:seeAlso openlabel:WeatherSnow ;
+    :uid 1005 .
+
+:EnvironmentParticulates a rdfs:Class ;
+    rdfs:subClassOf :OddEnvironment ;
+    rdfs:label "Particulates (obscuration by nonPrecipitating water droplets and other particulates)"@en ;
+    rdfs:seeAlso openlabel:EnvironmentParticulates ;
+    :uid 1006 .
+
+:ParticulatesWater a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentParticulates ;
+    rdfs:label "Non-precipitating water droplets or ice crystals (i.e. mist/fog)"@en ;
+    rdfs:seeAlso openlabel:ParticulatesWater ;
+    :uid 1007 .
+
+:ParticulatesDust a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentParticulates ;
+    rdfs:label "Sand and dust"@en ;
+    rdfs:seeAlso openlabel:ParticulatesDust ;
+    :uid 1008 .
+
+:ParticulatesPollution a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentParticulates ;
+    rdfs:label "Smoke and pollution"@en ;
+    rdfs:seeAlso openlabel:ParticulatesPollution ;
+    :uid 1009 .
+
+:EnvironmentIllumination a rdfs:Class ;
+    rdfs:subClassOf :OddEnvironment ;
+    rdfs:label "Illumination"@en ;
+    rdfs:seeAlso openlabel:EnvironmentIllumination ;
+    :uid 1010 .
+
+:IlluminationDay a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentIllumination ;
+    rdfs:label "Day"@en ;
+    rdfs:seeAlso openlabel:IlluminationDay ;
+    :uid 1011 .
+
+:DaySunPosition a rdfs:Class ;
+    rdfs:subClassOf :IlluminationDay ;
+    rdfs:label "Position of the sun"@en ;
+    rdfs:seeAlso openlabel:DaySunPosition ;
+    :uid 1012 .
+
+:SunPositionFront a rdfs:Class ;
+    rdfs:subClassOf :DaySunPosition ;
+    rdfs:label "Front"@en ;
+    rdfs:seeAlso openlabel:SunPositionFront ;
+    :uid 1013 .
+
+:SunPositionLeft a rdfs:Class ;
+    rdfs:subClassOf :DaySunPosition ;
+    rdfs:label "Left"@en ;
+    rdfs:seeAlso openlabel:SunPositionLeft ;
+    :uid 1014 .
+
+:SunPositionRight a rdfs:Class ;
+    rdfs:subClassOf :DaySunPosition ;
+    rdfs:label "Right"@en ;
+    rdfs:seeAlso openlabel:SunPositionRight ;
+    :uid 1015 .
+
+:SunPositionBehind a rdfs:Class ;
+    rdfs:subClassOf :DaySunPosition ;
+    rdfs:label "Behind"@en ;
+    rdfs:seeAlso openlabel:SunPositionBehind ;
+    :uid 1016 .
+
+:IlluminationLowLight a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentIllumination ;
+    rdfs:label "Night or lowAmbient lighting condition"@en ;
+    rdfs:seeAlso openlabel:IlluminationLowLight ;
+    :uid 1017 .
+
+:LowLightNight a rdfs:Class ;
+    rdfs:subClassOf :IlluminationLowLight ;
+    rdfs:label "Night"@en ;
+    rdfs:seeAlso openlabel:LowLightNight ;
+    :uid 1018 .
+
+:LowLightAmbient a rdfs:Class ;
+    rdfs:subClassOf :IlluminationLowLight ;
+    rdfs:label "LowAmbient lighting"@en ;
+    rdfs:seeAlso openlabel:LowLightAmbient ;
+    :uid 1019 .
+
+:IlluminationCloudiness a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentIllumination ;
+    rdfs:label "Cloudiness"@en ;
+    rdfs:seeAlso openlabel:IlluminationCloudiness ;
+    :uid 1020 .
+
+:OddScenery a rdfs:Class ;
+    rdfs:subClassOf :Odd ;
+    rdfs:label "Scenery"@en ;
+    rdfs:seeAlso openlabel:OddScenery ;
+    :uid 1021 .
+
+:SceneryDrivableArea a rdfs:Class ;
+    rdfs:subClassOf :OddScenery ;
+    rdfs:label "Drivable area"@en ;
     rdfs:seeAlso openlabel:SceneryDrivableArea ;
-    :uid 102 .
+    :uid 1022 .
 
-# Traffic tag - aligned with OpenLABEL DynamicElementsTraffic
-:TrafficTag a rdfs:Class ;
-    rdfs:subClassOf :Tag ;
-    rdfs:label "TrafficTag" ;
-    rdfs:comment "Scenario-level traffic conditions classification. Aligned with ASAM OpenLABEL DynamicElementsTraffic." ;
-    rdfs:seeAlso openlabel:DynamicElementsTraffic ;
-    :uid 103 .
+:DrivableAreaType a rdfs:Class ;
+    rdfs:subClassOf :SceneryDrivableArea ;
+    rdfs:label "Drivable area type"@en ;
+    rdfs:seeAlso openlabel:DrivableAreaType ;
+    :uid 1023 .
 
-# Junction tag - aligned with OpenLABEL SceneryJunction
-:JunctionTag a rdfs:Class ;
-    rdfs:subClassOf :Tag ;
-    rdfs:label "JunctionTag" ;
-    rdfs:comment "Scenario-level junction/intersection classification. Aligned with ASAM OpenLABEL SceneryJunction." ;
+:RoadTypeMotorway a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaType ;
+    rdfs:label "Motorways"@en ;
+    rdfs:seeAlso openlabel:RoadTypeMotorway ;
+    :uid 1024 .
+
+:MotorwayManaged a rdfs:Class ;
+    rdfs:subClassOf :RoadTypeMotorway ;
+    rdfs:label "With active traffic management (smart motorways)"@en ;
+    rdfs:seeAlso openlabel:MotorwayManaged ;
+    :uid 1025 .
+
+:RoadTypeRadial a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaType ;
+    rdfs:label "Radial roads"@en ;
+    rdfs:seeAlso openlabel:RoadTypeRadial ;
+    :uid 1026 .
+
+:RoadTypeDistributor a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaType ;
+    rdfs:label "Distributor roads"@en ;
+    rdfs:seeAlso openlabel:RoadTypeDistributor ;
+    :uid 1027 .
+
+:RoadTypeMinor a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaType ;
+    rdfs:label "Minor roads"@en ;
+    rdfs:seeAlso openlabel:RoadTypeMinor ;
+    :uid 1028 .
+
+:RoadTypeSlip a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaType ;
+    rdfs:label "Slip roads"@en ;
+    rdfs:seeAlso openlabel:RoadTypeSlip ;
+    :uid 1029 .
+
+:RoadTypeParking a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaType ;
+    rdfs:label "Parking"@en ;
+    rdfs:seeAlso openlabel:RoadTypeParking ;
+    :uid 1030 .
+
+:RoadTypeShared a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaType ;
+    rdfs:label "Shared space"@en ;
+    rdfs:seeAlso openlabel:RoadTypeShared ;
+    :uid 1031 .
+
+:DrivableAreaGeometry a rdfs:Class ;
+    rdfs:subClassOf :SceneryDrivableArea ;
+    rdfs:label "Drivable area geometry"@en ;
+    rdfs:seeAlso openlabel:DrivableAreaGeometry ;
+    :uid 1032 .
+
+:GeometryHorizontal a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaGeometry ;
+    rdfs:label "Horizontal plane"@en ;
+    rdfs:seeAlso openlabel:GeometryHorizontal ;
+    :uid 1033 .
+
+:HorizontalStraights a rdfs:Class ;
+    rdfs:subClassOf :GeometryHorizontal ;
+    rdfs:label "Straight lines"@en ;
+    rdfs:seeAlso openlabel:HorizontalStraights ;
+    :uid 1034 .
+
+:HorizontalCurves a rdfs:Class ;
+    rdfs:subClassOf :GeometryHorizontal ;
+    rdfs:label "Curves"@en ;
+    rdfs:seeAlso openlabel:HorizontalCurves ;
+    :uid 1035 .
+
+:GeometryTransverse a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaGeometry ;
+    rdfs:label "Transverse plane"@en ;
+    rdfs:seeAlso openlabel:GeometryTransverse ;
+    :uid 1036 .
+
+:TransverseDivided a rdfs:Class ;
+    rdfs:subClassOf :GeometryTransverse ;
+    rdfs:label "Divided"@en ;
+    rdfs:seeAlso openlabel:TransverseDivided ;
+    :uid 1037 .
+
+:TransverseUndivided a rdfs:Class ;
+    rdfs:subClassOf :GeometryTransverse ;
+    rdfs:label "Undivided"@en ;
+    rdfs:seeAlso openlabel:TransverseUndivided ;
+    :uid 1038 .
+
+:TransverseBarriers a rdfs:Class ;
+    rdfs:subClassOf :GeometryTransverse ;
+    rdfs:label "Barriers on edges"@en ;
+    rdfs:seeAlso openlabel:TransverseBarriers ;
+    :uid 1039 .
+
+:GeometryLongitudinal a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaGeometry ;
+    rdfs:label "Longitudinal plane"@en ;
+    rdfs:seeAlso openlabel:GeometryLongitudinal ;
+    :uid 1040 .
+
+:LongitudinalUpSlope a rdfs:Class ;
+    rdfs:subClassOf :GeometryLongitudinal ;
+    rdfs:label "Up-slope (positive gradient)"@en ;
+    rdfs:seeAlso openlabel:LongitudinalUpSlope ;
+    :uid 1041 .
+
+:LongitudinalDownSlope a rdfs:Class ;
+    rdfs:subClassOf :GeometryLongitudinal ;
+    rdfs:label "Dow-slope (negativeGradient)"@en ;
+    rdfs:seeAlso openlabel:LongitudinalDownSlope ;
+    :uid 1042 .
+
+:LongitudinalLevelPlane a rdfs:Class ;
+    rdfs:subClassOf :GeometryLongitudinal ;
+    rdfs:label "Level plane"@en ;
+    rdfs:seeAlso openlabel:LongitudinalLevelPlane ;
+    :uid 1043 .
+
+:DrivableAreaLaneSpecification a rdfs:Class ;
+    rdfs:subClassOf :SceneryDrivableArea ;
+    rdfs:label "Drivable area lane specification"@en ;
+    rdfs:seeAlso openlabel:DrivableAreaLaneSpecification ;
+    :uid 1044 .
+
+:LaneSpecificationMarking a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaLaneSpecification ;
+    rdfs:label "Lane marking"@en ;
+    rdfs:seeAlso openlabel:LaneSpecificationMarking ;
+    :uid 1045 .
+
+:LaneSpecificationLaneCount a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaLaneSpecification ;
+    rdfs:label "Number of lanes"@en ;
+    rdfs:seeAlso openlabel:LaneSpecificationLaneCount ;
+    :uid 1046 .
+
+:DrivableAreaSurface a rdfs:Class ;
+    rdfs:subClassOf :SceneryDrivableArea ;
+    rdfs:label "Drivable area surface"@en ;
+    rdfs:seeAlso openlabel:DrivableAreaSurface ;
+    :uid 1047 .
+
+:DrivableAreaSurfaceType a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurface ;
+    rdfs:label "Drivable area surface type"@en ;
+    rdfs:seeAlso openlabel:DrivableAreaSurfaceType ;
+    :uid 1048 .
+
+:SurfaceTypeLoose a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurfaceType ;
+    rdfs:label "Loose (e.g. gravel, earth, sand)"@en ;
+    rdfs:seeAlso openlabel:SurfaceTypeLoose ;
+    :uid 1049 .
+
+:SurfaceTypeSegmented a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurfaceType ;
+    rdfs:label "Segmented (e.g. concrete slabs, granite setts, cobblestones)"@en ;
+    rdfs:seeAlso openlabel:SurfaceTypeSegmented ;
+    :uid 1050 .
+
+:SurfaceTypeUniform a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurfaceType ;
+    rdfs:label "Uniform (e.g. asphalt)"@en ;
+    rdfs:seeAlso openlabel:SurfaceTypeUniform ;
+    :uid 1051 .
+
+:DrivableAreaSurfaceFeature a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurface ;
+    rdfs:label "Drivable area surface features"@en ;
+    rdfs:seeAlso openlabel:DrivableAreaSurfaceFeature ;
+    :uid 1052 .
+
+:SurfaceFeatureCrack a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurfaceFeature ;
+    rdfs:label "Cracks"@en ;
+    rdfs:seeAlso openlabel:SurfaceFeatureCrack ;
+    :uid 1053 .
+
+:SurfaceFeaturePothole a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurfaceFeature ;
+    rdfs:label "Potholes"@en ;
+    rdfs:seeAlso openlabel:SurfaceFeaturePothole ;
+    :uid 1054 .
+
+:SurfaceFeatureRut a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurfaceFeature ;
+    rdfs:label "Ruts"@en ;
+    rdfs:seeAlso openlabel:SurfaceFeatureRut ;
+    :uid 1055 .
+
+:DrivableAreaSurfaceCondition a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurface ;
+    rdfs:label "Drivable area induced road surface conditions"@en ;
+    rdfs:seeAlso openlabel:DrivableAreaSurfaceCondition ;
+    :uid 1056 .
+
+:SurfaceConditionIcy a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurfaceCondition ;
+    rdfs:label "Icy"@en ;
+    rdfs:seeAlso openlabel:SurfaceConditionIcy ;
+    :uid 1057 .
+
+:SurfaceConditionFlooded a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurfaceCondition ;
+    rdfs:label "Flooded roadways"@en ;
+    rdfs:seeAlso openlabel:SurfaceConditionFlooded ;
+    :uid 1058 .
+
+:SurfaceConditionSnow a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurfaceCondition ;
+    rdfs:label "Snow on drivable area"@en ;
+    rdfs:seeAlso openlabel:SurfaceConditionSnow ;
+    :uid 1059 .
+
+:SurfaceConditionWet a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurfaceCondition ;
+    rdfs:label "Wet road"@en ;
+    rdfs:seeAlso openlabel:SurfaceConditionWet ;
+    :uid 1060 .
+
+:SceneryJunction a rdfs:Class ;
+    rdfs:subClassOf :OddScenery ;
+    rdfs:label "Junctions"@en ;
     rdfs:seeAlso openlabel:SceneryJunction ;
-    :uid 107 .
+    :uid 1061 .
 
-# Structures tag - SAVANT-specific
-:StructuresTag a rdfs:Class ;
-    rdfs:subClassOf :Tag ;
-    rdfs:label "StructuresTag" ;
-    rdfs:comment "Scenario-level fixed and special road structures (bridge, tunnel, toll plaza, barriers, street lighting)." ;
-    :uid 108 .
+:JunctionIntersection a rdfs:Class ;
+    rdfs:subClassOf :SceneryJunction ;
+    rdfs:label "Intersections"@en ;
+    rdfs:seeAlso openlabel:JunctionIntersection ;
+    :uid 1062 .
 
-# Notes tag - SAVANT-specific
-:NotesTag a rdfs:Class ;
-    rdfs:subClassOf :Tag ;
-    rdfs:label "NotesTag" ;
-    rdfs:comment "Free-text observations from VLM analysis that do not fit other tags (SAVANT extension)" ;
-    :uid 109 .
+:IntersectionTJunction a rdfs:Class ;
+    rdfs:subClassOf :JunctionIntersection ;
+    rdfs:label "TJunctions"@en ;
+    rdfs:seeAlso openlabel:IntersectionTJunction ;
+    :uid 1063 .
 
-# VLM analysis metadata tag - SAVANT-specific
-:VLMAnalysisTag a rdfs:Class ;
-    rdfs:subClassOf :Tag ;
-    rdfs:label "VLMAnalysisTag" ;
-    rdfs:comment "Metadata about VLM analysis process including model name and confidence (SAVANT extension)" ;
-    :uid 106 .
+:IntersectionYJunction a rdfs:Class ;
+    rdfs:subClassOf :JunctionIntersection ;
+    rdfs:label "YJunction"@en ;
+    rdfs:seeAlso openlabel:IntersectionYJunction ;
+    :uid 1064 .
 
-# =============================================================================
-# Context classes (UID 0-99) - for frame-interval based temporal annotations
-# Contexts track when conditions CHANGE over the course of a video
-# =============================================================================
+:IntersectionCrossroad a rdfs:Class ;
+    rdfs:subClassOf :JunctionIntersection ;
+    rdfs:label "Crossroads"@en ;
+    rdfs:seeAlso openlabel:IntersectionCrossroad ;
+    :uid 1065 .
 
-:Context a rdfs:Class ;
-    rdfs:label "Context" ;
-    rdfs:comment "Base class for frame-interval contextual annotations. Contexts have frame_intervals and track temporal changes in conditions." ;
-    :uid 0 .
+:IntersectionGradeSeperated a rdfs:Class ;
+    rdfs:subClassOf :JunctionIntersection ;
+    rdfs:label "Grade separated"@en ;
+    rdfs:seeAlso openlabel:IntersectionGradeSeperated ;
+    :uid 1066 .
 
-# Weather context - for temporal weather tracking
-:WeatherContext a rdfs:Class ;
-    rdfs:subClassOf :Context ;
-    rdfs:label "WeatherContext" ;
-    rdfs:comment "Weather conditions for a specific frame interval. Used when weather changes mid-video." ;
-    rdfs:seeAlso openlabel:EnvironmentWeather ;
-    :uid 1 .
+:JunctionRoundabout a rdfs:Class ;
+    rdfs:subClassOf :SceneryJunction ;
+    rdfs:label "Roundabouts"@en ;
+    rdfs:seeAlso openlabel:JunctionRoundabout ;
+    :uid 1067 .
 
-# Traffic context - for temporal traffic tracking
-:TrafficContext a rdfs:Class ;
-    rdfs:subClassOf :Context ;
-    rdfs:label "TrafficContext" ;
-    rdfs:comment "Traffic conditions for a specific frame interval. Used when traffic density changes." ;
+:RoundaboutNormal a rdfs:Class ;
+    rdfs:subClassOf :JunctionRoundabout ;
+    rdfs:label "Normal"@en ;
+    rdfs:seeAlso openlabel:RoundaboutNormal ;
+    :uid 1068 .
+
+:RoundaboutCompact a rdfs:Class ;
+    rdfs:subClassOf :JunctionRoundabout ;
+    rdfs:label "Compact"@en ;
+    rdfs:seeAlso openlabel:RoundaboutCompact ;
+    :uid 1069 .
+
+:RoundaboutDouble a rdfs:Class ;
+    rdfs:subClassOf :JunctionRoundabout ;
+    rdfs:label "Double"@en ;
+    rdfs:seeAlso openlabel:RoundaboutDouble ;
+    :uid 1070 .
+
+:RoundaboutLarge a rdfs:Class ;
+    rdfs:subClassOf :JunctionRoundabout ;
+    rdfs:label "Large"@en ;
+    rdfs:seeAlso openlabel:RoundaboutLarge ;
+    :uid 1071 .
+
+:RoundaboutMini a rdfs:Class ;
+    rdfs:subClassOf :JunctionRoundabout ;
+    rdfs:label "Mini"@en ;
+    rdfs:seeAlso openlabel:RoundaboutMini ;
+    :uid 1072 .
+
+:ScenerySpecialStructure a rdfs:Class ;
+    rdfs:subClassOf :OddScenery ;
+    rdfs:label "Special structures"@en ;
+    rdfs:seeAlso openlabel:ScenerySpecialStructure ;
+    :uid 1073 .
+
+:SpecialStructureBridge a rdfs:Class ;
+    rdfs:subClassOf :ScenerySpecialStructure ;
+    rdfs:label "Bridges"@en ;
+    rdfs:seeAlso openlabel:SpecialStructureBridge ;
+    :uid 1074 .
+
+:SpecialStructurePedestrianCrossing a rdfs:Class ;
+    rdfs:subClassOf :ScenerySpecialStructure ;
+    rdfs:label "Pedestrian crossings"@en ;
+    rdfs:seeAlso openlabel:SpecialStructurePedestrianCrossing ;
+    :uid 1075 .
+
+:SpecialStructureRailCrossing a rdfs:Class ;
+    rdfs:subClassOf :ScenerySpecialStructure ;
+    rdfs:label "Rail crossings"@en ;
+    rdfs:seeAlso openlabel:SpecialStructureRailCrossing ;
+    :uid 1076 .
+
+:SpecialStructureTunnel a rdfs:Class ;
+    rdfs:subClassOf :ScenerySpecialStructure ;
+    rdfs:label "Tunnels"@en ;
+    rdfs:seeAlso openlabel:SpecialStructureTunnel ;
+    :uid 1077 .
+
+:SpecialStructureTollPlaza a rdfs:Class ;
+    rdfs:subClassOf :ScenerySpecialStructure ;
+    rdfs:label "Toll plaza"@en ;
+    rdfs:seeAlso openlabel:SpecialStructureTollPlaza ;
+    :uid 1078 .
+
+:SceneryFixedStructure a rdfs:Class ;
+    rdfs:subClassOf :OddScenery ;
+    rdfs:label "Fixed road structures"@en ;
+    rdfs:seeAlso openlabel:SceneryFixedStructure ;
+    :uid 1079 .
+
+:FixedStructureStreetlight a rdfs:Class ;
+    rdfs:subClassOf :SceneryFixedStructure ;
+    rdfs:label "Street lights"@en ;
+    rdfs:seeAlso openlabel:FixedStructureStreetlight ;
+    :uid 1080 .
+
+:SceneryTemporaryStructure a rdfs:Class ;
+    rdfs:subClassOf :OddScenery ;
+    rdfs:label "Temporary road structures"@en ;
+    rdfs:seeAlso openlabel:SceneryTemporaryStructure ;
+    :uid 1081 .
+
+:TemporaryStructureRefuseCollection a rdfs:Class ;
+    rdfs:subClassOf :SceneryTemporaryStructure ;
+    rdfs:label "Refuse collection"@en ;
+    rdfs:seeAlso openlabel:TemporaryStructureRefuseCollection ;
+    :uid 1082 .
+
+:TemporaryStructureRoadWorks a rdfs:Class ;
+    rdfs:subClassOf :SceneryTemporaryStructure ;
+    rdfs:label "Road works"@en ;
+    rdfs:seeAlso openlabel:TemporaryStructureRoadWorks ;
+    :uid 1083 .
+
+:OddDynamicElements a rdfs:Class ;
+    rdfs:subClassOf :Odd ;
+    rdfs:label "Dynamic elements"@en ;
+    rdfs:seeAlso openlabel:OddDynamicElements ;
+    :uid 1084 .
+
+:DynamicElementsTraffic a rdfs:Class ;
+    rdfs:subClassOf :OddDynamicElements ;
+    rdfs:label "Traffic"@en ;
     rdfs:seeAlso openlabel:DynamicElementsTraffic ;
-    :uid 4 .
+    :uid 1085 .
+
+:TrafficAgentDensity a rdfs:Class ;
+    rdfs:subClassOf :DynamicElementsTraffic ;
+    rdfs:label "Density of agents"@en ;
+    rdfs:seeAlso openlabel:TrafficAgentDensity ;
+    :uid 1086 .
+
+:TrafficFlowRate a rdfs:Class ;
+    rdfs:subClassOf :DynamicElementsTraffic ;
+    rdfs:label "Flow rate"@en ;
+    rdfs:seeAlso openlabel:TrafficFlowRate ;
+    :uid 1087 .
+
+:TrafficAgentType a rdfs:Class ;
+    rdfs:subClassOf :DynamicElementsTraffic ;
+    rdfs:label "Agent type"@en ;
+    rdfs:seeAlso openlabel:TrafficAgentType ;
+    :uid 1088 .
+
+:TrafficSpecialVehicle a rdfs:Class ;
+    rdfs:subClassOf :DynamicElementsTraffic ;
+    rdfs:label "Presence of special vehicles (e.g. ambulances or police vehicles)."@en ;
+    rdfs:seeAlso openlabel:TrafficSpecialVehicle ;
+    :uid 1089 .
+
+:AdminTag a rdfs:Class ;
+    rdfs:subClassOf :Tag ;
+    rdfs:label "Base Administration Tag"@en ;
+    rdfs:seeAlso openlabel:AdminTag ;
+    :uid 1090 .
+
+:RoadUser a rdfs:Class ;
+    rdfs:subClassOf :Tag ;
+    rdfs:label "Road user"@en ;
+    rdfs:seeAlso openlabel:RoadUser ;
+    :uid 1091 .
+
+:RoadUserHuman a rdfs:Class ;
+    rdfs:subClassOf :RoadUser ;
+    rdfs:label "Human"@en ;
+    rdfs:seeAlso openlabel:RoadUserHuman ;
+    :uid 1092 .
+
+:HumanCyclist a rdfs:Class ;
+    rdfs:subClassOf :RoadUserHuman ;
+    rdfs:label "Cyclist"@en ;
+    rdfs:seeAlso openlabel:HumanCyclist ;
+    :uid 1093 .
+
+:HumanPedestrian a rdfs:Class ;
+    rdfs:subClassOf :RoadUserHuman ;
+    rdfs:label "Pedestrian"@en ;
+    rdfs:seeAlso openlabel:HumanPedestrian ;
+    :uid 1094 .
+
+# --- Mirrored OpenLABEL properties ---
+:laneSpecificationLaneCountValue a rdfs:Property ;
+    rdfs:label "Number of lanes (Unit)"@en ;
+    rdfs:domain :LaneSpecificationLaneCount ;
+    rdfs:range xsd:positiveInteger ;
+    rdfs:seeAlso openlabel:laneSpecificationLaneCountValue .
+
+:trafficAgentTypeValue a rdfs:Property ;
+    rdfs:label "Agent type"@en ;
+    rdfs:domain :TrafficAgentType ;
+    rdfs:range :RoadUser ;
+    rdfs:seeAlso openlabel:trafficAgentTypeValue .
+
+# =============================================================================
+# SAVANT extension: administrative tags (UID 2100-2199)
+# =============================================================================
+
+:VLMAnalysisTag a rdfs:Class ;
+    rdfs:subClassOf :AdminTag ;
+    rdfs:label "VLMAnalysisTag" ;
+    rdfs:comment "Metadata about the VLM analysis process, including model name and average confidence" ;
+    :uid 2106 .
+
+:NotesTag a rdfs:Class ;
+    rdfs:subClassOf :AdminTag ;
+    rdfs:label "NotesTag" ;
+    rdfs:comment "Free-text scene observations that do not fit other tags" ;
+    :uid 2109 .
+
+# =============================================================================
+# SAVANT extension: environment (UID 2200-2249)
+# =============================================================================
+
+# --- Precipitation intensity (OpenLABEL only has numeric rain intensity in mm/h) ---
+:PrecipitationLight a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentWeather ;
+    rdfs:label "Light precipitation"@en ;
+    :uid 2200 .
+
+:PrecipitationModerate a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentWeather ;
+    rdfs:label "Moderate precipitation"@en ;
+    :uid 2201 .
+
+:PrecipitationHeavy a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentWeather ;
+    rdfs:label "Heavy precipitation"@en ;
+    :uid 2202 .
+
+# --- Particulates ---
+:ParticulatesFog a rdfs:Class ;
+    rdfs:subClassOf :ParticulatesWater ;
+    rdfs:label "Fog"@en ;
+    :uid 2210 .
+
+:ParticulatesMist a rdfs:Class ;
+    rdfs:subClassOf :ParticulatesWater ;
+    rdfs:label "Mist"@en ;
+    :uid 2211 .
+
+:ParticulatesHaze a rdfs:Class ;
+    rdfs:subClassOf :ParticulatesPollution ;
+    rdfs:label "Haze"@en ;
+    :uid 2212 .
+
+:ParticulatesSmoke a rdfs:Class ;
+    rdfs:subClassOf :ParticulatesPollution ;
+    rdfs:label "Smoke"@en ;
+    :uid 2213 .
+
+# --- Visibility ---
+:EnvironmentVisibility a rdfs:Class ;
+    rdfs:subClassOf :OddEnvironment ;
+    rdfs:label "Visibility"@en ;
+    rdfs:comment "Estimated visibility regardless of cause" ;
+    :uid 2220 .
+
+:environmentVisibilityValue a rdfs:Property ;
+    rdfs:label "Visibility (km)"@en ;
+    rdfs:domain :EnvironmentVisibility ;
+    rdfs:range xsd:decimal .
+
+# --- Illumination ---
+:LowLightDawn a rdfs:Class ;
+    rdfs:subClassOf :LowLightAmbient ;
+    rdfs:label "Dawn"@en ;
+    :uid 2230 .
+
+:LowLightDusk a rdfs:Class ;
+    rdfs:subClassOf :LowLightAmbient ;
+    rdfs:label "Dusk"@en ;
+    :uid 2231 .
+
+# Cloudiness levels (OpenLABEL only has numeric cloud cover in okta)
+:CloudinessClear a rdfs:Class ;
+    rdfs:subClassOf :IlluminationCloudiness ;
+    rdfs:label "Clear sky"@en ;
+    rdfs:comment "Approximately 0-1 okta" ;
+    :uid 2240 .
+
+:CloudinessPartlyCloudy a rdfs:Class ;
+    rdfs:subClassOf :IlluminationCloudiness ;
+    rdfs:label "Partly cloudy"@en ;
+    rdfs:comment "Approximately 2-6 okta" ;
+    :uid 2241 .
+
+:CloudinessOvercast a rdfs:Class ;
+    rdfs:subClassOf :IlluminationCloudiness ;
+    rdfs:label "Overcast"@en ;
+    rdfs:comment "Approximately 7-8 okta" ;
+    :uid 2242 .
+
+# =============================================================================
+# SAVANT extension: scenery (UID 2250-2299)
+# =============================================================================
+
+:SurfaceTypeAsphalt a rdfs:Class ;
+    rdfs:subClassOf :SurfaceTypeUniform ;
+    rdfs:label "Asphalt"@en ;
+    :uid 2250 .
+
+:SurfaceTypeConcrete a rdfs:Class ;
+    rdfs:subClassOf :SurfaceTypeUniform ;
+    rdfs:label "Concrete"@en ;
+    :uid 2251 .
+
+:SurfaceConditionDry a rdfs:Class ;
+    rdfs:subClassOf :DrivableAreaSurfaceCondition ;
+    rdfs:label "Dry"@en ;
+    :uid 2260 .
+
+:JunctionSignalized a rdfs:Class ;
+    rdfs:subClassOf :SceneryJunction ;
+    rdfs:label "Signalized junction"@en ;
+    rdfs:comment "Junction controlled by traffic signals (OpenLABEL only distinguishes this for roundabouts)" ;
+    :uid 2270 .
+
+:TemporaryStructureConstruction a rdfs:Class ;
+    rdfs:subClassOf :SceneryTemporaryStructure ;
+    rdfs:label "Construction site"@en ;
+    :uid 2280 .
+
+# =============================================================================
+# SAVANT extension: dynamic elements (UID 2300-2349)
+# =============================================================================
+
+# Traffic density levels (OpenLABEL only has numeric density in vehicles/km)
+:TrafficDensityEmpty a rdfs:Class ;
+    rdfs:subClassOf :TrafficAgentDensity ;
+    rdfs:label "Empty"@en ;
+    :uid 2300 .
+
+:TrafficDensitySparse a rdfs:Class ;
+    rdfs:subClassOf :TrafficAgentDensity ;
+    rdfs:label "Sparse"@en ;
+    :uid 2301 .
+
+:TrafficDensityModerate a rdfs:Class ;
+    rdfs:subClassOf :TrafficAgentDensity ;
+    rdfs:label "Moderate"@en ;
+    :uid 2302 .
+
+:TrafficDensityDense a rdfs:Class ;
+    rdfs:subClassOf :TrafficAgentDensity ;
+    rdfs:label "Dense"@en ;
+    :uid 2303 .
+
+:TrafficDensityCongested a rdfs:Class ;
+    rdfs:subClassOf :TrafficAgentDensity ;
+    rdfs:label "Congested"@en ;
+    :uid 2304 .
+
+# Traffic flow levels (OpenLABEL only has numeric flow rate in vehicles/h)
+:TrafficFlowFree a rdfs:Class ;
+    rdfs:subClassOf :TrafficFlowRate ;
+    rdfs:label "Free flow"@en ;
+    :uid 2310 .
+
+:TrafficFlowStable a rdfs:Class ;
+    rdfs:subClassOf :TrafficFlowRate ;
+    rdfs:label "Stable flow"@en ;
+    :uid 2311 .
+
+:TrafficFlowUnstable a rdfs:Class ;
+    rdfs:subClassOf :TrafficFlowRate ;
+    rdfs:label "Unstable flow"@en ;
+    :uid 2312 .
+
+:TrafficFlowForced a rdfs:Class ;
+    rdfs:subClassOf :TrafficFlowRate ;
+    rdfs:label "Forced flow"@en ;
+    :uid 2313 .

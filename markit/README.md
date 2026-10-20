@@ -278,26 +278,24 @@ With `--vlm-rationale`, the VLM provides brief explanations for weather classifi
 
 ### Output
 
-VLM analysis adds two sections to the OpenLabel output:
+VLM analysis adds two sections to the OpenLabel output. Each detected field value becomes one entry whose `type` is a class in the SAVANT scenario ontology (`ontology/savant_scenario.ttl`), e.g. `RoadTypeDistributor`, `WeatherRain`. That ontology mirrors the subset of the ASAM OpenLABEL scenario tagging ontology that SAVANT uses, with identical class names and hierarchy, so it can be replaced by OpenLABEL 1:1. Values OpenLABEL lacks (e.g. dry surface, traffic density levels) use SAVANT extension subclasses. Values such as `none`, `unknown` or `false` produce no entry. The field-to-class mapping is in `savant_common/scenario_tags.py`.
 
-**Contexts** - Time-bounded scene conditions with frame intervals:
+The scenario ontology is added to the `ontologies` section, and each entry's `ontology_uid` refers to it.
+
+**Contexts** - Time-bounded conditions (precipitation, traffic density) with frame intervals:
 
 ```json
 "contexts": {
   "0": {
-    "name": "weather_conditions",
-    "type": "WeatherContext",
-    "frame_intervals": [{"frame_start": 0, "frame_end": 299}],
+    "name": "precipitation",
+    "type": "WeatherRain",
+    "ontology_uid": "1",
+    "frame_intervals": [{"frame_start": 120, "frame_end": 299}],
     "context_data": {
-      "text": [
-        {"name": "precipitation", "val": "none"},
-        {"name": "time_of_day", "val": "day"}
-      ],
+      "text": [{"name": "precipitation", "val": "rain"}],
       "vec": [
-        {"name": "precipitation_confidence", "val": [0.95]},
         {"name": "precipitation_annotator", "val": ["markit_vlm"]},
-        {"name": "time_of_day_confidence", "val": [0.98]},
-        {"name": "time_of_day_annotator", "val": ["markit_vlm"]}
+        {"name": "precipitation_confidence", "val": [0.85]}
       ]
     }
   }
@@ -309,18 +307,24 @@ VLM analysis adds two sections to the OpenLabel output:
 ```json
 "tags": {
   "0": {
-    "name": "weather_conditions",
-    "type": "WeatherTag",
+    "type": "RoadTypeDistributor",
+    "ontology_uid": "1",
     "tag_data": {
-      "text": [
-        {"name": "precipitation", "val": "none"},
-        {"name": "time_of_day", "val": "day"}
-      ],
+      "text": [{"name": "drivable_area_type", "val": "distributor"}],
       "vec": [
-        {"name": "precipitation_confidence", "val": [0.95]},
-        {"name": "precipitation_annotator", "val": ["markit_vlm"]},
-        {"name": "time_of_day_confidence", "val": [0.98]},
-        {"name": "time_of_day_annotator", "val": ["markit_vlm"]}
+        {"name": "drivable_area_type_annotator", "val": ["markit_vlm"]},
+        {"name": "drivable_area_type_confidence", "val": [0.75]}
+      ]
+    }
+  },
+  "1": {
+    "type": "SurfaceTypeAsphalt",
+    "ontology_uid": "1",
+    "tag_data": {
+      "text": [{"name": "surface_type", "val": "asphalt"}],
+      "vec": [
+        {"name": "surface_type_annotator", "val": ["markit_vlm"]},
+        {"name": "surface_type_confidence", "val": [0.9]}
       ]
     }
   }
@@ -328,6 +332,7 @@ VLM analysis adds two sections to the OpenLabel output:
 ```
 
 Each VLM-generated field includes:
+- The source VLM value (or a numeric property such as `laneSpecificationLaneCountValue`)
 - `*_confidence` - VLM's certainty for this classification (0.0-1.0)
 - `*_annotator` - Source identifier (`markit_vlm`)
 - `*_rationale` - Optional explanation when `--vlm-rationale` is enabled

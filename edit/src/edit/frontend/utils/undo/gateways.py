@@ -171,7 +171,7 @@ class VLMGateway(Protocol):
 
     def capture_tag(self, tag_id: str) -> Optional[VLMTagSnapshot]: ...
 
-    def update_tag(self, tag_id: str, tag_data: dict) -> None: ...
+    def set_tag(self, tag_id: str, tag: Optional[dict]) -> None: ...
 
 
 @dataclass
@@ -600,10 +600,8 @@ class ControllerVLMGateway:
         tags = self.project_state_controller.get_vlm_tags()
         if tags is None or tag_id not in tags:
             return None
-        tag = tags[tag_id]
-        tag_data = tag.get("tag_data", {})
-        return VLMTagSnapshot(tag_id=tag_id, tag_data=deepcopy(tag_data))
+        return VLMTagSnapshot(tag_id=tag_id, tag=deepcopy(tags[tag_id]))
 
-    def update_tag(self, tag_id: str, tag_data: dict) -> None:
-        """Update a VLM tag's data."""
-        self.project_state_controller.update_vlm_tag(tag_id, deepcopy(tag_data))
+    def set_tag(self, tag_id: str, tag: Optional[dict]) -> None:
+        """Replace a VLM tag, or remove it when tag is None."""
+        self.project_state_controller.set_vlm_tag(tag_id, deepcopy(tag))

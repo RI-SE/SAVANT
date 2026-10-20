@@ -7,7 +7,27 @@ Tests the response_parser module without requiring a VLM connection.
 import json
 import pytest
 
-from markit.markitlib.vlm.response_parser import VLMResponseParser, SCENARIO_ONTOLOGY_UID
+from markit.markitlib.vlm.response_parser import VLMResponseParser
+ONTOLOGY_UID = "1"
+
+
+def _to_tags(results, model_name="test-model", frames_analyzed=1):
+    return VLMResponseParser.to_openlabel_tags(
+        results, model_name, frames_analyzed, ontology_uid=ONTOLOGY_UID
+    )
+
+
+def _to_contexts(results, frame_intervals):
+    return VLMResponseParser.to_openlabel_contexts(results, frame_intervals, ONTOLOGY_UID)
+
+
+def _tag_by_field(tags, field_name):
+    """Return the tag whose tag_data carries field_name."""
+    for tag in tags.values():
+        for items in tag["tag_data"].values():
+            if any(item["name"] == field_name for item in items):
+                return tag
+    raise AssertionError(f"No tag for field {field_name}")
 
 
 # --- Fixtures ---
@@ -208,76 +228,42 @@ class TestParseComprehensiveResponse:
 
 # --- Context Creation Tests ---
 
-class TestCreateWeatherContext:
-    """Tests for weather context creation."""
+class TestCreateFieldContext:
+    """Tests for single-field context creation."""
 
-    def test_create_weather_context_full(self):
-        """Create weather context with all fields."""
+    def test_context_typed_by_class(self):
         weather = {
             "precipitation": "rain",
-            "precipitation_intensity": "moderate",
-            "particulates": "fog",
-            "visibility_km": 2,
-            "time_of_day": "day",
-            "sun_position": "overcast",
-            "cloud_cover": "overcast"
+            "precipitation_confidence": 0.8,
+            "precipitation_rationale": "Wet streaks visible",
         }
-        result = VLMResponseParser._create_weather_context(weather, 0, 100)
+        result = VLMResponseParser._create_field_context(
+            "precipitation", weather, 0, 100, ONTOLOGY_UID
+        )
 
-        assert result["name"] == "weather_conditions"
-        assert result["type"] == "WeatherContext"
-        assert result["ontology_uid"] == SCENARIO_ONTOLOGY_UID
+        assert result["name"] == "precipitation"
+        assert result["type"] == "WeatherRain"
+        assert result["ontology_uid"] == ONTOLOGY_UID
         assert result["frame_intervals"] == [{"frame_start": 0, "frame_end": 100}]
-
-        text_items = {item["name"]: item["val"] for item in result["context_data"]["text"]}
-        assert text_items["precipitation"] == "rain"
-        assert text_items["precipitation_intensity"] == "moderate"
-        assert text_items["particulates"] == "fog"
-        assert text_items["time_of_day"] == "day"
-        assert text_items["sun_position"] == "overcast"
-        assert text_items["cloud_cover"] == "overcast"
-
-        num_items = {item["name"]: item["val"] for item in result["context_data"]["num"]}
-        assert num_items["visibility_km"] == 2.0
-
-    def test_create_weather_context_minimal(self):
-        """Create weather context with minimal fields."""
-        weather = {"precipitation": "none", "time_of_day": "night"}
-        result = VLMResponseParser._create_weather_context(weather, 50, 150)
-
-        assert result["frame_intervals"] == [{"frame_start": 50, "frame_end": 150}]
-        text_items = {item["name"]: item["val"] for item in result["context_data"]["text"]}
-        assert text_items["precipitation"] == "none"
-        assert text_items["time_of_day"] == "night"
-
-
-class TestCreateTrafficContext:
-    """Tests for traffic context creation."""
-
-    def test_create_traffic_context_full(self):
-        """Create traffic context with all fields."""
-        traffic = {
-            "density": "dense",
-            "flow": "unstable",
-            "pedestrians_present": True,
-            "cyclists_present": True,
-            "special_vehicles_present": True,
-            "temporary_structures": "construction"
+        text_items = {i["name"]: i["val"] for i in result["context_data"]["text"]}
+        assert text_items == {
+            "precipitation": "rain",
+            "precipitation_rationale": "Wet streaks visible",
         }
-        result = VLMResponseParser._create_traffic_context(traffic, 0, 100)
+        vec_items = {i["name"]: i["val"] for i in result["context_data"]["vec"]}
+        assert vec_items["precipitation_confidence"] == [0.8]
 
-        assert result["name"] == "traffic_conditions"
-        assert result["type"] == "TrafficContext"
+    def test_context_typed_by_extension_class(self):
+        result = VLMResponseParser._create_field_context(
+            "density", {"density": "dense"}, 0, 100, ONTOLOGY_UID
+        )
+        assert result["type"] == "TrafficDensityDense"
 
-        text_items = {item["name"]: item["val"] for item in result["context_data"]["text"]}
-        assert text_items["density"] == "dense"
-        assert text_items["flow"] == "unstable"
-        assert text_items["temporary_structures"] == "construction"
-
-        bool_items = {item["name"]: item["val"] for item in result["context_data"]["boolean"]}
-        assert bool_items["pedestrians_present"] is True
-        assert bool_items["cyclists_present"] is True
-        assert bool_items["special_vehicles_present"] is True
+    def test_value_without_class_gives_no_context(self):
+        result = VLMResponseParser._create_field_context(
+            "precipitation", {"precipitation": "none"}, 0, 100, ONTOLOGY_UID
+        )
+        assert result is None
 
 
 # --- OpenLABEL Contexts Tests ---
@@ -285,74 +271,53 @@ class TestCreateTrafficContext:
 class TestToOpenlabelContexts:
     """Tests for converting analysis results to OpenLABEL contexts."""
 
-    def test_single_frame_creates_contexts(self, sample_comprehensive_response):
-        """Single frame analysis creates dynamic context types only.
-
-        Note: Road, junction, and structures are static in aerial views and only
-        appear in tags, not in frame-bound contexts.
-        """
-        results = [{**sample_comprehensive_response, "_frame_idx": 0}]
+    def test_single_frame_creates_contexts(self, sample_roundabout_response):
+        """Only dynamic fields (precipitation, density) become contexts."""
+        results = [{**sample_roundabout_response, "_frame_idx": 0}]
         frame_intervals = [{"frame_start": 0, "frame_end": 100}]
 
-        contexts = VLMResponseParser.to_openlabel_contexts(results, frame_intervals)
+        contexts = _to_contexts(results, frame_intervals)
 
-        # Should have only weather and traffic contexts (dynamic types)
-        # Road, junction, structures are static and only appear in tags
-        assert len(contexts) == 2
-        context_types = {c["type"] for c in contexts.values()}
-        assert "WeatherContext" in context_types
-        assert "TrafficContext" in context_types
-        # Static types should NOT be in contexts
-        assert "RoadContext" not in context_types
-        assert "JunctionContext" not in context_types
-        assert "StructuresContext" not in context_types
+        assert {c["type"] for c in contexts.values()} == {
+            "WeatherRain", "TrafficDensitySparse"
+        }
 
     def test_condition_change_creates_new_context(self):
-        """Changing conditions create new context segments.
+        """Changing conditions create new context segments; classless values leave gaps.
 
         Note: Intervals must be long enough (>= MIN_CONTEXT_INTERVAL_FRAMES)
         to avoid being merged as noise.
         """
-        # Use multiple samples per condition to create intervals longer than 1 frame
         results = [
-            {
-                "_frame_idx": 0,
-                "weather": {"precipitation": "none"},
-                "traffic": {"density": "sparse"},
-            },
-            {
-                "_frame_idx": 10,
-                "weather": {"precipitation": "none"},  # Same as frame 0
-                "traffic": {"density": "sparse"},
-            },
-            {
-                "_frame_idx": 50,
-                "weather": {"precipitation": "rain"},  # Changed!
-                "traffic": {"density": "sparse"},
-            },
-            {
-                "_frame_idx": 60,
-                "weather": {"precipitation": "rain"},  # Same as frame 50
-                "traffic": {"density": "sparse"},
-            },
+            {"_frame_idx": 0, "weather": {"precipitation": "snow"}, "traffic": {"density": "sparse"}},
+            {"_frame_idx": 10, "weather": {"precipitation": "snow"}, "traffic": {"density": "sparse"}},
+            {"_frame_idx": 50, "weather": {"precipitation": "rain"}, "traffic": {"density": "sparse"}},
+            {"_frame_idx": 60, "weather": {"precipitation": "rain"}, "traffic": {"density": "sparse"}},
         ]
         frame_intervals = [{"frame_start": 0, "frame_end": 100}]
 
-        contexts = VLMResponseParser.to_openlabel_contexts(results, frame_intervals)
+        contexts = _to_contexts(results, frame_intervals)
 
-        # Should have 2 weather contexts (one for each precipitation state)
-        weather_contexts = [c for c in contexts.values() if c["type"] == "WeatherContext"]
-        assert len(weather_contexts) == 2
+        by_type = {c["type"]: c["frame_intervals"][0] for c in contexts.values()}
+        assert by_type["WeatherSnow"] == {"frame_start": 0, "frame_end": 10}
+        assert by_type["WeatherRain"] == {"frame_start": 50, "frame_end": 100}
+        assert by_type["TrafficDensitySparse"] == {"frame_start": 0, "frame_end": 100}
 
-        # First should end at frame 10, second should extend to video end
-        weather_by_start = sorted(weather_contexts, key=lambda c: c["frame_intervals"][0]["frame_start"])
-        assert weather_by_start[0]["frame_intervals"][0]["frame_end"] == 10
-        assert weather_by_start[1]["frame_intervals"][0]["frame_end"] == 100
+    def test_no_precipitation_segment_omitted(self):
+        results = [
+            {"_frame_idx": 0, "weather": {"precipitation": "none"}},
+            {"_frame_idx": 10, "weather": {"precipitation": "none"}},
+            {"_frame_idx": 50, "weather": {"precipitation": "rain"}},
+            {"_frame_idx": 60, "weather": {"precipitation": "rain"}},
+        ]
+        contexts = _to_contexts(results, [{"frame_start": 0, "frame_end": 100}])
+
+        assert [c["type"] for c in contexts.values()] == ["WeatherRain"]
+        assert list(contexts) == ["0"]
 
     def test_empty_results_returns_empty(self):
         """Empty results return empty contexts dict."""
-        contexts = VLMResponseParser.to_openlabel_contexts([], [])
-        assert contexts == {}
+        assert _to_contexts([], []) == {}
 
     def test_single_frame_intervals_merged(self):
         """Single-frame intervals are merged with adjacent segments.
@@ -360,36 +325,14 @@ class TestToOpenlabelContexts:
         Single-frame intervals are likely VLM noise and should be merged
         with adjacent intervals using the most common value.
         """
-        # Most common precipitation is "none" (frames 0 and 100)
-        # Frame 50 has "rain" which is a single-frame interval
         results = [
-            {
-                "_frame_idx": 0,
-                "weather": {"precipitation": "none"},
-                "traffic": {"density": "sparse"},
-            },
-            {
-                "_frame_idx": 50,
-                "weather": {"precipitation": "rain"},  # Single frame - should be merged
-                "traffic": {"density": "sparse"},
-            },
-            {
-                "_frame_idx": 100,
-                "weather": {"precipitation": "none"},
-                "traffic": {"density": "sparse"},
-            },
+            {"_frame_idx": 0, "weather": {"precipitation": "snow"}},
+            {"_frame_idx": 50, "weather": {"precipitation": "rain"}},  # Single frame - merged
+            {"_frame_idx": 100, "weather": {"precipitation": "snow"}},
         ]
-        frame_intervals = [{"frame_start": 0, "frame_end": 200}]
+        contexts = _to_contexts(results, [{"frame_start": 0, "frame_end": 200}])
 
-        contexts = VLMResponseParser.to_openlabel_contexts(results, frame_intervals)
-
-        # The single-frame "rain" interval should be merged, resulting in
-        # fewer weather contexts than without merging
-        weather_contexts = [c for c in contexts.values() if c["type"] == "WeatherContext"]
-
-        # With merging, we should have fewer contexts
-        # The exact number depends on merging behavior, but it should be less than 3
-        assert len(weather_contexts) <= 2
+        assert "WeatherRain" not in {c["type"] for c in contexts.values()}
 
 
 # --- OpenLABEL Tags Tests ---
@@ -397,23 +340,67 @@ class TestToOpenlabelContexts:
 class TestToOpenlabelTags:
     """Tests for converting analysis results to OpenLABEL tags."""
 
-    def test_creates_all_tag_types(self, sample_comprehensive_response):
-        """Creates tags for all categories plus metadata."""
-        results = [sample_comprehensive_response]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
+    def test_tags_typed_by_scenario_classes(self, sample_comprehensive_response):
+        """Each field value with a class becomes one tag of that class."""
+        tags = _to_tags([sample_comprehensive_response])
 
-        tag_types = {t["type"] for t in tags.values()}
-        assert "WeatherTag" in tag_types
-        assert "RoadTag" in tag_types
-        assert "TrafficTag" in tag_types
-        assert "JunctionTag" in tag_types
-        assert "StructuresTag" in tag_types
-        assert "VLMAnalysisTag" in tag_types
+        assert {t["ontology_uid"] for t in tags.values()} == {ONTOLOGY_UID}
+        assert {t["type"] for t in tags.values()} == {
+            "EnvironmentVisibility",
+            "IlluminationDay",
+            "SunPositionBehind",
+            "CloudinessClear",
+            "RoadTypeDistributor",
+            "HorizontalStraights",
+            "LongitudinalLevelPlane",
+            "TransverseDivided",
+            "SurfaceTypeAsphalt",
+            "SurfaceConditionDry",
+            "LaneSpecificationLaneCount",
+            "LaneSpecificationMarking",
+            "IntersectionCrossroad",
+            "JunctionSignalized",
+            "SpecialStructurePedestrianCrossing",
+            "FixedStructureStreetlight",
+            "TrafficDensityModerate",
+            "TrafficFlowStable",
+            "TrafficAgentType",
+            "VLMAnalysisTag",
+        }
+
+    def test_tag_keys_are_sequential(self, sample_comprehensive_response):
+        tags = _to_tags([sample_comprehensive_response])
+        assert list(tags) == [str(i) for i in range(len(tags))]
+
+    def test_classless_values_produce_no_tag(self, sample_comprehensive_response):
+        """'none', 'good', 'not_applicable' and False presence values yield no tags."""
+        tags = _to_tags([sample_comprehensive_response])
+        fields = {
+            item["name"]
+            for t in tags.values()
+            for items in t["tag_data"].values()
+            for item in items
+        }
+        for absent in ("precipitation", "particulates", "surface_quality",
+                       "roundabout_type", "bridge", "cyclists_present"):
+            assert absent not in fields
+
+    def test_numeric_value_uses_property_name(self, sample_comprehensive_response):
+        tags = _to_tags([sample_comprehensive_response])
+        lane_tag = _tag_by_field(tags, "laneSpecificationLaneCountValue")
+        assert lane_tag["tag_data"]["num"] == [
+            {"name": "laneSpecificationLaneCountValue", "val": 4}
+        ]
+
+    def test_agent_type_tag_has_openlabel_value(self, sample_comprehensive_response):
+        tags = _to_tags([sample_comprehensive_response])
+        tag = _tag_by_field(tags, "pedestrians_present")
+        text_items = {i["name"]: i["val"] for i in tag["tag_data"]["text"]}
+        assert text_items["trafficAgentTypeValue"] == "HumanPedestrian"
 
     def test_metadata_tag_content(self, sample_comprehensive_response):
         """Metadata tag contains model info and statistics."""
-        results = [sample_comprehensive_response]
-        tags = VLMResponseParser.to_openlabel_tags(results, "Qwen2.5-VL-32B", 5)
+        tags = _to_tags([sample_comprehensive_response], "Qwen2.5-VL-32B", 5)
 
         metadata_tag = next(t for t in tags.values() if t["type"] == "VLMAnalysisTag")
         text_items = {item["name"]: item["val"] for item in metadata_tag["tag_data"]["text"]}
@@ -426,23 +413,21 @@ class TestToOpenlabelTags:
 
     def test_notes_tag_created_when_notes_present(self, sample_roundabout_response):
         """Notes tag created when frames have notes."""
-        results = [sample_roundabout_response]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
+        tags = _to_tags([sample_roundabout_response])
 
         notes_tags = [t for t in tags.values() if t["type"] == "NotesTag"]
         assert len(notes_tags) == 1
         note_value = notes_tags[0]["tag_data"]["text"][0]["val"]
         assert "Traffic flowing smoothly" in note_value
 
-    def test_junction_tag_captures_roundabout(self, sample_roundabout_response):
-        """Junction tag correctly captures roundabout type."""
-        results = [sample_roundabout_response]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
+    def test_roundabout_tags(self, sample_roundabout_response):
+        """Roundabout produces junction and roundabout-size classes."""
+        tags = _to_tags([sample_roundabout_response])
 
-        junction_tag = next(t for t in tags.values() if t["type"] == "JunctionTag")
-        text_items = {item["name"]: item["val"] for item in junction_tag["tag_data"]["text"]}
-        assert text_items["junction_type"] == "roundabout"
-        assert text_items["roundabout_type"] == "normal"
+        types = {t["type"] for t in tags.values()}
+        assert {"JunctionRoundabout", "RoundaboutNormal", "WeatherRain",
+                "PrecipitationLight", "CloudinessOvercast",
+                "TransverseUndivided"} <= types
 
     def test_only_first_frame_notes_used(self):
         """Only the first frame's notes are used for static scenes."""
@@ -451,12 +436,10 @@ class TestToOpenlabelTags:
             {"weather": {"precipitation": "none"}, "notes": "Sunny conditions observed"},
             {"weather": {"precipitation": "none"}, "notes": "Traffic flowing smoothly"},
         ]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 3)
+        tags = _to_tags(results, frames_analyzed=3)
 
         notes_tags = [t for t in tags.values() if t["type"] == "NotesTag"]
         assert len(notes_tags) == 1
-
-        # Should only have the first frame's note
         note_value = notes_tags[0]["tag_data"]["text"][0]["val"]
         assert note_value == "Clear day with good visibility"
 
@@ -607,118 +590,50 @@ class TestTagProvenanceFields:
         """Helper to extract vec items as a dict of name -> val."""
         return {item["name"]: item["val"] for item in tag_data.get("vec", [])}
 
-    def test_weather_tag_has_per_field_provenance(self, sample_comprehensive_response):
-        """WeatherTag has per-field annotator and confidence in vec format."""
-        results = [sample_comprehensive_response]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
+    @pytest.mark.parametrize("field_name", [
+        "time_of_day", "drivable_area_type", "density", "junction_type",
+        "street_lighting", "divided", "laneSpecificationLaneCountValue",
+    ])
+    def test_field_tag_has_provenance(self, sample_comprehensive_response, field_name):
+        tags = _to_tags([sample_comprehensive_response])
+        vec_items = self._get_vec_items(_tag_by_field(tags, field_name)["tag_data"])
 
-        weather_tag = next(t for t in tags.values() if t["type"] == "WeatherTag")
-        vec_items = self._get_vec_items(weather_tag["tag_data"])
-
-        # Check per-field provenance for precipitation
-        assert "precipitation_annotator" in vec_items
-        assert "precipitation_confidence" in vec_items
-        assert vec_items["precipitation_annotator"] == ["markit_vlm"]
-
-        # Check other weather fields have provenance
-        assert "time_of_day_annotator" in vec_items
-        assert "time_of_day_confidence" in vec_items
-
-    def test_road_tag_has_per_field_provenance(self, sample_comprehensive_response):
-        """RoadTag has per-field annotator and confidence in vec format."""
-        results = [sample_comprehensive_response]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
-
-        road_tag = next(t for t in tags.values() if t["type"] == "RoadTag")
-        vec_items = self._get_vec_items(road_tag["tag_data"])
-
-        assert "drivable_area_type_annotator" in vec_items
-        assert "drivable_area_type_confidence" in vec_items
-        assert vec_items["drivable_area_type_annotator"] == ["markit_vlm"]
-
-    def test_traffic_tag_has_per_field_provenance(self, sample_comprehensive_response):
-        """TrafficTag has per-field annotator and confidence in vec format."""
-        results = [sample_comprehensive_response]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
-
-        traffic_tag = next(t for t in tags.values() if t["type"] == "TrafficTag")
-        vec_items = self._get_vec_items(traffic_tag["tag_data"])
-
-        assert "density_annotator" in vec_items
-        assert "density_confidence" in vec_items
-
-    def test_junction_tag_has_per_field_provenance(self, sample_comprehensive_response):
-        """JunctionTag has per-field annotator and confidence in vec format."""
-        results = [sample_comprehensive_response]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
-
-        junction_tag = next(t for t in tags.values() if t["type"] == "JunctionTag")
-        vec_items = self._get_vec_items(junction_tag["tag_data"])
-
-        assert "junction_type_annotator" in vec_items
-        assert "junction_type_confidence" in vec_items
-
-    def test_structures_tag_has_per_field_provenance(self, sample_comprehensive_response):
-        """StructuresTag has per-field annotator and confidence in vec format."""
-        results = [sample_comprehensive_response]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
-
-        structures_tag = next(t for t in tags.values() if t["type"] == "StructuresTag")
-        vec_items = self._get_vec_items(structures_tag["tag_data"])
-
-        assert "street_lighting_annotator" in vec_items
-        assert "street_lighting_confidence" in vec_items
+        assert vec_items[f"{field_name}_annotator"] == ["markit_vlm"]
+        assert f"{field_name}_confidence" in vec_items
 
     def test_notes_tag_has_per_field_provenance(self, sample_roundabout_response):
         """NotesTag has per-field annotator and confidence in vec format."""
-        results = [sample_roundabout_response]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
+        tags = _to_tags([sample_roundabout_response])
 
         notes_tag = next(t for t in tags.values() if t["type"] == "NotesTag")
         vec_items = self._get_vec_items(notes_tag["tag_data"])
 
-        assert "notes_annotator" in vec_items
-        assert "notes_confidence" in vec_items
         assert vec_items["notes_annotator"] == ["markit_vlm"]
+        assert "notes_confidence" in vec_items
 
     def test_vlm_analysis_tag_unchanged(self, sample_comprehensive_response):
         """VLMAnalysisTag should NOT have vec provenance fields."""
-        results = [sample_comprehensive_response]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 1)
+        tags = _to_tags([sample_comprehensive_response])
 
         metadata_tag = next(t for t in tags.values() if t["type"] == "VLMAnalysisTag")
         text_items = {item["name"]: item["val"] for item in metadata_tag["tag_data"]["text"]}
         num_items = {item["name"]: item["val"] for item in metadata_tag["tag_data"]["num"]}
 
-        # Should have analyzer (not annotator) and average_confidence (not confidence)
         assert "analyzer" in text_items
         assert "annotator" not in text_items
         assert "average_confidence" in num_items
-        # vec provenance is not added to VLMAnalysisTag
         assert "vec" not in metadata_tag["tag_data"]
 
     def test_per_field_confidence_uses_averaged_value(self):
         """Per-field confidence uses averaged value when field has confidence from VLM."""
         results = [
-            {
-                "weather": {
-                    "precipitation": "none",
-                    "precipitation_confidence": 0.9,
-                },
-                "confidence": 0.9,
-            },
-            {
-                "weather": {
-                    "precipitation": "none",
-                    "precipitation_confidence": 0.7,
-                },
-                "confidence": 0.7,
-            },
+            {"weather": {"precipitation": "rain", "precipitation_confidence": 0.9}, "confidence": 0.9},
+            {"weather": {"precipitation": "rain", "precipitation_confidence": 0.7}, "confidence": 0.7},
         ]
-        tags = VLMResponseParser.to_openlabel_tags(results, "test-model", 2)
+        tags = _to_tags(results, frames_analyzed=2)
 
-        weather_tag = next(t for t in tags.values() if t["type"] == "WeatherTag")
-        vec_items = self._get_vec_items(weather_tag["tag_data"])
+        rain_tag = next(t for t in tags.values() if t["type"] == "WeatherRain")
+        vec_items = self._get_vec_items(rain_tag["tag_data"])
 
         # Average of 0.9 and 0.7 is 0.8
         assert vec_items["precipitation_confidence"] == [0.8]

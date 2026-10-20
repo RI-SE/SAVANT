@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+from typing import Optional
 
 from edit.models.OpenLabel import FrameLevelObject, ObjectMetadata, RotatedBBox
 
@@ -129,13 +130,13 @@ class ObjectTagSnapshot:
 
 @dataclass(frozen=True)
 class VLMTagSnapshot:
-    """Snapshot of a VLM tag's data for undo/redo operations."""
+    """Snapshot of a whole VLM tag for undo/redo operations; tag is None when absent."""
 
     tag_id: str
-    tag_data: dict
+    tag: Optional[dict]
 
     def clone(self) -> "VLMTagSnapshot":
         return VLMTagSnapshot(
             tag_id=self.tag_id,
-            tag_data=deepcopy(self.tag_data),
+            tag=deepcopy(self.tag),
         )
