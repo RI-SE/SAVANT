@@ -7,6 +7,7 @@ from .sudden import SuddenPass
 from .frame_interval import FrameIntervalPass
 from .static_object_removal import StaticObjectRemovalPass
 from .short_duration import ShortDurationPass
+from .positional_jitter import PositionalJitterPass
 from .bbox_smoothing import BboxSmoothingPass
 from .size_outlier_filter import SizeOutlierFilterPass
 from .size_step_detection import SizeStepDetectionPass
@@ -25,6 +26,7 @@ __all__ = [
     "FrameIntervalPass",
     "StaticObjectRemovalPass",
     "ShortDurationPass",
+    "PositionalJitterPass",
     "BboxSmoothingPass",
     "SizeOutlierFilterPass",
     "SizeStepDetectionPass",

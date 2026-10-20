@@ -11,6 +11,8 @@ from pydantic import (
     model_validator,
 )
 
+from savant_common.scenario_tags import get_or_add_ontology_uid
+
 
 class RotatedBBox(BaseModel):
     """Rotated bounding box coordinates (x_center, y_center, width, height, rotation)"""
@@ -541,9 +543,14 @@ class OpenLabel(BaseModel):
         """Internal: Update annotator data for a bbox."""
         # Check if the annotator making the update is already
         # the latest annotator.
-        if annotater not in current_annotator_data.val[0]:
+        latest = current_annotator_data.val[0] if current_annotator_data.val else None
+        if annotater != latest:
             current_annotator_data.val.appendleft(annotater)
             current_confidence_data.val.appendleft(confidence)
+
+    def get_or_add_ontology_uid(self, namespace: str) -> str:
+        """Return the ontologies key matching namespace, registering it under the next free key if absent."""
+        return get_or_add_ontology_uid(self.ontologies, namespace)
 
     def add_object_relationship(
         self,
@@ -562,15 +569,9 @@ class OpenLabel(BaseModel):
             Get the latest key of the relationships, and increment it by 1
             to generate a unqiue relation ID.
             """
-            # If there are no relations, the first ID should be 0.
-            if not self.relations:
-                return str(0)
-
-            # Sorted ensures that the last key is always the largest.
-            # This prevents bugs if we delete keys in the middle of
-            # the dict.
-            keys_as_ints = [int(key) for key in self.relations.keys()]
-            return str(max(keys_as_ints) + 1)
+            # Max (not count) avoids reusing ids after deletions; non-numeric keys are ignored.
+            keys_as_ints = [int(key) for key in (self.relations or {}) if key.isdigit()]
+            return str(max(keys_as_ints, default=-1) + 1)
 
         # Convert the received frame intervals into the OL spec
         # type.
@@ -688,13 +689,14 @@ class OpenLabel(BaseModel):
 
         frame_relationships = []
         for relation_id, relation_metadata in self.relations.items():
-            for frame_interval in relation_metadata.frame_intervals:
+            for frame_interval in relation_metadata.frame_intervals or []:
                 if (
                     frame_interval.frame_start
                     <= frame_index
                     <= frame_interval.frame_end
                 ):
                     frame_relationships.append(
-                        {"relation_id": id, "metadata": relation_metadata}
+                        {"relation_id": relation_id, "metadata": relation_metadata}
                     )
+                    break
         return frame_relationships

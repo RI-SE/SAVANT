@@ -34,6 +34,17 @@ logger = logging.getLogger(__name__)
 # Utility Functions
 # =============================================================================
 
+def contiguous_intervals(frame_indices) -> List[Dict[str, int]]:
+    """One interval per run of consecutive frames, so absences are not reported as presence."""
+    intervals: List[Dict[str, int]] = []
+    for frame in sorted(set(frame_indices)):
+        if intervals and frame == intervals[-1]["frame_end"] + 1:
+            intervals[-1]["frame_end"] = frame
+        else:
+            intervals.append({"frame_start": frame, "frame_end": frame})
+    return intervals
+
+
 def normalize_angle_to_2pi_range(angle: float) -> float:
     """Normalize angle to [0, 2π) range for OpenLabel output.
 

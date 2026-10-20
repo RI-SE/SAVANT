@@ -135,3 +135,77 @@ class TestProjectState:
             entry["tag_name"] == "lanechange" and entry["category"] == "frame_tag"
             for entry in details[7]
         )
+
+
+def test_failed_save_keeps_original_file(tmp_path, monkeypatch):
+    import src.edit.services.project_state as project_state_module
+
+    source = Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json"
+    target = tmp_path / source.name
+    shutil.copy2(source, target)
+    original = target.read_text()
+    project_state = ProjectState()
+    project_state.load_openlabel_config(str(target))
+
+    def failing_dump(obj, f, **kwargs):
+        f.write("{partial")
+        raise RuntimeError("serialization failed")
+
+    monkeypatch.setattr(project_state_module.json, "dump", failing_dump)
+    try:
+        project_state.save_openlabel_config()
+    except RuntimeError:
+        pass
+
+    assert target.read_text() == original
+    assert [p.name for p in tmp_path.iterdir()] == [target.name]
+
+
+def test_unsaved_changes_tracks_edits_since_load_and_save(tmp_path):
+    source = Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json"
+    target = tmp_path / source.name
+    shutil.copy2(source, target)
+    project_state = ProjectState()
+    project_state.load_openlabel_config(str(target))
+    assert not project_state.has_unsaved_changes()
+
+    project_state.annotation_config.ontologies["0"] = "changed"
+    assert project_state.has_unsaved_changes()
+
+    project_state.save_openlabel_config()
+    assert not project_state.has_unsaved_changes()
+
+
+def test_save_rebuilds_intervals_and_drops_boxless_objects(tmp_path):
+    from src.edit.models.OpenLabel import RDFItem, RelationMetadata
+
+    source = Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json"
+    target = tmp_path / source.name
+    shutil.copy2(source, target)
+    state = ProjectState()
+    state.load_openlabel_config(str(target))
+    config = state.annotation_config
+    orphan, kept = sorted(config.objects)[:2]
+    for frame in config.frames.values():
+        frame.objects.pop(orphan, None)
+    # Remove one middle frame of the kept object to create a gap
+    kept_frames = sorted(int(k) for k, f in config.frames.items() if kept in f.objects)
+    gap = kept_frames[len(kept_frames) // 2]
+    config.frames[str(gap)].objects.pop(kept)
+    config.relations = {
+        "0": RelationMetadata(name="r", type="near", ontology_uid="0",
+                              rdf_subjects=[RDFItem(type="object", uid=orphan)],
+                              rdf_objects=[RDFItem(type="object", uid=kept)]),
+    }
+
+    state.save_openlabel_config()
+
+    saved = read_json(str(target))["openlabel"]
+    assert orphan not in saved["objects"]
+    assert saved["relations"] == {}
+    intervals = saved["objects"][kept]["frame_intervals"]
+    assert {"frame_start": kept_frames[0], "frame_end": gap - 1} in intervals
+    assert {"frame_start": gap + 1, "frame_end": kept_frames[-1]} in intervals
+    # The in-memory model is untouched, so undo can still restore the orphan's boxes
+    assert orphan in state.annotation_config.objects
+    assert not state.has_unsaved_changes()

@@ -211,3 +211,7 @@ __marimo__/
 **/.venv/
 .aider*
 datasets
+development.md
+
+# ASAM OpenLABEL ontology (third-party, not redistributed)
+ontology/openlabel_ontology_scenario_tags.ttl

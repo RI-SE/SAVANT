@@ -5,6 +5,7 @@ Contains helper functions for angle normalization and other common operations.
 """
 
 import numpy as np
+from savant_common.openlabel import normalize_angle_to_2pi_range  # noqa: F401 (re-export)
 
 
 def normalize_angle_to_pi(angle: float) -> float:
@@ -42,21 +43,6 @@ def rebase_angle_if_needed(angle: float) -> float:
     elif angle < -2 * np.pi:
         return angle + 2 * np.pi
     return angle
-
-
-def normalize_angle_to_2pi_range(angle: float) -> float:
-    """Normalize angle to [0, 2π) range for OpenLabel output.
-
-    Args:
-        angle: Angle in radians (can be any value)
-
-    Returns:
-        Normalized angle in [0, 2π) range
-    """
-    result = angle % (2 * np.pi)
-    if result < 0:
-        result += 2 * np.pi
-    return float(result)
 
 
 def find_continuous_angle(

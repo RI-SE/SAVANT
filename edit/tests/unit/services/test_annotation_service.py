@@ -4,9 +4,14 @@ from unittest.mock import MagicMock, call
 
 import pytest
 
-from edit.models.OpenLabel import OpenLabel
+from edit.models.OpenLabel import AnnotatorData, ConfidenceData, OpenLabel
 from edit.services.annotation_service import AnnotationService
-from edit.services.exceptions import ObjectLinkConflictError, ObjectNotFoundError
+from edit.services.exceptions import (
+    InvalidFrameRangeError,
+    ObjectLinkConflictError,
+    ObjectNotFoundError,
+    UnsportedTagTypeError,
+)
 from edit.services.project_state import ProjectState
 
 
@@ -734,3 +739,63 @@ class TestUpdateFrameTag:
         mocker.patch.object(service_with_tag, "get_frame_tags", return_value=["lanechange"])
         result = service_with_tag.update_frame_tag("lanechange", 0, 5, "lanechange", 0, 5)
         assert result is False
+
+    @pytest.mark.parametrize("new_tag, start, end", [("unknown", 10, 20), ("lanechange", 30, 5)])
+    def test_invalid_update_keeps_original_interval(self, service_with_tag, mocker, new_tag, start, end):
+        mocker.patch.object(service_with_tag, "get_frame_tags", return_value=["lanechange"])
+        with pytest.raises((UnsportedTagTypeError, InvalidFrameRangeError)):
+            service_with_tag.update_frame_tag("lanechange", 10, 20, new_tag, start, end)
+        intervals = service_with_tag.project_state.annotation_config.actions["lanechange"].frame_intervals
+        assert [(i.frame_start, i.frame_end) for i in intervals] == [(10, 20)]
+
+    def test_restore_allows_tag_outside_ontology(self, service_with_tag, mocker):
+        mocker.patch.object(service_with_tag, "get_frame_tags", return_value=[])
+        service_with_tag.add_frame_tag("legacy", 1, 2, require_in_ontology=False)
+        assert "legacy" in service_with_tag.project_state.annotation_config.actions
+
+
+class TestMarkConfidenceResolved:
+    @staticmethod
+    def _resolve(vec, annotator="alice"):
+        frame_obj = SimpleNamespace(object_data=SimpleNamespace(vec=vec))
+        model = SimpleNamespace(
+            frames={"0": SimpleNamespace(objects={"1": frame_obj})},
+            update_annotator=lambda *args: OpenLabel.update_annotator(None, *args),
+        )
+        service = AnnotationService(project_state=SimpleNamespace(annotation_config=model))
+        service.mark_confidence_resolved(0, "1", annotator)
+        return {entry.name: list(entry.val) for entry in frame_obj.object_data.vec}, len(vec)
+
+    def test_without_provenance_creates_entries(self):
+        assert self._resolve([]) == ({"annotator": ["alice"], "confidence": [1.0]}, 2)
+
+    def test_new_annotator_is_stacked_on_existing_entries(self):
+        vec = [AnnotatorData(val=deque(["markit"])), ConfidenceData(val=deque([0.3]))]
+        assert self._resolve(vec) == (
+            {"annotator": ["alice", "markit"], "confidence": [1.0, 0.3]}, 2
+        )
+
+    def test_same_annotator_overwrites_confidence(self):
+        vec = [AnnotatorData(val=deque(["alice"])), ConfidenceData(val=deque([0.3]))]
+        assert self._resolve(vec) == ({"annotator": ["alice"], "confidence": [1.0]}, 2)
+
+    def test_annotator_prefix_is_not_treated_as_same(self):
+        vec = [AnnotatorData(val=deque(["bobby"])), ConfidenceData(val=deque([0.3]))]
+        result, _ = self._resolve(vec, annotator="bob")
+        assert result["annotator"] == ["bob", "bobby"]
+
+
+def test_active_frame_tags_follow_in_place_changes():
+    from edit.models.OpenLabel import ActionMetadata, FrameInterval
+
+    actions = {
+        "rain": ActionMetadata(name="rain", type="FrameTag",
+                               frame_intervals=[FrameInterval(frame_start=0, frame_end=10)]),
+    }
+    service = AnnotationService(project_state=SimpleNamespace(annotation_config=SimpleNamespace(actions=actions)))
+    assert service.get_active_frame_tags(5) == [("rain", 0, 10)]
+
+    # Same dict object mutated (e.g. by an undo gateway): no stale result
+    actions["rain"].frame_intervals = [FrameInterval(frame_start=20, frame_end=30)]
+    assert service.get_active_frame_tags(5) == []
+    assert service.get_active_frame_tags(25) == [("rain", 20, 30)]

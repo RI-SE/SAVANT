@@ -3,9 +3,10 @@
 import json
 import logging
 import shutil
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import yaml
 
@@ -17,6 +18,26 @@ from .manifest_service import ManifestService
 from .split_service import SplitService
 
 logger = logging.getLogger(__name__)
+
+# progress(phase, done, total) -> True to cancel; total is 0 when unknown
+ProgressCallback = Callable[[str, int, int], bool]
+
+
+class GenerationCancelled(Exception):
+    """Raised when the progress callback asks to stop generation."""
+
+
+class _ProgressReporter:
+    """Counts processed files per phase and forwards them to an optional callback."""
+
+    def __init__(self, callback: Optional[ProgressCallback] = None):
+        self.callback = callback
+        self.counts: dict[str, int] = defaultdict(int)
+
+    def step(self, phase: str, total: int = 0) -> None:
+        self.counts[phase] += 1
+        if self.callback and self.callback(phase, self.counts[phase], total):
+            raise GenerationCancelled(f"Generation cancelled during {phase.lower()}")
 
 
 class ConfigGenerator:
@@ -36,6 +57,7 @@ class ConfigGenerator:
         self.dataset_service = dataset_service or DatasetService()
         self.manifest_service = manifest_service or ManifestService()
         self.split_service = split_service or SplitService()
+        self._progress = _ProgressReporter()
 
     def generate_training_files(
         self,
@@ -44,8 +66,12 @@ class ConfigGenerator:
         output_dir: str,
         copy_images: bool = False,
         generate_manifest: bool = True,
+        progress: Optional[ProgressCallback] = None,
     ) -> tuple[str, str, Optional[str]]:
         """Generate training configuration files for a config.
+
+        progress is called per file linked/copied and hashed; returning True raises
+        GenerationCancelled (the partial output is cleared on the next generation).
 
         Args:
             project: The project containing dataset references
@@ -61,6 +87,7 @@ class ConfigGenerator:
             ValueError: If datasets have mismatched class definitions
             FileNotFoundError: If datasets don't exist
         """
+        self._progress = _ProgressReporter(progress)
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
 
@@ -71,6 +98,9 @@ class ConfigGenerator:
 
         # Validate class compatibility
         self._validate_class_compatibility(datasets)
+
+        # Drop links/files from earlier generations so a changed split can't leak
+        self._clear_generated_dirs(output_path, datasets)
 
         # Create output directories
         images_train_dir = output_path / "images" / "train"
@@ -131,7 +161,10 @@ class ConfigGenerator:
                 source_datasets=config.selected_datasets,
             )
             manifest = self.manifest_service.generate_manifest(
-                output_dir=output_path, info=manifest_info, file_mappings=file_mappings
+                output_dir=output_path,
+                info=manifest_info,
+                file_mappings=file_mappings,
+                on_file=lambda: self._progress.step("Hashing", len(file_mappings)),
             )
             self.manifest_service.save_manifest(manifest, manifest_file)
             manifest_path = str(manifest_file)
@@ -345,9 +378,27 @@ class ConfigGenerator:
 
         return None
 
+    @staticmethod
+    def _clear_generated_dirs(output_path: Path, datasets: list[DatasetInfo]) -> None:
+        """Remove the generated images/ and labels/ trees; refuse if they could hold source data."""
+        out = output_path.resolve()
+        for ds in datasets:
+            src = Path(ds.path).resolve()
+            if out == src or out in src.parents or src in out.parents:
+                raise ValueError(
+                    f"Output folder {out} overlaps source dataset {src}; choose a separate folder."
+                )
+        for sub in ("images", "labels"):
+            target = output_path / sub
+            if target.is_symlink():
+                target.unlink()
+            elif target.exists():
+                shutil.rmtree(target)
+
     def _create_link_or_copy(self, src: Path, dst: Path, copy: bool) -> None:
         """Create symlink or copy file."""
-        if dst.exists():
+        self._progress.step("Copying" if copy else "Linking")
+        if dst.is_symlink() or dst.exists():
             dst.unlink()
 
         if copy:
@@ -466,20 +517,23 @@ class ConfigGenerator:
             total_val = sum(ds.val_images for ds in datasets)
             total_objects = sum(ds.total_objects for ds in datasets)
 
-            # Calculate totals considering split settings
+            # Run the actual split (filenames only) so chunking and gap exclusion show
+            split_method = None
+            excluded = 0
             if config.split_enabled:
-                # Count total files that would be pooled
-                total_pooled = 0
+                pooled = []
                 for ds in datasets:
-                    ds_path = Path(ds.path)
                     include_val = config.include_val_in_pool.get(ds.name, False)
-                    files = self.split_service.collect_files_from_dataset(
-                        ds_path, include_val
+                    pooled.extend(
+                        self.split_service.collect_files_from_dataset(Path(ds.path), include_val)
                     )
-                    total_pooled += len(files)
-
-                estimated_train = int(total_pooled * config.split_ratio)
-                estimated_val = total_pooled - estimated_train
+                split_result = self.split_service.split_files(
+                    pooled, config.split_ratio, config.split_seed
+                )
+                estimated_train = len(split_result.train_files)
+                estimated_val = len(split_result.val_files)
+                excluded = len(split_result.excluded_files)
+                split_method = split_result.method
             else:
                 estimated_train = total_train
                 estimated_val = total_val
@@ -497,6 +551,8 @@ class ConfigGenerator:
                 "split_enabled": config.split_enabled,
                 "split_ratio": config.split_ratio if config.split_enabled else None,
                 "split_seed": config.split_seed if config.split_enabled else None,
+                "split_method": split_method,
+                "excluded_gap_images": excluded,
             }
 
             if generate_manifest:
@@ -506,5 +562,8 @@ class ConfigGenerator:
 
             return result
 
-        except Exception as e:
+        except (ValueError, OSError) as e:  # bad datasets/paths: expected, shown to user
             return {"valid": False, "error": str(e)}
+        except Exception as e:
+            logger.exception("Unexpected error while previewing generation")
+            return {"valid": False, "error": f"Internal error: {e}"}

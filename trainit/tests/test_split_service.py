@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from trainit.trainit_gui.services.split_service import SplitResult, SplitService
+from trainit.chunk_split import DEFAULT_CHUNK_FRAMES, DEFAULT_GAP_FRAMES
 
 
 class TestSplitServiceBasic:
@@ -214,12 +215,44 @@ class TestSplitServicePrivateMethods:
         )
 
         groups = service._group_by_sequence(files)
+        ds = mock_dataset_multi_sequence.name
 
-        assert len(groups) == 3
-        assert "M0101" in groups
-        assert "M0102" in groups
-        assert "M0103" in groups
-        assert len(groups["M0101"]) == 10
+        assert set(groups) == {f"{ds}/M0101", f"{ds}/M0102", f"{ds}/M0103"}
+        assert len(groups[f"{ds}/M0101"]) == 10
+
+    @pytest.mark.unit
+    def test_extracted_datasets_are_separate_groups(self, service: SplitService, temp_dir: Path):
+        """Extracted datasets all use frame_NNNNNN names; each must stay its own group."""
+        files = []
+        for ds in ("ds_a", "ds_b"):
+            train = temp_dir / ds / "images" / "train"
+            train.mkdir(parents=True)
+            for i in range(4):
+                (train / f"frame_{i:06d}.jpg").touch()
+            files += service.collect_files_from_dataset(temp_dir / ds, include_val=False)
+
+        assert set(service._group_by_sequence(files)) == {"ds_a/frame", "ds_b/frame"}
+        assert service.split_files(files, 0.5, seed=1).method == "stratified"
+
+    @pytest.mark.unit
+    def test_long_sequences_use_chunked_split(self, service: SplitService, temp_dir: Path):
+        train = temp_dir / "ds" / "images" / "train"
+        train.mkdir(parents=True)
+        for n in range(0, 10 * DEFAULT_CHUNK_FRAMES, 30):  # 1 image/s at 30 fps, 10 chunks
+            (train / f"frame_{n:06d}.jpg").touch()
+        files = service.collect_files_from_dataset(temp_dir / "ds", include_val=False)
+
+        result = service.split_files(files, 0.9, seed=5)
+
+        assert result.method == f"chunked:{DEFAULT_CHUNK_FRAMES}/{DEFAULT_GAP_FRAMES}"
+        assert result.excluded_files
+        assert not set(result.excluded_files) & (set(result.train_files) | set(result.val_files))
+
+    @pytest.mark.unit
+    def test_listing_is_sorted(self, service: SplitService, temp_dir: Path):
+        for name in ("c.jpg", "a.jpg", "b.jpg"):
+            (temp_dir / name).touch()
+        assert [f.name for f in service._list_images(temp_dir)] == ["a.jpg", "b.jpg", "c.jpg"]
 
     @pytest.mark.unit
     def test_list_images_filters_extensions(

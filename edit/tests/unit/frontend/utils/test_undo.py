@@ -9,10 +9,16 @@ from edit.frontend.utils.undo import (
     CascadeBBoxCommand,
     CascadeDeltaBBoxCommand,
     DeleteBBoxCommand,
+    DeleteRelationshipCommand,
     FrameObjectSnapshot,
     GatewayHolder,
+    TrackObjectCommand,
     UndoRedoManager,
+    UpdateBBoxGeometryCommand,
+    UpdateVLMTagCommand,
+    VLMTagSnapshot,
 )
+from edit.frontend.utils.undo.gateways import ControllerVLMGateway
 
 
 class DummyCommand:
@@ -382,6 +388,7 @@ class TestEditFrameTagCommand:
         assert gateway.edit_frame_tag.call_count == 2
         calls = gateway.edit_frame_tag.call_args_list
         assert calls[1].args == (new, old)
+        assert calls[1].kwargs == {"restoring": True}
 
     def test_no_gateway_raises(self):
         from edit.frontend.utils.undo import (
@@ -397,3 +404,179 @@ class TestEditFrameTagCommand:
         ctx = GatewayHolder(annotation_gateway=annotation_gateway)
         with pytest.raises(RuntimeError, match="No frame tag gateway"):
             cmd.do(ctx)
+
+
+class FakeVLMTagController:
+    def __init__(self, tags):
+        self.tags = tags
+
+    def get_vlm_tags(self):
+        return self.tags
+
+    def set_vlm_tag(self, tag_id, tag):
+        if tag is None:
+            self.tags.pop(tag_id, None)
+        else:
+            self.tags[tag_id] = tag
+
+
+@pytest.mark.parametrize(
+    "new_tag",
+    [
+        {"type": "SurfaceTypeSegmented", "ontology_uid": "1", "tag_data": {}},
+        None,
+    ],
+    ids=["retype", "remove"],
+)
+def test_update_vlm_tag_command_replaces_and_restores_whole_tag(new_tag):
+    original = {"type": "SurfaceTypeAsphalt", "ontology_uid": "2", "tag_data": {"x": 1}}
+    controller = FakeVLMTagController({"0": dict(original)})
+    gateway = ControllerVLMGateway(controller)
+    context = GatewayHolder(annotation_gateway=SimpleNamespace(), vlm_gateway=gateway)
+    command = UpdateVLMTagCommand(
+        tag_id="0",
+        before=gateway.capture_tag("0"),
+        after=VLMTagSnapshot(tag_id="0", tag=new_tag),
+    )
+
+    command.do(context)
+    assert controller.tags.get("0") == new_tag
+
+    command.undo(context)
+    assert controller.tags["0"] == original
+
+
+class FailingUndoCommand(DummyCommand):
+    def undo(self, context: GatewayHolder) -> None:
+        raise RuntimeError("gateway failed")
+
+
+def test_failed_undo_keeps_command_on_undo_stack(undo_context):
+    manager = UndoRedoManager()
+    command = FailingUndoCommand()
+    manager.execute(command, undo_context)
+
+    with pytest.raises(RuntimeError):
+        manager.undo(undo_context)
+
+    assert manager.can_undo()
+    assert not manager.can_redo()
+
+
+class FakeBoxStore:
+    """Gateway keeping frame objects in a dict keyed by (frame, object_id)."""
+
+    def __init__(self, existing=None, fail_on_frame=None):
+        self.boxes = dict(existing or {})
+        self.fail_on_frame = fail_on_frame
+
+    def capture_frame_object(self, frame_number, object_id):
+        key = (frame_number, object_id)
+        if key not in self.boxes:
+            return None
+        return FrameObjectSnapshot(frame_number, object_id, dict(self.boxes[key]))
+
+    def restore_bbox(self, snapshot):
+        self.boxes[(snapshot.frame_number, snapshot.object_id)] = dict(snapshot.frame_object)
+
+    def delete_bbox(self, frame_number, object_id):
+        self.boxes.pop((frame_number, object_id), None)
+
+    def apply_geometry(self, frame_number, object_id, geometry, annotator):
+        box = self.boxes[(frame_number, object_id)]
+        box.update(geometry=geometry, annotators=[annotator] + box["annotators"])
+
+    def add_bbox_to_existing_object(self, frame_number, bbox_info, annotator):
+        if frame_number == self.fail_on_frame:
+            raise ValueError("object already in frame")
+        box = {"geometry": bbox_info["coordinates"], "annotators": [annotator]}
+        self.boxes[(frame_number, bbox_info["object_id"])] = box
+        return [FrameObjectSnapshot(frame_number, bbox_info["object_id"], dict(box))]
+
+
+def test_geometry_undo_restores_provenance():
+    original = {"geometry": "g0", "annotators": ["markit"]}
+    store = FakeBoxStore({(1, "7"): dict(original)})
+    context = GatewayHolder(annotation_gateway=store)
+    geometry = BBoxGeometrySnapshot(1.0, 2.0, 3.0, 4.0, 0.0)
+    command = UpdateBBoxGeometryCommand(1, "7", before=geometry, after=geometry, annotator="alice")
+
+    command.do(context)
+    edited = dict(store.boxes[(1, "7")])
+    command.undo(context)
+    assert store.boxes[(1, "7")] == original
+    command.do(context)
+    assert store.boxes[(1, "7")] == edited
+
+
+def _tracked(*frames):
+    return [SimpleNamespace(frame_idx=f, center_x=0, center_y=0, width=1, height=1, theta=0)
+            for f in frames]
+
+
+def test_track_undo_only_removes_added_boxes():
+    store = FakeBoxStore({(9, "7"): {"geometry": "manual", "annotators": ["alice"]}})
+    context = GatewayHolder(annotation_gateway=store)
+    command = TrackObjectCommand("7", _tracked(1, 2), annotator="tracker")
+    command.do(context)
+    command.tracked_frames.append(_tracked(9)[0])  # frame later covered by a manual box
+
+    command.undo(context)
+
+    assert list(store.boxes) == [(9, "7")]
+
+
+def test_failed_tracking_rolls_back_partial_boxes():
+    store = FakeBoxStore(fail_on_frame=2)
+    context = GatewayHolder(annotation_gateway=store)
+    command = TrackObjectCommand("7", _tracked(1, 2, 3), annotator="tracker")
+
+    with pytest.raises(ValueError):
+        command.do(context)
+
+    assert store.boxes == {}
+
+
+class FakeRelationGateway:
+    def __init__(self):
+        self.relations = {"4": {"id": "4", "subject": "1", "type": "near", "object": "2",
+                                "ontology_uid": "0", "frame_intervals": [(3, 8)]}}
+        self.restored = []
+
+    def delete_relationship(self, relation_id):
+        return self.relations.pop(relation_id, None)
+
+    def restore_relationship(self, **kwargs):
+        self.restored.append(kwargs)
+
+
+def test_delete_relationship_undo_keeps_stored_intervals():
+    gateway = FakeRelationGateway()
+    context = GatewayHolder(annotation_gateway=gateway)
+    command = DeleteRelationshipCommand("4")
+
+    command.do(context)
+    command.undo(context)
+
+    assert command.description
+    assert gateway.restored[0]["frame_intervals"] == [(3, 8)]
+
+
+def test_delete_missing_relationship_is_noop():
+    gateway = FakeRelationGateway()
+    command = DeleteRelationshipCommand("missing")
+    command.do(GatewayHolder(annotation_gateway=gateway))
+    command.undo(GatewayHolder(annotation_gateway=gateway))
+    assert gateway.restored == []
+
+
+def test_undo_history_is_bounded(undo_context):
+    manager = UndoRedoManager(max_depth=3)
+    commands = [DummyCommand() for _ in range(5)]
+    for command in commands:
+        manager.execute(command, undo_context)
+
+    undone = []
+    while manager.can_undo():
+        undone.append(manager.undo(undo_context))
+    assert undone == commands[:1:-1]  # newest three, newest first

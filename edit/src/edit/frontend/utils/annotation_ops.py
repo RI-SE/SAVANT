@@ -338,7 +338,7 @@ def _cascade_delta_all_shortcut(main_window, direction: CascadeDirection) -> Non
 
 def _zoom_to_object(main_window, object_id: str):
     """Select the bbox in the overlay and zoom to it."""
-    bbox = main_window.overlay._get_box_by_obj_id(object_id)
+    bbox = main_window.overlay.box_by_object_id(object_id)
     if bbox is None:
         return
     main_window.overlay.select_box_by_obj_id(object_id)
@@ -353,12 +353,12 @@ def _cycle_bbox(main_window, direction: int):
     the first (direction=+1) or last (direction=-1) bbox.
     """
     overlay = main_window.overlay
-    boxes = overlay._boxes
+    boxes = overlay.boxes
     if not boxes:
         return
 
     count = len(boxes)
-    current_idx = overlay._selected_idx
+    current_idx = overlay.selected_index
 
     if current_idx is None:
         new_idx = 0 if direction > 0 else count - 1
@@ -383,9 +383,7 @@ def highlight_active_obj_list(main_window, object_id: str):
         sidebar.select_active_object_by_id(object_id)
         sidebar.show_object_editor(object_id, expand=True)
     else:
-        sidebar._selected_annotation_object_id = None
-        sidebar.active_objects.clearSelection()
-        sidebar.hide_object_editor()
+        sidebar.clear_object_selection()
 
 
 def _on_lock_to_center_toggled(main_window, checked: bool):

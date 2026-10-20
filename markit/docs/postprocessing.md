@@ -8,7 +8,7 @@ The postprocessing pipeline runs when `--housekeeping` is enabled. Passes execut
 
 **Pipeline Order:**
 ```
-GapDetection → GapFilling → DuplicateRemoval → StaticObjectRemoval →
+GapDetection → PositionalJitter → GapFilling → DuplicateRemoval → StaticObjectRemoval →
 FirstDetectionRefinement → BboxSmoothing → RotationAdjustment →
 AngleSplineInterpolation (opt-in) → SuddenDetection → FrameInterval →
 AngleNormalization
@@ -59,6 +59,32 @@ AngleNormalization
 - `gaps_filled`: Number of gaps filled
 - `gaps_skipped`: Number of gaps exceeding `max_gap_size`
 - `frames_added`: Total interpolated frames created
+
+---
+
+### PositionalJitterPass
+
+**Purpose:** Detects and removes short runs of erratic positional movement - frames where a track's bbox center repeatedly reverses direction, which a real rigid object cannot do. Runs before gap filling so the resulting gap gets a clean interpolation, and before `ShortDurationPass` so objects that drop below `min_duration` as a side effect are cleaned up automatically.
+
+**Algorithm:**
+1. For each object, compute the frame-to-frame velocity vector of the bbox center between temporally adjacent frames (a pre-existing detection gap breaks the chain)
+2. Ignore transitions slower than `min_speed_px` (direction is unstable at very low speed)
+3. Flag a frame as a "sharp turn" if the turning angle between its incoming and outgoing velocity vectors exceeds `angle_threshold_deg`
+4. Group consecutive sharp-turn frames into runs; a run of at least `min_run_length` frames is jitter
+5. Remove (or, with `--jitter-mark`, tag) only the frames in the jitter run - the rest of the trajectory is preserved
+
+**Parameters:**
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `angle_threshold_deg` | 100.0 | Turning angle (degrees) between consecutive velocity vectors considered a sharp turn |
+| `min_run_length` | 3 | Consecutive sharp-turn frames required to call a run jitter |
+| `min_speed_px` | 3.0 | Minimum per-frame displacement for a velocity vector to be considered directional |
+| `mark_only` | False | If True, tag jitter frames instead of removing them |
+
+**Annotator:** Marked (not removed) frames are tagged with `markit_housekeeping(jitter)`.
+
+**Statistics:**
+- `objects_checked`, `objects_with_jitter`, `jitter_runs_found`, `frames_removed`, `frames_marked`
 
 ---
 
@@ -328,6 +354,35 @@ Each pass that modifies data adds an annotator marker to track provenance:
 | `markit_housekeeping(smooth)` | BboxSmoothingPass | (unchanged) |
 | `markit_housekeeping(rot)` | RotationAdjustmentPass | 0.8888 |
 | `markit_housekeeping(spline)` | AngleSplineInterpolationPass | (unchanged) |
+
+---
+
+## Decision Log
+
+Annotator markers show *that* a frame was touched, but not *why*. Passing
+`--decision-log PATH` (see main [README](../README.md#decision-log)) writes a
+structured JSON file with a `detection` section (engine-conflict drops) and a
+`housekeeping` section, each a list of records with `action`, `object_id` (or
+`object_ids` for merges), `reason`, and a pass-specific `details` dict.
+
+Every `PostprocessingPass` has a `get_decision_log()` method (default: empty
+list). Currently populated by the passes that delete/merge objects or are
+newly added — auditability matters most there:
+
+| Pass | `action` |
+|------|----------|
+| `GapDetectionPass` | `gap_detected` |
+| `PositionalJitterPass` | `remove_frames` / `mark_frames` |
+| `ShortDurationPass` | `remove_object` |
+| `StaticObjectRemovalPass` | `remove_object` / `mark_object` |
+| `DuplicateRemovalPass` | `merge_objects` |
+
+The remaining corrective/smoothing passes (size outlier filtering, rotation
+fixes, bbox smoothing, gap filling, etc.) touch most frames of most objects
+rather than just anomalies, so they stay stats-only for now — recording
+every frame they adjust would make the log very large for comparatively low
+audit value. Add `get_decision_log()` to any of them following the same
+pattern if finer-grained auditing is needed later.
 
 ---
 

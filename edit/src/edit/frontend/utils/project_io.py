@@ -1,5 +1,8 @@
 import json
+import logging
+import os
 import shutil
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +21,7 @@ from ..exceptions import (
 from ..utils.settings_store import (
     get_default_ontology_path,
     get_frame_history_count,
+    get_lock_to_center,
     get_zoom_rate,
     set_ontology_path,
     update_tag_options,
@@ -40,6 +44,9 @@ from edit.utils import read_json
 
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".mpg", ".mpeg", ".m4v"}
 OPENLABEL_EXTENSIONS = {".json"}
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -110,24 +117,30 @@ def _prefer_openlabel_file(json_files: list[Path]) -> Path:
     return preferred[0] if preferred else json_files[0]
 
 
-def import_video_file(destination_dir: Path, source_path: str | Path) -> Path:
+def import_video_file(
+    destination_dir: Path, source_path: str | Path, replace: Iterable[Path] = ()
+) -> Path:
     """Copy a user-provided video file into the project directory."""
 
     return _copy_file_into_project(
         destination_dir=destination_dir,
         source_path=source_path,
+        replace=replace,
         allowed_extensions=VIDEO_EXTENSIONS,
         error_type=InvalidVideoFileError,
         error_message="Unsupported video format selected.",
     )
 
 
-def import_openlabel_file(destination_dir: Path, source_path: str | Path) -> Path:
+def import_openlabel_file(
+    destination_dir: Path, source_path: str | Path, replace: Iterable[Path] = ()
+) -> Path:
     """Copy a user-provided OpenLabel file into the project directory."""
 
     return _copy_file_into_project(
         destination_dir=destination_dir,
         source_path=source_path,
+        replace=replace,
         allowed_extensions=OPENLABEL_EXTENSIONS,
         error_type=InvalidConfigFileError,
         error_message="OpenLabel configs must be JSON files.",
@@ -139,8 +152,9 @@ def create_openlabel_template(
     *,
     video_filename: str | None = None,
     template_name: str | None = None,
+    replace: Iterable[Path] = (),
 ) -> Path:
-    """Create a minimal OpenLabel template file in the project directory."""
+    """Create a minimal OpenLabel template file, then remove the files in replace."""
 
     folder = Path(destination_dir).expanduser()
     if not folder.is_dir():
@@ -148,7 +162,8 @@ def create_openlabel_template(
 
     default_name = template_name or f"{folder.name}_openlabel.json"
     destination_path = folder / default_name
-    if destination_path.exists():
+    replace = _resolved(replace)
+    if destination_path.exists() and _resolve(destination_path) not in replace:
         raise TemplateCreationError(
             f"The file '{destination_path.name}' already exists in this project."
         )
@@ -168,10 +183,13 @@ def create_openlabel_template(
         }
     }
 
+    staging = _staging_path(destination_path)
     try:
-        with destination_path.open("w", encoding="utf-8") as output_file:
+        with staging.open("w", encoding="utf-8") as output_file:
             json.dump(template_payload, output_file, indent=2)
+        _commit_staged(staging, destination_path, replace)
     except OSError as exc:
+        staging.unlink(missing_ok=True)
         raise TemplateCreationError(f"Failed to create template file: {exc}") from exc
 
     return destination_path
@@ -209,13 +227,19 @@ def discover_ontology_references(openlabel_path: Path) -> list[str]:
 
 
 def _resolve_local_path(reference: str, *search_dirs: Path) -> Path | None:
-    candidate = Path(reference)
-    if candidate.is_absolute() and candidate.is_file():
-        return candidate
-    for base in search_dirs:
+    """Resolve reference against search_dirs, accepting only files inside one of them.
+
+    References come from the (possibly shared) OpenLabel file, so absolute paths and
+    "../" escapes outside the project are ignored.
+    """
+    roots = [base.resolve() for base in search_dirs]
+    for base in roots:
         resolved = (base / reference).resolve()
-        if resolved.is_file():
+        if not resolved.is_file():
+            continue
+        if any(resolved.is_relative_to(root) for root in roots):
             return resolved
+        logger.warning(f"Ignoring ontology reference outside the project: {reference}")
     return None
 
 
@@ -248,11 +272,12 @@ def _copy_file_into_project(
     *,
     destination_dir: Path,
     source_path: str | Path,
+    replace: Iterable[Path],
     allowed_extensions: set[str],
     error_type: type[FrontendException],
     error_message: str,
 ) -> Path:
-    """Copy a file into the project directory after validation."""
+    """Copy a file into the project directory; files in replace are removed only after the copy succeeds."""
 
     folder = Path(destination_dir).expanduser()
     if not folder.is_dir():
@@ -266,25 +291,51 @@ def _copy_file_into_project(
         raise error_type(error_message)
 
     destination = folder / source.name
-    if destination.exists():
-        try:
-            if destination.resolve() == source.resolve():
-                # The user selected the already-present file. Nothing to do.
-                return destination
-        except OSError:
-            # Fallback to copying if resolve fails.
-            pass
-        raise FileOperationError(
-            f"{destination.name} already exists in the project directory. "
-            "Remove it before importing a replacement."
-        )
-
+    replace = _resolved(replace) - {_resolve(source)}
     try:
-        shutil.copy2(source, destination)
+        if _resolve(destination) == _resolve(source):
+            # The user selected the already-present file: only drop the others.
+            _commit_staged(None, destination, replace)
+            return destination
+        if destination.exists() and _resolve(destination) not in replace:
+            raise FileOperationError(
+                f"{destination.name} already exists in the project directory. "
+                "Remove it before importing a replacement."
+            )
+        staging = _staging_path(destination)
+        try:
+            shutil.copy2(source, staging)
+            _commit_staged(staging, destination, replace)
+        finally:
+            staging.unlink(missing_ok=True)
     except OSError as exc:
-        raise FileOperationError(f"Failed to copy '{source.name}': {exc}") from exc
+        raise FileOperationError(f"Failed to import '{source.name}': {exc}") from exc
 
     return destination
+
+
+def _resolve(path: Path) -> Path:
+    try:
+        return path.expanduser().resolve()
+    except OSError:
+        return path.expanduser().absolute()
+
+
+def _resolved(paths: Iterable[Path]) -> set[Path]:
+    return {_resolve(Path(path)) for path in paths}
+
+
+def _staging_path(destination: Path) -> Path:
+    return destination.with_name(f".{destination.name}.importing")
+
+
+def _commit_staged(staging: Path | None, destination: Path, replace: set[Path]) -> None:
+    """Remove replaced files only once the new file is fully written, then move it in place."""
+    for old_path in replace:
+        if old_path != _resolve(destination):
+            old_path.unlink(missing_ok=True)
+    if staging is not None:
+        os.replace(staging, destination)
 
 
 def wire(main_window):
@@ -317,6 +368,8 @@ def on_open_video(main_window, path: str):
 
 def open_openlabel_config(main_window, path: str):
     main_window.project_state_controller.load_openlabel_config(path)
+    if hasattr(main_window, "reset_undo_history"):
+        main_window.reset_undo_history()
     try:
         set_active_project_dir(Path(path).expanduser().resolve().parent)
     except OSError:
@@ -364,6 +417,19 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
     json_path = _prefer_openlabel_file(contents.openlabel_files)
     video_path = contents.video_files[0]
 
+    # Validate the ontology before touching any project state, so a failure leaves the
+    # previously open project intact
+    try:
+        ontology_path, _ = resolve_ontology_path(contents.directory, json_path)
+    except FrontendException as exc:
+        QMessageBox.critical(main_window, "Ontology Error", str(exc))
+        return
+    try:
+        set_ontology_path(ontology_path)
+    except ValueError as exc:
+        QMessageBox.critical(main_window, "Invalid Ontology", str(exc))
+        return
+
     set_active_project_dir(contents.directory)
     config = ensure_project_config(contents.directory)
     available_annotators = list(config.annotators or [])
@@ -376,6 +442,10 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
         main_window.set_default_zoom(get_zoom_rate(), apply=True)
     if hasattr(main_window, "sidebar_state"):
         main_window.sidebar_state.historic_obj_frame_count = get_frame_history_count()
+    if hasattr(main_window, "sidebar") and hasattr(
+        main_window.sidebar, "lock_to_center_checkbox"
+    ):
+        main_window.sidebar.lock_to_center_checkbox.setChecked(get_lock_to_center())
 
     resolved_name = (project_name or contents.directory.name).strip()
     if resolved_name:
@@ -385,17 +455,6 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
         else:
             main_window.project_name = resolved_name
             main_window.update_title()
-
-    try:
-        ontology_path, _ = resolve_ontology_path(contents.directory, json_path)
-    except FrontendException as exc:
-        QMessageBox.critical(main_window, "Ontology Error", str(exc))
-        return
-    try:
-        set_ontology_path(ontology_path)
-    except ValueError as exc:
-        QMessageBox.critical(main_window, "Invalid Ontology", str(exc))
-        return
 
     open_openlabel_config(main_window, str(json_path))
     # TODO: Refactor the getattr stuff?

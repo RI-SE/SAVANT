@@ -21,7 +21,6 @@ Example:
 import argparse
 import json
 import logging
-import math
 import random
 import shutil
 import sys
@@ -29,13 +28,19 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import cv2
+import numpy as np
 import yaml
 
 from savant_common import read_ontology_classes
+from savant_common.geometry import bbox_to_corners
 from savant_common.openlabel import OpenLabel, load_openlabel
+from savant_common.resources import get_ontology_path
 from trainit import __version__
 
 logger = logging.getLogger(__name__)
+
+# Boxes with less visible area than this (in pixels²) are left out of the labels
+MIN_VISIBLE_AREA_PX = 1.0
 
 
 class ValidationError(Exception):
@@ -53,14 +58,13 @@ class ExtractionError(Exception):
 class ExtractionConfig:
     """Configuration for YOLO training data extraction."""
 
-    DEFAULT_ONTOLOGY = Path("ontology/savant.ttl")
-
     def __init__(self, args: argparse.Namespace):
         """Initialize and validate configuration from CLI arguments."""
         self.input_path = Path(args.input)
         self.output_path = Path(args.output)
         self.ontology_path = (
-            Path(args.ontology) if args.ontology else self.DEFAULT_ONTOLOGY
+            # Default: bundled ontology (package data or repo), not a cwd-relative path
+            Path(args.ontology) if args.ontology else Path(get_ontology_path())
         )
         self.video_name: Optional[str] = args.video
         self.openlabel_name: Optional[str] = args.openlabel
@@ -440,37 +444,24 @@ class YOLODatasetExtractor:
             or None if conversion fails
         """
         try:
-            # Half dimensions
-            hw = width / 2
-            hh = height / 2
-
-            # Corner offsets (before rotation)
-            # Order: top-left, top-right, bottom-right, bottom-left
-            corners_local = [
-                (-hw, -hh),  # top-left
-                (hw, -hh),  # top-right
-                (hw, hh),  # bottom-right
-                (-hw, hh),  # bottom-left
-            ]
-
-            # Rotation matrix components
-            cos_r = math.cos(rotation)
-            sin_r = math.sin(rotation)
-
-            # Apply rotation and translate to center
+            box = bbox_to_corners(x_center, y_center, width, height, rotation).astype(np.float32)
+            image = np.array(
+                [[0, 0], [img_width, 0], [img_width, img_height], [0, img_height]], np.float32
+            )
+            # Keep only the visible part: clip to the image, then take that part's
+            # rotated rectangle (clamping corners one by one would skew the box)
+            visible_area, visible = cv2.intersectConvexConvex(box, image)
+            if visible is None or visible_area < MIN_VISIBLE_AREA_PX:
+                return None
+            if visible_area < cv2.contourArea(box) - 1e-3:
+                box = cv2.boxPoints(cv2.minAreaRect(visible.reshape(-1, 2)))
+            # The rectangle can still extend past the image edge; YOLO requires [0, 1]
             corners = []
-            for dx, dy in corners_local:
-                # Rotate
-                rx = dx * cos_r - dy * sin_r
-                ry = dx * sin_r + dy * cos_r
-                # Translate to center and normalize
-                x_norm = (x_center + rx) / img_width
-                y_norm = (y_center + ry) / img_height
-                # Clamp to [0, 1]
-                x_norm = max(0.0, min(1.0, x_norm))
-                y_norm = max(0.0, min(1.0, y_norm))
-                corners.extend([x_norm, y_norm])
-
+            for x, y in box:
+                corners.extend([
+                    max(0.0, min(1.0, float(x) / img_width)),
+                    max(0.0, min(1.0, float(y) / img_height)),
+                ])
             return corners
 
         except Exception as e:
@@ -628,7 +619,7 @@ Examples:
         "--ontology",
         type=str,
         default=None,
-        help="Path to SAVANT ontology (.ttl) file (default: ontology/savant.ttl)",
+        help="Path to SAVANT ontology (.ttl) file (default: the bundled savant.ttl)",
     )
 
     # File selection

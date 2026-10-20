@@ -5,6 +5,8 @@ FrameIntervalPass - Frame interval calculation postprocessing pass.
 from typing import Any, Dict
 from collections import defaultdict
 
+from savant_common.openlabel import contiguous_intervals
+
 from ..base import PostprocessingPass
 
 
@@ -46,13 +48,7 @@ class FrameIntervalPass(PostprocessingPass):
                 self.intervals_skipped_no_frames += 1
                 continue
 
-            frame_list = sorted(object_frame_map[obj_id])
-            frame_start = frame_list[0]
-            frame_end = frame_list[-1]
-
-            obj_data["frame_intervals"] = [
-                {"frame_start": frame_start, "frame_end": frame_end}
-            ]
+            obj_data["frame_intervals"] = contiguous_intervals(object_frame_map[obj_id])
             self.intervals_added += 1
 
         return openlabel_data

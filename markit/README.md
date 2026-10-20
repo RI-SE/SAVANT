@@ -15,6 +15,7 @@ Markit is a command-line tool for detecting and tracking objects using oriented 
 - **OpenLabel Export** - Schema-validated JSON output with per-frame timestamps and optional drone stream metadata
 - **Postprocessing Pipeline** - Gap filling, duplicate removal, rotation smoothing, static object handling
 - **Provenance Tracking** - W3C PROV-JSON format via dataprov
+- **Decision Log** - Optional structured JSON trail explaining housekeeping/detection decisions
 - **Video Rendering** - Optional annotated output video with drawn detections
 - **Drone Info** - Optionally populate a `streams` block from a DJI flight record for richer metadata
 
@@ -149,6 +150,7 @@ markit --input video.mp4 --output_json output.json --housekeeping
 | Pass | Description |
 |------|-------------|
 | Gap Detection | Identifies gaps in object tracking sequences |
+| Positional Jitter | Removes or flags short runs of erratic direction-reversing movement |
 | Gap Filling | Interpolates detections across small gaps |
 | Duplicate Removal | Removes overlapping detections using IoU thresholds |
 | First Detection Refinement | Refines initial detection angles using lookahead |
@@ -173,7 +175,10 @@ markit --input video.mp4 --output_json output.json --housekeeping \
        --angle-spline-interpolation 0.0 \
        --edge-distance 200 \
        --static-threshold 20 \
-       --static-mark  # Mark instead of remove
+       --static-mark \  # Mark instead of remove
+       --jitter-angle-threshold 100.0 \
+       --jitter-min-run 3 \
+       --jitter-mark  # Mark instead of remove
 ```
 
 ## VLM Scene Analysis
@@ -261,7 +266,7 @@ With `--vlm-rationale`, the VLM provides brief explanations for weather classifi
 | `--vlm` | false | Enable VLM scene analysis |
 | `--vlm-model` | `llama-3.2-11b-vision-instruct` | Model name on the vLLM server |
 | `--vlm-url` | `http://localhost:8000` | vLLM API base URL |
-| `--vlm-api-key` | - | API key for authentication (if required) |
+| `--vlm-api-key` | - | API key for authentication (if required). Prefer the `SAVANT_VLM_API_KEY` environment variable, which keeps the key out of `ps` and shell history |
 | `--vlm-sampling` | `uniform` | Sampling strategy: `uniform`, `scene_change`, `keyframes` |
 | `--vlm-interval` | `30` | Frame interval for uniform sampling |
 | `--vlm-max-frames` | `20` | Maximum number of frames to analyze |
@@ -273,26 +278,24 @@ With `--vlm-rationale`, the VLM provides brief explanations for weather classifi
 
 ### Output
 
-VLM analysis adds two sections to the OpenLabel output:
+VLM analysis adds two sections to the OpenLabel output. Each detected field value becomes one entry whose `type` is a class in the SAVANT scenario ontology (`ontology/savant_scenario.ttl`), e.g. `RoadTypeDistributor`, `WeatherRain`. That ontology mirrors the subset of the ASAM OpenLABEL scenario tagging ontology that SAVANT uses, with identical class names and hierarchy, so it can be replaced by OpenLABEL 1:1. Values OpenLABEL lacks (e.g. dry surface, traffic density levels) use SAVANT extension subclasses. Values such as `none`, `unknown` or `false` produce no entry. The field-to-class mapping is in `savant_common/scenario_tags.py`.
 
-**Contexts** - Time-bounded scene conditions with frame intervals:
+The scenario ontology is added to the `ontologies` section, and each entry's `ontology_uid` refers to it.
+
+**Contexts** - Time-bounded conditions (precipitation, traffic density) with frame intervals:
 
 ```json
 "contexts": {
   "0": {
-    "name": "weather_conditions",
-    "type": "WeatherContext",
-    "frame_intervals": [{"frame_start": 0, "frame_end": 299}],
+    "name": "precipitation",
+    "type": "WeatherRain",
+    "ontology_uid": "1",
+    "frame_intervals": [{"frame_start": 120, "frame_end": 299}],
     "context_data": {
-      "text": [
-        {"name": "precipitation", "val": "none"},
-        {"name": "time_of_day", "val": "day"}
-      ],
+      "text": [{"name": "precipitation", "val": "rain"}],
       "vec": [
-        {"name": "precipitation_confidence", "val": [0.95]},
         {"name": "precipitation_annotator", "val": ["markit_vlm"]},
-        {"name": "time_of_day_confidence", "val": [0.98]},
-        {"name": "time_of_day_annotator", "val": ["markit_vlm"]}
+        {"name": "precipitation_confidence", "val": [0.85]}
       ]
     }
   }
@@ -304,18 +307,24 @@ VLM analysis adds two sections to the OpenLabel output:
 ```json
 "tags": {
   "0": {
-    "name": "weather_conditions",
-    "type": "WeatherTag",
+    "type": "RoadTypeDistributor",
+    "ontology_uid": "1",
     "tag_data": {
-      "text": [
-        {"name": "precipitation", "val": "none"},
-        {"name": "time_of_day", "val": "day"}
-      ],
+      "text": [{"name": "drivable_area_type", "val": "distributor"}],
       "vec": [
-        {"name": "precipitation_confidence", "val": [0.95]},
-        {"name": "precipitation_annotator", "val": ["markit_vlm"]},
-        {"name": "time_of_day_confidence", "val": [0.98]},
-        {"name": "time_of_day_annotator", "val": ["markit_vlm"]}
+        {"name": "drivable_area_type_annotator", "val": ["markit_vlm"]},
+        {"name": "drivable_area_type_confidence", "val": [0.75]}
+      ]
+    }
+  },
+  "1": {
+    "type": "SurfaceTypeAsphalt",
+    "ontology_uid": "1",
+    "tag_data": {
+      "text": [{"name": "surface_type", "val": "asphalt"}],
+      "vec": [
+        {"name": "surface_type_annotator", "val": ["markit_vlm"]},
+        {"name": "surface_type_confidence", "val": [0.9]}
       ]
     }
   }
@@ -323,6 +332,7 @@ VLM analysis adds two sections to the OpenLabel output:
 ```
 
 Each VLM-generated field includes:
+- The source VLM value (or a numeric property such as `laneSpecificationLaneCountValue`)
 - `*_confidence` - VLM's certainty for this classification (0.0-1.0)
 - `*_annotator` - Source identifier (`markit_vlm`)
 - `*_rationale` - Optional explanation when `--vlm-rationale` is enabled
@@ -360,7 +370,7 @@ Markit exports detections in OpenLabel (subset) JSON format, including informati
     },
     "ontologies": {
       "0": "https://ri-se.github.io/SAVANT/ontology/savant#",
-      "1": "https://github.com/RI-SE/SAVANT/tree/main/ontology/savant-scenario#"
+      "1": "https://ri-se.github.io/SAVANT/ontology/savant_scenario#"
     },
     "streams": {
       "drone_camera": {
@@ -470,6 +480,24 @@ markit --input video.mp4 --output_json output.json --provenance provenance.json
 ```
 
 The provenance file records inputs, outputs, parameters, and processing steps.
+When YOLO is used, it also records `ultralytics`/`torch` version, the YOLO task,
+and (read from the weights checkpoint itself) the architecture and `ultralytics`
+version the model was originally trained with, under the `savant:` namespace.
+
+### Decision Log
+
+Write a structured JSON log explaining individual housekeeping and detection
+decisions (which objects/frames were removed, merged, marked, or dropped, and
+why) — useful for auditing what `--housekeeping` changed:
+
+```bash
+markit --input video.mp4 --output_json output.json --housekeeping --decision-log decisions.json
+```
+
+Not written unless a path is given. The file has a `detection` section
+(engine-conflict drops) and a `housekeeping` section (postprocessing pass
+decisions), each a list of records with `action`, `object_id`, `reason`, and
+a pass-specific `details` dict.
 
 ## ArUco Markers
 
@@ -504,7 +532,7 @@ Marker position is included in the OpenLabel output as objects with additional o
 ```json
      "2000017": {
         "name": "GbgSaroRound_17",
-        "type": "ArUco",
+        "type": "Aruco",
         "ontology_uid": "0",
         "object_data": {
           "vec": [
@@ -576,6 +604,7 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--aruco-csv` | - | CSV with ArUco marker positions |
 | `--visual-markers` | - | CSV with visual marker positions (same format as ArUco) |
 | `--provenance` | - | Provenance chain file path |
+| `--decision-log` | - | Path to write a structured JSON log of housekeeping/detection decisions |
 | `--drone-info` | - | Path to a DJI `FlightRecord*.video_stats.json` file; adds a `streams` block with camera and flight metadata to the OpenLabel output |
 
 ### Detection Options
@@ -583,6 +612,7 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--detection-method` | `yolo` | `yolo`, `optical_flow`, or `both` |
+| `--conf` | `0.25` | YOLO detection confidence threshold (0.0-1.0); detections below it are discarded before conflict resolution/postprocessing |
 | `--motion-threshold` | `0.5` | Optical flow motion threshold |
 | `--min-object-area` | `200` | Minimum object area (pixels²) |
 | `--aruco-dict` | `DICT_4X4_50` | ArUco dictionary type |
@@ -608,6 +638,10 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--edge-distance` | `200` | Edge distance for sudden detection (pixels) |
 | `--static-threshold` | `20` | Static object movement threshold (pixels) |
 | `--static-mark` | false | Mark static objects instead of removing |
+| `--jitter-angle-threshold` | `100.0` | Turning angle (degrees) considered a sharp turn for jitter detection |
+| `--jitter-min-run` | `3` | Consecutive sharp-turn frames required to flag a jitter run |
+| `--jitter-min-speed` | `3.0` | Minimum per-frame displacement (pixels) for jitter direction detection |
+| `--jitter-mark` | false | Mark jitter frames instead of removing them |
 | `--angle-spline-interpolation` | disabled | Enable spline-based angle interpolation. Value is the smoothing factor for `splprep` (0 = exact interpolation, larger = smoother) |
 
 ### VLM Scene Analysis
@@ -617,7 +651,7 @@ Supported ArUco dictionaries: `DICT_4X4_50`, `DICT_4X4_100`, `DICT_4X4_250`, `DI
 | `--vlm` | false | Enable VLM scene analysis |
 | `--vlm-model` | `llama-3.2-11b-vision-instruct` | Model name on the vLLM server |
 | `--vlm-url` | `http://localhost:8000` | vLLM API base URL |
-| `--vlm-api-key` | - | API key for authentication |
+| `--vlm-api-key` | - | API key for authentication (or set `SAVANT_VLM_API_KEY`) |
 | `--vlm-sampling` | `uniform` | Frame sampling strategy |
 | `--vlm-interval` | `30` | Frame interval for uniform sampling |
 | `--vlm-max-frames` | `20` | Maximum frames to analyze |

@@ -5,14 +5,29 @@ Provides abstract base and concrete implementations for VLM API clients.
 """
 
 import logging
+import os
 from abc import ABC, abstractmethod
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 
 from .config import VLMConfig, VLMProvider
 
 logger = logging.getLogger(__name__)
+
+MAX_LOGGED_BODY_CHARS = 500
+# Read when no key is passed, so keys stay out of command lines and shell history
+VLM_API_KEY_ENV = "SAVANT_VLM_API_KEY"
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+def _warn_if_key_sent_in_clear(base_url: str) -> None:
+    url = urlparse(base_url)
+    if url.scheme == "http" and url.hostname not in _LOCAL_HOSTS:
+        logger.warning(
+            f"VLM API key will be sent unencrypted to {url.hostname}; use an https:// --vlm-url"
+        )
 
 
 class VLMClient(ABC):
@@ -59,11 +74,14 @@ class VLLMClient(VLMClient):
         Args:
             base_url: Base URL for vLLM API (e.g., http://localhost:8000)
             model_name: Name of the model loaded in vLLM
-            api_key: Optional API key (vLLM default is "EMPTY")
+            api_key: Optional API key; falls back to $SAVANT_VLM_API_KEY, then vLLM's "EMPTY"
             timeout: Request timeout in seconds
         """
         self.base_url = base_url.rstrip("/")
         self.model_name = model_name
+        api_key = api_key or os.environ.get(VLM_API_KEY_ENV)
+        if api_key:
+            _warn_if_key_sent_in_clear(self.base_url)
         self.api_key = api_key or "EMPTY"
         self.timeout = timeout
 
@@ -110,7 +128,10 @@ class VLLMClient(VLMClient):
             timeout=self.timeout,
         )
         if response.status_code != 200:
-            logger.error(f"VLM request failed: {response.status_code} - {response.text}")
+            # Bodies can be large or echo request content; keep the log line short
+            logger.error(
+                f"VLM request failed: {response.status_code} - {response.text[:MAX_LOGGED_BODY_CHARS]}"
+            )
         response.raise_for_status()
 
         result = response.json()

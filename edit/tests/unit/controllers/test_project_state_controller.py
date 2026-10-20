@@ -30,12 +30,6 @@ class TestProjectStateController:
         controller.save_openlabel_config()
         mock_service.save_openlabel_config.assert_called_once()
 
-    def test_get_actor_types_returns_service_value(self, controller, mock_service):
-        expected_actors = ["Car", "Pedestrian"]
-        mock_service.get_actor_types.return_value = expected_actors
-        assert controller.get_actor_types() == expected_actors
-        mock_service.get_actor_types.assert_called_once()
-
     def test_service_error_handling(self, controller, mock_service):
         mock_service.save_openlabel_config.side_effect = ValueError("Invalid config")
         with pytest.raises(InternalException):

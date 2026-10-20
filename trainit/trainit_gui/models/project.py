@@ -2,7 +2,14 @@
 
 from datetime import datetime
 from typing import Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _require_plain_name(value: str) -> str:
+    """Reject names that would escape their folder when joined into a path."""
+    if not value.strip() or value.strip() in (".", "..") or any(c in value for c in "/\\\0"):
+        raise ValueError(f"Must be a plain name without path separators: {value!r}")
+    return value
 
 
 class TrainingConfig(BaseModel):
@@ -19,6 +26,18 @@ class TrainingConfig(BaseModel):
     selected_datasets: list[str] = Field(
         default_factory=list, description="List of dataset folder names to include"
     )
+
+    @field_validator("name")
+    @classmethod
+    def _plain_config_name(cls, value: str) -> str:
+        # Used in output filenames ({name}_dataset.yaml, ...)
+        return _require_plain_name(value)
+
+    @field_validator("selected_datasets")
+    @classmethod
+    def _plain_dataset_names(cls, value: list[str]) -> list[str]:
+        # Joined onto datasets_root; must stay inside it
+        return [_require_plain_name(name) for name in value]
 
     # Core training parameters
     model: str = Field(
@@ -163,6 +182,13 @@ class TrainingConfig(BaseModel):
         return result
 
 
+# Training options left to YOLO's defaults unless set (all None-default TrainingConfig
+# fields). Drives the config editor; must match train_yolo_obb.OPTIONAL_PARAMS.
+OPTIONAL_TRAINING_PARAMS = tuple(
+    name for name, info in TrainingConfig.model_fields.items() if info.default is None
+)
+
+
 class ProjectDefaults(BaseModel):
     """Default training parameters for new configurations in a project.
 
@@ -211,6 +237,12 @@ class ProjectDefaults(BaseModel):
     split_enabled: Optional[bool] = None
     split_ratio: Optional[float] = Field(default=None, ge=0.5, le=0.99)
     split_seed: Optional[int] = Field(default=None, ge=0)
+
+    @field_validator("optimizer")
+    @classmethod
+    def _auto_optimizer_means_unset(cls, value: Optional[str]) -> Optional[str]:
+        """"auto" is YOLO's own default; TrainingConfig expresses that as None."""
+        return None if value == "auto" else value
 
     def apply_to_config(self, config: "TrainingConfig") -> "TrainingConfig":
         """Apply these defaults to a config, only overriding trainit defaults."""

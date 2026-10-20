@@ -20,6 +20,7 @@ from edit.frontend.utils.settings_store import (
     get_bookmark_notes,
     get_error_range,
     get_frame_history_count,
+    get_lock_to_center,
     get_movement_sensitivity,
     get_ontology_namespace,
     get_rotation_sensitivity,
@@ -31,6 +32,7 @@ from edit.frontend.utils.settings_store import (
     set_action_interval_offset,
     set_bookmarks,
     set_frame_history_count,
+    set_lock_to_center,
     set_movement_sensitivity,
     set_ontology_namespace,
     set_rotation_sensitivity,
@@ -149,6 +151,7 @@ def _snapshot_settings() -> Dict[str, Any]:
         "error_range": tuple(get_error_range()),
         "show_errors": get_show_errors(),
         "bookmarks": {str(k): v for k, v in get_bookmark_notes().items()},
+        "lock_to_center": get_lock_to_center(),
     }
 
 
@@ -264,6 +267,10 @@ def apply_project_settings(config: ProjectConfig | None) -> None:
     bookmarks = settings.get("bookmarks")
     if isinstance(bookmarks, (list, dict)):
         set_bookmarks(bookmarks)
+
+    lock_to_center = settings.get("lock_to_center")
+    if lock_to_center is not None:
+        set_lock_to_center(bool(lock_to_center))
 
 
 def restore_tag_option_states(project_dir: Path | None = None) -> None:

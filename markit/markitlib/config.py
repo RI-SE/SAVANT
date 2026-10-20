@@ -111,6 +111,7 @@ class ConflictResolutionConfig:
     iou_threshold: float = 0.3  # IoU threshold for conflict detection (0.0-1.0)
     yolo_precedence: bool = True  # YOLO takes precedence over optical flow
     enable_logging: bool = False  # Log conflicts for debugging
+    record_decisions: bool = True  # Keep per-drop records for --decision-log (memory grows per drop)
 
 
 class MarkitConfig:
@@ -123,6 +124,7 @@ class MarkitConfig:
             args: Parsed command line arguments
         """
         self.weights_path = args.weights
+        self.yolo_conf = getattr(args, "conf", 0.25)
         self.video_path = args.input
         self.output_json_path = args.output_json
         self.schema_path = args.schema
@@ -158,29 +160,31 @@ class MarkitConfig:
         self.use_yolo = args.detection_method in ["yolo", "both"]
         self.use_optical_flow = args.detection_method in ["optical_flow", "both"]
 
-        # Optical flow parameters
+        # Optical flow parameters; fallbacks come from the dataclass so they can't drift
+        flow_defaults = OpticalFlowParams()
         self.optical_flow_params = OpticalFlowParams(
             motion_threshold=args.motion_threshold,
             min_area=args.min_object_area,
-            max_area=getattr(args, "max_object_area", 30000),
-            algorithm=getattr(args, "flow_algorithm", "dis"),
-            temporal_smoothing=getattr(args, "flow_temporal_smoothing", 0.3),
-            pyramid_levels=getattr(args, "flow_pyramid_levels", 7),
-            window_size=getattr(args, "flow_window_size", 25),
-            iterations=getattr(args, "flow_iterations", 5),
-            median_filter_size=getattr(args, "flow_median_filter", 5),
-            debug_visualization=getattr(args, "debug_flow", False),
-            processing_scale=getattr(args, "flow_scale", 0.5),
-            track_max_age=getattr(args, "track_max_age", 5),
-            mask_mode=getattr(args, "flow_mask_mode", "or"),
-            dilate_kernel_size=getattr(args, "flow_dilate_size", 5),
-            morph_close_size=getattr(args, "flow_morph_close", 5),
-            morph_open_size=getattr(args, "flow_morph_open", 5),
-            exclusion_mask=getattr(args, "exclusion_mask", None),
+            max_area=getattr(args, "max_object_area", flow_defaults.max_area),
+            algorithm=getattr(args, "flow_algorithm", flow_defaults.algorithm),
+            temporal_smoothing=getattr(args, "flow_temporal_smoothing", flow_defaults.temporal_smoothing),
+            pyramid_levels=getattr(args, "flow_pyramid_levels", flow_defaults.pyramid_levels),
+            window_size=getattr(args, "flow_window_size", flow_defaults.window_size),
+            iterations=getattr(args, "flow_iterations", flow_defaults.iterations),
+            median_filter_size=getattr(args, "flow_median_filter", flow_defaults.median_filter_size),
+            debug_visualization=getattr(args, "debug_flow", flow_defaults.debug_visualization),
+            processing_scale=getattr(args, "flow_scale", flow_defaults.processing_scale),
+            track_max_age=getattr(args, "track_max_age", flow_defaults.track_max_age),
+            mask_mode=getattr(args, "flow_mask_mode", flow_defaults.mask_mode),
+            dilate_kernel_size=getattr(args, "flow_dilate_size", flow_defaults.dilate_kernel_size),
+            morph_close_size=getattr(args, "flow_morph_close", flow_defaults.morph_close_size),
+            morph_open_size=getattr(args, "flow_morph_open", flow_defaults.morph_open_size),
+            exclusion_mask=getattr(args, "exclusion_mask", flow_defaults.exclusion_mask),
         )
 
         # IoU-based conflict resolution configuration
         self.iou_threshold = args.iou_threshold
+        self.record_decisions = bool(getattr(args, "decision_log", None))
         self.verbose_conflicts = args.verbose_conflicts
         self.enable_conflict_resolution = not args.disable_conflict_resolution
 
@@ -200,10 +204,15 @@ class MarkitConfig:
         self.static_threshold = args.static_threshold
         self.static_mark = args.static_mark
         self.min_duration = getattr(args, "min_duration", 15)
+        self.jitter_angle_threshold = getattr(args, "jitter_angle_threshold", 100.0)
+        self.jitter_min_run = getattr(args, "jitter_min_run", 3)
+        self.jitter_min_speed = getattr(args, "jitter_min_speed", 3.0)
+        self.jitter_mark = getattr(args, "jitter_mark", False)
 
         # Individual pass toggles (only relevant when housekeeping is enabled)
         self.no_gap_detection = getattr(args, "no_gap_detection", False)
         self.no_gap_filling = getattr(args, "no_gap_filling", False)
+        self.no_jitter_filter = getattr(args, "no_jitter_filter", False)
         self.max_gap_size = getattr(args, "max_gap_size", 30)
         self.no_first_detection_refinement = getattr(args, "no_first_detection_refinement", False)
         self.no_size_outlier_filter = getattr(args, "no_size_outlier_filter", False)

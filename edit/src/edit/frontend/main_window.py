@@ -1,3 +1,4 @@
+import logging
 from typing import Sequence
 
 # main_window.py
@@ -71,6 +72,9 @@ from edit.frontend.widgets.sidebar import Sidebar
 from edit.frontend.widgets.video_display import VideoDisplay
 from edit.services.tracking_service import TrackingService
 from edit.services import inspection_service
+
+
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -442,46 +446,43 @@ class MainWindow(QMainWindow):
         ghost_detections: dict = result["ghost_detections"]
         double_detections: dict = result["double_detections"]
 
+        planned = [
+            (obj_id, "ghost_detection", frame_idx)
+            for obj_id, frames in ghost_detections.items()
+            for frame_idx in frames
+        ] + [
+            (obj_id, "double_detection", frame_idx)
+            for frame_idx, obj_ids in double_detections.items()
+            for obj_id in obj_ids
+        ]
         tags_added = 0
-        for obj_id, frames in ghost_detections.items():
-            for frame_idx in frames:
-                try:
-                    self.annotation_controller.add_object_tag(
-                        obj_id, "ghost_detection", frame_idx
-                    )
-                    tags_added += 1
-                except Exception:
-                    pass
-
-        for frame_idx, obj_ids in double_detections.items():
-            for obj_id in obj_ids:
-                try:
-                    self.annotation_controller.add_object_tag(
-                        obj_id, "double_detection", frame_idx
-                    )
-                    tags_added += 1
-                except Exception:
-                    pass
+        failed = 0
+        for obj_id, tag_name, frame_idx in planned:
+            try:
+                self.annotation_controller.add_object_tag(obj_id, tag_name, frame_idx)
+                tags_added += 1
+            except Exception as exc:
+                failed += 1
+                logger.warning(f"Could not tag object {obj_id} frame {frame_idx} as {tag_name}: {exc}")
 
         # Sync _tag_options in settings store so new tags appear in the navigator
         try:
             tag_map = self.project_state_controller.get_tag_categories() or {}
             update_tag_options(tag_map)
         except Exception:
-            pass
+            logger.warning("Could not refresh tag options after inspection", exc_info=True)
 
         # Refresh sidebar tag tree
         try:
             current_index = int(self.video_controller.current_index())
-            self.sidebar._refresh_active_frame_tags(current_index)
+            self.sidebar.refresh_active_frame_tags(current_index)
         except Exception:
-            pass
+            logger.warning("Could not refresh sidebar tags after inspection", exc_info=True)
 
-        QMessageBox.information(
-            self,
-            "Inspection complete",
-            f"Added {tags_added} object tag(s).",
-        )
+        message = f"Added {tags_added} object tag(s)."
+        if failed:
+            message += f"\n{failed} tag(s) could not be added; see the log for details."
+        QMessageBox.information(self, "Inspection complete", message)
 
     def update_vlm_menu_state(self):
         """Enable/disable VLM Analysis menu item based on data availability."""
@@ -511,52 +512,9 @@ class MainWindow(QMainWindow):
             set_bbox_zoom_padding(vals.get("bbox_zoom_padding", 2.5))
             set_frame_history_count(vals["previous_frame_count"])
             self.sidebar_state.historic_obj_frame_count = get_frame_history_count()
-            # self.sidebar.refresh_confidence_issue_list()
-            new_buf = vals.get("video_buffer_frameself.sidebar.refresh_confidence_issue_list()s", get_video_buffer_frames())
+            new_buf = vals.get("video_buffer_frames", get_video_buffer_frames())
             set_video_buffer_frames(new_buf)
             self.video_controller.reader.chunk_size = get_video_buffer_frames()
-            # warning_vals = vals.get("warning_range", get_warning_range())
-            # error_vals = vals.get("error_range", get_error_range())
-            # warning_range = tuple(float(v) for v in warning_vals)
-            # error_range = tuple(float(v) for v in error_vals)
-            # show_warnings = vals.get("show_warnings", get_show_warnings())
-            # show_errors = vals.get("show_errors", get_show_errors())
-            # set_tag_option_states(vals.get("tag_options", {}))
-            # thresholds_valid = True
-            # if (
-            #     show_warnings
-            #     and show_errors
-            #     and not (
-            #         warning_range[1] <= error_range[0]
-            #         or error_range[1] <= warning_range[0]
-            #     )
-            # ):
-            #     QMessageBox.critical(
-            #         self,
-            #         "Invalid Ranges",
-            #         "Warning and error ranges must not overlap when both markers are visible.",
-            #     )
-            #     thresholds_valid = False
-
-            # if thresholds_valid:
-            #     try:
-            #         set_threshold_ranges(
-            #             warning_range=warning_range,
-            #             error_range=error_range,
-            #             show_warnings=show_warnings,
-            #             show_errors=show_errors,
-            #         )
-            #         set_show_warnings(show_warnings)
-            #         set_show_errors(show_errors)
-            #         confidence_ops.apply_confidence_markers(self)
-            #     except InvalidWarningErrorRange as ex:
-            #         QMessageBox.critical(self, "Invalid Ranges", str(ex))
-            #         thresholds_valid = False
-            # if thresholds_valid:
-            #     confidence_ops.refresh_confidence_issues(self)
-            # else:
-            #     confidence_ops.apply_confidence_markers(self)
-            # self.update_issue_info()
 
     def noop(*args, **kwargs):
         print("Not implemented yet")
@@ -633,13 +591,18 @@ class MainWindow(QMainWindow):
     def redo(self):
         self.redo_last_command()
 
+    def reset_undo_history(self):
+        """Drop undo/redo history; commands from a previous project must not touch a new one."""
+        self.undo_manager.clear()
+        self._refresh_undo_actions()
+
     def _refresh_undo_actions(self):
         self.menu.undo_action.setEnabled(self.undo_manager.can_undo())
         self.menu.redo_action.setEnabled(self.undo_manager.can_redo())
 
     def closeEvent(self, event):
         """Prompt to save unsaved work before exiting."""
-        if self.undo_manager.can_undo():
+        if self.project_state_controller.has_unsaved_changes():
             reply = QMessageBox.question(
                 self,
                 "Unsaved Changes",
@@ -651,7 +614,11 @@ class MainWindow(QMainWindow):
             )
             if reply == QMessageBox.StandardButton.Save:
                 self.quick_save_project()
-                event.accept()
+                # Stay open if the save failed (the error was already reported)
+                if self.project_state_controller.has_unsaved_changes():
+                    event.ignore()
+                else:
+                    event.accept()
             elif reply == QMessageBox.StandardButton.Discard:
                 event.accept()
             else:

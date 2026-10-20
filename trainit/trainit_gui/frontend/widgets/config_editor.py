@@ -23,9 +23,9 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from ..states.app_state import AppState
-from ..help_texts import PARAMETER_HELP, GROUP_HELP, AUGMENTATION_PRESETS
+from ..help_texts import PARAMETER_HELP, GROUP_HELP, AUGMENTATION_PRESETS, MODEL_PRESETS
 from ...controllers.config_controller import ConfigController
-from ...models.project import TrainingConfig
+from ...models.project import OPTIONAL_TRAINING_PARAMS, TrainingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +145,14 @@ class ConfigEditor(QWidget):
         core_layout = QFormLayout()
         core_group_layout.addLayout(core_layout)
 
-        self._add_line_edit(core_layout, "model", "Model:", "yolo11s-obb.pt")
+        self._add_combo_box(
+            core_layout,
+            "model",
+            "Model:",
+            MODEL_PRESETS,
+            editable=True,
+            default="yolo11s-obb.pt",
+        )
         self._add_spin_box(core_layout, "epochs", "Epochs:", 1, 1000, 50)
         self._add_spin_box(core_layout, "imgsz", "Image Size:", 32, 2048, 640)
         self._add_spin_box(core_layout, "batch", "Batch Size:", 1, 256, 30)
@@ -182,8 +189,8 @@ class ConfigEditor(QWidget):
             ["auto", "SGD", "Adam", "AdamW", "NAdam", "RAdam", "RMSProp"],
             optional=True,
         )
-        self._add_optional_spin(
-            advanced_layout, "warmup_epochs", "Warmup Epochs:", 0, 10, 3
+        self._add_optional_double(
+            advanced_layout, "warmup_epochs", "Warmup Epochs:", 0, 10, 3.0
         )
         self._add_optional_double(
             advanced_layout, "warmup_momentum", "Warmup Momentum:", 0, 1, 0.8
@@ -359,6 +366,8 @@ class ConfigEditor(QWidget):
         label: str,
         options: list,
         optional: bool = False,
+        editable: bool = False,
+        default: Optional[str] = None,
     ):
         """Add a combo box field with info button."""
         container = QWidget()
@@ -366,6 +375,7 @@ class ConfigEditor(QWidget):
         h_layout.setContentsMargins(0, 0, 0, 0)
 
         widget = QComboBox()
+        widget.setEditable(editable)
         if optional:
             widget.addItem("(default)")
         widget.addItems(
@@ -373,8 +383,12 @@ class ConfigEditor(QWidget):
             if not optional
             else options[1:] if options[0] == "auto" else options
         )
+        if default is not None:
+            widget.setCurrentText(default)
         widget.setToolTip(_get_tooltip(name))
         widget.currentIndexChanged.connect(self._on_value_changed)
+        if editable:
+            widget.currentTextChanged.connect(self._on_value_changed)
         h_layout.addWidget(widget, stretch=1)
 
         info_btn = _create_info_button(self, name)
@@ -488,7 +502,7 @@ class ConfigEditor(QWidget):
             # Advanced parameters
             "lr0": (0.01, True),
             "lrf": (0.01, True),
-            "warmup_epochs": (3, True),
+            "warmup_epochs": (3.0, True),
             "warmup_momentum": (0.8, True),
             "patience": (50, True),
             "save_period": (-1, True),
@@ -533,6 +547,10 @@ class ConfigEditor(QWidget):
             elif isinstance(widget, QLineEdit):
                 # For line edits, set placeholder text showing the default
                 widget.setPlaceholderText(str(default_val))
+            elif isinstance(widget, QComboBox) and widget.isEditable():
+                # For editable combo boxes (e.g. model), mirror the line-edit
+                # behavior: show the project default as placeholder text.
+                widget.lineEdit().setPlaceholderText(str(default_val))
             elif isinstance(widget, QSpinBox):
                 # For required spin boxes, the default is the initial value
                 if not self.app_state.current_config:
@@ -562,33 +580,8 @@ class ConfigEditor(QWidget):
             self._set_value("device", config.device)
             self._set_value("project", config.project)
 
-            # Optional values
-            self._set_optional_value("lr0", config.lr0)
-            self._set_optional_value("lrf", config.lrf)
-            self._set_optional_value("optimizer", config.optimizer)
-            self._set_optional_value("warmup_epochs", config.warmup_epochs)
-            self._set_optional_value("warmup_momentum", config.warmup_momentum)
-            self._set_optional_value("patience", config.patience)
-            self._set_optional_value("save_period", config.save_period)
-            self._set_optional_value("cache", config.cache)
-            self._set_optional_value("workers", config.workers)
-            self._set_optional_value("close_mosaic", config.close_mosaic)
-            self._set_optional_value("freeze", config.freeze)
-            self._set_optional_value("box", config.box)
-            self._set_optional_value("cls", config.cls)
-            self._set_optional_value("dfl", config.dfl)
-            self._set_optional_value("hsv_h", config.hsv_h)
-            self._set_optional_value("hsv_s", config.hsv_s)
-            self._set_optional_value("hsv_v", config.hsv_v)
-            self._set_optional_value("degrees", config.degrees)
-            self._set_optional_value("translate", config.translate)
-            self._set_optional_value("scale", config.scale)
-            self._set_optional_value("shear", config.shear)
-            self._set_optional_value("perspective", config.perspective)
-            self._set_optional_value("fliplr", config.fliplr)
-            self._set_optional_value("flipud", config.flipud)
-            self._set_optional_value("mosaic", config.mosaic)
-            self._set_optional_value("mixup", config.mixup)
+            for name in OPTIONAL_TRAINING_PARAMS:
+                self._set_optional_value(name, getattr(config, name))
 
             # Update unchecked parameters to show project defaults
             self._update_widget_defaults()
@@ -618,6 +611,8 @@ class ConfigEditor(QWidget):
             idx = widget.findText(str(value))
             if idx >= 0:
                 widget.setCurrentIndex(idx)
+            elif widget.isEditable():
+                widget.setCurrentText(str(value) if value else "")
 
     def _set_optional_value(self, name: str, value: Any):
         """Set an optional widget value."""
@@ -665,6 +660,10 @@ class ConfigEditor(QWidget):
 
         return None
 
+    def _text_or_default(self, name: str) -> str:
+        """Empty text fields show the default as placeholder, so save that default."""
+        return (self._get_value(name) or "").strip() or TrainingConfig.model_fields[name].default
+
     def _get_optional_value(self, name: str) -> Optional[Any]:
         """Get an optional widget value."""
         widget = self._widgets.get(name)
@@ -700,44 +699,19 @@ class ConfigEditor(QWidget):
         if not self.app_state.current_config:
             return
 
-        # Build updated config
-        config = TrainingConfig(
-            name=self.app_state.current_config.name,
+        # Start from the current config so fields not edited here (e.g. split settings) survive
+        edited = dict(
             description=self.description_edit.toPlainText(),
             selected_datasets=list(self.app_state.selected_datasets),
-            model=self._get_value("model"),
+            model=self._text_or_default("model"),
             epochs=self._get_value("epochs"),
             imgsz=self._get_value("imgsz"),
             batch=self._get_value("batch"),
             device=self._get_value("device") or "auto",
-            project=self._get_value("project"),
-            lr0=self._get_optional_value("lr0"),
-            lrf=self._get_optional_value("lrf"),
-            optimizer=self._get_optional_value("optimizer"),
-            warmup_epochs=self._get_optional_value("warmup_epochs"),
-            warmup_momentum=self._get_optional_value("warmup_momentum"),
-            patience=self._get_optional_value("patience"),
-            save_period=self._get_optional_value("save_period"),
-            cache=self._get_optional_value("cache"),
-            workers=self._get_optional_value("workers"),
-            close_mosaic=self._get_optional_value("close_mosaic"),
-            freeze=self._get_optional_value("freeze"),
-            box=self._get_optional_value("box"),
-            cls=self._get_optional_value("cls"),
-            dfl=self._get_optional_value("dfl"),
-            hsv_h=self._get_optional_value("hsv_h"),
-            hsv_s=self._get_optional_value("hsv_s"),
-            hsv_v=self._get_optional_value("hsv_v"),
-            degrees=self._get_optional_value("degrees"),
-            translate=self._get_optional_value("translate"),
-            scale=self._get_optional_value("scale"),
-            shear=self._get_optional_value("shear"),
-            perspective=self._get_optional_value("perspective"),
-            fliplr=self._get_optional_value("fliplr"),
-            flipud=self._get_optional_value("flipud"),
-            mosaic=self._get_optional_value("mosaic"),
-            mixup=self._get_optional_value("mixup"),
+            project=self._text_or_default("project"),
+            **{name: self._get_optional_value(name) for name in OPTIONAL_TRAINING_PARAMS},
         )
+        config = TrainingConfig(**{**self.app_state.current_config.model_dump(), **edited})
 
         self.config_controller.update_config(config)
         self.app_state.config_dirty = False

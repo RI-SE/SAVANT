@@ -357,7 +357,7 @@ class Sidebar(QWidget):
             current_index = int(self.video_controller.current_index())
         except Exception:
             current_index = 0
-        self._refresh_active_frame_tags(current_index)
+        self.refresh_active_frame_tags(current_index)
 
     def _item_object_id(self, item: QListWidgetItem) -> str:
         stored_id = item.data(Qt.ItemDataRole.UserRole)
@@ -1038,7 +1038,7 @@ class Sidebar(QWidget):
                 self.annotation_controller.add_frame_tag(tag, start, end)
 
             current_index = int(self.video_controller.current_index())
-            self._refresh_active_frame_tags(current_index)
+            self.refresh_active_frame_tags(current_index)
             QMessageBox.information(self, "Tag added", f"{tag}: {start} → {end}")
         except Exception as exc:
             QMessageBox.critical(self, "Failed to add tag", str(exc))
@@ -1124,11 +1124,22 @@ class Sidebar(QWidget):
                     new_tag, new_start, new_end,
                 )
             current_index = int(self.video_controller.current_index())
-            self._refresh_active_frame_tags(current_index)
+            self.refresh_active_frame_tags(current_index)
         except Exception as exc:
             QMessageBox.critical(self, "Failed to edit tag", str(exc))
 
-    def _refresh_active_frame_tags(self, frame_index: int) -> None:
+    def refresh_selected_relationships(self) -> None:
+        """Refresh the relationship list for the selected object, if any."""
+        if self._selected_annotation_object_id:
+            self._refresh_relationships(self._selected_annotation_object_id)
+
+    def clear_object_selection(self) -> None:
+        """Deselect the active object and hide its editor."""
+        self._selected_annotation_object_id = None
+        self.active_objects.clearSelection()
+        self.hide_object_editor()
+
+    def refresh_active_frame_tags(self, frame_index: int) -> None:
         """Rebuild the 'Frame Tags' tree with frame tags and object tags active at frame_index."""
         if not hasattr(self, "tag_tree") or self.tag_tree is None:
             return
@@ -1281,7 +1292,7 @@ class Sidebar(QWidget):
             else:
                 return
             current_index = int(self.video_controller.current_index())
-            self._refresh_active_frame_tags(current_index)
+            self.refresh_active_frame_tags(current_index)
         except Exception as exc:
             QMessageBox.warning(self, "Remove Tag", str(exc))
 
@@ -1296,7 +1307,7 @@ class Sidebar(QWidget):
         Slot called when SeekBar emits frame_changed(int).
         Updates the list to only show tags active at that frame.
         """
-        self._refresh_active_frame_tags(frame_index)
+        self.refresh_active_frame_tags(frame_index)
 
     def _add_combo_separator(self, combo: QComboBox, text: str) -> None:
         """Insert a disabled, italic separator item into a combo box."""
@@ -1629,7 +1640,7 @@ class Sidebar(QWidget):
             current_index = int(self.video_controller.current_index())
         except Exception:
             current_index = 0
-        self._refresh_active_frame_tags(current_index)
+        self.refresh_active_frame_tags(current_index)
         refresh_confidence_list = getattr(self, "refresh_confidence_issue_list", None)
         if callable(refresh_confidence_list):
             refresh_confidence_list(current_index)

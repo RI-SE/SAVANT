@@ -105,6 +105,21 @@ class ProjectController:
             logger.error(f"Failed to open project: {e}")
             return False
 
+    def has_unsaved_changes(self) -> bool:
+        """Compare the in-memory project (and editor state) with the saved project file."""
+        if self.app_state.config_dirty:
+            return True
+        project, path = self.app_state.project, self.app_state.project_path
+        if project is None or not path:
+            return False
+        try:
+            saved = self.project_service.load_project(path)
+        except (FileNotFoundError, ValueError):
+            return True
+        # Rescanned on open and stamped on save; neither is a user change
+        ignored = {"available_datasets", "modified_at"}
+        return saved.model_dump(exclude=ignored) != project.model_dump(exclude=ignored)
+
     def save_project(self) -> bool:
         """Save the current project.
 

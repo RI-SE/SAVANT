@@ -152,18 +152,20 @@ def setup_ultralytics_settings(project_dir: str = "runs/obb") -> Path:
         "weights_dir": str(weights_dir),
         "runs_dir": str(runs_dir),
         "uuid": settings_uuid,
-        "sync": True,
+        # Nothing leaves the machine: no Ultralytics analytics and no experiment
+        # tracker integrations (they would activate if such a package got installed)
+        "sync": False,
         "api_key": "",
         "openai_api_key": "",
-        "clearml": True,
-        "comet": True,
-        "dvc": True,
-        "hub": True,
-        "mlflow": True,
-        "neptune": True,
-        "raytune": True,
-        "tensorboard": True,
-        "wandb": True,
+        "clearml": False,
+        "comet": False,
+        "dvc": False,
+        "hub": False,
+        "mlflow": False,
+        "neptune": False,
+        "raytune": False,
+        "tensorboard": False,
+        "wandb": False,
     }
 
     # Write settings to local file
@@ -194,6 +196,20 @@ class TrainingError(Exception):
     pass
 
 
+# YOLO train() options that default to None (= Ultralytics' own default). This one list
+# drives the config attributes, the printed summary and the train() call; it must match
+# the GUI's TrainingConfig (checked by tests/test_training_params.py).
+ADVANCED_PARAMS = (
+    "lr0", "lrf", "optimizer", "warmup_epochs", "warmup_momentum", "patience",
+    "save_period", "cache", "workers", "close_mosaic", "freeze", "box", "cls", "dfl",
+)
+AUGMENTATION_PARAMS = (
+    "hsv_h", "hsv_s", "hsv_v", "degrees", "translate", "scale", "shear",
+    "perspective", "fliplr", "flipud", "mosaic", "mixup",
+)
+OPTIONAL_PARAMS = ADVANCED_PARAMS + AUGMENTATION_PARAMS
+
+
 class YOLOTrainingConfig:
     """Configuration class for YOLO OBB training."""
 
@@ -215,34 +231,10 @@ class YOLOTrainingConfig:
         self.resume = args.resume
         self.verbose = args.verbose
 
-        # Optional advanced parameters (None = use YOLO defaults)
-        # Note: argparse converts hyphens to underscores automatically
-        self.lr0 = args.lr0
-        self.lrf = args.lrf
-        self.optimizer = args.optimizer
-        self.warmup_epochs = args.warmup_epochs
-        self.warmup_momentum = args.warmup_momentum
-        self.patience = args.patience
-        self.save_period = args.save_period
+        # Optional parameters (None = use YOLO defaults)
+        for name in OPTIONAL_PARAMS:
+            setattr(self, name, getattr(args, name))
         self.cache = self._parse_cache(args.cache)
-        self.workers = args.workers
-        self.close_mosaic = args.close_mosaic
-        self.freeze = args.freeze
-        self.box = args.box
-        self.cls = args.cls
-        self.dfl = args.dfl
-        self.hsv_h = args.hsv_h
-        self.hsv_s = args.hsv_s
-        self.hsv_v = args.hsv_v
-        self.degrees = args.degrees
-        self.translate = args.translate
-        self.scale = args.scale
-        self.shear = args.shear
-        self.perspective = args.perspective
-        self.fliplr = args.fliplr
-        self.flipud = args.flipud
-        self.mosaic = args.mosaic
-        self.mixup = args.mixup
 
         self.validate()
 
@@ -348,63 +340,15 @@ class YOLOTrainer:
         print(f"Name: {self.config.name}")
         print(f"Resume: {self.config.resume}")
 
-        # Print optional advanced parameters if set
-        advanced_params = []
-        if self.config.lr0 is not None:
-            advanced_params.append(f"Learning rate (lr0): {self.config.lr0}")
-        if self.config.lrf is not None:
-            advanced_params.append(f"Final LR fraction (lrf): {self.config.lrf}")
-        if self.config.optimizer is not None:
-            advanced_params.append(f"Optimizer: {self.config.optimizer}")
-        if self.config.warmup_epochs is not None:
-            advanced_params.append(f"Warmup epochs: {self.config.warmup_epochs}")
-        if self.config.warmup_momentum is not None:
-            advanced_params.append(f"Warmup momentum: {self.config.warmup_momentum}")
-        if self.config.patience is not None:
-            advanced_params.append(f"Patience: {self.config.patience}")
-        if self.config.save_period is not None:
-            advanced_params.append(f"Save period: {self.config.save_period}")
-        if self.config.cache is not None:
-            advanced_params.append(f"Cache: {self.config.cache}")
-        if self.config.workers is not None:
-            advanced_params.append(f"Workers: {self.config.workers}")
-        if self.config.close_mosaic is not None:
-            advanced_params.append(f"Close mosaic: {self.config.close_mosaic}")
-        if self.config.freeze is not None:
-            advanced_params.append(f"Freeze layers: {self.config.freeze}")
-        if self.config.box is not None:
-            advanced_params.append(f"Box loss: {self.config.box}")
-        if self.config.cls is not None:
-            advanced_params.append(f"Class loss: {self.config.cls}")
-        if self.config.dfl is not None:
-            advanced_params.append(f"DFL loss: {self.config.dfl}")
-
-        # Augmentation parameters
-        aug_params = []
-        if self.config.hsv_h is not None:
-            aug_params.append(f"HSV-H: {self.config.hsv_h}")
-        if self.config.hsv_s is not None:
-            aug_params.append(f"HSV-S: {self.config.hsv_s}")
-        if self.config.hsv_v is not None:
-            aug_params.append(f"HSV-V: {self.config.hsv_v}")
-        if self.config.degrees is not None:
-            aug_params.append(f"Degrees: {self.config.degrees}")
-        if self.config.translate is not None:
-            aug_params.append(f"Translate: {self.config.translate}")
-        if self.config.scale is not None:
-            aug_params.append(f"Scale: {self.config.scale}")
-        if self.config.shear is not None:
-            aug_params.append(f"Shear: {self.config.shear}")
-        if self.config.perspective is not None:
-            aug_params.append(f"Perspective: {self.config.perspective}")
-        if self.config.fliplr is not None:
-            aug_params.append(f"FlipLR: {self.config.fliplr}")
-        if self.config.flipud is not None:
-            aug_params.append(f"FlipUD: {self.config.flipud}")
-        if self.config.mosaic is not None:
-            aug_params.append(f"Mosaic: {self.config.mosaic}")
-        if self.config.mixup is not None:
-            aug_params.append(f"Mixup: {self.config.mixup}")
+        # Print optional parameters that are set
+        advanced_params = [
+            f"{name}: {getattr(self.config, name)}"
+            for name in ADVANCED_PARAMS if getattr(self.config, name) is not None
+        ]
+        aug_params = [
+            f"{name}: {getattr(self.config, name)}"
+            for name in AUGMENTATION_PARAMS if getattr(self.config, name) is not None
+        ]
 
         if advanced_params:
             print("\nAdvanced Parameters:")
@@ -451,38 +395,9 @@ class YOLOTrainer:
                 train_args["resume"] = True
                 logger.info("Resuming training from last checkpoint...")
 
-            # Add optional advanced parameters (only if explicitly set by user)
-            optional_params = {
-                "lr0": self.config.lr0,
-                "lrf": self.config.lrf,
-                "optimizer": self.config.optimizer,
-                "warmup_epochs": self.config.warmup_epochs,
-                "warmup_momentum": self.config.warmup_momentum,
-                "patience": self.config.patience,
-                "save_period": self.config.save_period,
-                "cache": self.config.cache,
-                "workers": self.config.workers,
-                "close_mosaic": self.config.close_mosaic,
-                "freeze": self.config.freeze,
-                "box": self.config.box,
-                "cls": self.config.cls,
-                "dfl": self.config.dfl,
-                "hsv_h": self.config.hsv_h,
-                "hsv_s": self.config.hsv_s,
-                "hsv_v": self.config.hsv_v,
-                "degrees": self.config.degrees,
-                "translate": self.config.translate,
-                "scale": self.config.scale,
-                "shear": self.config.shear,
-                "perspective": self.config.perspective,
-                "fliplr": self.config.fliplr,
-                "flipud": self.config.flipud,
-                "mosaic": self.config.mosaic,
-                "mixup": self.config.mixup,
-            }
-
-            # Only include optional parameters that were explicitly set (not None)
-            for param_name, param_value in optional_params.items():
+            # Add optional parameters only if explicitly set (else YOLO's defaults apply)
+            for param_name in OPTIONAL_PARAMS:
+                param_value = getattr(self.config, param_name)
                 if param_value is not None:
                     train_args[param_name] = param_value
                     logger.debug(f"Using custom {param_name}: {param_value}")
@@ -570,11 +485,21 @@ def get_default_device() -> str:
 
 
 def parse_arguments() -> argparse.Namespace:
-    """Parse command line arguments.
+    """Parse command line arguments."""
+    return build_parser().parse_args()
 
-    Returns:
-        Parsed arguments namespace
-    """
+
+def explicit_cli_dests(argv: Optional[list] = None) -> set:
+    """Return the dests given explicitly on the command line (these beat config values)."""
+    parser = build_parser()
+    for action in parser._actions:
+        action.default = argparse.SUPPRESS
+    explicit, _ = parser.parse_known_args(argv)
+    return set(vars(explicit))
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the training CLI parser."""
     parser = argparse.ArgumentParser(
         description="Train YOLO OBB models for oriented bounding box object detection",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -849,7 +774,7 @@ Examples:
         help="Mixup augmentation probability (YOLO default: 0.0)",
     )
 
-    return parser.parse_args()
+    return parser
 
 
 def load_config_file(config_path: str) -> dict:
@@ -886,151 +811,46 @@ def load_config_file(config_path: str) -> dict:
 
 
 def merge_config_with_args(
-    args: argparse.Namespace, config: dict
+    args: argparse.Namespace, config: dict, explicit: Optional[set] = None
 ) -> argparse.Namespace:
-    """Merge JSON config with CLI arguments.
+    """Apply config file values, except for options given explicitly on the CLI.
 
-    CLI arguments take precedence over config file values.
-    Only updates args that are at their default values.
-
-    Args:
-        args: Parsed CLI arguments
-        config: Dictionary from config file
-
-    Returns:
-        Updated args namespace
+    explicit defaults to the options present in sys.argv (see explicit_cli_dests).
+    A config device of "auto" keeps the detected default device.
     """
-    # Map of config keys to argparse attribute names
-    # (handles hyphen vs underscore differences)
-    key_mapping = {
-        "warmup_epochs": "warmup_epochs",
-        "warmup_momentum": "warmup_momentum",
-        "save_period": "save_period",
-        "close_mosaic": "close_mosaic",
-        "hsv_h": "hsv_h",
-        "hsv_s": "hsv_s",
-        "hsv_v": "hsv_v",
-    }
-
-    # Default values from parse_arguments (to detect if CLI arg was provided)
-    defaults = {
-        "model": "yolo11s-obb.pt",
-        "epochs": 50,
-        "imgsz": 640,
-        "batch": 30,
-        "project": "runs/obb",
-        "name": "train",
-    }
+    if explicit is None:
+        explicit = explicit_cli_dests()
 
     for key, value in config.items():
         if value is None:
             continue
-
-        # Map config key to argparse attribute name
-        attr_name = key_mapping.get(key, key.replace("-", "_"))
-
-        # Check if this is a valid attribute
+        attr_name = key.replace("-", "_")
         if not hasattr(args, attr_name):
             logger.warning(f"Unknown config parameter ignored: {key}")
             continue
-
-        current_value = getattr(args, attr_name)
-
-        # For parameters with defaults, only override if CLI matches default
-        if attr_name in defaults:
-            if current_value == defaults[attr_name]:
-                setattr(args, attr_name, value)
-                logger.debug(f"Using config value for {attr_name}: {value}")
-        else:
-            # For optional parameters (default None), only override if not set
-            if current_value is None:
-                setattr(args, attr_name, value)
-                logger.debug(f"Using config value for {attr_name}: {value}")
+        if attr_name in explicit:
+            continue
+        if attr_name == "device" and value == "auto":
+            continue
+        setattr(args, attr_name, value)
+        logger.debug(f"Using config value for {attr_name}: {value}")
 
     return args
 
 
 def build_arguments_string(args: argparse.Namespace) -> str:
-    """Build a string representation of CLI arguments for provenance tracking.
-
-    Args:
-        args: Parsed command line arguments
-
-    Returns:
-        Space-separated string of CLI arguments used
-    """
-    parts = [
-        f"--data {args.data}",
-        f"--model {args.model}",
-        f"--epochs {args.epochs}",
-        f"--imgsz {args.imgsz}",
-        f"--batch {args.batch}",
-        f"--device {args.device}",
-        f"--project {args.project}",
-        f"--name {args.name}",
-    ]
-
-    if args.resume:
-        parts.append("--resume")
-    if args.verbose:
-        parts.append("--verbose")
-
-    # Advanced training parameters (only if explicitly set)
-    if args.lr0 is not None:
-        parts.append(f"--lr0 {args.lr0}")
-    if args.lrf is not None:
-        parts.append(f"--lrf {args.lrf}")
-    if args.optimizer is not None:
-        parts.append(f"--optimizer {args.optimizer}")
-    if getattr(args, "warmup_epochs", None) is not None:
-        parts.append(f"--warmup-epochs {args.warmup_epochs}")
-    if getattr(args, "warmup_momentum", None) is not None:
-        parts.append(f"--warmup-momentum {args.warmup_momentum}")
-    if args.patience is not None:
-        parts.append(f"--patience {args.patience}")
-    if getattr(args, "save_period", None) is not None:
-        parts.append(f"--save-period {args.save_period}")
-    if args.cache is not None:
-        parts.append(f"--cache {args.cache}")
-    if args.workers is not None:
-        parts.append(f"--workers {args.workers}")
-    if getattr(args, "close_mosaic", None) is not None:
-        parts.append(f"--close-mosaic {args.close_mosaic}")
-    if args.freeze is not None:
-        parts.append(f"--freeze {args.freeze}")
-    if args.box is not None:
-        parts.append(f"--box {args.box}")
-    if args.cls is not None:
-        parts.append(f"--cls {args.cls}")
-    if args.dfl is not None:
-        parts.append(f"--dfl {args.dfl}")
-
-    # Augmentation parameters (only if explicitly set)
-    if getattr(args, "hsv_h", None) is not None:
-        parts.append(f"--hsv-h {args.hsv_h}")
-    if getattr(args, "hsv_s", None) is not None:
-        parts.append(f"--hsv-s {args.hsv_s}")
-    if getattr(args, "hsv_v", None) is not None:
-        parts.append(f"--hsv-v {args.hsv_v}")
-    if args.degrees is not None:
-        parts.append(f"--degrees {args.degrees}")
-    if args.translate is not None:
-        parts.append(f"--translate {args.translate}")
-    if args.scale is not None:
-        parts.append(f"--scale {args.scale}")
-    if args.shear is not None:
-        parts.append(f"--shear {args.shear}")
-    if args.perspective is not None:
-        parts.append(f"--perspective {args.perspective}")
-    if args.fliplr is not None:
-        parts.append(f"--fliplr {args.fliplr}")
-    if args.flipud is not None:
-        parts.append(f"--flipud {args.flipud}")
-    if args.mosaic is not None:
-        parts.append(f"--mosaic {args.mosaic}")
-    if args.mixup is not None:
-        parts.append(f"--mixup {args.mixup}")
-
+    """Return every CLI option that has a value as a reproducible argument string."""
+    parts = []
+    for action in build_parser()._actions:
+        if not action.option_strings or action.dest == "help":
+            continue
+        value = getattr(args, action.dest, None)
+        flag = action.option_strings[0]
+        if isinstance(action, argparse._StoreTrueAction):
+            if value:
+                parts.append(flag)
+        elif value is not None:
+            parts.append(f"{flag} {value}")
     return " ".join(parts)
 
 
@@ -1105,6 +925,8 @@ def main():
         # Record provenance if enabled
         if args.provenance and results is not None:
             from datetime import datetime, timezone
+            import torch
+            import ultralytics
             from dataprov import ProvenanceChain
 
             end_time = datetime.now(timezone.utc)
@@ -1114,6 +936,7 @@ def main():
                 entity_id="savant_trainit_output",
                 initial_source=str(args.data),
                 description="SAVANT trainit YOLO OBB model training",
+                custom_namespaces={"savant": "https://ri-se.github.io/SAVANT/ns#"},
             )
 
             # Build arguments string
@@ -1142,6 +965,11 @@ def main():
                 capture_agent=True,
                 agent_type="automated",
                 capture_environment=True,
+                custom_properties={
+                    "activity:savant:ultralytics_version": ultralytics.__version__,
+                    "activity:savant:torch_version": torch.__version__,
+                    "activity:savant:base_model": args.model,
+                },
             )
 
             chain.save(args.provenance)

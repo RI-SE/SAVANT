@@ -6,6 +6,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ...chunk_split import DEFAULT_CHUNK_FRAMES, DEFAULT_GAP_FRAMES, chunked_split
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,7 +17,8 @@ class SplitResult:
 
     train_files: list[Path] = field(default_factory=list)
     val_files: list[Path] = field(default_factory=list)
-    method: str = "random"  # "stratified" or "random"
+    excluded_files: list[Path] = field(default_factory=list)  # chunk-gap frames
+    method: str = "random"  # "chunked:<chunk>/<gap>", "stratified" or "random"
     sequences_found: int = 0
 
 
@@ -76,12 +79,12 @@ class SplitService:
         return files
 
     def _list_images(self, directory: Path) -> list[Path]:
-        """List all image files in directory."""
-        return [
+        """List image files in directory, sorted so a seed gives the same split everywhere."""
+        return sorted(
             f
             for f in directory.iterdir()
             if f.is_file() and f.suffix.lower() in self.IMAGE_EXTENSIONS
-        ]
+        )
 
     def split_files(
         self, files: list[Path], train_ratio: float, seed: int
@@ -109,6 +112,26 @@ class SplitService:
 
         logger.debug(f"Found {num_sequences} sequences in {len(files)} files")
 
+        # Prefer holding out whole frame chunks: per-frame sampling leaks
+        # near-identical neighbouring frames into val
+        chunked = chunked_split(sequences, train_ratio, seed)
+        if chunked is not None:
+            logger.info(
+                f"Chunked split: {len(chunked.train)} train, {len(chunked.val)} val, "
+                f"{len(chunked.excluded)} gap frames excluded"
+            )
+            return SplitResult(
+                train_files=chunked.train,
+                val_files=chunked.val,
+                excluded_files=chunked.excluded,
+                method=f"chunked:{DEFAULT_CHUNK_FRAMES}/{DEFAULT_GAP_FRAMES}",
+                sequences_found=num_sequences,
+            )
+        logger.warning(
+            "No sequence spans two frame chunks; falling back to per-frame split "
+            "(neighbouring frames may leak between train and val)"
+        )
+
         # Determine if stratification is meaningful
         # (at least 2 sequences with reasonable distribution)
         if num_sequences >= 2:
@@ -117,10 +140,16 @@ class SplitService:
             return self._random_split(files, train_ratio, seed)
 
     def _group_by_sequence(self, files: list[Path]) -> dict[str, list[Path]]:
-        """Group files by sequence ID."""
+        """Group files by dataset and sequence ID.
+
+        The dataset is part of the key because extracted datasets all name frames
+        "frame_NNNNNN", which would otherwise put every dataset in one sequence.
+        Assumes the <dataset>/images/<split>/<file> layout.
+        """
         sequences = defaultdict(list)
         for f in files:
-            seq_id = self.extract_sequence_id(f.name)
+            dataset_name = f.parent.parent.parent.name
+            seq_id = f"{dataset_name}/{self.extract_sequence_id(f.name)}"
             sequences[seq_id].append(f)
         return dict(sequences)
 

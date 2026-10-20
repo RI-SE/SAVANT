@@ -74,7 +74,7 @@ ArUco markers include GPS coordinates for one or more corner(s):
 ```json
 "2": {
     "name": "GbgSaroRound_24",
-    "type": "ArUco",
+    "type": "Aruco",
     "ontology_uid": "0",
     "object_data": {
         "vec": [

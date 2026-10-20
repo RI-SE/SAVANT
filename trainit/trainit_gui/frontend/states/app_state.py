@@ -128,11 +128,6 @@ class AppState(QObject):
         """Clear cached dataset info."""
         self._dataset_infos.clear()
 
-    def has_unsaved_changes(self) -> bool:
-        """Check if there are unsaved changes."""
-        # TODO: Track modifications
-        return False
-
     def reset(self) -> None:
         """Reset all state."""
         self._project = None

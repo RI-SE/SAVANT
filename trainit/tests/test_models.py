@@ -417,3 +417,24 @@ class TestManifestInfo:
         assert info.split_ratio == 0.8
         assert info.split_seed == 42
         assert info.split_method == "stratified"
+
+
+def test_project_default_auto_optimizer_applies_cleanly():
+    from trainit.trainit_gui.models.project import ProjectDefaults, TrainingConfig
+
+    defaults = ProjectDefaults(optimizer="auto", epochs=10)
+    config = defaults.apply_to_config(TrainingConfig(name="c"))
+
+    assert config.optimizer is None and config.epochs == 10
+
+
+@pytest.mark.parametrize("bad", ["../escape", "a/b", "a\\b", "..", ""])
+def test_config_and_dataset_names_cannot_escape_their_folder(bad):
+    from pydantic import ValidationError
+
+    from trainit.trainit_gui.models.project import TrainingConfig
+
+    with pytest.raises(ValidationError):
+        TrainingConfig(name=bad)
+    with pytest.raises(ValidationError):
+        TrainingConfig(name="ok", selected_datasets=[bad])

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from edit.frontend.utils import render
 from edit.frontend.utils.settings_store import (
     get_bookmarks,
@@ -10,6 +12,8 @@ from edit.frontend.utils.settings_store import (
     get_tag_options,
     get_warning_range,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def refresh_confidence_issues(main_window) -> None:
@@ -37,6 +41,7 @@ def refresh_confidence_issues(main_window) -> None:
             show_errors=get_show_errors(),
         )
     except Exception:
+        logger.warning("Could not compute confidence issues", exc_info=True)
         issues = {}
 
     state.set_confidence_issues(issues or {})

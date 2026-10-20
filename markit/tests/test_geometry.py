@@ -3,6 +3,7 @@ Unit tests for geometry module - IoU calculations and polygon operations.
 """
 
 import numpy as np
+import pytest
 
 from markit.markitlib.geometry import BBoxOverlapCalculator
 
@@ -127,21 +128,26 @@ class TestBBoxOverlapCalculator:
         iou = BBoxOverlapCalculator.calculate_intersection_over_union(bbox1, bbox2)
         assert iou == 0.0
 
-    def test_sutherland_hodgman_clip_complete_overlap(self):
-        """Test clipping when subject is completely inside clip polygon."""
+    def test_intersection_complete_overlap(self):
+        """Subject completely inside the other box: intersection is the subject's area."""
         subject = np.array([[2.0, 2.0], [8.0, 2.0], [8.0, 8.0], [2.0, 8.0]])
         clip = np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]])
-        result = BBoxOverlapCalculator._sutherland_hodgman_clip(subject, clip)
-        # Result should be approximately the subject polygon
-        assert len(result) == 4
-        result_area = BBoxOverlapCalculator._polygon_area(result)
-        subject_area = BBoxOverlapCalculator._polygon_area(subject)
-        assert np.isclose(result_area, subject_area, atol=1e-6)
+        inter, area_subject, _ = BBoxOverlapCalculator.overlap_areas(subject, clip)
+        assert np.isclose(inter, area_subject, atol=1e-6)
 
-    def test_sutherland_hodgman_clip_no_overlap(self):
-        """Test clipping when polygons don't overlap."""
+    def test_intersection_no_overlap(self):
+        """Disjoint boxes have zero intersection."""
         subject = np.array([[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [0.0, 5.0]])
         clip = np.array([[10.0, 10.0], [20.0, 10.0], [20.0, 20.0], [10.0, 20.0]])
-        result = BBoxOverlapCalculator._sutherland_hodgman_clip(subject, clip)
-        # Result should be empty or have very small area
-        assert len(result) == 0 or BBoxOverlapCalculator._polygon_area(result) < 1e-6
+        assert BBoxOverlapCalculator.overlap_areas(subject, clip)[0] < 1e-6
+
+    @pytest.mark.parametrize("reverse_a, reverse_b", [(False, True), (True, False), (True, True)])
+    def test_iou_independent_of_corner_order(self, reverse_a, reverse_b):
+        """Ultralytics lists OBB corners clockwise, OpenCV counter-clockwise; IoU must agree."""
+        a = np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]])
+        b = np.array([[5.0, 0.0], [15.0, 0.0], [15.0, 10.0], [5.0, 10.0]])
+        expected = BBoxOverlapCalculator.calculate_intersection_over_union(a, b)
+        a2 = a[::-1] if reverse_a else a
+        b2 = b[::-1] if reverse_b else b
+        assert np.isclose(expected, 1 / 3)
+        assert np.isclose(BBoxOverlapCalculator.calculate_intersection_over_union(a2, b2), expected)

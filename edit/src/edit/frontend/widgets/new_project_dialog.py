@@ -269,13 +269,11 @@ class NewProjectDialog(QDialog):
             "video", self._contents.video_files
         ):
             return
-        if self._contents.video_files and not self._delete_existing_files(
-            self._contents.video_files, "video"
-        ):
-            return
 
         try:
-            import_video_file(self._contents.directory, video_path)
+            import_video_file(
+                self._contents.directory, video_path, replace=self._contents.video_files
+            )
         except FrontendException as exc:
             QMessageBox.critical(self, "Video Import Failed", str(exc))
             return
@@ -313,13 +311,13 @@ class NewProjectDialog(QDialog):
             "OpenLabel", self._contents.openlabel_files
         ):
             return
-        if self._contents.openlabel_files and not self._delete_existing_files(
-            self._contents.openlabel_files, "OpenLabel"
-        ):
-            return
 
         try:
-            import_openlabel_file(self._contents.directory, config_path)
+            import_openlabel_file(
+                self._contents.directory,
+                config_path,
+                replace=self._contents.openlabel_files,
+            )
         except FrontendException as exc:
             QMessageBox.critical(self, "OpenLabel Import Failed", str(exc))
             return
@@ -333,10 +331,6 @@ class NewProjectDialog(QDialog):
             "OpenLabel", self._contents.openlabel_files
         ):
             return
-        if self._contents.openlabel_files and not self._delete_existing_files(
-            self._contents.openlabel_files, "OpenLabel"
-        ):
-            return
 
         video_name = None
         if self._contents.single_video:
@@ -344,7 +338,9 @@ class NewProjectDialog(QDialog):
 
         try:
             create_openlabel_template(
-                self._contents.directory, video_filename=video_name
+                self._contents.directory,
+                video_filename=video_name,
+                replace=self._contents.openlabel_files,
             )
         except FrontendException as exc:
             QMessageBox.critical(self, "Template Creation Failed", str(exc))
@@ -360,28 +356,11 @@ class NewProjectDialog(QDialog):
             self,
             f"Replace {label} file",
             f"The folder already contains {label} file(s): {file_list}.\n"
-            "Do you want to replace them?",
+            "Do you want to replace them? They will be deleted.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes,
+            QMessageBox.StandardButton.No,
         )
         return result == QMessageBox.StandardButton.Yes
-
-    def _delete_existing_files(self, files: list[Path], label: str) -> bool:
-        """Remove existing files so the new selection can be stored."""
-
-        for file_path in files:
-            try:
-                file_path.unlink(missing_ok=True)
-            except FileNotFoundError:
-                continue
-            except OSError as exc:
-                QMessageBox.critical(
-                    self,
-                    f"Could not replace {label}",
-                    f"Failed to remove '{file_path.name}': {exc}",
-                )
-                return False
-        return True
 
     def _rescan_directory(self) -> None:
         """Refresh the dialog state after new files are added."""

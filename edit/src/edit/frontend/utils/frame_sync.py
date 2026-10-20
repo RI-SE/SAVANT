@@ -66,7 +66,7 @@ def _update_overlay_from_model(main_window):
             current_frame_index
         )
         main_window.sidebar.refresh_active_objects(active_objects, flags)
-        main_window.sidebar._refresh_active_frame_tags(current_frame_index)
+        main_window.sidebar.refresh_active_frame_tags(current_frame_index)
 
     except Exception:
         main_window.overlay.set_rotated_boxes([])

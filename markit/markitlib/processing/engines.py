@@ -13,15 +13,49 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 import cv2
 
 import numpy as np
-
+import torch
+import ultralytics
 from ultralytics import YOLO
 
 if TYPE_CHECKING:
     from .id_manager import ObjectIDManager
 
 from ..config import DetectionResult, OpticalFlowParams
+from ..geometry import BBoxOverlapCalculator
 
 logger = logging.getLogger(__name__)
+
+# Isolated per-frame errors are logged and skipped; this many in a row aborts the run
+MAX_CONSECUTIVE_FRAME_FAILURES = 10
+
+
+class EngineFailureError(RuntimeError):
+    """An engine kept failing; the run must stop rather than write empty results."""
+
+
+class FrameFailureGuard:
+    """Tolerate isolated per-frame engine errors, but raise once they persist.
+
+    Persistent failures (CUDA OOM, broken model) would otherwise produce empty
+    output for the whole video while the run still reports success.
+    """
+
+    def __init__(self, engine_name: str, limit: int = MAX_CONSECUTIVE_FRAME_FAILURES):
+        self.engine_name = engine_name
+        self.limit = limit
+        self.consecutive = 0
+
+    def succeeded(self) -> None:
+        self.consecutive = 0
+
+    def failed(self, exc: Exception) -> List[DetectionResult]:
+        self.consecutive += 1
+        logger.error(f"Error processing frame with {self.engine_name}: {exc}")
+        if self.consecutive >= self.limit:
+            raise EngineFailureError(
+                f"{self.engine_name} failed on {self.consecutive} consecutive frames; aborting"
+            ) from exc
+        return []
 
 
 class BaseDetectionEngine(ABC):
@@ -47,6 +81,7 @@ class YOLOEngine(BaseDetectionEngine):
         class_map: Optional[Dict[int, str]] = None,
         verbose: bool = False,
         id_manager: Optional["ObjectIDManager"] = None,
+        conf_threshold: float = 0.25,
     ):
         """Initialize YOLO engine.
 
@@ -55,12 +90,16 @@ class YOLOEngine(BaseDetectionEngine):
             class_map: Expected class mapping from ontology (for validation)
             verbose: Enable verbose logging
             id_manager: Optional ID manager for unified sequential IDs
+            conf_threshold: Minimum detection confidence passed to Ultralytics;
+                detections below it are never returned by the model
         """
         self.weights_path = weights_path
         self.model = None
+        self._failures = FrameFailureGuard("YOLO")
         self.class_map = class_map
         self.verbose = verbose
         self.id_manager = id_manager
+        self.conf_threshold = conf_threshold
         # Track semantic dimensions and angles per object for continuity
         self.object_tracking: Dict[int, Dict[str, float]] = {}
         # Structure: {obj_id: {'w_sem': float, 'h_sem': float, 'angle': float}}
@@ -69,7 +108,10 @@ class YOLOEngine(BaseDetectionEngine):
     def _initialize(self) -> None:
         """Initialize YOLO model."""
         try:
-            logger.info(f"Loading YOLO model from {self.weights_path}")
+            logger.info(
+                f"Loading YOLO model from {self.weights_path} "
+                f"(confidence threshold: {self.conf_threshold})"
+            )
             self.model = YOLO(self.weights_path)
             self.model.verbose = False
 
@@ -160,7 +202,9 @@ class YOLOEngine(BaseDetectionEngine):
             List of YOLO detection results
         """
         try:
-            results = self.model.track(frame, persist=True, verbose=False)
+            results = self.model.track(
+                frame, persist=True, verbose=False, conf=self.conf_threshold
+            )
             detection_results = []
 
             for result in results:
@@ -224,11 +268,11 @@ class YOLOEngine(BaseDetectionEngine):
                             )
                         )
 
+            self._failures.succeeded()
             return detection_results
 
         except Exception as e:
-            logger.error(f"Error processing frame with YOLO: {e}")
-            return []
+            return self._failures.failed(e)
 
     def _yolo_to_semantic(
         self, obj_id: Optional[int], w_yolo: float, h_yolo: float, r_yolo: float
@@ -314,6 +358,27 @@ class YOLOEngine(BaseDetectionEngine):
 
         return w_sem, h_sem, continuous_angle
 
+    def get_model_info(self) -> Dict[str, Optional[str]]:
+        """Return model/library version metadata for provenance recording.
+
+        Reads the checkpoint's own training metadata (architecture, ultralytics
+        version at training time) where available, since a weights *filename*
+        doesn't reliably say what architecture was actually trained.
+        """
+        info: Dict[str, Optional[str]] = {
+            "ultralytics_version": ultralytics.__version__,
+            "torch_version": torch.__version__,
+        }
+        if self.model is not None:
+            info["yolo_task"] = getattr(self.model, "task", None)
+            ckpt = getattr(self.model, "ckpt", None) or {}
+            train_args = ckpt.get("train_args", {}) if isinstance(ckpt, dict) else {}
+            info["trained_from_architecture"] = train_args.get("model")
+            info["trained_with_ultralytics_version"] = (
+                ckpt.get("version") if isinstance(ckpt, dict) else None
+            )
+        return info
+
     def cleanup(self) -> None:
         """Clean up YOLO engine resources."""
         self.model = None
@@ -348,6 +413,8 @@ class SimpleTracker:
         self.tracks: Dict[int, Dict] = {}
         self.id_manager = id_manager
         self._current_frame = 0
+        # Tracks already assigned in the current frame (one detection per track)
+        self._claimed: set = set()
         # Local tracking ID for ID manager lookup (sequential per tracker)
         self._next_local_id = 1
         # Fallback for legacy mode without ID manager
@@ -369,14 +436,17 @@ class SimpleTracker:
         Returns:
             Object ID (remapped if ID manager available)
         """
-        if frame_idx is not None:
+        if frame_idx is not None and frame_idx != self._current_frame:
             self._current_frame = frame_idx
+            self._claimed = set()
 
         best_score = float("inf")
         best_track_id = None
 
         # Find best matching track (lowest score = best match)
         for track_id, track_data in list(self.tracks.items()):
+            if track_id in self._claimed:
+                continue
             # Skip expired tracks
             age = self._current_frame - track_data["last_seen"]
             if age > self.max_age:
@@ -414,6 +484,7 @@ class SimpleTracker:
             self.tracks[best_track_id]["last_seen"] = self._current_frame
             if bbox is not None:
                 self.tracks[best_track_id]["bbox"] = bbox.copy()
+            self._claimed.add(best_track_id)
             return best_track_id
         else:
             # Create new track with remapped ID
@@ -432,112 +503,12 @@ class SimpleTracker:
                 "last_seen": self._current_frame,
                 "bbox": bbox.copy() if bbox is not None else None,
             }
+            self._claimed.add(new_id)
             return new_id
 
     def _calculate_iou(self, bbox1: np.ndarray, bbox2: np.ndarray) -> float:
-        """Calculate IoU between two rotated bboxes.
-
-        Uses the Sutherland-Hodgman algorithm for polygon intersection.
-
-        Args:
-            bbox1: First bbox as 4 corner points (4x2 array)
-            bbox2: Second bbox as 4 corner points (4x2 array)
-
-        Returns:
-            IoU value between 0 and 1
-        """
-        try:
-            # Ensure correct format
-            pts1 = np.array(bbox1, dtype=np.float32).reshape(-1, 2)
-            pts2 = np.array(bbox2, dtype=np.float32).reshape(-1, 2)
-
-            # Calculate areas using the shoelace formula
-            area1 = self._polygon_area(pts1)
-            area2 = self._polygon_area(pts2)
-
-            if area1 <= 0 or area2 <= 0:
-                return 0.0
-
-            # Find intersection using Sutherland-Hodgman clipping
-            intersection_pts = self._sutherland_hodgman_clip(pts1, pts2)
-
-            if len(intersection_pts) < 3:
-                return 0.0
-
-            intersection_area = self._polygon_area(intersection_pts)
-            if intersection_area <= 0:
-                return 0.0
-
-            union_area = area1 + area2 - intersection_area
-            if union_area <= 0:
-                return 0.0
-
-            return intersection_area / union_area
-
-        except Exception:
-            return 0.0
-
-    @staticmethod
-    def _polygon_area(points: np.ndarray) -> float:
-        """Calculate polygon area using the shoelace formula."""
-        if len(points) < 3:
-            return 0.0
-        x = points[:, 0]
-        y = points[:, 1]
-        return 0.5 * abs(
-            sum(
-                x[i] * y[(i + 1) % len(x)] - x[(i + 1) % len(x)] * y[i]
-                for i in range(len(x))
-            )
-        )
-
-    @staticmethod
-    def _sutherland_hodgman_clip(
-        subject_polygon: np.ndarray, clip_polygon: np.ndarray
-    ) -> np.ndarray:
-        """Clip subject polygon against clip polygon."""
-
-        def _is_inside(point, edge_start, edge_end):
-            edge_vec = edge_end - edge_start
-            point_vec = point - edge_start
-            return (edge_vec[0] * point_vec[1] - edge_vec[1] * point_vec[0]) >= 0
-
-        def _intersection_point(p1, p2, edge_start, edge_end):
-            d1 = edge_end - edge_start
-            d2 = p2 - p1
-            denominator = d1[0] * d2[1] - d1[1] * d2[0]
-            if abs(denominator) < 1e-10:
-                return p1
-            p1_vec = p1 - edge_start
-            t = (p1_vec[0] * d2[1] - p1_vec[1] * d2[0]) / denominator
-            return edge_start + t * d1
-
-        output_list = subject_polygon.tolist()
-
-        for i in range(len(clip_polygon)):
-            if not output_list:
-                break
-
-            edge_start = clip_polygon[i]
-            edge_end = clip_polygon[(i + 1) % len(clip_polygon)]
-            input_list = output_list
-            output_list = []
-
-            if not input_list:
-                continue
-
-            s = np.array(input_list[-1])
-            for vertex in input_list:
-                e = np.array(vertex)
-                if _is_inside(e, edge_start, edge_end):
-                    if not _is_inside(s, edge_start, edge_end):
-                        output_list.append(_intersection_point(s, e, edge_start, edge_end).tolist())
-                    output_list.append(e.tolist())
-                elif _is_inside(s, edge_start, edge_end):
-                    output_list.append(_intersection_point(s, e, edge_start, edge_end).tolist())
-                s = e
-
-        return np.array(output_list) if output_list else np.array([])
+        """IoU between two rotated bboxes (4 corner points each)."""
+        return BBoxOverlapCalculator.calculate_intersection_over_union(bbox1, bbox2)
 
     def end_frame(self) -> None:
         """Called at end of frame processing to clean up expired tracks."""
@@ -565,6 +536,7 @@ class OpticalFlowEngine(BaseDetectionEngine):
         """
         self.params = params
         self.id_manager = id_manager
+        self._failures = FrameFailureGuard("optical flow")
         self.back_sub = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
         self.prev_gray = None
         self.prev_flow = None  # For temporal smoothing
@@ -897,10 +869,13 @@ class OpticalFlowEngine(BaseDetectionEngine):
             gray = cv2.GaussianBlur(gray, (5, 5), 0)
             motion_mask = np.zeros_like(fg_mask)
 
+            # A failed flow computation only affects this frame (falls back to bg mask)
+            flow_ok = False
             if self.optical_flow_available and self.prev_gray is not None:
                 try:
                     magnitude = self._calculate_optical_flow(self.prev_gray, gray)
                     if magnitude is not None:
+                        flow_ok = True
                         # Cache magnitude for debug visualization
                         if self.params.debug_visualization:
                             self.last_magnitude = magnitude.copy()
@@ -922,14 +897,11 @@ class OpticalFlowEngine(BaseDetectionEngine):
                         # Cache motion mask for debug visualization
                         if self.params.debug_visualization:
                             self.last_motion_mask = motion_mask.copy()
-                    else:
-                        self.optical_flow_available = False
-                except Exception as e:
-                    logger.warning(f"Optical flow calculation failed: {e}")
-                    self.optical_flow_available = False
+                except cv2.error as e:
+                    logger.warning(f"Optical flow calculation failed for this frame: {e}")
 
             # 3. Combine masks based on mask_mode parameter
-            if self.optical_flow_available and self.prev_gray is not None:
+            if flow_ok:
                 if self.params.mask_mode == "or":
                     combined_mask = cv2.bitwise_or(fg_mask, motion_mask)
                 elif self.params.mask_mode == "and":
@@ -1032,11 +1004,11 @@ class OpticalFlowEngine(BaseDetectionEngine):
 
             self.prev_gray = gray.copy()
             self.object_tracker.end_frame()  # Clean up expired tracks
+            self._failures.succeeded()
             return results
 
         except Exception as e:
-            logger.error(f"Error processing frame with optical flow: {e}")
-            return []
+            return self._failures.failed(e)
 
     def get_debug_visualization(self) -> Optional[Dict[str, np.ndarray]]:
         """Return cached intermediate data for visualization.
@@ -1342,6 +1314,7 @@ class ArUcoEngine(BaseDetectionEngine):
         self.csv_path = csv_path
         self.class_id = class_id
         self.aruco_dict_name = aruco_dict_name
+        self._failures = FrameFailureGuard("ArUco")
         self.id_manager = id_manager
         self.gps_data = None
         self.aruco_dict = None
@@ -1428,6 +1401,10 @@ class ArUcoEngine(BaseDetectionEngine):
                         p2 = marker_corners[(j + 1) % 4]
                         edge_lengths.append(np.linalg.norm(p2 - p1))
 
+                    # Width along the angle direction (edges 0->1, 2->3), height across it
+                    marker_width = float((edge_lengths[0] + edge_lengths[2]) / 2)
+                    marker_height = float((edge_lengths[1] + edge_lengths[3]) / 2)
+
                     # Confidence is higher when edges are more uniform
                     avg_length = np.mean(edge_lengths)
                     length_variance = np.var(edge_lengths)
@@ -1444,6 +1421,8 @@ class ArUcoEngine(BaseDetectionEngine):
                         oriented_bbox=marker_corners.astype(np.float32),
                         center=(center_x, center_y),
                         angle=angle,
+                        width=marker_width,
+                        height=marker_height,
                         source_engine="aruco",
                     )
 
@@ -1454,11 +1433,11 @@ class ArUcoEngine(BaseDetectionEngine):
 
                     results.append(detection)
 
+            self._failures.succeeded()
             return results
 
         except Exception as e:
-            logger.error(f"Error processing frame with ArUco detector: {e}")
-            return []
+            return self._failures.failed(e)
 
     def cleanup(self) -> None:
         """Clean up ArUco engine resources."""

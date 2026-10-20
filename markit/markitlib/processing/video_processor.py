@@ -12,6 +12,7 @@ import numpy as np
 
 from ..config import Constants, ConflictResolutionConfig, DetectionResult, MarkitConfig
 from .engines import (
+    EngineFailureError,
     YOLOEngine,
     OpticalFlowEngine,
     ArUcoEngine,
@@ -74,6 +75,7 @@ class VideoProcessor:
                     config.class_map,
                     config.verbose,
                     id_manager=self.id_manager,
+                    conf_threshold=config.yolo_conf,
                 )
             )
         if config.use_optical_flow:
@@ -98,6 +100,7 @@ class VideoProcessor:
                 iou_threshold=config.iou_threshold,
                 yolo_precedence=True,
                 enable_logging=config.verbose_conflicts,
+                record_decisions=config.record_decisions,
             )
             self.conflict_resolver = DetectionConflictResolver(conflict_config)
 
@@ -191,6 +194,8 @@ class VideoProcessor:
             try:
                 engine_results = engine.process_frame(frame)
                 all_results.extend(engine_results)
+            except EngineFailureError:
+                raise
             except Exception as e:
                 logger.error(f"Error in {engine.__class__.__name__}: {e}")
 
@@ -218,6 +223,16 @@ class VideoProcessor:
             stats.update(self.conflict_resolver.get_conflict_statistics())
 
         return stats
+
+    def get_yolo_model_info(self) -> Optional[Dict[str, Optional[str]]]:
+        """Return YOLO model/library version metadata, or None if YOLO wasn't used.
+
+        Must be called before `cleanup()`, which releases the underlying model.
+        """
+        for engine in self.engines:
+            if isinstance(engine, YOLOEngine):
+                return engine.get_model_info()
+        return None
 
     def cleanup(self) -> None:
         """Clean up video resources."""

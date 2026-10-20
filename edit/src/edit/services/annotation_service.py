@@ -8,13 +8,17 @@ from edit.frontend.utils.ontology_utils import (
     get_action_labels,
     get_bbox_type_labels,
 )
-from edit.frontend.utils.settings_store import get_ontology_path
+from edit.frontend.utils.settings_store import (
+    get_ontology_namespace,
+    get_ontology_path,
+)
 from edit.models.OpenLabel import (
     ActionMetadata,
     AnnotatorData,
     ConfidenceData,
     FrameInterval,
     FrameLevelObject,
+    ObjectMetadata,
     ObjectMetadataData,
     ObjectMetadataVecEntry,
     OpenLabel,
@@ -50,8 +54,6 @@ class AnnotationService:
         self._tag_cache_vals: list[str] | None = None
         self._bbox_cache_key: tuple[str, float] | None = None
         self._bbox_cache_vals: Dict[str, List[str]] | None = None
-        self._frame_tag_lookup_cache: dict[int, list[tuple[str, int, int]]] | None = None
-        self._frame_tag_lookup_source: int | None = None
 
     def create_new_object_bbox(
         self, frame_number: int, obj_type: str, coordinates: tuple, annotator: str
@@ -533,11 +535,49 @@ class AnnotationService:
                 frame_obj = frame_objects.pop(secondary_object_id)
                 frame_objects[primary_object_id] = frame_obj
 
-        # Remove secondary metadata; primary metadata remains authoritative.
-        if secondary_object_id in objects_map:
-            objects_map.pop(secondary_object_id)
+        # Primary metadata stays authoritative, but keep the secondary's object tags
+        # and relations instead of dropping/dangling them.
+        self._merge_object_tags(
+            objects_map[primary_object_id], objects_map[secondary_object_id]
+        )
+        self._repoint_relations(config, secondary_object_id, primary_object_id)
+        objects_map.pop(secondary_object_id)
 
         return sorted(affected_frames)
+
+    @staticmethod
+    def _merge_object_tags(primary: ObjectMetadata, secondary: ObjectMetadata) -> None:
+        """Union the secondary's object-tag frame lists into the primary's."""
+        secondary_data = getattr(secondary, "object_data", None)
+        secondary_vec = (secondary_data.vec if secondary_data else None) or []
+        if not secondary_vec:
+            return
+        if primary.object_data is None:
+            primary.object_data = ObjectMetadataData()
+        if primary.object_data.vec is None:
+            primary.object_data.vec = []
+
+        def as_list(val):
+            return list(val) if isinstance(val, list) else [val]
+
+        by_name = {entry.name: entry for entry in primary.object_data.vec}
+        for entry in secondary_vec:
+            if entry.name in by_name:
+                target = by_name[entry.name]
+                merged = set(as_list(target.val)) | set(as_list(entry.val))
+                try:
+                    target.val = sorted(merged)
+                except TypeError:  # mixed value types
+                    target.val = sorted(merged, key=str)
+            else:
+                primary.object_data.vec.append(entry.model_copy(deep=True))
+
+    @staticmethod
+    def _repoint_relations(config: OpenLabel, old_id: str, new_id: str) -> None:
+        for relation in (getattr(config, "relations", None) or {}).values():
+            for item in [*relation.rdf_subjects, *relation.rdf_objects]:
+                if item.uid == old_id:
+                    item.uid = new_id
 
     def mark_confidence_resolved(
         self, frame_number: int, object_id: str, annotator: str
@@ -563,22 +603,26 @@ class AnnotationService:
             vec_entries = []
             frame_obj.object_data.vec = vec_entries
 
-        confidence_entry = None
-        for entry in vec_entries:
-            if getattr(entry, "name", None) == "confidence":
-                confidence_entry = entry
-                break
+        def find_entry(name):
+            return next((e for e in vec_entries if getattr(e, "name", None) == name), None)
 
+        confidence_entry = find_entry("confidence")
         if confidence_entry is None:
             confidence_entry = ConfidenceData(val=deque())
             vec_entries.append(confidence_entry)
 
-        annotator_entry = AnnotatorData(val=deque())
-        vec_entries.insert(0, annotator_entry)
+        annotator_entry = find_entry("annotator")
+        if annotator_entry is None:
+            annotator_entry = AnnotatorData(val=deque())
+            vec_entries.insert(0, annotator_entry)
 
-        openlabel_model.update_annotator(
-            annotator, annotator_entry, 1.0, confidence_entry
-        )
+        if annotator_entry.val and annotator_entry.val[0] == annotator and confidence_entry.val:
+            # Same annotator already latest: overwrite their confidence instead of stacking
+            confidence_entry.val[0] = 1.0
+        else:
+            openlabel_model.update_annotator(
+                annotator, annotator_entry, 1.0, confidence_entry
+            )
 
     def _add_new_object(self, obj_type: str, obj_id: str) -> None:
         self.project_state.annotation_config.add_new_object(
@@ -646,20 +690,34 @@ class AnnotationService:
         self._tag_cache_key, self._tag_cache_vals = key, labels
         return labels
 
-    def add_frame_tag(self, tag_name: str, frame_start: int, frame_end: int) -> None:
+    def add_frame_tag(
+        self,
+        tag_name: str,
+        frame_start: int,
+        frame_end: int,
+        require_in_ontology: bool = True,
+    ) -> None:
+        """Append a frame interval [frame_start, frame_end] to the given tag.
+
+        require_in_ontology=False is for restoring (undo) tags that already existed,
+        e.g. ones loaded from a file whose tags are not in the current ontology.
         """
-        Append a frame interval [frame_start, frame_end] to the given tag.
-        Validates against ontology-derived allowed list.
-        """
+        tag = self._validate_frame_tag(tag_name, frame_start, frame_end, require_in_ontology)
+        self._append_frame_tag(tag, frame_start, frame_end)
+
+    def _validate_frame_tag(
+        self, tag_name: str, frame_start: int, frame_end: int, require_in_ontology: bool
+    ) -> str:
         tag = (tag_name or "").strip()
-        allowed_tags = set(self.get_frame_tags())
-        if tag not in allowed_tags:
+        if require_in_ontology and tag not in set(self.get_frame_tags()):
             raise UnsportedTagTypeError(f"Unsupported tag '{tag}' (not in ontology).")
         if frame_start is None or frame_end is None:
             raise InvalidFrameRangeError("Both start and end frames must be provided.")
         if frame_start > frame_end:
             raise InvalidFrameRangeError("Start frame cannot be after end frame.")
+        return tag
 
+    def _append_frame_tag(self, tag: str, frame_start: int, frame_end: int) -> None:
         openlabel_config: OpenLabel = self.project_state.annotation_config
         if openlabel_config.actions is None:
             openlabel_config.actions = {}
@@ -672,8 +730,6 @@ class AnnotationService:
         intervals = openlabel_config.actions[tag].frame_intervals or []
         intervals.append(FrameInterval(frame_start=frame_start, frame_end=frame_end))
         openlabel_config.actions[tag].frame_intervals = intervals
-        self._frame_tag_lookup_cache = None
-        self._frame_tag_lookup_source = None
 
     def get_active_frame_tags(self, frame_index: int):
         """
@@ -690,30 +746,17 @@ class AnnotationService:
         if not openlabel_config or not openlabel_config.actions:
             return []
 
-        current_actions = openlabel_config.actions
-        current_source = id(current_actions)
-        if (
-            self._frame_tag_lookup_cache is None
-            or self._frame_tag_lookup_source != current_source
-        ):
-            frame_lookup: dict[int, list[tuple[str, int, int]]] = {}
-            for tag_name, action in current_actions.items():
-                intervals = getattr(action, "frame_intervals", None) or []
-                for iv in intervals:
-                    start = iv.frame_start
-                    end = iv.frame_end
-                    if start is None or end is None:
-                        continue
-                    start_idx = int(start)
-                    end_idx = int(end)
-                    for idx in range(start_idx, end_idx + 1):
-                        frame_lookup.setdefault(idx, []).append(
-                            (tag_name, start_idx, end_idx)
-                        )
-            self._frame_tag_lookup_cache = frame_lookup
-            self._frame_tag_lookup_source = current_source
-
-        return list(self._frame_tag_lookup_cache.get(int(frame_index), []))
+        # A scan over the (few) tag intervals is cheap and can never go stale
+        frame = int(frame_index)
+        active = []
+        for tag_name, action in openlabel_config.actions.items():
+            for iv in getattr(action, "frame_intervals", None) or []:
+                if iv.frame_start is None or iv.frame_end is None:
+                    continue
+                start, end = int(iv.frame_start), int(iv.frame_end)
+                if start <= frame <= end:
+                    active.append((tag_name, start, end))
+        return active
 
     def bbox_types(self) -> Dict[str, List[str]]:
         """
@@ -777,8 +820,6 @@ class AnnotationService:
             del openlabel_config.actions[tag_name]
             if not openlabel_config.actions:
                 openlabel_config.actions = None
-        self._frame_tag_lookup_cache = None
-        self._frame_tag_lookup_source = None
         return True
 
     def update_frame_tag(
@@ -789,11 +830,14 @@ class AnnotationService:
         new_tag_name: str,
         new_start: int,
         new_end: int,
+        require_in_ontology: bool = True,
     ) -> bool:
         """Replace an existing frame-tag interval with new values. Returns True on success."""
+        # Validate first so an invalid new value leaves the old interval in place
+        tag = self._validate_frame_tag(new_tag_name, new_start, new_end, require_in_ontology)
         if not self.remove_frame_tag(old_tag_name, old_start, old_end):
             return False
-        self.add_frame_tag(new_tag_name, new_start, new_end)
+        self._append_frame_tag(tag, new_start, new_end)
         return True
 
     def delete_bboxes_by_object(
@@ -889,16 +933,6 @@ class AnnotationService:
                 "No frames to interpolate between start and end frame"
             )
 
-        # Extract center control points from the control_points dictionary
-        # center_control_points = []
-        # if 'center_x' in control_points and 'center_y' in control_points:
-        #    xs = control_points['center_x']
-        #    ys = control_points['center_y']
-        #    if len(xs) == len(ys):
-        #        center_control_points = list(zip(xs, ys))
-
-        # print(xs, ys, center_control_points)
-
         # Interpolate bboxes for intermediate frames using the new spline method
         interpolated_bboxes = InterpolationService.interpolate_annotations(
             start_bbox,
@@ -970,6 +1004,11 @@ class AnnotationService:
 
         return frames
 
+    def get_relation_ontology_uid(self) -> str:
+        """Return the ontologies key of the active ontology namespace."""
+        openlabel = self.project_state.annotation_config
+        return openlabel.get_or_add_ontology_uid(get_ontology_namespace())
+
     def add_object_relationship(
         self,
         relationship_type: str,
@@ -1000,14 +1039,15 @@ class AnnotationService:
         ontology_uid: str,
         subject_object_id: str,
         object_object_id: str,
+        frame_intervals: Optional[list[tuple]] = None,
     ) -> None:
-        """Restore a previously deleted relationship."""
+        """Restore a deleted relationship; recompute intervals only when none were saved."""
         openlabel = self.project_state.annotation_config
 
-        # Calculate frame interval stuff.
-        frame_intervals = self._calculate_relation_frame_interval(
-            subject_object_id, object_object_id
-        )
+        if frame_intervals is None:
+            frame_intervals = self._calculate_relation_frame_interval(
+                subject_object_id, object_object_id
+            )
 
         openlabel.restore_relationship(
             relation_id,
@@ -1034,17 +1074,24 @@ class AnnotationService:
 
         return object_relationships
 
-    def delete_relationship(self, relation_id: str) -> dict:
-        """Delete a relationship by its ID."""
+    def delete_relationship(self, relation_id: str) -> Optional[dict]:
+        """Delete a relationship by its ID; return None if it doesn't exist."""
         openlabel = self.project_state.annotation_config
         deleted_relation = openlabel.delete_relationship(relation_id)
+        if deleted_relation is None:
+            return None
 
+        metadata = deleted_relation["metadata"]
         return {
             "id": deleted_relation["id"],
-            "subject": deleted_relation["metadata"].rdf_subjects[0].uid,
-            "type": deleted_relation["metadata"].type,
-            "object": deleted_relation["metadata"].rdf_objects[0].uid,
-            "ontology_uid": deleted_relation["metadata"].ontology_uid,
+            "subject": metadata.rdf_subjects[0].uid,
+            "type": metadata.type,
+            "object": metadata.rdf_objects[0].uid,
+            "ontology_uid": metadata.ontology_uid,
+            "frame_intervals": [
+                (interval.frame_start, interval.frame_end)
+                for interval in metadata.frame_intervals or []
+            ],
         }
 
     def _calculate_relation_frame_interval(

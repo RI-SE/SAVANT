@@ -22,6 +22,7 @@ from .passes import (
     FrameIntervalPass,
     StaticObjectRemovalPass,
     ShortDurationPass,
+    PositionalJitterPass,
     AngleNormalizationPass,
     AngleSplineInterpolationPass,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "FrameIntervalPass",
     "StaticObjectRemovalPass",
     "ShortDurationPass",
+    "PositionalJitterPass",
     "AngleNormalizationPass",
     "AngleSplineInterpolationPass",
     "PostprocessingPipeline",

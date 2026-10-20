@@ -251,3 +251,48 @@ class TestRemoveOrphanedImages:
         splitter.remove_orphaned_images(dry_run=False)
 
         assert not orphan.exists()
+
+
+class TestMainCli:
+    def _run(self, monkeypatch, *argv):
+        import sys
+
+        import pytest
+
+        from trainit import split_train_val
+
+        monkeypatch.setattr(sys, "argv", ["split-train-val", *argv])
+        with pytest.raises(SystemExit) as exc:
+            split_train_val.main()
+        return exc.value.code
+
+    def test_remove_orphans_alone_does_not_split(self, mock_dataset: Path, monkeypatch):
+        (mock_dataset / "images" / "train" / "orphan_00001.jpg").touch()
+        val_before = sorted(p.name for p in (mock_dataset / "images" / "val").iterdir())
+
+        assert self._run(monkeypatch, "--dataset-path", str(mock_dataset), "--remove-orphans") == 0
+
+        assert not (mock_dataset / "images" / "train" / "orphan_00001.jpg").exists()
+        assert sorted(p.name for p in (mock_dataset / "images" / "val").iterdir()) == val_before
+
+
+def test_cli_chunked_split_and_restore(temp_dir: Path):
+    from trainit.split_train_val import DatasetSplitter
+
+    ds = temp_dir / "ds"
+    for sub in ("images/train", "labels/train"):
+        (ds / sub).mkdir(parents=True)
+    for n in range(0, 1000, 10):
+        (ds / "images" / "train" / f"frame_{n:06d}.jpg").touch()
+        (ds / "labels" / "train" / f"frame_{n:06d}.txt").write_text("0 0.1 0.1 0.2 0.1 0.2 0.2 0.1 0.2\n")
+
+    stats = DatasetSplitter(ds, train_ratio=0.9, seed=3, chunk_frames=100, gap_frames=20).split_dataset()
+
+    val = list((ds / "images" / "val").iterdir())
+    excluded = list((ds / "images" / "excluded").iterdir())
+    assert len(val) == stats["val_images"] == 10
+    assert len(excluded) == stats["excluded_images"] > 0
+    assert len(list((ds / "labels" / "excluded").iterdir())) == len(excluded)
+
+    DatasetSplitter(ds).restore_dataset()
+    assert len(list((ds / "images" / "train").iterdir())) == 100

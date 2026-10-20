@@ -44,7 +44,7 @@ def show_frame(main_window, pixmap, frame_idx: int | None):
     _prev_selected_id = overlay.selected_object_id() if overlay is not None else None
     _clear_selection_for_frame_change(main_window, frame_idx)
     if _prev_selected_id is not None and overlay is not None:
-        overlay._preserve_selection_id = _prev_selected_id
+        overlay.preserve_selection(_prev_selected_id)
     main_window._frame_updating = True
     try:
         _update_overlay_from_model(main_window)

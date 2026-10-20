@@ -6,7 +6,7 @@ Manages and executes postprocessing passes in sequence on OpenLabel data.
 
 import logging
 import re
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from .base import PostprocessingPass
 
@@ -21,6 +21,7 @@ class PostprocessingPipeline:
         self.frame_width = None
         self.frame_height = None
         self.fps = None
+        self.decision_log: List[Dict[str, Any]] = []
 
     def set_video_properties(
         self, frame_width: int, frame_height: int, fps: float
@@ -151,6 +152,11 @@ class PostprocessingPipeline:
                 processed_data = pass_instance.process(processed_data)
                 stats = pass_instance.get_statistics()
                 logger.info(f"    Statistics: {stats}")
+
+                for record in pass_instance.get_decision_log():
+                    record.setdefault("stage", "housekeeping")
+                    record.setdefault("source", pass_name)
+                    self.decision_log.append(record)
             except Exception as e:
                 logger.error(f"    Error in {pass_name}: {e}")
                 raise
@@ -169,3 +175,11 @@ class PostprocessingPipeline:
 
         logger.info("Postprocessing completed")
         return processed_data
+
+    def get_decision_log(self) -> List[Dict[str, Any]]:
+        """Return the aggregated per-decision records collected across all passes.
+
+        Returns:
+            List of decision record dicts, in pipeline execution order.
+        """
+        return self.decision_log

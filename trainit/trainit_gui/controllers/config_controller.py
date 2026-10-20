@@ -5,7 +5,7 @@ from typing import Optional
 
 from ..frontend.states.app_state import AppState
 from ..services.project_service import ProjectService
-from ..services.config_generator import ConfigGenerator
+from ..services.config_generator import ConfigGenerator, GenerationCancelled, ProgressCallback
 from ..models.project import TrainingConfig
 
 logger = logging.getLogger(__name__)
@@ -158,7 +158,11 @@ class ConfigController:
             return False
 
     def generate_files(
-        self, output_dir: str, copy_images: bool = False, generate_manifest: bool = True
+        self,
+        output_dir: str,
+        copy_images: bool = False,
+        generate_manifest: bool = True,
+        progress: Optional[ProgressCallback] = None,
     ) -> tuple[bool, str, str, Optional[str]]:
         """Generate training configuration files.
 
@@ -190,6 +194,7 @@ class ConfigController:
                     output_dir=output_dir,
                     copy_images=copy_images,
                     generate_manifest=generate_manifest,
+                    progress=progress,
                 )
             )
 
@@ -199,6 +204,9 @@ class ConfigController:
             )
             return True, yaml_path, json_path, manifest_path
 
+        except GenerationCancelled:
+            self.app_state.status_message.emit("Generation cancelled")
+            return False, "", "", None
         except Exception as e:
             self.app_state.error_occurred.emit(f"Generation failed: {e}")
             logger.error(f"Generation failed: {e}")

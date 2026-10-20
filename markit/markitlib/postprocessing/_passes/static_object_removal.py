@@ -3,7 +3,7 @@ StaticObjectRemovalPass - Static object removal postprocessing pass.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List
 from collections import defaultdict
 
 from ..base import PostprocessingPass
@@ -246,3 +246,41 @@ class StaticObjectRemovalPass(PostprocessingPass):
             "objects_marked": self.objects_marked,
             "frames_modified": self.frames_modified,
         }
+
+    def get_decision_log(self) -> List[Dict[str, Any]]:
+        """Return one record per removed or marked static object."""
+        records = []
+        for detail in self.removal_details:
+            records.append(
+                {
+                    "action": "remove_object",
+                    "object_id": detail["object_id"],
+                    "reason": f"movement dx={detail['delta_x']}px, dy={detail['delta_y']}px "
+                    f"<= static_threshold {self.static_threshold}px",
+                    "details": {
+                        "type": detail["type"],
+                        "delta_x": detail["delta_x"],
+                        "delta_y": detail["delta_y"],
+                        "frame_count": detail["frame_count"],
+                        "static_threshold": self.static_threshold,
+                    },
+                }
+            )
+        for detail in self.marking_details:
+            records.append(
+                {
+                    "action": "mark_object",
+                    "object_id": detail["object_id"],
+                    "frame": detail["first_frame"],
+                    "reason": f"movement dx={detail['delta_x']}px, dy={detail['delta_y']}px "
+                    f"<= static_threshold {self.static_threshold}px",
+                    "details": {
+                        "type": detail["type"],
+                        "delta_x": detail["delta_x"],
+                        "delta_y": detail["delta_y"],
+                        "frame_count": detail["frame_count"],
+                        "static_threshold": self.static_threshold,
+                    },
+                }
+            )
+        return records

@@ -31,19 +31,8 @@ def _cascade_delete_directional(main_window, object_id: str, direction: str):
     Args:
         direction: "forward" (current frame … last) or "backward" (first … current frame)
     """
-    openlabel_annotation = (
-        main_window.annotation_controller.annotation_service.project_state.annotation_config
-    )
-    if not openlabel_annotation:
-        return
-
     current_frame = int(main_window.video_controller.current_index())
-
-    all_frames = sorted(
-        int(frame_key)
-        for frame_key, frame_data in getattr(openlabel_annotation, "frames", {}).items()
-        if getattr(frame_data, "objects", None) and object_id in frame_data.objects
-    )
+    all_frames = main_window.annotation_controller.frames_for_object(object_id) or []
 
     if direction == "forward":
         frames_to_delete = [f for f in all_frames if f >= current_frame]
@@ -89,24 +78,14 @@ def _cascade_delete_directional(main_window, object_id: str, direction: str):
 def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
     """Delete all bboxes across all frames with the same object ID as the clicked bbox."""
     try:
-        main_window.overlay._selected_idx = overlay_bbox_index
+        main_window.overlay.select_box(overlay_bbox_index)
         object_id = main_window.overlay.selected_object_id()
     except Exception as e:
         raise MissingObjectIDError(
             "Could not determine object ID for the selected bounding box."
         ) from e
 
-    openlabel_annotation = (
-        main_window.annotation_controller.annotation_service.project_state.annotation_config
-    )
-    if not openlabel_annotation:
-        return
-
-    frames_with_object = sorted(
-        int(frame_key)
-        for frame_key, frame_data in getattr(openlabel_annotation, "frames", {}).items()
-        if getattr(frame_data, "objects", None) and object_id in frame_data.objects
-    )
+    frames_with_object = main_window.annotation_controller.frames_for_object(object_id) or []
     if not frames_with_object:
         return
 

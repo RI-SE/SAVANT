@@ -347,7 +347,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close."""
-        if self.app_state.has_unsaved_changes():
+        if self.project_controller.has_unsaved_changes():
             reply = QMessageBox.question(
                 self,
                 "Unsaved Changes",
@@ -358,8 +358,11 @@ class MainWindow(QMainWindow):
             )
 
             if reply == QMessageBox.StandardButton.Save:
-                self.project_controller.save_project()
-                event.accept()
+                # save_project already reported any failure; stay open then
+                if self.project_controller.save_project():
+                    event.accept()
+                else:
+                    event.ignore()
             elif reply == QMessageBox.StandardButton.Discard:
                 event.accept()
             else:

@@ -314,7 +314,7 @@ class Overlay(QWidget):
         self.bounding_box_selected.emit(None)
 
     def _display_to_video(self, x_disp: float, y_disp: float) -> QPointF:
-        scale, off_x, off_y, _ = self._compute_transform()
+        scale, off_x, off_y, _ = self.compute_transform()
         if scale == 0:
             return QPointF(0.0, 0.0)
         return QPointF((x_disp - off_x) / scale, (y_disp - off_y) / scale)
@@ -399,7 +399,7 @@ class Overlay(QWidget):
         if mode == "R":
             cx0 = self._orig_box.center_x
             cy0 = self._orig_box.center_y
-            scale, off_x, off_y, _ = self._compute_transform()
+            scale, off_x, off_y, _ = self.compute_transform()
             px = (self._press_pos_disp.x() - off_x) / scale
             py = (self._press_pos_disp.y() - off_y) / scale
             self._press_angle = math.atan2(py - cy0, px - cx0)
@@ -450,7 +450,7 @@ class Overlay(QWidget):
                 return
             self._mouse_drag_active = True
 
-        scale, off_x, off_y, _ = self._compute_transform()
+        scale, off_x, off_y, _ = self.compute_transform()
         if scale <= 0:
             return
         delta_x_video = delta_x_pixels / scale
@@ -503,7 +503,7 @@ class Overlay(QWidget):
             ev.ignore()
             return
 
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
         if self._mouse_drag_active and selected_bbox is not None:
             if self._drag_mode == "move":
                 self.boxMoved.emit(
@@ -668,7 +668,7 @@ class Overlay(QWidget):
         if not getattr(self, "_boxes", None):
             return None, None
 
-        scale, off_x, off_y, _ = self._compute_transform()
+        scale, off_x, off_y, _ = self.compute_transform()
         x = pos_disp.x()
         y = pos_disp.y()
 
@@ -769,7 +769,7 @@ class Overlay(QWidget):
 
         return None
 
-    def _compute_transform(self) -> tuple[float, float, float, float]:
+    def compute_transform(self) -> tuple[float, float, float, float]:
         """
         Returns (scale, off_x, off_y, base) where:
           base  = min(viewW/frameW, viewH/frameH)
@@ -800,7 +800,7 @@ class Overlay(QWidget):
                 return idx
         return None
 
-    def _get_box_by_obj_id(self, object_id: str) -> BBoxData | None:
+    def box_by_object_id(self, object_id: str) -> BBoxData | None:
         """Return the BBoxData for the given object_id, or None if not found."""
         for box in self._boxes:
             if box.object_id == object_id:
@@ -849,7 +849,7 @@ class Overlay(QWidget):
         if not self._boxes or self._frame_size == (0, 0):
             return
 
-        scale, offset_x, offset_y, _ = self._compute_transform()
+        scale, offset_x, offset_y, _ = self.compute_transform()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
@@ -943,8 +943,8 @@ class Overlay(QWidget):
         """Draw relationship lines between boxes."""
         painter.setPen(self._pen_relationship)
         for relationship in self._relationships:
-            subject_box = self._get_box_by_obj_id(relationship.subject)
-            object_box = self._get_box_by_obj_id(relationship.object)
+            subject_box = self.box_by_object_id(relationship.subject)
+            object_box = self.box_by_object_id(relationship.object)
             if subject_box and object_box:
                 p1 = QPointF(
                     offset_x + subject_box.center_x * scale,
@@ -1228,7 +1228,7 @@ class Overlay(QWidget):
         movement_step = get_movement_sensitivity()
         rotation_step = get_rotation_sensitivity()
 
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
 
         # Initialize variables that will be updated based
         # on key presses
@@ -1306,7 +1306,7 @@ class Overlay(QWidget):
 
     def _on_cascade_size_to_all(self, direction: str):
         """Handle cascade apply to all frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
 
         # Emit a custom signal for cascade operations
         self.cascadeApplyAll.emit(CascadeApplyEvent(
@@ -1321,7 +1321,7 @@ class Overlay(QWidget):
 
     def _on_cascade_rotation_to_all(self, direction: str):
         """Handle cascade apply to all frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
 
         # Emit a custom signal for cascade operations
         self.cascadeApplyAll.emit(CascadeApplyEvent(
@@ -1336,7 +1336,7 @@ class Overlay(QWidget):
 
     def _on_cascade_center_to_all(self, direction: str):
         """Handle cascade apply to all frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
 
         # Emit a custom signal for cascade operations
         self.cascadeApplyAll.emit(CascadeApplyEvent(
@@ -1351,7 +1351,7 @@ class Overlay(QWidget):
 
     def _on_cascade_size_to_frame_range(self, direction: str):
         """Handle cascade apply to next X frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
 
         # Emit a custom signal for cascade operations
         self.cascadeApplyFrameRange.emit(CascadeApplyEvent(
@@ -1366,7 +1366,7 @@ class Overlay(QWidget):
 
     def _on_cascade_rotation_to_frame_range(self, direction: str):
         """Handle cascade apply to next X frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
 
         # Emit a custom signal for cascade operations
         self.cascadeApplyFrameRange.emit(CascadeApplyEvent(
@@ -1381,7 +1381,7 @@ class Overlay(QWidget):
 
     def _on_cascade_center_to_frame_range(self, direction: str):
         """Handle cascade apply to next X frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
 
         # Emit a custom signal for cascade operations
         self.cascadeApplyFrameRange.emit(CascadeApplyEvent(
@@ -1396,32 +1396,32 @@ class Overlay(QWidget):
 
     def _on_cascade_rotate90cw_to_all(self, direction: str):
         """Handle rotate 90° CW to all frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
         self.cascadeRotate90.emit(selected_bbox.object_id, True, direction)
 
     def _on_cascade_rotate90ccw_to_all(self, direction: str):
         """Handle rotate 90° CCW to all frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
         self.cascadeRotate90.emit(selected_bbox.object_id, False, direction)
 
     def _on_cascade_rotate90cw_to_frame_range(self, direction: str):
         """Handle rotate 90° CW to next X frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
         self.cascadeRotate90FrameRange.emit(selected_bbox.object_id, True, direction)
 
     def _on_cascade_rotate90ccw_to_frame_range(self, direction: str):
         """Handle rotate 90° CCW to next X frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
         self.cascadeRotate90FrameRange.emit(selected_bbox.object_id, False, direction)
 
     def _on_cascade_delta_to_all(self, direction: str):
         """Handle apply last delta to all frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
         self.cascadeDeltaAll.emit(selected_bbox.object_id, direction)
 
     def _on_cascade_delta_to_frame_range(self, direction: str):
         """Handle apply last delta to next X frames."""
-        selected_bbox = self._get_selected_bbox()
+        selected_bbox = self.selected_bbox()
         self.cascadeDeltaFrameRange.emit(selected_bbox.object_id, direction)
 
     def _on_cascade_cancel(self):
@@ -1442,10 +1442,10 @@ class Overlay(QWidget):
     def show_cascade_option(self):
         """Show the cascade button near the resized/rotated annotation."""
         # Get the position of the selected annotation
-        bbox = self._get_selected_bbox()
+        bbox = self.selected_bbox()
 
         # Convert video coordinates to display coordinates
-        scale, offset_x, offset_y, _ = self._compute_transform()
+        scale, offset_x, offset_y, _ = self.compute_transform()
         center_x_disp = offset_x + bbox.center_x * scale
         center_y_disp = offset_y + bbox.center_y * scale
 
@@ -1456,7 +1456,24 @@ class Overlay(QWidget):
         # Show the cascade button
         self.cascade_button.show_at_position(button_x, button_y)
 
-    def _get_selected_bbox(self):
+    @property
+    def boxes(self) -> tuple:
+        """Boxes currently shown, in draw order (read-only)."""
+        return tuple(self._boxes)
+
+    @property
+    def selected_index(self) -> int | None:
+        return self._selected_idx
+
+    @property
+    def pan(self) -> tuple[float, float]:
+        return self._pan_x, self._pan_y
+
+    def preserve_selection(self, object_id: str) -> None:
+        """Reselect object_id after the next set_rotated_boxes call (e.g. a frame change)."""
+        self._preserve_selection_id = object_id
+
+    def selected_bbox(self):
         """Return the currently selected bounding box, or None if none is selected."""
         if self._selected_idx is not None and 0 <= self._selected_idx < len(
             self._boxes
