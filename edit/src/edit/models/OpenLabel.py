@@ -133,6 +133,8 @@ class OpenLabelMetadata(BaseModel):
     schema_version: str
     tagged_file: Optional[str] = None
     annotator: Optional[str] = None
+    # Keep keys written by other tools (markit's name/comment/tags, quality summaries) on save
+    model_config = ConfigDict(extra="allow")
 
 
 class ActionMetadata(BaseModel):

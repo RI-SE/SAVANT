@@ -209,3 +209,63 @@ def test_save_rebuilds_intervals_and_drops_boxless_objects(tmp_path):
     # The in-memory model is untouched, so undo can still restore the orphan's boxes
     assert orphan in state.annotation_config.objects
     assert not state.has_unsaved_changes()
+
+
+def _copied_asset(tmp_path):
+    source = Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json"
+    target = tmp_path / source.name
+    shutil.copy2(source, target)
+    return target
+
+
+def test_save_keeps_metadata_written_by_other_tools(tmp_path):
+    import json
+
+    target = _copied_asset(tmp_path)
+    data = read_json(str(target))
+    data["openlabel"]["metadata"].update(
+        {"name": "Kraklanda run", "comment": "markit comment", "tags": ["drone"], "quality": {"spec": "x"}})
+    target.write_text(json.dumps(data))
+    state = ProjectState()
+    state.load_openlabel_config(str(target))
+
+    state.save_openlabel_config()
+
+    saved = read_json(str(target))["openlabel"]["metadata"]
+    assert saved["name"] == "Kraklanda run"
+    assert saved["comment"] == "markit comment"
+    assert saved["tags"] == ["drone"]
+    assert saved["quality"] == {"spec": "x"}
+
+
+def _set_histories(state, annotators, confidences):
+    """Give every box the same annotator/confidence histories (newest first)."""
+    from collections import deque
+
+    from src.edit.models.OpenLabel import AnnotatorData, ConfidenceData
+
+    for frame in state.annotation_config.frames.values():
+        for frame_obj in frame.objects.values():
+            frame_obj.object_data.vec = [
+                AnnotatorData(val=deque(annotators)),
+                ConfidenceData(val=deque(confidences)),
+            ]
+
+
+def _issue_confidences(state):
+    issues = state.confidence_issues(warning_range=(0.4, 0.6), error_range=(0.0, 0.4))
+    return {issue.confidence for frame_issues in issues.values() for issue in frame_issues}
+
+
+def test_confidence_warning_sees_detector_score_under_housekeeping(tmp_path):
+    state = ProjectState()
+    state.load_openlabel_config(str(_copied_asset(tmp_path)))
+    _set_histories(state, ["markit_housekeeping(rot)", "markit_yolo"], [0.8888, 0.45])
+    assert _issue_confidences(state) == {0.45}
+
+
+def test_human_edit_resolves_low_detector_score(tmp_path):
+    state = ProjectState()
+    state.load_openlabel_config(str(_copied_asset(tmp_path)))
+    _set_histories(state, ["alice", "markit_housekeeping(rot)", "markit_yolo"], [1.0, 0.8888, 0.45])
+    assert _issue_confidences(state) == set()

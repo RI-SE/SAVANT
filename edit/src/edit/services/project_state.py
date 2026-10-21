@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Literal, Tuple
 
 from edit.models.OpenLabel import OpenLabel
-from savant_common.openlabel import contiguous_intervals
+from savant_common.openlabel import contiguous_intervals, source_confidence
 from edit.utils import read_json
 from pydantic import ValidationError
 
@@ -410,15 +410,12 @@ class ProjectState:
 
             frame_issues: List[FrameConfidenceIssue] = []
             for object_id, frame_obj in frame.objects.items():
-                confidence_value: float | None = None
-                vec_entries = getattr(frame_obj.object_data, "vec", []) or []
-                for vec_entry in vec_entries:
-                    if getattr(vec_entry, "name", None) != "confidence":
-                        continue
-                    confidence_values = getattr(vec_entry, "val", None) or []
-                    if confidence_values:
-                        confidence_value = float(confidence_values[0])
-                    break
+                histories = {
+                    getattr(vec_entry, "name", None): getattr(vec_entry, "val", None)
+                    for vec_entry in getattr(frame_obj.object_data, "vec", []) or []
+                }
+                # Judge the detector's score, not the fixed value markit housekeeping puts on top
+                confidence_value = source_confidence(histories.get("annotator"), histories.get("confidence"))
 
                 if confidence_value is None:
                     continue

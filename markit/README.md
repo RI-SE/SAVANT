@@ -506,20 +506,21 @@ ArUco markers can be used as ground control points with known GPS positions. Whe
 ### CSV Format
 
 ```csv
-ID,long,lat,alt,horiz SD,vert SD,Location name
-aruco_24a,47.3769,8.5417,410,0.02,0.03,Gothenburg
-aruco_24c,47.3771,8.5419,410,0.02,0.03,Gothenburg
+point_name,latitude,longitude,altitude,horizontal SD,vertical SD
+aruco_24a,57.48451,12.00977,72.75,0.0021,0.0035
+aruco_24c,57.48450,12.00974,72.54,0.0019,0.0033
 ```
 
 | Column | Description |
 |--------|-------------|
-| ID | Marker identifier in format `aruco_[num][a-d]` where letter indicates corner |
-| long | Longitude of the marker corner |
-| lat | Latitude of the marker corner |
-| alt | Altitude in meters |
-| horiz SD | Horizontal standard deviation (use `inf` if unknown) |
-| vert SD | Vertical standard deviation (use `inf` if unknown) |
-| Location name | Human-readable location identifier |
+| point_name | Marker identifier: `aruco_[num][a-d]` for ArUco markers, `<description>_[num][a-d]` for visual markers (e.g. `lamppost_1a`); the letter is the corner |
+| latitude | Latitude of the marker corner |
+| longitude | Longitude of the marker corner |
+| altitude | Altitude in meters |
+| horizontal SD | Optional: horizontal standard deviation of the RTK position in meters (`horiz SD` also accepted) |
+| vertical SD | Optional: vertical standard deviation in meters (`vert SD` also accepted) |
+
+Other columns (as in RTK survey exports) are ignored.
 
 ### Corner Notation
 
@@ -527,7 +528,7 @@ Each ArUco marker has 4 corners labeled a, b, c, d:
 
 ![ArUco coordinates](docs/coords_aruca.png)
 
-Marker position is included in the OpenLabel output as objects with additional object_data including longitude, latitude, and altitude from the corner(s) where position is measured (from the csv file):
+Marker position is included in the OpenLabel output as objects with additional object_data including longitude, latitude, and altitude from the corner(s) where position is measured (from the csv file). When the CSV has the SD columns, `sigma_h_m`/`sigma_v_m` hold the per-corner RTK accuracy (`inf` for a corner without a value):
 
 ```json
      "2000017": {
@@ -562,6 +563,20 @@ Marker position is included in the OpenLabel output as objects with additional o
               "val": [
                 "72.75258941650391",
                 "72.54821319580078"
+              ]
+            },
+            {
+              "name": "sigma_h_m",
+              "val": [
+                "0.0021",
+                "0.0019"
+              ]
+            },
+            {
+              "name": "sigma_v_m",
+              "val": [
+                "0.0035",
+                "0.0033"
               ]
             },
             {

@@ -34,6 +34,25 @@ logger = logging.getLogger(__name__)
 # Utility Functions
 # =============================================================================
 
+# Annotator prefix of markit's postprocessing steps (geometry adjustments, gap filling)
+HOUSEKEEPING_ANNOTATOR = "markit_housekeeping"
+
+
+def source_confidence(annotators, confidences) -> Optional[float]:
+    """Newest confidence not written by a markit housekeeping step; the newest one if there is none.
+
+    Housekeeping prepends a fixed confidence (0.8888) that would hide a low detector score.
+    Assumes the annotator and confidence histories are aligned, newest first, as markit and edit write them.
+    """
+    confidences = list(confidences or [])
+    if not confidences:
+        return None
+    for annotator, confidence in zip(annotators or [], confidences):
+        if not str(annotator).startswith(HOUSEKEEPING_ANNOTATOR):
+            return float(confidence)
+    return float(confidences[0])
+
+
 def contiguous_intervals(frame_indices) -> List[Dict[str, int]]:
     """One interval per run of consecutive frames, so absences are not reported as presence."""
     intervals: List[Dict[str, int]] = []

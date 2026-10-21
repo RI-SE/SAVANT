@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 # Object type for ArUco markers: the rdfs:label of :MarkerAruco in savant.ttl
 ARUCO_TYPE = "Aruco"
+# Per-corner RTK accuracy (metres, 1 sigma) from the marker CSVs; same names in the corner dicts and the vec
+MARKER_SD_KEYS = ("sigma_h_m", "sigma_v_m")
+UNKNOWN_SD = "inf"
 
 
 def _frame_to_timestamp(frame_idx: int, fps: float) -> str:
@@ -31,6 +34,22 @@ def _frame_to_timestamp(frame_idx: int, fps: float) -> str:
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{td.microseconds:06d}"
+
+
+def marker_gps_vec(id_name: str, marker_id: int, corners: Dict[str, Dict], description: str) -> List[Dict]:
+    """Object-level vec of a marker: per-corner ids and GPS position, plus RTK accuracy if the CSV had it."""
+    ordered = sorted(corners)
+    vec = [
+        {"name": id_name, "val": [f"{marker_id}{corner}" for corner in ordered]},
+        {"name": "long", "val": [str(corners[corner]["lon"]) for corner in ordered]},
+        {"name": "lat", "val": [str(corners[corner]["lat"]) for corner in ordered]},
+        {"name": "alt", "val": [str(corners[corner].get("alt", 0)) for corner in ordered]},
+    ]
+    for key in MARKER_SD_KEYS:
+        if any(key in corners[corner] for corner in ordered):
+            vec.append({"name": key, "val": [str(corners[corner].get(key, UNKNOWN_SD)) for corner in ordered]})
+    vec.append({"name": "description", "val": description})
+    return vec
 
 
 class OpenLabelHandler:
@@ -152,29 +171,10 @@ class OpenLabelHandler:
                 obj_id_str = str(2000000 + aruco_id)
             object_name = f"aruco_{aruco_id}"
 
-            # Build GPS vectors from all corners
-            corner_ids, latitudes, longitudes, altitudes = [], [], [], []
-            for corner in sorted(corners.keys()):
-                corner_data = corners[corner]
-                corner_ids.append(f"{aruco_id}{corner}")
-                latitudes.append(str(corner_data["lat"]))
-                longitudes.append(str(corner_data["lon"]))
-                altitudes.append(str(corner_data.get("alt", 0)))
-
             # Build object with GPS data at object level
             aruco_object = {"name": object_name, "type": ARUCO_TYPE, "ontology_uid": "0"}
-
-            # Add object_data.vec with GPS coordinates
-            if corner_ids:
-                aruco_object["object_data"] = {
-                    "vec": [
-                        {"name": "arucoID", "val": corner_ids},
-                        {"name": "long", "val": longitudes},
-                        {"name": "lat", "val": latitudes},
-                        {"name": "alt", "val": altitudes},
-                        {"name": "description", "val": csv_name},
-                    ]
-                }
+            if corners:
+                aruco_object["object_data"] = {"vec": marker_gps_vec("arucoID", aruco_id, corners, csv_name)}
 
             self.openlabel_data["openlabel"]["objects"][obj_id_str] = aruco_object
 
@@ -204,33 +204,14 @@ class OpenLabelHandler:
             marker_type = marker_names.get(marker_id, "marker")
             object_name = f"{marker_type}_{marker_id}"
 
-            # Build GPS vectors from all corners
-            corner_ids, latitudes, longitudes, altitudes = [], [], [], []
-            for corner in sorted(corners.keys()):
-                corner_data = corners[corner]
-                corner_ids.append(f"{marker_id}{corner}")
-                latitudes.append(str(corner_data["lat"]))
-                longitudes.append(str(corner_data["lon"]))
-                altitudes.append(str(corner_data.get("alt", 0)))
-
             # Build object with GPS data at object level
             marker_object = {
                 "name": object_name,
                 "type": "VisualMarker",
                 "ontology_uid": "0",
             }
-
-            # Add object_data.vec with GPS coordinates
-            if corner_ids:
-                marker_object["object_data"] = {
-                    "vec": [
-                        {"name": "markerID", "val": corner_ids},
-                        {"name": "long", "val": longitudes},
-                        {"name": "lat", "val": latitudes},
-                        {"name": "alt", "val": altitudes},
-                        {"name": "description", "val": csv_name},
-                    ]
-                }
+            if corners:
+                marker_object["object_data"] = {"vec": marker_gps_vec("markerID", marker_id, corners, csv_name)}
 
             self.openlabel_data["openlabel"]["objects"][obj_id_str] = marker_object
 
@@ -288,15 +269,6 @@ class OpenLabelHandler:
                         gps_data = detection.gps_data
                         aruco_id = detection.aruco_id
 
-                        # Build GPS vectors from all corners
-                        corner_ids, latitudes, longitudes, altitudes = [], [], [], []
-                        for corner in sorted(gps_data.keys()):
-                            corner_data = gps_data[corner]
-                            corner_ids.append(f"{aruco_id}{corner}")
-                            latitudes.append(str(corner_data["lat"]))
-                            longitudes.append(str(corner_data["lon"]))
-                            altitudes.append(str(corner_data.get("alt", 0)))
-
                         description = object_name.split("_")[0]
 
                         # Build object with GPS data at object level (not per-frame)
@@ -305,17 +277,9 @@ class OpenLabelHandler:
                             "type": ARUCO_TYPE,
                             "ontology_uid": "0",
                         }
-
-                        # Add object_data.vec with GPS coordinates if available
-                        if corner_ids:
+                        if gps_data:
                             aruco_object["object_data"] = {
-                                "vec": [
-                                    {"name": "arucoID", "val": corner_ids},
-                                    {"name": "long", "val": longitudes},
-                                    {"name": "lat", "val": latitudes},
-                                    {"name": "alt", "val": altitudes},
-                                    {"name": "description", "val": description},
-                                ]
+                                "vec": marker_gps_vec("arucoID", aruco_id, gps_data, description)
                             }
 
                         self.openlabel_data["openlabel"]["objects"][

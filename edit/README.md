@@ -140,7 +140,7 @@ Press **`M`** to toggle measure mode. The cursor changes to a crosshair and anno
 - Distances are reported in video pixels (`"1234 px"`). Measurements are ephemeral and are never saved to the project.
 
 ### 4.7 Confidence Issues
-- Confidence markers are drawn when a bounding box’s stored confidence value falls inside the Warning or Error range you configured. Warnings show amber icons, errors show red icons, and both ranges also appear under the seek bar.
+- Confidence markers are drawn when a bounding box’s confidence falls inside the Warning or Error range you configured. The value used is the newest one not written by markit's postprocessing (`markit_housekeeping`, a fixed 0.8888), so a low detector score is still flagged after markit adjusted the box. Once you edit or resolve a box, your 1.0 is used. Warnings show amber icons, errors show red icons, and both ranges also appear under the seek bar.
 - The **Confidence Issues** list in the sidebar shows every active warning/error near the current frame. Sort by frame or ID, multi-select rows, and right-click → *Mark as resolved* to confirm you have reviewed the issue.
 - The issue panel in the playback controls mirrors the same data and adds any enabled tag notes. Use the `Next/Previous issue` buttons to jump along the timeline.
 

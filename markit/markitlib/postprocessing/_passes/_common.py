@@ -5,6 +5,8 @@ _common - Shared constants and helper functions for postprocessing passes.
 import logging
 from typing import Any, Dict, List
 
+from savant_common.openlabel import HOUSEKEEPING_ANNOTATOR
+
 logger = logging.getLogger(__name__)
 
 # Confidence value used for all housekeeping operations
@@ -27,7 +29,7 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
     if not vec_list:
         # No vec list, create one with housekeeping entry
         obj_data.setdefault("object_data", {})["vec"] = [
-            {"name": "annotator", "val": [f"markit_housekeeping({tag})"]},
+            {"name": "annotator", "val": [f"{HOUSEKEEPING_ANNOTATOR}({tag})"]},
             {"name": "confidence", "val": [HOUSEKEEPING_CONFIDENCE]},
         ]
         return
@@ -43,7 +45,7 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
 
     if annotator_item is None:
         # No annotator field, add new housekeeping entry at beginning
-        vec_list.insert(0, {"name": "annotator", "val": [f"markit_housekeeping({tag})"]})
+        vec_list.insert(0, {"name": "annotator", "val": [f"{HOUSEKEEPING_ANNOTATOR}({tag})"]})
         if confidence_item:
             confidence_item["val"].insert(0, HOUSEKEEPING_CONFIDENCE)
         else:
@@ -56,7 +58,7 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
     housekeeping_tags = []
 
     for i, val in enumerate(annotator_vals):
-        match = re.match(r"markit_housekeeping\(([^)]*)\)", val)
+        match = re.match(rf"{HOUSEKEEPING_ANNOTATOR}\(([^)]*)\)", val)
         if match:
             housekeeping_idx = i
             existing_tags = match.group(1)
@@ -68,11 +70,11 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
         # Found existing housekeeping entry - add tag if not present
         if tag not in housekeeping_tags:
             housekeeping_tags.append(tag)
-            annotator_vals[housekeeping_idx] = f"markit_housekeeping({','.join(housekeeping_tags)})"
+            annotator_vals[housekeeping_idx] = f"{HOUSEKEEPING_ANNOTATOR}({','.join(housekeeping_tags)})"
         # Don't add confidence - it was already added when housekeeping was created
     else:
         # No housekeeping entry yet - create one at position 0
-        annotator_vals.insert(0, f"markit_housekeeping({tag})")
+        annotator_vals.insert(0, f"{HOUSEKEEPING_ANNOTATOR}({tag})")
         # Add corresponding confidence at position 0
         if confidence_item:
             confidence_item["val"].insert(0, HOUSEKEEPING_CONFIDENCE)
@@ -117,8 +119,8 @@ def _get_object_source_engine(
                 if vec_item.get("name") == "annotator":
                     annotators = vec_item.get("val", [])
                     for ann in reversed(annotators):
-                        if "markit_housekeeping" in ann:
-                            match = re.match(r"markit_housekeeping\(([^)]*)\)", ann)
+                        if HOUSEKEEPING_ANNOTATOR in ann:
+                            match = re.match(rf"{HOUSEKEEPING_ANNOTATOR}\(([^)]*)\)", ann)
                             if match and match.group(1) == "gap":
                                 continue
                             continue
