@@ -19,7 +19,7 @@ import json
 import logging
 import math
 import os
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Literal, Optional, Tuple, Union
@@ -50,6 +50,10 @@ HOUSEKEEPING_ANNOTATOR = "markit_housekeeping"
 # Per-box origin history (scenario-uncertainty SPEC P3.2/P3.4): aligned with the annotator history, newest first
 ORIGIN_ENTRY = "origin"
 GAP_DISTANCE_ENTRY = "gap_distance"
+# Newest origin of a box without annotator or origin history
+UNKNOWN_ORIGIN = "unknown"
+# metadata key edit writes on save: {"version": ...}, so later provenance can name the edit that saved the file
+EDIT_METADATA_KEY = "savant_edit"
 
 
 class Origin:
@@ -63,6 +67,10 @@ class Origin:
     MANUAL_INTERPOLATED = "manual_interpolated"
     MANUAL_TRACKED = "manual_tracked"
     REVIEWED = "reviewed"
+
+
+# Origins written by edit, i.e. by a person or on a person's request
+HUMAN_ORIGINS = (Origin.MANUAL, Origin.MANUAL_INTERPOLATED, Origin.MANUAL_TRACKED, Origin.REVIEWED)
 
 
 def infer_origin(annotator: str) -> str:
@@ -93,6 +101,13 @@ def updated_origins(annotators_before, origins_before, origin: str, prepended: b
     if not (origin == Origin.REVIEWED and history[0].startswith(Origin.MANUAL)):
         history[0] = origin
     return history
+
+
+def newest_origin(vec) -> str:
+    """Newest origin of a box from its vec entries; inferred in older files."""
+    values = {entry.name: list(entry.val) for entry in vec}
+    history = aligned_origins(values.get("annotator"), values.get(ORIGIN_ENTRY)) or values.get(ORIGIN_ENTRY)
+    return history[0] if history else UNKNOWN_ORIGIN
 
 
 def source_confidence(annotators, confidences) -> Optional[float]:
@@ -275,6 +290,8 @@ class OpenLabelMetadata(BaseModel):
     name: Optional[str] = None
     comment: Optional[str] = None
     tags: Optional[List[str]] = None
+    # Keep keys written by other tools (quality summaries, edit's version)
+    model_config = ConfigDict(extra="allow")
 
 
 class ActionMetadata(BaseModel):
@@ -363,6 +380,23 @@ class OpenLabel(BaseModel):
                 results.append(bbox_info)
 
         return results
+
+    def origin_counts(self, frame_indices=None) -> Counter:
+        """Number of boxes per newest origin, in all frames or only the given ones."""
+        keys = self.frames if frame_indices is None else [str(f) for f in frame_indices]
+        return Counter(newest_origin(obj.object_data.vec)
+                       for key in keys if key in self.frames for obj in self.frames[key].objects.values())
+
+    def human_annotators(self) -> List[str]:
+        """Annotators of box versions whose origin is a human one (edit), sorted."""
+        names = set()
+        for frame in self.frames.values():
+            for obj in frame.objects.values():
+                values = {entry.name: list(entry.val) for entry in obj.object_data.vec}
+                annotators = values.get("annotator") or []
+                origins = aligned_origins(annotators, values.get(ORIGIN_ENTRY))
+                names.update(a for a, o in zip(annotators, origins) if o in HUMAN_ORIGINS)
+        return sorted(names)
 
     def get_frame_indices(self) -> List[int]:
         """Return sorted list of all frame indices in the annotation."""

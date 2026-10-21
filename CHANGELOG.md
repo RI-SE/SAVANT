@@ -21,6 +21,14 @@ _Changes since `v2.4.1` (2026-06-17), including the untagged `2.4.2` version bum
 - Relations and VLM output reference the scenario ontology by its key in the `ontologies` section (was a hardcoded/invalid `ontology_uid`); edit's VLM dialog re-types tags when values are edited.
 - The third-party OpenLABEL ontology file is no longer tracked (gitignored, not redistributed).
 
+### Box origin and provenance (2026-10-21)
+- Per-box `origin` history (aligned with `annotator`) written by markit (`detected`, `interpolated` + `gap_distance`, `merged`) and edit (`manual`, `manual_interpolated`, `manual_tracked`, `reviewed`); older files get origins inferred from annotator names. See `schema/README.md#box-origin`.
+- edit keeps unknown per-box `vec` entries and unknown frame/object keys on save (generic `{name, val}` entries).
+- edit records its version in `metadata.savant_edit` on save, so FieldDataLab's edit registration can name it.
+- `extract-yolo-training --provenance`; markit and the extractor record box counts per origin and the shares of interpolated/human-made boxes; markit lists `--decision-log` as an output.
+- Fixed: markit (with YOLO) and `train-yolo-obb` failed at the provenance step when continuing an existing chain that did not declare the `savant` prefix (dataprov applies `custom_namespaces` only to new chains).
+- New dependency `scenario-uncertainty` (markit, trainit; git source for now); `dataprov` added to the trainit group, which already used it.
+
 ### Code review fixes (2026-10-20)
 Whole-repo review; details and remaining items in `development.md`.
 

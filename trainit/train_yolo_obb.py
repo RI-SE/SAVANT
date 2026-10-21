@@ -840,18 +840,9 @@ def merge_config_with_args(
 
 def build_arguments_string(args: argparse.Namespace) -> str:
     """Return every CLI option that has a value as a reproducible argument string."""
-    parts = []
-    for action in build_parser()._actions:
-        if not action.option_strings or action.dest == "help":
-            continue
-        value = getattr(args, action.dest, None)
-        flag = action.option_strings[0]
-        if isinstance(action, argparse._StoreTrueAction):
-            if value:
-                parts.append(flag)
-        elif value is not None:
-            parts.append(f"{flag} {value}")
-    return " ".join(parts)
+    from savant_common.provenance import arguments_string
+
+    return arguments_string(build_parser(), args)
 
 
 def main():
@@ -927,16 +918,15 @@ def main():
             from datetime import datetime, timezone
             import torch
             import ultralytics
-            from dataprov import ProvenanceChain
+            from savant_common.provenance import load_or_create_chain
 
             end_time = datetime.now(timezone.utc)
 
-            chain = ProvenanceChain.load_or_create(
+            chain = load_or_create_chain(
                 args.provenance,
                 entity_id="savant_trainit_output",
                 initial_source=str(args.data),
                 description="SAVANT trainit YOLO OBB model training",
-                custom_namespaces={"savant": "https://ri-se.github.io/SAVANT/ns#"},
             )
 
             # Build arguments string

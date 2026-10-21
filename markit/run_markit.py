@@ -640,22 +640,9 @@ SECRET_ARGUMENTS = {"vlm_api_key"}
 
 def build_arguments_string(args: argparse.Namespace) -> str:
     """Return every CLI option (defaults included) as a reproducible argument string."""
-    parts = []
-    for action in build_parser()._actions:
-        if not action.option_strings or action.dest in SECRET_ARGUMENTS or action.dest == "help":
-            continue
-        value = getattr(args, action.dest, None)
-        flag = action.option_strings[0]
-        if isinstance(action, argparse._StoreTrueAction):
-            if value:
-                parts.append(flag)
-        elif isinstance(action, argparse._StoreFalseAction):
-            if not value:
-                parts.append(flag)
-        elif value is not None:
-            values = value if isinstance(value, (list, tuple)) else [value]
-            parts.append(" ".join([flag, *map(str, values)]))
-    return " ".join(parts)
+    from savant_common.provenance import arguments_string
+
+    return arguments_string(build_parser(), args, secret=SECRET_ARGUMENTS)
 
 
 def provenance_inputs(args: argparse.Namespace) -> tuple[list, list]:
@@ -1032,16 +1019,16 @@ def write_decision_log(
 def record_provenance(args: argparse.Namespace, start_time, yolo_model_info) -> None:
     """Append this run to the --provenance chain."""
     from datetime import datetime, timezone
-    from dataprov import ProvenanceChain
+    from savant_common import provenance as savant_provenance
+    from savant_common.openlabel import load_openlabel
 
     end_time = datetime.now(timezone.utc)
 
-    chain = ProvenanceChain.load_or_create(
+    chain = savant_provenance.load_or_create_chain(
         args.provenance,
         entity_id="savant_markit_output",
         initial_source=args.input,
         description="SAVANT markit video processing",
-        custom_namespaces={"savant": "https://ri-se.github.io/SAVANT/ns#"},
     )
 
     # Build arguments string
@@ -1055,6 +1042,17 @@ def record_provenance(args: argparse.Namespace, start_time, yolo_model_info) -> 
     if args.output_video:
         outputs.append(args.output_video)
         output_formats.append("MP4")
+    if args.decision_log:
+        outputs.append(args.decision_log)
+        output_formats.append(savant_provenance.DECISION_LOG_FORMAT)
+
+    custom_properties = {
+        f"activity:savant:{k}": v
+        for k, v in (yolo_model_info or {}).items()
+        if v is not None
+    }
+    origin_counts = load_openlabel(args.output_json).origin_counts()
+    custom_properties.update(savant_provenance.origin_properties(origin_counts, source="run_markit"))
 
     chain.add(
         started_at=start_time.isoformat().replace("+00:00", "Z"),
@@ -1070,12 +1068,7 @@ def record_provenance(args: argparse.Namespace, start_time, yolo_model_info) -> 
         capture_agent=True,
         agent_type="automated",
         capture_environment=True,
-        custom_properties={
-            f"activity:savant:{k}": v
-            for k, v in (yolo_model_info or {}).items()
-            if v is not None
-        }
-        or None,
+        custom_properties=custom_properties,
     )
 
     chain.save(args.provenance)

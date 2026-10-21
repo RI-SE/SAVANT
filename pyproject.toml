@@ -33,11 +33,14 @@ markit = [
     "rdflib",
     "httpx>=0.24.0",
     "dataprov>=3.0.2",
+    "scenario-uncertainty",
     "PyQt6>=6.5.0",
     "matplotlib>=3.7.0",
 ]
 trainit = [
     "ultralytics",
+    "dataprov>=3.0.2",
+    "scenario-uncertainty",
     "pyyaml",
     "pydantic>=2.0",
     "matplotlib>=3.7.0",
@@ -68,6 +71,10 @@ all-apps = [
 ]
 
 
+
+[tool.uv.sources]
+# Follows scenario-uncertainty main; pin a tag once the library is released
+scenario-uncertainty = { git = "https://github.com/das-rise/scenario-uncertainty.git" }
 
 [tool.hatch.metadata]
 allow-direct-references = true

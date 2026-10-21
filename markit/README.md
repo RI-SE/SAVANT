@@ -461,7 +461,9 @@ Each detection includes annotator identification and a confidence score in the v
 | `markit_vlm` | VLM analysis confidence (0.0–1.0) |
 | Human | Always 1.0 (ground truth by convention) |
 
-See [Schema documentation](../schema/README.md#annotator-and-confidence-fields) for full details on multi-annotator tracking.
+Each box also gets an `origin` entry aligned with the annotator history (`detected`, `interpolated` for gap-filled boxes, `merged` for boxes moved over from a removed duplicate). Gap-filled boxes also get `gap_distance`, the number of frames to the nearest real box.
+
+See [Schema documentation](../schema/README.md#annotator-and-confidence-fields) for full details on multi-annotator tracking and [box origin](../schema/README.md#box-origin).
 
 ### Output Video
 
@@ -483,6 +485,10 @@ The provenance file records inputs, outputs, parameters, and processing steps.
 When YOLO is used, it also records `ultralytics`/`torch` version, the YOLO task,
 and (read from the weights checkpoint itself) the architecture and `ultralytics`
 version the model was originally trained with, under the `savant:` namespace.
+It also records the box count per origin (`savant:origin_counts`) and the shares of
+interpolated and human-made boxes (`su:share_interpolated`, `su:share_reviewed`, as
+[scenario-uncertainty](https://github.com/das-rise/scenario-uncertainty) quality values).
+A `--decision-log` file is listed as an output of the step.
 
 ### Decision Log
 

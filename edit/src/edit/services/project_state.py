@@ -12,8 +12,9 @@ from pathlib import Path
 from typing import Dict, List, Literal, Tuple
 
 from edit.models.OpenLabel import OpenLabel
-from savant_common.openlabel import contiguous_intervals, source_confidence
+from savant_common.openlabel import EDIT_METADATA_KEY, contiguous_intervals, source_confidence
 from edit.utils import read_json
+from edit.version import get_version
 from pydantic import ValidationError
 
 from .exceptions import OpenLabelFileNotValid, OverlayIndexError
@@ -152,6 +153,7 @@ class ProjectState:
         changes: the in-memory model keeps them, so undo can still restore their boxes.
         """
         data = self.annotation_config.model_dump(mode="json")
+        data["metadata"][EDIT_METADATA_KEY] = {"version": get_version()}
         frames_by_object = defaultdict(list)
         for frame_key, frame in (data.get("frames") or {}).items():
             if not str(frame_key).isdigit():

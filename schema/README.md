@@ -37,6 +37,8 @@ Schema version is required. We use `tagged_file` for the source video and `annot
 }
 ```
 
+SAVANT edit adds `"savant_edit": {"version": "<SAVANT version>"}` when it saves, so provenance recorded afterwards (FieldDataLab's edit registration) can name the edit version. Other metadata keys are kept on save.
+
 ### Ontologies
 
 References to ontology definitions. Each ontology has a unique UID.
@@ -191,6 +193,32 @@ After human edit (changed precipitation value):
   ]
 }
 ```
+
+### Box Origin
+
+Boxes also carry an `origin` history, aligned with `annotator` (same length, newest first), stating how each version of the box came about:
+
+| Origin | Written by | Meaning |
+|--------|-----------|---------|
+| `detected` | markit | Detector output in this frame |
+| `interpolated` | markit (gap filling) | Synthesized between real boxes; `gap_distance` gives the frames to the nearest real box |
+| `merged` | markit (duplicate removal) | Moved over from a removed duplicate track |
+| `manual` | edit | Drawn or changed by a human |
+| `manual_interpolated` | edit | Created by Fix Range → Linear interpolation |
+| `manual_tracked` | edit | Created by tracking or Re-track |
+| `reviewed` | edit | Confirmed with "Mark as resolved" without being changed |
+
+```json
+"vec": [
+  { "name": "annotator", "val": ["alice", "markit_yolo"] },
+  { "name": "confidence", "val": [1.0, 0.42] },
+  { "name": "origin", "val": ["reviewed", "detected"] }
+]
+```
+
+- Geometry-only housekeeping (smoothing, rotation, spline) keeps the existing origin.
+- Files written before `origin` existed are read with origins inferred from the annotator names: `markit_housekeeping(gap…)` → `interpolated`, other `markit_*` → `detected`, anything else → `manual`.
+- Readers must keep `vec` entries they don't know; entries are found by `name`, not position. The field definitions follow the [scenario-uncertainty](https://github.com/das-rise/scenario-uncertainty) `annotation` profile.
 
 ### Usage in Savant Edit
 

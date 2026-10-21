@@ -199,7 +199,10 @@ extract-yolo-training -i input_folder -o output_dataset --interval-frames 30
 | `--train-ratio` | | None | Train/val split ratio (e.g., 0.9 for 90% train) |
 | `--seed` | | 42 | Random seed for train/val split |
 | `--verbose` | `-v` | False | Enable verbose logging |
+| `--provenance` | | None | Path to W3C PROV-JSON provenance chain file (created if missing) |
 | `--version` | | | Show version and exit |
+
+With `--provenance`, the step records the exported labels per box origin (`savant:origin_counts`) and the shares of interpolated and human-made labels (`su:share_interpolated`, `su:share_reviewed`). All boxes are exported whatever their origin; see [box origin](../schema/README.md#box-origin).
 
 **Input Requirements:**
 

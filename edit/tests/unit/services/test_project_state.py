@@ -236,6 +236,7 @@ def test_save_keeps_metadata_written_by_other_tools(tmp_path):
     assert saved["comment"] == "markit comment"
     assert saved["tags"] == ["drone"]
     assert saved["quality"] == {"spec": "x"}
+    assert saved["savant_edit"]["version"]  # names the edit that saved the file, for later provenance
 
 
 def _set_histories(state, annotators, confidences):
