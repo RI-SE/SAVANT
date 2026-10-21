@@ -5,7 +5,7 @@ _common - Shared constants and helper functions for postprocessing passes.
 import logging
 from typing import Any, Dict, List
 
-from savant_common.openlabel import HOUSEKEEPING_ANNOTATOR
+from savant_common.openlabel import HOUSEKEEPING_ANNOTATOR, ORIGIN_ENTRY, Origin, aligned_origins
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
         obj_data.setdefault("object_data", {})["vec"] = [
             {"name": "annotator", "val": [f"{HOUSEKEEPING_ANNOTATOR}({tag})"]},
             {"name": "confidence", "val": [HOUSEKEEPING_CONFIDENCE]},
+            {"name": ORIGIN_ENTRY, "val": [Origin.DETECTED]},
         ]
         return
 
@@ -46,6 +47,7 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
     if annotator_item is None:
         # No annotator field, add new housekeeping entry at beginning
         vec_list.insert(0, {"name": "annotator", "val": [f"{HOUSEKEEPING_ANNOTATOR}({tag})"]})
+        _prepend_origin(vec_list, [])
         if confidence_item:
             confidence_item["val"].insert(0, HOUSEKEEPING_CONFIDENCE)
         else:
@@ -74,6 +76,7 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
         # Don't add confidence - it was already added when housekeeping was created
     else:
         # No housekeeping entry yet - create one at position 0
+        _prepend_origin(vec_list, list(annotator_vals))
         annotator_vals.insert(0, f"{HOUSEKEEPING_ANNOTATOR}({tag})")
         # Add corresponding confidence at position 0
         if confidence_item:
@@ -84,6 +87,33 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
                 if vec_item.get("name") == "annotator":
                     vec_list.insert(i + 1, {"name": "confidence", "val": [HOUSEKEEPING_CONFIDENCE]})
                     break
+
+
+def _prepend_origin(vec_list: List[Dict[str, Any]], annotators_before: List[str], origin: str = None) -> None:
+    """Keep the origin history aligned when an annotator entry is prepended.
+
+    Geometry adjustments keep the box's origin, so by default the newest origin is repeated.
+    """
+    entry = next((e for e in vec_list if e.get("name") == ORIGIN_ENTRY), None)
+    history = aligned_origins(annotators_before, entry["val"] if entry else None)
+    values = [origin or (history[0] if history else Origin.DETECTED)] + history
+    if entry is None:
+        vec_list.append({"name": ORIGIN_ENTRY, "val": values})
+    else:
+        entry["val"] = values
+
+
+def set_newest_origin(obj_data: Dict[str, Any], origin: str) -> None:
+    """Replace the newest origin of a box (aligned with its annotator history first)."""
+    vec_list = obj_data.get("object_data", {}).get("vec", [])
+    annotators = next((e.get("val", []) for e in vec_list if e.get("name") == "annotator"), [])
+    entry = next((e for e in vec_list if e.get("name") == ORIGIN_ENTRY), None)
+    history = aligned_origins(annotators, entry["val"] if entry else None) or [origin]
+    history[0] = origin
+    if entry is None:
+        vec_list.append({"name": ORIGIN_ENTRY, "val": history})
+    else:
+        entry["val"] = history
 
 
 def _get_object_source_engine(

@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from savant_common.ontology import SAVANT_ONTOLOGY_URI
-from savant_common.openlabel import NumpyEncoder, normalize_angle_to_2pi_range
+from savant_common.openlabel import ORIGIN_ENTRY, NumpyEncoder, Origin, normalize_angle_to_2pi_range
 
 from ..config import Constants, DetectionResult
 from .. import __version__
@@ -309,6 +309,7 @@ class OpenLabelHandler:
                 vec_data = [
                     {"name": "annotator", "val": [annotator_name]},
                     {"name": "confidence", "val": [float(detection.confidence)]},
+                    {"name": ORIGIN_ENTRY, "val": [Origin.DETECTED]},
                 ]
 
                 # If verbose, store original YOLO dimensions in separate debug structure

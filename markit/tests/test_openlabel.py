@@ -303,3 +303,19 @@ class TestSourceConfidence:
     def test_no_confidence_is_unknown(self):
         from savant_common.openlabel import source_confidence
         assert source_confidence(["markit_yolo"], []) is None
+
+
+class TestUnknownPerBoxEntries:
+    """savant_common's OpenLabel model keeps vec entries and keys it doesn't know (other tools' data)."""
+
+    def test_generic_entries_survive_load(self):
+        from savant_common.openlabel import ObjectData, VecEntry
+
+        data = {"rbbox": [{"name": "shape", "val": [1, 2, 3, 4, 0.1]}],
+                "vec": [{"name": "confidence", "val": [0.5]}, {"name": "origin", "val": ["interpolated"]}],
+                "num": [{"name": "gap_distance", "val": 3}]}
+        loaded = ObjectData(**data)
+        assert isinstance(loaded.vec[1], VecEntry)
+        dumped = loaded.model_dump()
+        assert dumped["vec"][1] == {"name": "origin", "val": ["interpolated"]}
+        assert dumped["num"] == [{"name": "gap_distance", "val": 3}]

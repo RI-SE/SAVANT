@@ -269,3 +269,33 @@ def test_human_edit_resolves_low_detector_score(tmp_path):
     state.load_openlabel_config(str(_copied_asset(tmp_path)))
     _set_histories(state, ["alice", "markit_housekeeping(rot)", "markit_yolo"], [1.0, 0.8888, 0.45])
     assert _issue_confidences(state) == set()
+
+
+def test_save_keeps_unknown_per_box_entries_and_frame_properties(tmp_path):
+    import json
+
+    target = _copied_asset(tmp_path)
+    data = read_json(str(target))
+    frame_key = next(iter(data["openlabel"]["frames"]))
+    frame = data["openlabel"]["frames"][frame_key]
+    object_key = next(iter(frame["objects"]))
+    object_data = frame["objects"][object_key]["object_data"]
+    object_data["vec"] += [{"name": "origin", "val": ["detected"]},
+                           {"name": "sigma_px", "val": [1.5, 1.5, 2.0, 2.0, 0.03]},
+                           {"name": "quality_flags", "val": ["size_step", "jitter"]}]
+    object_data["num"] = [{"name": "p_exist", "val": 0.87}]
+    frame.setdefault("frame_properties", {})["stabilization_sigma_px"] = 0.4
+    target.write_text(json.dumps(data))
+
+    state = ProjectState()
+    state.load_openlabel_config(str(target))
+    state.save_openlabel_config()
+
+    saved = read_json(str(target))["openlabel"]["frames"][frame_key]
+    saved_data = saved["objects"][object_key]["object_data"]
+    by_name = {entry["name"]: entry["val"] for entry in saved_data["vec"]}
+    assert by_name["origin"] == ["detected"]
+    assert by_name["sigma_px"] == [1.5, 1.5, 2.0, 2.0, 0.03]
+    assert by_name["quality_flags"] == ["size_step", "jitter"]
+    assert saved_data["num"] == [{"name": "p_exist", "val": 0.87}]
+    assert saved["frame_properties"]["stabilization_sigma_px"] == 0.4

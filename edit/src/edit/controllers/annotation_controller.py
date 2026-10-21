@@ -1,6 +1,7 @@
 from typing import List, Optional, Tuple, Union
 
 from edit.models.OpenLabel import FrameLevelObject, RotatedBBox
+from savant_common.openlabel import Origin
 from edit.services.annotation_service import AnnotationService
 from edit.services.exceptions import BBoxNotFoundError, ObjectNotFoundError
 
@@ -153,6 +154,7 @@ class AnnotationController:
             coordinates=bbox_info["coordinates"],
             object_id=bbox_info["object_id"],
             annotator=annotator,
+            origin=bbox_info.get("origin", Origin.MANUAL),
         )
 
     @error_handler

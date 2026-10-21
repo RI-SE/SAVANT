@@ -5,6 +5,7 @@ import pytest
 from edit.controllers.annotation_controller import AnnotationController
 from edit.services.annotation_service import AnnotationService
 from edit.services.exceptions import ObjectNotFoundError
+from savant_common.openlabel import Origin
 
 
 class TestAnnotationController:
@@ -80,6 +81,7 @@ class TestAnnotationController:
             coordinates=bbox_info["coordinates"],
             object_id=bbox_info["object_id"],
             annotator="test_user",
+            origin=Origin.MANUAL,
         )
 
     def test_add_bbox_to_existing_object_propagates_errors(

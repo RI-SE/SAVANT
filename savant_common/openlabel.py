@@ -22,10 +22,19 @@ import os
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
-from pydantic import BaseModel, confloat, conint, model_serializer, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Tag,
+    confloat,
+    conint,
+    model_serializer,
+    model_validator,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +45,54 @@ logger = logging.getLogger(__name__)
 
 # Annotator prefix of markit's postprocessing steps (geometry adjustments, gap filling)
 HOUSEKEEPING_ANNOTATOR = "markit_housekeeping"
+
+
+# Per-box origin history (scenario-uncertainty SPEC P3.2/P3.4): aligned with the annotator history, newest first
+ORIGIN_ENTRY = "origin"
+GAP_DISTANCE_ENTRY = "gap_distance"
+
+
+class Origin:
+    """How a box came about."""
+
+    DETECTED = "detected"
+    TRACKED = "tracked"
+    INTERPOLATED = "interpolated"
+    MERGED = "merged"
+    MANUAL = "manual"
+    MANUAL_INTERPOLATED = "manual_interpolated"
+    MANUAL_TRACKED = "manual_tracked"
+    REVIEWED = "reviewed"
+
+
+def infer_origin(annotator: str) -> str:
+    """Origin of an annotator entry in files written before origins were recorded."""
+    annotator = str(annotator)
+    if annotator.startswith(f"{HOUSEKEEPING_ANNOTATOR}(gap"):
+        return Origin.INTERPOLATED
+    if annotator.startswith("markit_"):
+        return Origin.DETECTED
+    return Origin.MANUAL
+
+
+def aligned_origins(annotators, origins) -> List[str]:
+    """Origin history with one entry per annotator entry; missing (older) entries are inferred."""
+    annotators, origins = list(annotators or []), list(origins or [])
+    return (origins + [infer_origin(a) for a in annotators[len(origins):]])[:len(annotators)]
+
+
+def updated_origins(annotators_before, origins_before, origin: str, prepended: bool) -> List[str]:
+    """Origin history after an annotator update.
+
+    A prepended annotator entry gets a new origin entry. An update by the latest annotator replaces its
+    origin, except that a review does not hide that the same annotator changed the box.
+    """
+    history = aligned_origins(annotators_before, origins_before)
+    if prepended or not history:
+        return [origin] + history
+    if not (origin == Origin.REVIEWED and history[0].startswith(Origin.MANUAL)):
+        history[0] = origin
+    return history
 
 
 def source_confidence(annotators, confidences) -> Optional[float]:
@@ -138,23 +195,51 @@ class AnnotatorData(BaseModel):
     val: deque[str]
 
 
+class VecEntry(BaseModel):
+    """Any other per-box vec entry (e.g. origin, sigma_px, p_exist); kept as-is so other tools' data survives."""
+
+    name: str
+    val: List[Any]
+
+
+# Per-box vec entries with their own model; every other name is a VecEntry
+TYPED_VEC_NAMES = ("confidence", "annotator")
+
+
+def _vec_entry_kind(entry: Any) -> str:
+    name = entry.get("name") if isinstance(entry, dict) else getattr(entry, "name", None)
+    return name if name in TYPED_VEC_NAMES else "other"
+
+
+def per_box_vec_item(confidence_model: type, annotator_model: type) -> Any:
+    """Type of one per-box vec entry: the typed model for confidence/annotator, VecEntry for anything else."""
+    return Annotated[
+        Union[Annotated[confidence_model, Tag("confidence")], Annotated[annotator_model, Tag("annotator")],
+              Annotated[VecEntry, Tag("other")]],
+        Discriminator(_vec_entry_kind),
+    ]
+
+
 class ObjectData(BaseModel):
-    """Container for object's geometric and confidence data."""
+    """Container for object's geometric and confidence data (unknown keys are kept)."""
 
     rbbox: List[GeometryData]
-    vec: List[Union[ConfidenceData, AnnotatorData]]
+    vec: List[per_box_vec_item(ConfidenceData, AnnotatorData)]
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameLevelObject(BaseModel):
     """Represents an object's data within a specific frame."""
 
     object_data: ObjectData
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameProperties(BaseModel):
-    """Per-frame properties such as video timestamp."""
+    """Per-frame properties such as video timestamp (unknown keys are kept)."""
 
     timestamp: Optional[str] = None
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameObjects(BaseModel):
@@ -162,6 +247,7 @@ class FrameObjects(BaseModel):
 
     objects: Dict[str, FrameLevelObject]
     frame_properties: Optional[FrameProperties] = None
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameInterval(BaseModel):

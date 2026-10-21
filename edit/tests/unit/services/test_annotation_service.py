@@ -13,6 +13,7 @@ from edit.services.exceptions import (
     UnsportedTagTypeError,
 )
 from edit.services.project_state import ProjectState
+from savant_common.openlabel import Origin
 
 
 @pytest.fixture
@@ -144,6 +145,7 @@ class TestAnnotationService:
             annotator="test_annotator",
             obj_id=object_id,
             fps=mock_project_state.video_metadata.fps or None,
+            origin=Origin.MANUAL,
         )
 
     def test_add_bbox_to_existing_static_object(
@@ -186,6 +188,7 @@ class TestAnnotationService:
                 bbox_coordinates=coordinates,
                 obj_id=object_id,
                 annotator="test_annotator",
+                origin=Origin.MANUAL,
             )
             for i in range(total_frames)
         ]
@@ -760,19 +763,20 @@ class TestMarkConfidenceResolved:
         frame_obj = SimpleNamespace(object_data=SimpleNamespace(vec=vec))
         model = SimpleNamespace(
             frames={"0": SimpleNamespace(objects={"1": frame_obj})},
-            update_annotator=lambda *args: OpenLabel.update_annotator(None, *args),
+            update_annotator=lambda *args, **kwargs: OpenLabel.update_annotator(None, *args, **kwargs),
         )
         service = AnnotationService(project_state=SimpleNamespace(annotation_config=model))
         service.mark_confidence_resolved(0, "1", annotator)
         return {entry.name: list(entry.val) for entry in frame_obj.object_data.vec}, len(vec)
 
     def test_without_provenance_creates_entries(self):
-        assert self._resolve([]) == ({"annotator": ["alice"], "confidence": [1.0]}, 2)
+        assert self._resolve([]) == ({"annotator": ["alice"], "confidence": [1.0], "origin": ["reviewed"]}, 3)
 
     def test_new_annotator_is_stacked_on_existing_entries(self):
-        vec = [AnnotatorData(val=deque(["markit"])), ConfidenceData(val=deque([0.3]))]
+        vec = [AnnotatorData(val=deque(["markit_yolo"])), ConfidenceData(val=deque([0.3]))]
+        # The older entry's origin is inferred from its annotator (detector), the new one is the review
         assert self._resolve(vec) == (
-            {"annotator": ["alice", "markit"], "confidence": [1.0, 0.3]}, 2
+            {"annotator": ["alice", "markit_yolo"], "confidence": [1.0, 0.3], "origin": ["reviewed", "detected"]}, 3
         )
 
     def test_same_annotator_overwrites_confidence(self):

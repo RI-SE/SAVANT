@@ -9,7 +9,9 @@ import numpy as np
 
 from ..base import PostprocessingPass
 from ...geometry import BBoxOverlapCalculator
-from ._common import _get_object_source_engine
+from savant_common.openlabel import Origin
+
+from ._common import _get_object_source_engine, set_newest_origin, update_housekeeping_annotator
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +156,11 @@ class DuplicateRemovalPass(PostprocessingPass):
                 frame_str = str(frame_idx)
                 frame_objects = frames.get(frame_str, {}).get("objects", {})
                 if obj_id in frame_objects:
-                    frame_objects[obj_to_keep] = frame_objects.pop(obj_id)
+                    moved = frame_objects.pop(obj_id)
+                    # Mark the box as taken over from the removed duplicate
+                    update_housekeeping_annotator(moved, "merge")
+                    set_newest_origin(moved, Origin.MERGED)
+                    frame_objects[obj_to_keep] = moved
                     self.frames_merged += 1
 
             # Delete from shared frames (where both objects exist)
