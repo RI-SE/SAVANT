@@ -336,6 +336,10 @@ Each VLM-generated field includes:
 - `*_confidence` - VLM's certainty for this classification (0.0-1.0)
 - `*_annotator` - Source identifier (`markit_vlm`)
 - `*_rationale` - Optional explanation when `--vlm-rationale` is enabled
+- `*_n_samples` (`num`) - Number of analysed frames that gave a value for the field (for a context: within its interval)
+- `*_agreement` (`num`) - Share of those samples that gave the chosen value (for presence fields: the share that saw it); not written for averaged numbers
+
+`*_confidence` is the model's self-reported certainty and is not calibrated; `*_agreement` is the more robust signal when several frames were analysed.
 
 ### Custom Prompts
 

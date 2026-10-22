@@ -33,6 +33,8 @@ _Changes since `v2.4.1` (2026-06-17), including the untagged `2.4.2` version bum
 - New `fit-error-model` (trainit): `error_model.json` next to the weights with per-class box σ (σ = a + b·√(w·h)) and an isotonic score calibration, measured on the val split; `train-yolo-obb` runs it after training (`--no-error-model` to skip).
 - markit writes `sigma_px` per box and `p_exist` for YOLO detections, plus `metadata.quality`; without an error model it uses the scenario-uncertainty defaults and warns (`[su:default_used]`, `[su:uncalibrated_confidence]` in provenance).
 - edit recomputes `sigma_px`/`p_exist` and the shares in `metadata.quality` for human-made boxes on save.
+- VLM tags and contexts carry `<field>_n_samples` and `<field>_agreement` (share of analysed frames that gave the chosen value); edit's VLM dialog hides them from the editable fields.
+- Fixed: object-level frame tags (`suddenappear`, `suddendisappear`, edit's object tags) were written as integers, which OpenLABEL and the SAVANT schema don't allow there (markit output failed schema validation). Now strings; integers in older files are still read.
 
 ### Code review fixes (2026-10-20)
 Whole-repo review; details and remaining items in `development.md`.

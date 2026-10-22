@@ -125,6 +125,22 @@ def source_confidence(annotators, confidences) -> Optional[float]:
     return float(confidences[0])
 
 
+def tag_frames(val) -> List[int]:
+    """Frame numbers of an object-level frame tag (e.g. suddenappear); older files hold ints, newer strings."""
+    frames = set()
+    for item in val if isinstance(val, (list, tuple, deque)) else [val]:
+        try:
+            frames.add(int(str(item).strip()))
+        except ValueError:
+            continue
+    return sorted(f for f in frames if f >= 0)
+
+
+def tag_values(frames) -> List[str]:
+    """Object-level frame tag value: sorted frame numbers as strings (object-level vec values must be strings)."""
+    return [str(f) for f in sorted(set(int(f) for f in frames))]
+
+
 def contiguous_intervals(frame_indices) -> List[Dict[str, int]]:
     """One interval per run of consecutive frames, so absences are not reported as presence."""
     intervals: List[Dict[str, int]] = []

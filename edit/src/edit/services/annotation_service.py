@@ -25,7 +25,7 @@ from edit.models.OpenLabel import (
     RotatedBBox,
 )
 
-from savant_common.openlabel import Origin
+from savant_common.openlabel import Origin, tag_frames, tag_values
 
 from .exceptions import (
     BBoxNotFoundError,
@@ -571,7 +571,11 @@ class AnnotationService:
         for entry in secondary_vec:
             if entry.name in by_name:
                 target = by_name[entry.name]
-                merged = set(as_list(target.val)) | set(as_list(entry.val))
+                values = as_list(target.val) + as_list(entry.val)
+                if all(str(v).strip().isdigit() for v in values):  # frame tag: numbers, written as strings
+                    target.val = tag_values(tag_frames(values))
+                    continue
+                merged = set(values)
                 try:
                     target.val = sorted(merged)
                 except TypeError:  # mixed value types
@@ -1204,15 +1208,12 @@ class AnnotationService:
 
         for entry in metadata.object_data.vec:
             if entry.name == tag_name:
-                vals = list(entry.val) if isinstance(entry.val, list) else [entry.val]
-                if frame_index not in vals:
-                    vals.append(frame_index)
-                    vals.sort()
-                    entry.val = vals
+                # Rewritten as strings also when unchanged: older files hold ints (object-level vec is string-only)
+                entry.val = tag_values(tag_frames(entry.val) + [frame_index])
                 return
 
         metadata.object_data.vec.append(
-            ObjectMetadataVecEntry(name=tag_name, val=[frame_index])
+            ObjectMetadataVecEntry(name=tag_name, val=tag_values([frame_index]))
         )
 
     def remove_object_tag(
@@ -1233,12 +1234,12 @@ class AnnotationService:
         for i, entry in enumerate(vec):
             if entry.name != tag_name:
                 continue
-            vals = list(entry.val) if isinstance(entry.val, list) else [entry.val]
+            vals = tag_frames(entry.val)
             if frame_index not in vals:
                 return False
             vals.remove(frame_index)
             if vals:
-                entry.val = vals
+                entry.val = tag_values(vals)
             else:
                 del metadata.object_data.vec[i]
                 if not metadata.object_data.vec:

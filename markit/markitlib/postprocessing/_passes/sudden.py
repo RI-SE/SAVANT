@@ -6,6 +6,8 @@ import logging
 from typing import Any, Dict
 from collections import defaultdict
 
+from savant_common.openlabel import tag_values
+
 from ..base import PostprocessingPass
 
 logger = logging.getLogger(__name__)
@@ -96,12 +98,12 @@ class SuddenPass(PostprocessingPass):
 
                 if sudden_appear_frames:
                     vec_list.append(
-                        {"name": "suddenappear", "val": sudden_appear_frames}
+                        {"name": "suddenappear", "val": tag_values(sudden_appear_frames)}
                     )
 
                 if sudden_disappear_frames:
                     vec_list.append(
-                        {"name": "suddendisappear", "val": sudden_disappear_frames}
+                        {"name": "suddendisappear", "val": tag_values(sudden_disappear_frames)}
                     )
 
         return openlabel_data

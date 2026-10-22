@@ -40,19 +40,19 @@ class TestAddObjectTag:
         assert len(metadata.object_data.vec) == 1
         entry = metadata.object_data.vec[0]
         assert entry.name == "parked"
-        assert entry.val == [5]
+        assert entry.val == ["5"]  # object-level vec values are strings
 
     def test_appends_to_existing_entry(self):
         vec = [ObjectMetadataVecEntry(name="parked", val=[3, 7])]
         service, metadata = _make_service_with_object(vec=vec)
         service.add_object_tag("obj1", "parked", 5)
-        assert metadata.object_data.vec[0].val == [3, 5, 7]
+        assert metadata.object_data.vec[0].val == ["3", "5", "7"]
 
     def test_idempotent_when_frame_already_present(self):
         vec = [ObjectMetadataVecEntry(name="parked", val=[5])]
         service, metadata = _make_service_with_object(vec=vec)
         service.add_object_tag("obj1", "parked", 5)
-        assert metadata.object_data.vec[0].val == [5]
+        assert metadata.object_data.vec[0].val == ["5"]
 
     def test_creates_second_entry_for_different_tag(self):
         vec = [ObjectMetadataVecEntry(name="parked", val=[3])]
@@ -61,6 +61,13 @@ class TestAddObjectTag:
         assert len(metadata.object_data.vec) == 2
         names = {e.name for e in metadata.object_data.vec}
         assert names == {"parked", "moving"}
+
+    def test_accepts_string_and_int_frames(self):
+        vec = [ObjectMetadataVecEntry(name="parked", val=["3", 7])]
+        service, metadata = _make_service_with_object(vec=vec)
+        service.add_object_tag("obj1", "parked", 5)
+        assert metadata.object_data.vec[0].val == ["3", "5", "7"]
+        assert service.remove_object_tag("obj1", "parked", 3) is True
 
     def test_raises_for_unknown_object(self):
         service, _ = _make_service_with_object()
@@ -72,7 +79,7 @@ class TestAddObjectTag:
         service.add_object_tag("obj1", "parked", 10)
         service.add_object_tag("obj1", "parked", 2)
         service.add_object_tag("obj1", "parked", 6)
-        assert metadata.object_data.vec[0].val == [2, 6, 10]
+        assert metadata.object_data.vec[0].val == ["2", "6", "10"]
 
 
 class TestRemoveObjectTag:
@@ -81,7 +88,7 @@ class TestRemoveObjectTag:
         service, metadata = _make_service_with_object(vec=vec)
         result = service.remove_object_tag("obj1", "parked", 5)
         assert result is True
-        assert metadata.object_data.vec[0].val == [3, 7]
+        assert metadata.object_data.vec[0].val == ["3", "7"]
 
     def test_removes_entry_when_val_empty(self):
         vec = [ObjectMetadataVecEntry(name="parked", val=[5])]

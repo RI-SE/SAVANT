@@ -714,3 +714,20 @@ class TestStaticObjectRemovalPass:
         assert len(log) == 1
         assert log[0]["action"] == "mark_object"
         assert "frame" in log[0]
+
+
+def test_sudden_flags_are_strings():
+    """Object-level vec values must be strings (OpenLABEL); frame numbers of sudden events included."""
+    from markit.markitlib.postprocessing import SuddenPass
+    from savant_common.openlabel import tag_frames
+
+    def frame(*ids):
+        return {"objects": {i: {"object_data": {"rbbox": [{"name": "shape", "val": [5.0, 50.0, 10.0, 10.0, 0.0]}],
+                                                "vec": []}} for i in ids}}
+    data = {"openlabel": {"objects": {"1": {"name": "a", "type": "car"}, "2": {"name": "b", "type": "car"}},
+                          "frames": {"0": frame("1"), "1": frame("1", "2"), "2": frame("1", "2"), "3": frame("1")}}}
+    sudden = SuddenPass()
+    sudden.set_video_properties(1000, 1000, 10.0)
+    vec = {e["name"]: e["val"] for e in sudden.process(data)["openlabel"]["objects"]["2"]["object_data"]["vec"]}
+    assert vec == {"suddenappear": ["1"], "suddendisappear": ["2"]}
+    assert tag_frames([1, "2", "x"]) == [1, 2]

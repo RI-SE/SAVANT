@@ -13,8 +13,11 @@ from typing import Any, Dict, List, Optional
 
 from savant_common.scenario_tags import (
     CONTEXT_FIELDS,
+    AGREEMENT_SUFFIX,
     FIELD_SPECS,
+    N_SAMPLES_SUFFIX,
     NOTES_TAG,
+    SAMPLE_STAT_SUFFIXES,
     VLM_ANALYSIS_TAG,
     tag_class_for,
 )
@@ -159,6 +162,38 @@ def _combine(kind: str, values: List[Any]) -> Any:
     return any(values)
 
 
+def _agreement(kind: str, values: List[Any], result: Any) -> Optional[float]:
+    """Share of samples that gave the aggregated value; None for averaged numbers."""
+    if kind == "mean":
+        return None
+    if kind == "any":  # presence: samples that saw it, if it was seen at all
+        agreeing = sum(1 for v in values if bool(v) == bool(result))
+    else:
+        agreeing = sum(1 for v in values if v == result)
+    return round(agreeing / len(values), 4)
+
+
+def _sample_counts(key: str, kind: str, values: List[Any], result: Any) -> Dict[str, Any]:
+    counts = {f"{key}{N_SAMPLES_SUFFIX}": len(values)}
+    agreement = _agreement(kind, values, result)
+    if agreement is not None:
+        counts[f"{key}{AGREEMENT_SUFFIX}"] = agreement
+    return counts
+
+
+def _with_sample_counts(result: Dict[str, Any]) -> Dict[str, Any]:
+    """A single analysis as the aggregate: every present field has one sample that agrees with itself."""
+    out = dict(result)
+    for category in RESPONSE_CATEGORIES:
+        if not isinstance(result.get(category), dict):
+            continue
+        data = out[category] = dict(result[category])
+        for key, spec in _category_fields(category):
+            if data.get(key) is not None:
+                data.update(_sample_counts(key, _aggregation_kind(key, spec), [data[key]], data[key]))
+    return out
+
+
 def _combine_rationales(key: str, kind: str, entries: List[tuple]) -> Optional[str]:
     """Presence fields keep every frame's reason it was seen; others the first one given."""
     rationale_key = f"{key}_rationale"
@@ -181,6 +216,7 @@ def _aggregate_category(category: str, entries: List[tuple]) -> Dict[str, Any]:
             continue
         kind = _aggregation_kind(key, spec)
         out[key] = _combine(kind, values)
+        out.update(_sample_counts(key, kind, values, out[key]))
         confidences = [
             data[f"{key}_confidence"] for _, data in entries
             if data.get(f"{key}_confidence") is not None
@@ -303,9 +339,9 @@ class VLMResponseParser:
                 segments, sorted_results, spec.category, spec.vlm_key
             )
             for segment in segments:
+                data = {**segment["data"], **VLMResponseParser._segment_counts(sorted_results, spec, segment)}
                 context = VLMResponseParser._create_field_context(
-                    field_name, segment["data"], segment["start"], segment["end"],
-                    ontology_uid,
+                    field_name, data, segment["start"], segment["end"], ontology_uid,
                 )
                 if context:
                     contexts.append(context)
@@ -363,6 +399,18 @@ class VLMResponseParser:
             segments.append(current_segment)
 
         return segments
+
+    @staticmethod
+    def _segment_counts(sorted_results: List[Dict[str, Any]], spec, segment: Dict[str, Any]) -> Dict[str, Any]:
+        """Samples inside a (possibly merged) segment and the share that gave its value."""
+        values = [
+            r.get(spec.category, {}).get(spec.vlm_key) for r in sorted_results
+            if segment["start"] <= r.get("_frame_idx", 0) <= segment["end"]
+            and r.get(spec.category, {}).get(spec.vlm_key) is not None
+        ]
+        if not values:
+            return {}
+        return _sample_counts(spec.vlm_key, "vote", values, segment["key"])
 
     @staticmethod
     def _merge_short_intervals(
@@ -469,6 +517,10 @@ class VLMResponseParser:
         if rationale:
             result["text"].append({"name": f"{name}_rationale", "val": rationale})
 
+        for suffix in SAMPLE_STAT_SUFFIXES:
+            if data.get(f"{spec.vlm_key}{suffix}") is not None:
+                result["num"].append({"name": f"{name}{suffix}", "val": data[f"{spec.vlm_key}{suffix}"]})
+
         confidence = data.get(f"{spec.vlm_key}_confidence", default_confidence)
         result["vec"] = [
             {"name": f"{name}_annotator", "val": [VLM_ANNOTATOR]},
@@ -558,7 +610,7 @@ class VLMResponseParser:
         if not results:
             return {}
         if len(results) == 1:
-            return results[0]
+            return _with_sample_counts(results[0])
 
         aggregated: Dict[str, Any] = {}
         for category in RESPONSE_CATEGORIES:
