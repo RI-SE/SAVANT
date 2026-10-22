@@ -7,8 +7,8 @@
 
 # Ontology metadata
 <https://ri-se.github.io/SAVANT/ontology/savant_scenario> a owl:Ontology ;
-    owl:versionInfo "2.0.0" ;
-    owl:versionIRI <https://ri-se.github.io/SAVANT/ontology/savant_scenario/2.0.0> ;
+    owl:versionInfo "2.1.0" ;
+    owl:versionIRI <https://ri-se.github.io/SAVANT/ontology/savant_scenario/2.1.0> ;
     rdfs:label "SAVANT Scenario Ontology" ;
     rdfs:comment "Scenario tags and contexts used by SAVANT. Classes and properties marked with rdfs:seeAlso openlabel:<Name> mirror the ASAM OpenLABEL V1.0.0 scenario tagging ontology with identical names and hierarchy (only the subset SAVANT uses), so this ontology can be replaced by OpenLABEL 1:1. Remaining classes are SAVANT extensions subclassing mirrored classes." .
 
@@ -638,6 +638,13 @@
     rdfs:subClassOf :EnvironmentWeather ;
     rdfs:label "Heavy precipitation"@en ;
     :uid 2202 .
+
+# --- Explicit absence (OpenLABEL tags only what is present; "none" is a statement, not a missing value) ---
+:WeatherNoPrecipitation a rdfs:Class ;
+    rdfs:subClassOf :EnvironmentWeather ;
+    rdfs:label "No precipitation"@en ;
+    rdfs:comment "Neither rain nor snow was observed; distinguishes a dry scene from one where precipitation could not be determined (no tag)" ;
+    :uid 2203 .
 
 # --- Particulates ---
 :ParticulatesFog a rdfs:Class ;

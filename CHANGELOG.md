@@ -34,6 +34,7 @@ _Changes since `v2.4.1` (2026-06-17), including the untagged `2.4.2` version bum
 - markit writes `sigma_px` per box and `p_exist` for YOLO detections, plus `metadata.quality`; without an error model it uses the scenario-uncertainty defaults and warns (`[su:default_used]`, `[su:uncalibrated_confidence]` in provenance).
 - edit recomputes `sigma_px`/`p_exist` and the shares in `metadata.quality` for human-made boxes on save.
 - VLM tags and contexts carry `<field>_n_samples` and `<field>_agreement` (share of analysed frames that gave the chosen value); edit's VLM dialog hides them from the editable fields.
+- Scenario ontology 2.1.0: new SAVANT extension class `WeatherNoPrecipitation` (uid 2203); VLM precipitation `none` now gives a tag and contexts again (as before 2.0.0), so "dry" differs from "not determinable". ASAM-mirrored classes unchanged.
 - Fixed: object-level frame tags (`suddenappear`, `suddendisappear`, edit's object tags) were written as integers, which OpenLABEL and the SAVANT schema don't allow there (markit output failed schema validation). Now strings; integers in older files are still read.
 
 ### Code review fixes (2026-10-20)

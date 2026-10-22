@@ -278,7 +278,7 @@ With `--vlm-rationale`, the VLM provides brief explanations for weather classifi
 
 ### Output
 
-VLM analysis adds two sections to the OpenLabel output. Each detected field value becomes one entry whose `type` is a class in the SAVANT scenario ontology (`ontology/savant_scenario.ttl`), e.g. `RoadTypeDistributor`, `WeatherRain`. That ontology mirrors the subset of the ASAM OpenLABEL scenario tagging ontology that SAVANT uses, with identical class names and hierarchy, so it can be replaced by OpenLABEL 1:1. Values OpenLABEL lacks (e.g. dry surface, traffic density levels) use SAVANT extension subclasses. Values such as `none`, `unknown` or `false` produce no entry. The field-to-class mapping is in `savant_common/scenario_tags.py`.
+VLM analysis adds two sections to the OpenLabel output. Each detected field value becomes one entry whose `type` is a class in the SAVANT scenario ontology (`ontology/savant_scenario.ttl`), e.g. `RoadTypeDistributor`, `WeatherRain`. That ontology mirrors the subset of the ASAM OpenLABEL scenario tagging ontology that SAVANT uses, with identical class names and hierarchy, so it can be replaced by OpenLABEL 1:1. Values OpenLABEL lacks (e.g. dry surface, traffic density levels) use SAVANT extension subclasses. Values such as `none`, `unknown` or `false` produce no entry, except precipitation `none`, which becomes `WeatherNoPrecipitation` (a SAVANT extension class), so a dry scene differs from one where precipitation could not be determined. The field-to-class mapping is in `savant_common/scenario_tags.py`.
 
 The scenario ontology is added to the `ontologies` section, and each entry's `ontology_uid` refers to it.
 

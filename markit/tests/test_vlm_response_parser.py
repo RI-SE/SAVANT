@@ -303,7 +303,7 @@ class TestCreateFieldContext:
 
     def test_value_without_class_gives_no_context(self):
         result = VLMResponseParser._create_field_context(
-            "precipitation", {"precipitation": "none"}, 0, 100, ONTOLOGY_UID
+            "precipitation", {"precipitation": "unknown"}, 0, 100, ONTOLOGY_UID
         )
         assert result is None
 
@@ -358,7 +358,8 @@ class TestToOpenlabelContexts:
         num = {i["name"]: i["val"] for i in snow["context_data"]["num"]}
         assert num["precipitation_n_samples"] == 4 and num["precipitation_agreement"] == 0.75
 
-    def test_no_precipitation_segment_omitted(self):
+    def test_no_precipitation_segment_is_explicit(self):
+        """'none' gets its own context, so dry frames differ from undeterminable ones (no context)."""
         results = [
             {"_frame_idx": 0, "weather": {"precipitation": "none"}},
             {"_frame_idx": 10, "weather": {"precipitation": "none"}},
@@ -367,8 +368,19 @@ class TestToOpenlabelContexts:
         ]
         contexts = _to_contexts(results, [{"frame_start": 0, "frame_end": 100}])
 
+        by_type = {c["type"]: c["frame_intervals"][0] for c in contexts.values()}
+        assert by_type == {"WeatherNoPrecipitation": {"frame_start": 0, "frame_end": 49},
+                           "WeatherRain": {"frame_start": 50, "frame_end": 100}}
+
+    def test_unknown_precipitation_segment_omitted(self):
+        results = [
+            {"_frame_idx": 0, "weather": {"precipitation": "unknown"}},
+            {"_frame_idx": 10, "weather": {"precipitation": "unknown"}},
+            {"_frame_idx": 50, "weather": {"precipitation": "rain"}},
+            {"_frame_idx": 60, "weather": {"precipitation": "rain"}},
+        ]
+        contexts = _to_contexts(results, [{"frame_start": 0, "frame_end": 100}])
         assert [c["type"] for c in contexts.values()] == ["WeatherRain"]
-        assert list(contexts) == ["0"]
 
     def test_empty_results_returns_empty(self):
         """Empty results return empty contexts dict."""
@@ -423,6 +435,7 @@ class TestToOpenlabelTags:
 
         assert {t["ontology_uid"] for t in tags.values()} == {ONTOLOGY_UID}
         assert {t["type"] for t in tags.values()} == {
+            "WeatherNoPrecipitation",
             "EnvironmentVisibility",
             "IlluminationDay",
             "SunPositionBehind",
@@ -450,7 +463,7 @@ class TestToOpenlabelTags:
         assert list(tags) == [str(i) for i in range(len(tags))]
 
     def test_classless_values_produce_no_tag(self, sample_comprehensive_response):
-        """'none', 'good', 'not_applicable' and False presence values yield no tags."""
+        """'none' (except precipitation), 'good', 'not_applicable' and False presence values yield no tags."""
         tags = _to_tags([sample_comprehensive_response])
         fields = {
             item["name"]
@@ -458,7 +471,7 @@ class TestToOpenlabelTags:
             for items in t["tag_data"].values()
             for item in items
         }
-        for absent in ("precipitation", "particulates", "surface_quality",
+        for absent in ("precipitation_intensity", "particulates", "surface_quality",
                        "roundabout_type", "bridge", "cyclists_present"):
             assert absent not in fields
 

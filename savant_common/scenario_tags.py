@@ -49,7 +49,7 @@ FIELD_SPECS: Dict[str, FieldSpec] = {
     # --- Environment: weather, particulates, illumination ---
     "precipitation": FieldSpec(
         "weather", "precipitation",
-        {"rain": "WeatherRain", "snow": "WeatherSnow"},
+        {"rain": "WeatherRain", "snow": "WeatherSnow", "none": "WeatherNoPrecipitation"},
         ("none", "rain", "snow", "unknown"),
     ),
     "precipitation_intensity": FieldSpec(
