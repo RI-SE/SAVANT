@@ -604,6 +604,11 @@ Examples:
         "--provenance",
         help="Path to provenance chain file for W3C PROV-JSON tracking (created if not exists)",
     )
+    core.add_argument(
+        "--no-error-model",
+        action="store_true",
+        help="Do not fit error_model.json (box sigma and score calibration) on the val split after training",
+    )
 
     # Advanced Training Parameters
     advanced = parser.add_argument_group(
@@ -838,6 +843,26 @@ def merge_config_with_args(
     return args
 
 
+def fit_error_model_after_training(config: "YOLOTrainingConfig", results) -> Optional[Path]:
+    """Fit error_model.json for best.pt on the val split; None (with a warning) if that is not possible."""
+    from trainit import fit_error_model
+
+    dataset = yaml.safe_load(config.data_path.read_text())
+    if not dataset.get("val") or dataset.get("val") == dataset.get("train"):
+        logger.warning("No separate val split: error_model.json not fitted (box sigma will use defaults)")
+        return None
+    weights = Path(results.save_dir) / "weights" / "best.pt"
+    metrics = {key: value for key, value in (getattr(results, "results_dict", None) or {}).items()
+               if isinstance(value, (int, float))}
+    try:
+        document = fit_error_model.fit(weights, config.data_path, imgsz=config.imgsz, device=config.device,
+                                       metrics=metrics)
+    except (OSError, ValueError, KeyError) as e:
+        logger.warning(f"Error model not fitted: {e}")
+        return None
+    return fit_error_model.write(document, weights)
+
+
 def build_arguments_string(args: argparse.Namespace) -> str:
     """Return every CLI option that has a value as a reproducible argument string."""
     from savant_common.provenance import arguments_string
@@ -912,6 +937,9 @@ def main():
         trainer = YOLOTrainer(config, YOLO)
         trainer.load_model()
         results = trainer.train()
+        error_model = None
+        if results is not None and not args.no_error_model:
+            error_model = fit_error_model_after_training(config, results)
 
         # Record provenance if enabled
         if args.provenance and results is not None:
@@ -940,6 +968,11 @@ def main():
             weights_dir = Path(results.save_dir) / "weights"
             outputs = [str(weights_dir / "best.pt"), str(weights_dir / "last.pt")]
             output_formats = ["PT", "PT"]
+            if error_model:
+                from scenario_uncertainty.provenance import output_format
+
+                outputs.append(str(error_model))
+                output_formats.append(output_format("model", 1))
 
             chain.add(
                 started_at=start_time.isoformat().replace("+00:00", "Z"),

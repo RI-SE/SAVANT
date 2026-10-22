@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Dict, List, Literal, Tuple
 
 from edit.models.OpenLabel import OpenLabel
-from savant_common.openlabel import EDIT_METADATA_KEY, contiguous_intervals, source_confidence
+from savant_common.openlabel import EDIT_METADATA_KEY, HUMAN_ORIGINS, contiguous_intervals, source_confidence
+from savant_common.quality import apply_box_quality, count_origins, origin_shares
 from edit.utils import read_json
 from edit.version import get_version
 from pydantic import ValidationError
@@ -154,6 +155,7 @@ class ProjectState:
         """
         data = self.annotation_config.model_dump(mode="json")
         data["metadata"][EDIT_METADATA_KEY] = {"version": get_version()}
+        self._refresh_box_quality(data)
         frames_by_object = defaultdict(list)
         for frame_key, frame in (data.get("frames") or {}).items():
             if not str(frame_key).isdigit():
@@ -182,6 +184,18 @@ class ProjectState:
                 f"{sorted(orphans)}; {len(dangling)} relation(s) referencing them dropped"
             )
         return data
+
+    @staticmethod
+    def _refresh_box_quality(data: dict) -> None:
+        """Recompute sigma_px/p_exist of boxes a person made or confirmed, and the shares in metadata.quality.
+
+        Uses the coefficients markit copied into metadata.quality; files without them are left as they are.
+        """
+        quality = data["metadata"].get("quality")
+        if not isinstance(quality, dict) or not quality.get("localization"):
+            return
+        apply_box_quality(data, quality, only_origins=HUMAN_ORIGINS)
+        quality.update(origin_shares(count_origins(data), source="savant_edit"))
 
     def _config_digest(self) -> str | None:
         if self.annotation_config is None:

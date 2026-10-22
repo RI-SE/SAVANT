@@ -109,6 +109,7 @@ import argparse
 import json
 import logging
 import sys
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -988,6 +989,40 @@ def run_postprocessing(
     return postprocessing_pipeline.get_decision_log()
 
 
+def write_box_quality(config: MarkitConfig, openlabel_handler: OpenLabelHandler) -> dict:
+    """sigma_px/p_exist on every box and metadata.quality (SPEC P3), from the error model next to the weights."""
+    from savant_common import quality
+
+    model = None
+    if config.use_yolo and config.weights_path and Path(config.weights_path).exists():
+        model = quality.load_error_model(config.weights_path)
+    if model is None:
+        logger.warning(f"No error model for the weights ({quality.ERROR_MODEL_FILE}): box sigma uses defaults, "
+                       "no p_exist")
+    run = quality.run_quality(model, config.weights_path)
+    openlabel = openlabel_handler.openlabel_data["openlabel"]
+    done = quality.apply_box_quality(openlabel, run, (model or {}).get("score_calibration"))
+    # The origin rule is the SPEC P7 default until it is measured
+    run["defaults_used"] = (["sigma_px"] if model is None or done["default_sigma"] else []) + ["origin_rule"]
+    run.update(quality.origin_shares(quality.count_origins(openlabel), source="run_markit"))
+    openlabel.setdefault("metadata", {})["quality"] = run
+    return run
+
+
+def box_quality_warnings(run_quality: dict, use_yolo: bool) -> list:
+    """[su:*] warning lines for the provenance step."""
+    from scenario_uncertainty.provenance import WarningCode, warning_line
+
+    lines = []
+    if run_quality.get("defaults_used"):
+        lines.append(warning_line(WarningCode.DEFAULT_USED,
+                                  f"defaults used: {', '.join(run_quality['defaults_used'])}"))
+    if use_yolo and not run_quality.get("score_calibration"):
+        lines.append(warning_line(WarningCode.UNCALIBRATED_CONFIDENCE,
+                                  "no score calibration: boxes have the raw score only, no p_exist"))
+    return lines
+
+
 def write_decision_log(
     args: argparse.Namespace, video_processor: VideoProcessor, housekeeping_decision_log: list
 ) -> None:
@@ -1016,10 +1051,12 @@ def write_decision_log(
     )
 
 
-def record_provenance(args: argparse.Namespace, start_time, yolo_model_info) -> None:
+def record_provenance(args: argparse.Namespace, start_time, yolo_model_info, run_quality: dict) -> None:
     """Append this run to the --provenance chain."""
     from datetime import datetime, timezone
+    from scenario_uncertainty.provenance import join_warnings
     from savant_common import provenance as savant_provenance
+    from savant_common.quality import error_model_path
     from savant_common.openlabel import load_openlabel
 
     end_time = datetime.now(timezone.utc)
@@ -1035,6 +1072,9 @@ def record_provenance(args: argparse.Namespace, start_time, yolo_model_info) -> 
     arguments = build_arguments_string(args)
 
     inputs, input_formats = provenance_inputs(args)
+    if run_quality.get("error_model"):
+        inputs.append(str(error_model_path(args.weights)))
+        input_formats.append(savant_provenance.ERROR_MODEL_FORMAT)
 
     # Collect outputs (JSON always, video if specified)
     outputs = [args.output_json]
@@ -1065,6 +1105,7 @@ def record_provenance(args: argparse.Namespace, start_time, yolo_model_info) -> 
         outputs=outputs,
         output_formats=output_formats,
         arguments=arguments,
+        warnings=join_warnings(box_quality_warnings(run_quality, args.detection_method in ["yolo", "both"])),
         capture_agent=True,
         agent_type="automated",
         capture_environment=True,
@@ -1114,13 +1155,15 @@ def main():
         # Capture YOLO model/library version info before cleanup releases the model
         yolo_model_info = video_processor.get_yolo_model_info()
 
+        run_quality = write_box_quality(config, openlabel_handler)
+
         # Cleanup and save results
         cleanup(video_processor, openlabel_handler, config)
 
         if args.decision_log:
             write_decision_log(args, video_processor, housekeeping_decision_log)
         if args.provenance:
-            record_provenance(args, start_time, yolo_model_info)
+            record_provenance(args, start_time, yolo_model_info, run_quality)
 
         logger.info("Multi-engine video processing completed successfully")
 

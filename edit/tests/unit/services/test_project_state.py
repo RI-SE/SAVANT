@@ -8,7 +8,10 @@ from src.edit.models.OpenLabel import (
 )
 from src.edit.services.project_state import ProjectState
 from pathlib import Path
+import json
 import shutil
+
+import pytest
 
 
 class TestProjectState:
@@ -300,3 +303,45 @@ def test_save_keeps_unknown_per_box_entries_and_frame_properties(tmp_path):
     assert by_name["quality_flags"] == ["size_step", "jitter"]
     assert saved_data["num"] == [{"name": "p_exist", "val": 0.87}]
     assert saved["frame_properties"]["stabilization_sigma_px"] == 0.4
+
+
+def _asset_with_histories(tmp_path, annotators, confidences, quality=None):
+    """Copied asset whose boxes all have these histories (newest first), and optional metadata.quality."""
+    target = _copied_asset(tmp_path)
+    data = read_json(str(target))
+    for frame in data["openlabel"]["frames"].values():
+        for frame_obj in frame["objects"].values():
+            frame_obj["object_data"]["vec"] = [{"name": "annotator", "val": annotators},
+                                               {"name": "confidence", "val": confidences}]
+    if quality is not None:
+        data["openlabel"]["metadata"]["quality"] = quality
+    target.write_text(json.dumps(data))
+    return target
+
+
+def test_save_recomputes_quality_of_human_boxes(tmp_path):
+    from savant_common.quality import DEFAULT_LOCALIZATION
+
+    target = _asset_with_histories(tmp_path, ["alice", "markit_yolo"], [1.0, 0.45],
+                                   {"spec": "scenario-uncertainty/0.1", "localization": DEFAULT_LOCALIZATION})
+    state = ProjectState()
+    state.load_openlabel_config(str(target))
+
+    state.save_openlabel_config()
+
+    saved = read_json(str(target))["openlabel"]
+    box = next(iter(next(iter(saved["frames"].values()))["objects"].values()))["object_data"]
+    vec = {e["name"]: e["val"] for e in box["vec"]}
+    w, h = box["rbbox"][0]["val"][2:4]
+    # manual: half the detected default 0.02 * sqrt(w*h) for cx
+    assert vec["sigma_px"][0] == pytest.approx(0.5 * 0.02 * (w * h) ** 0.5, abs=1e-3)
+    assert vec["p_exist"] == [1.0]
+    assert saved["metadata"]["quality"]["share_reviewed"]["value"] == 1.0
+
+
+def test_save_without_quality_adds_no_sigma(tmp_path):
+    target = _asset_with_histories(tmp_path, ["alice", "markit_yolo"], [1.0, 0.45])
+    state = ProjectState()
+    state.load_openlabel_config(str(target))
+    state.save_openlabel_config()
+    assert "sigma_px" not in json.dumps(read_json(str(target)))

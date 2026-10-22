@@ -6,7 +6,8 @@ from collections import Counter
 from dataprov import ProvenanceChain
 
 from savant_common.openlabel import UNKNOWN_ORIGIN, OpenLabel, newest_origin
-from savant_common.provenance import load_or_create_chain, origin_properties, origin_shares
+from savant_common.provenance import load_or_create_chain, origin_properties
+from savant_common.quality import origin_shares
 
 
 def _add_step(chain, tmp_path, custom_properties):
@@ -30,9 +31,9 @@ def test_existing_chain_gets_savant_and_su_prefixes(tmp_path):
 
 def test_origin_shares():
     shares = origin_shares(Counter(detected=5, interpolated=2, manual_interpolated=1, manual=1, reviewed=1))
-    assert shares["share_interpolated"].value == 0.3 and shares["share_interpolated"].n == 10
-    assert shares["share_reviewed"].value == 0.2
-    assert origin_shares(Counter())["share_reviewed"].value is None
+    assert shares["share_interpolated"]["value"] == 0.3 and shares["share_interpolated"]["n"] == 10
+    assert shares["share_reviewed"]["value"] == 0.2
+    assert origin_shares(Counter())["share_reviewed"]["value"] is None
 
 
 class _Entry:

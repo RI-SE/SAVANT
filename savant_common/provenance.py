@@ -2,22 +2,17 @@
 
 import argparse
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from pathlib import Path
 
 from scenario_uncertainty import provenance
-from scenario_uncertainty.core import Basis, Level, Q, Stat, Unit
 
-from savant_common.openlabel import Origin
+from savant_common.quality import origin_shares
 
 SAVANT_NAMESPACE_PREFIX = "savant"
 SAVANT_NAMESPACE_URI = "https://ri-se.github.io/SAVANT/ns#"
 DECISION_LOG_FORMAT = "JSON"
-
-# Synthesized between real boxes, by markit or by edit's spline
-INTERPOLATED_ORIGINS = (Origin.INTERPOLATED, Origin.MANUAL_INTERPOLATED)
-# A human drew, changed or confirmed the box itself; edit's spline and tracker do not count
-REVIEWED_ORIGINS = (Origin.MANUAL, Origin.REVIEWED)
+ERROR_MODEL_FORMAT = provenance.output_format("model", 1)
 
 
 def namespaces() -> dict:
@@ -67,19 +62,6 @@ def declare_namespaces(chain) -> None:
         chain.namespaces.setdefault(prefix, uri)
         if prefix_section is not None:
             prefix_section.setdefault(prefix, uri)
-
-
-def origin_shares(counts: Mapping[str, int], source: str = None) -> dict:
-    """share_interpolated and share_reviewed (SPEC P3.1) of a set of boxes, from box counts per origin."""
-    n = sum(counts.values())
-
-    def share(origins: Iterable[str]) -> Q:
-        if not n:
-            return Q(None, Unit.ONE, Stat.RATIO, Level.NONE, Basis.UNKNOWN, n=0, source=source)
-        value = round(sum(counts.get(origin, 0) for origin in origins) / n, 4)
-        return Q(value, Unit.ONE, Stat.RATIO, Level.NONE, Basis.MEASURED, n=n, source=source)
-
-    return {"share_interpolated": share(INTERPOLATED_ORIGINS), "share_reviewed": share(REVIEWED_ORIGINS)}
 
 
 def origin_properties(counts: Counter, source: str = None) -> dict:
