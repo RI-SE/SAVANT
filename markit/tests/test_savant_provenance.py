@@ -84,3 +84,22 @@ def test_edit_session_reads_version_annotators_and_origins(tmp_path):
     session = edit_session(path)
     assert session["tool_version"] == "2.5.0" and session["annotators"] == ["alice"]
     assert session["custom_properties"]["activity:su:share_reviewed"]["value"] == 1.0
+
+
+def test_markit_provenance_roles(tmp_path):
+    """Decision log recorded as a log output next to the primary OpenLABEL."""
+    from dataprov import ProvenanceChain
+
+    from savant_common.provenance import ROLE_LOG, ROLE_PRIMARY
+
+    (tmp_path / "in.txt").write_text("x")
+    chain = load_or_create_chain(tmp_path / "chain.json", entity_id="e", initial_source=str(tmp_path / "in.txt"),
+                                 description="d")
+    for name in ("out.json", "decisions.json"):
+        (tmp_path / name).write_text("{}")
+    chain.add(started_at="2026-01-01T00:00:00Z", ended_at="2026-01-01T00:00:01Z", tool_name="t", tool_version="1",
+              operation="o", inputs=[str(tmp_path / "in.txt")], outputs=[str(tmp_path / "out.json"),
+              str(tmp_path / "decisions.json")], output_roles=[ROLE_PRIMARY, ROLE_LOG])
+    chain.save(str(tmp_path / "chain.json"))
+    loaded = ProvenanceChain.load(str(tmp_path / "chain.json"))
+    assert [o["path"] for o in loaded.get_outputs(role=ROLE_LOG)] == [str(tmp_path / "decisions.json")]

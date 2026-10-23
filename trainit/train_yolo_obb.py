@@ -946,7 +946,7 @@ def main():
             from datetime import datetime, timezone
             import torch
             import ultralytics
-            from savant_common.provenance import load_or_create_chain
+            from savant_common.provenance import ROLE_PRIMARY, ROLE_QUALITY, load_or_create_chain
 
             end_time = datetime.now(timezone.utc)
 
@@ -968,11 +968,13 @@ def main():
             weights_dir = Path(results.save_dir) / "weights"
             outputs = [str(weights_dir / "best.pt"), str(weights_dir / "last.pt")]
             output_formats = ["PT", "PT"]
+            output_roles = [ROLE_PRIMARY, ROLE_PRIMARY]
             if error_model:
                 from scenario_uncertainty.provenance import output_format
 
                 outputs.append(str(error_model))
                 output_formats.append(output_format("model", 1))
+                output_roles.append(ROLE_QUALITY)
 
             chain.add(
                 started_at=start_time.isoformat().replace("+00:00", "Z"),
@@ -984,6 +986,7 @@ def main():
                 input_formats=input_formats,
                 outputs=outputs,
                 output_formats=output_formats,
+                output_roles=output_roles,
                 arguments=arguments,
                 capture_agent=True,
                 agent_type="automated",

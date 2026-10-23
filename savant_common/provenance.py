@@ -12,6 +12,10 @@ from savant_common.quality import origin_shares
 SAVANT_NAMESPACE_PREFIX = "savant"
 SAVANT_NAMESPACE_URI = "https://ri-se.github.io/SAVANT/ns#"
 DECISION_LOG_FORMAT = "JSON"
+# dataprov output roles (dataprov.OUTPUT_ROLES short names)
+ROLE_PRIMARY = "primary"
+ROLE_QUALITY = "quality"
+ROLE_LOG = "log"
 ERROR_MODEL_FORMAT = provenance.output_format("model", 1)
 
 
@@ -45,23 +49,12 @@ def load_or_create_chain(path, **create_kwargs):
     """dataprov chain with the savant and su prefixes declared, also when the chain file already exists."""
     from dataprov import ProvenanceChain
 
-    chain = ProvenanceChain.load_or_create(str(path), custom_namespaces=namespaces(), **create_kwargs)
-    declare_namespaces(chain)
-    return chain
+    return ProvenanceChain.load_or_create(str(path), custom_namespaces=namespaces(), **create_kwargs)
 
 
 def declare_namespaces(chain) -> None:
-    """Declare the savant and su prefixes on a chain.
-
-    dataprov applies custom_namespaces only when it creates a chain, and rejects undeclared prefixes.
-    Same registry update as scenario_uncertainty.provenance.declare_namespace, for every prefix.
-    """
-    data = getattr(chain, "data", None)
-    prefix_section = data.setdefault("prefix", chain.namespaces) if isinstance(data, dict) else None
-    for prefix, uri in namespaces().items():
-        chain.namespaces.setdefault(prefix, uri)
-        if prefix_section is not None:
-            prefix_section.setdefault(prefix, uri)
+    """Declare the savant and su prefixes on a chain loaded from another tool's file."""
+    chain.declare_namespaces(namespaces())
 
 
 def origin_properties(counts: Counter, source: str = None) -> dict:

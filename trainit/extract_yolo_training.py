@@ -586,6 +586,7 @@ class YOLODatasetExtractor:
             input_formats=["JSON", "MP4"],
             outputs=[str(self.config.output_path / "dataset.yaml")],
             output_formats=["YAML"],
+            output_roles=[savant_provenance.ROLE_PRIMARY],
             arguments=self.config.arguments,
             capture_agent=True,
             agent_type="automated",

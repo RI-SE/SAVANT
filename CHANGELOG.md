@@ -29,6 +29,11 @@ _Changes since `v2.4.1` (2026-06-17), including the untagged `2.4.2` version bum
 - Fixed: markit (with YOLO) and `train-yolo-obb` failed at the provenance step when continuing an existing chain that did not declare the `savant` prefix (dataprov applies `custom_namespaces` only to new chains).
 - New dependency `scenario-uncertainty` (markit, trainit; git source for now); `dataprov` added to the trainit group, which already used it.
 
+### dataprov 3.4.0 (2026-10-23)
+- Requires `dataprov>=3.4.0` (markit, trainit). Provenance outputs carry roles: OpenLABEL/video/weights/dataset
+  `primary`, `error_model.json` `quality`, markit `--decision-log` `log`. Namespaces on existing chains use
+  dataprov's `custom_namespaces` instead of a local workaround.
+
 ### Box error model (2026-10-22)
 - New `fit-error-model` (trainit): `error_model.json` next to the weights with per-class box σ (σ = a + b·√(w·h)) and an isotonic score calibration, measured on the val split; `train-yolo-obb` runs it after training (`--no-error-model` to skip).
 - markit writes `sigma_px` per box and `p_exist` for YOLO detections, plus `metadata.quality`; without an error model it uses the scenario-uncertainty defaults and warns (`[su:default_used]`, `[su:uncalibrated_confidence]` in provenance).

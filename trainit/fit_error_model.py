@@ -247,14 +247,14 @@ def record_provenance(args: argparse.Namespace, started_at: str, model_path: Pat
 
     from scenario_uncertainty import provenance
 
-    from savant_common.provenance import arguments_string, load_or_create_chain
+    from savant_common.provenance import ROLE_QUALITY, arguments_string, load_or_create_chain
 
     chain = load_or_create_chain(args.provenance, entity_id="savant_error_model", initial_source=args.weights,
                                  description="SAVANT trainit error model")
     chain.add(started_at=started_at, ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
               tool_name="fit_error_model", tool_version=__version__, operation="error model fit",
               inputs=[args.weights, args.data], input_formats=["PT", "YAML"], outputs=[str(model_path)],
-              output_formats=[provenance.output_format("model", 1)],
+              output_formats=[provenance.output_format("model", 1)], output_roles=[ROLE_QUALITY],
               arguments=arguments_string(build_parser(), args), capture_agent=True, agent_type="automated",
               capture_environment=True)
     chain.save(args.provenance)

@@ -32,14 +32,14 @@ markit = [
     "pydantic>=2.0",
     "rdflib",
     "httpx>=0.24.0",
-    "dataprov>=3.0.2",
+    "dataprov>=3.4.0",
     "scenario-uncertainty",
     "PyQt6>=6.5.0",
     "matplotlib>=3.7.0",
 ]
 trainit = [
     "ultralytics",
-    "dataprov>=3.0.2",
+    "dataprov>=3.4.0",
     "scenario-uncertainty",
     "pyyaml",
     "pydantic>=2.0",

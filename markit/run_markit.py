@@ -1079,12 +1079,15 @@ def record_provenance(args: argparse.Namespace, start_time, yolo_model_info, run
     # Collect outputs (JSON always, video if specified)
     outputs = [args.output_json]
     output_formats = ["JSON"]
+    output_roles = [savant_provenance.ROLE_PRIMARY]
     if args.output_video:
         outputs.append(args.output_video)
         output_formats.append("MP4")
+        output_roles.append(savant_provenance.ROLE_PRIMARY)
     if args.decision_log:
         outputs.append(args.decision_log)
         output_formats.append(savant_provenance.DECISION_LOG_FORMAT)
+        output_roles.append(savant_provenance.ROLE_LOG)
 
     custom_properties = {
         f"activity:savant:{k}": v
@@ -1104,6 +1107,7 @@ def record_provenance(args: argparse.Namespace, start_time, yolo_model_info, run
         input_formats=input_formats,
         outputs=outputs,
         output_formats=output_formats,
+        output_roles=output_roles,
         arguments=arguments,
         warnings=join_warnings(box_quality_warnings(run_quality, args.detection_method in ["yolo", "both"])),
         capture_agent=True,
