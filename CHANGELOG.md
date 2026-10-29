@@ -5,6 +5,35 @@
 >
 > **Versioning discontinuity:** versions `1.0.0`–`1.3.2` belong to an earlier, pre-monorepo project (a single `savant_app`, no root `pyproject.toml`). The restructure into today's `markit` / `edit` / `trainit` / `savant_common` layout (commit `acde3ea`, 2025-11-25) introduced the current root `pyproject.toml`, which restarted its own version count at `1.0.0` and then jumped straight to `2.0.0` twelve days later ("Bump versions", commit `1092f13`) to mark the restructure. So `2.0.0` is the first version of the project *as it exists today*; the `1.x` entries below describe the predecessor codebase.
 
+## [2.6.0] - 2026-10-29
+_Uncertainty tracking, following [scenario-uncertainty](https://github.com/das-rise/scenario-uncertainty) 0.1.0 (`annotation` and `model` profiles). All additions are optional keys; older files are read as before._
+
+### Added
+- **Per-box uncertainty in markit:**
+  - `sigma_px` = [σcx, σcy, σw, σh, σrot] on every box except ArUco markers;
+  - `p_exist`, a calibrated existence probability, on YOLO detections;
+  - both come from the `error_model.json` next to the weights. Without it, σ uses the scenario-uncertainty default, there is no `p_exist`, and markit logs a warning;
+  - `metadata.quality` records which model and defaults were used.
+- **Per-box `origin` history** aligned with `annotator`: `detected`, `interpolated` (with `gap_distance`), `merged`, `manual`, `manual_interpolated`, `manual_tracked`, `reviewed`. Files without it get origins inferred from the annotator names.
+- **edit:** writes `origin` for boxes as they are edited, recomputes `sigma_px`/`p_exist` for boxes a person changed, and writes `"savant_edit": {"version": …}` to the metadata on save.
+- **trainit `fit-error-model`:** fits localisation σ and score calibration (isotonic, with ECE) on the val split, and writes `error_model.json` next to the weights. `train_yolo_obb.py` runs it after training unless `--no-error-model` is given.
+- **trainit `--provenance`:** records labels per origin (`savant:origin_counts`) and the shares of interpolated and human-made labels (`su:share_interpolated`, `su:share_reviewed`).
+- **markit provenance:** records the same quality numbers, plus the `--decision-log` file as an output.
+- **VLM:** `*_n_samples` and `*_agreement` per field. `*_agreement` is the share of analysed frames that gave the chosen value, and is more robust than the uncalibrated `*_confidence`.
+- **Weather:** markit writes `WeatherNoPrecipitation` when neither rain nor snow was observed, so a dry scene can be told apart from an unknown one.
+- **Ontology 2.1.0:** adds the `WeatherNoPrecipitation` class (uid 2203).
+- **Visual landmarks:** RTK horizontal and vertical SDs from the coordinate CSV are kept as `sigma_h_m`/`sigma_v_m` in the marker objects.
+- **`savant_common`:** `quality` (Q values, error models, box σ) and `provenance` helpers (output-role constants, the edit session read from a saved file).
+
+### Changed
+- Requires `dataprov>=3.4.0`. Provenance steps mark their outputs with output roles (`primary`, `quality`, `log`, `metadata`).
+- New dependency: `scenario-uncertainty` (git, tag `v0.1.0`).
+- Confidence warnings use the detector score instead of the housekeeping confidence.
+- `suddenappear`/`suddendisappear` frame tags are written as strings, like other tag values.
+
+### Fixed
+- edit dropped OpenLABEL metadata written by other tools when saving; markit passes it through too.
+
 ## [2.5.0] - 2026-10-20
 _Changes since `v2.4.1` (2026-06-17), including the untagged `2.4.2` version bump._
 
@@ -20,6 +49,27 @@ _Changes since `v2.4.1` (2026-06-17), including the untagged `2.4.2` version bum
 - VLM tags/contexts are now typed by scenario-ontology class, one tag per field value; the field→class mapping is shared by markit and edit (`savant_common.scenario_tags`).
 - Relations and VLM output reference the scenario ontology by its key in the `ontologies` section (was a hardcoded/invalid `ontology_uid`); edit's VLM dialog re-types tags when values are edited.
 - The third-party OpenLABEL ontology file is no longer tracked (gitignored, not redistributed).
+
+### Box origin and provenance (2026-10-21)
+- Per-box `origin` history (aligned with `annotator`) written by markit (`detected`, `interpolated` + `gap_distance`, `merged`) and edit (`manual`, `manual_interpolated`, `manual_tracked`, `reviewed`); older files get origins inferred from annotator names. See `schema/README.md#box-origin`.
+- edit keeps unknown per-box `vec` entries and unknown frame/object keys on save (generic `{name, val}` entries).
+- edit records its version in `metadata.savant_edit` on save, so FieldDataLab's edit registration can name it.
+- `extract-yolo-training --provenance`; markit and the extractor record box counts per origin and the shares of interpolated/human-made boxes; markit lists `--decision-log` as an output.
+- Fixed: markit (with YOLO) and `train-yolo-obb` failed at the provenance step when continuing an existing chain that did not declare the `savant` prefix (dataprov applies `custom_namespaces` only to new chains).
+- New dependency `scenario-uncertainty` (markit, trainit; git source for now); `dataprov` added to the trainit group, which already used it.
+
+### dataprov 3.4.0 (2026-10-23)
+- Requires `dataprov>=3.4.0` (markit, trainit). Provenance outputs carry roles: OpenLABEL/video/weights/dataset
+  `primary`, `error_model.json` `quality`, markit `--decision-log` `log`. Namespaces on existing chains use
+  dataprov's `custom_namespaces` instead of a local workaround.
+
+### Box error model (2026-10-22)
+- New `fit-error-model` (trainit): `error_model.json` next to the weights with per-class box σ (σ = a + b·√(w·h)) and an isotonic score calibration, measured on the val split; `train-yolo-obb` runs it after training (`--no-error-model` to skip).
+- markit writes `sigma_px` per box and `p_exist` for YOLO detections, plus `metadata.quality`; without an error model it uses the scenario-uncertainty defaults and warns (`[su:default_used]`, `[su:uncalibrated_confidence]` in provenance).
+- edit recomputes `sigma_px`/`p_exist` and the shares in `metadata.quality` for human-made boxes on save.
+- VLM tags and contexts carry `<field>_n_samples` and `<field>_agreement` (share of analysed frames that gave the chosen value); edit's VLM dialog hides them from the editable fields.
+- Scenario ontology 2.1.0: new SAVANT extension class `WeatherNoPrecipitation` (uid 2203); VLM precipitation `none` now gives a tag and contexts again (as before 2.0.0), so "dry" differs from "not determinable". ASAM-mirrored classes unchanged.
+- Fixed: object-level frame tags (`suddenappear`, `suddendisappear`, edit's object tags) were written as integers, which OpenLABEL and the SAVANT schema don't allow there (markit output failed schema validation). Now strings; integers in older files are still read.
 
 ### Code review fixes (2026-10-20)
 Whole-repo review; details and remaining items in `development.md`.

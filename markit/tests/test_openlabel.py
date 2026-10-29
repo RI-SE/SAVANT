@@ -283,3 +283,39 @@ def test_aruco_objects_use_the_ontology_label(schema_path):
     handler = OpenLabelHandler(schema_path)
     handler.add_aruco_objects({3: {"a": {"lat": 1.0, "lon": 2.0}}}, "Test_markers")
     assert {o["type"] for o in handler.openlabel_data["openlabel"]["objects"].values()} == {ARUCO_TYPE}
+
+
+class TestSourceConfidence:
+    """Confidence used for review: newest value not written by markit housekeeping."""
+
+    def test_skips_housekeeping_entry(self):
+        from savant_common.openlabel import source_confidence
+        assert source_confidence(["markit_housekeeping(rot,smooth)", "markit_yolo"], [0.8888, 0.31]) == 0.31
+
+    def test_human_entry_wins(self):
+        from savant_common.openlabel import source_confidence
+        assert source_confidence(["bob", "markit_housekeeping(rot)", "markit_yolo"], [1.0, 0.8888, 0.31]) == 1.0
+
+    def test_interpolated_box_falls_back_to_newest(self):
+        from savant_common.openlabel import source_confidence
+        assert source_confidence(["markit_housekeeping(gap)"], [0.8888]) == 0.8888
+
+    def test_no_confidence_is_unknown(self):
+        from savant_common.openlabel import source_confidence
+        assert source_confidence(["markit_yolo"], []) is None
+
+
+class TestUnknownPerBoxEntries:
+    """savant_common's OpenLabel model keeps vec entries and keys it doesn't know (other tools' data)."""
+
+    def test_generic_entries_survive_load(self):
+        from savant_common.openlabel import ObjectData, VecEntry
+
+        data = {"rbbox": [{"name": "shape", "val": [1, 2, 3, 4, 0.1]}],
+                "vec": [{"name": "confidence", "val": [0.5]}, {"name": "origin", "val": ["interpolated"]}],
+                "num": [{"name": "gap_distance", "val": 3}]}
+        loaded = ObjectData(**data)
+        assert isinstance(loaded.vec[1], VecEntry)
+        dumped = loaded.model_dump()
+        assert dumped["vec"][1] == {"name": "origin", "val": ["interpolated"]}
+        assert dumped["num"] == [{"name": "gap_distance", "val": 3}]

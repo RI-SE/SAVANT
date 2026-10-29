@@ -11,6 +11,13 @@ from pydantic import (
     model_validator,
 )
 
+from savant_common.openlabel import (
+    ORIGIN_ENTRY,
+    Origin,
+    VecEntry,
+    per_box_vec_item,
+    updated_origins,
+)
 from savant_common.scenario_tags import get_or_add_ontology_uid
 
 
@@ -67,22 +74,25 @@ class AnnotatorData(BaseModel):
 
 
 class ObjectData(BaseModel):
-    """Container for object's geometric and confidence data"""
+    """Container for object's geometric and confidence data (unknown keys and vec entries are kept)"""
 
     rbbox: List[GeometryData]
-    vec: List[Union[ConfidenceData, AnnotatorData]]
+    vec: List[per_box_vec_item(ConfidenceData, AnnotatorData)]
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameLevelObject(BaseModel):
     """Represents an object's data within a specific frame"""
 
     object_data: ObjectData
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameProperties(BaseModel):
-    """Per-frame properties such as video timestamp."""
+    """Per-frame properties such as video timestamp (unknown keys are kept)."""
 
     timestamp: Optional[str] = None
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameObjects(BaseModel):
@@ -90,6 +100,7 @@ class FrameObjects(BaseModel):
 
     objects: Dict[str, FrameLevelObject]
     frame_properties: Optional[FrameProperties] = None
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameInterval(BaseModel):
@@ -133,6 +144,8 @@ class OpenLabelMetadata(BaseModel):
     schema_version: str
     tagged_file: Optional[str] = None
     annotator: Optional[str] = None
+    # Keep keys written by other tools (markit's name/comment/tags, quality summaries) on save
+    model_config = ConfigDict(extra="allow")
 
 
 class ActionMetadata(BaseModel):
@@ -216,10 +229,11 @@ class OpenLabel(BaseModel):
         obj_id: str,
         annotator: str,
         fps: Optional[float] = None,
+        origin: str = Origin.MANUAL,
     ) -> FrameLevelObject:
         """
         Adds a new bounding box for an object with no existing
-        annotations.
+        annotations. `origin` says how it came about (drawn, interpolated, tracked).
         """
         # Handle bbox_coordinates: support both list and dict
         if isinstance(bbox_coordinates, dict):
@@ -282,7 +296,8 @@ class OpenLabel(BaseModel):
         annotator_data = AnnotatorData(val=deque([annotator]))
 
         new_obj_data = ObjectData(
-            rbbox=[bbox_geometry_data], vec=[annotator_data, confidence_data]
+            rbbox=[bbox_geometry_data],
+            vec=[annotator_data, confidence_data, VecEntry(name=ORIGIN_ENTRY, val=[origin])],
         )
         new_frame_obj = FrameLevelObject(object_data=new_obj_data)
 
@@ -371,6 +386,7 @@ class OpenLabel(BaseModel):
         *,
         bbox_index: int = 0,
         annotator: str,
+        origin: str = Origin.MANUAL,
         # absolute values (optional)
         x_center: Optional[float] = None,
         y_center: Optional[float] = None,
@@ -461,7 +477,7 @@ class OpenLabel(BaseModel):
                 confidence_data = item
 
         if annotator_data is not None and confidence_data is not None:
-            self.update_annotator(annotator, annotator_data, 1.0, confidence_data)
+            self.update_annotator(annotator, annotator_data, 1.0, confidence_data, origin=origin, vec=vec_data)
 
         return updated_bbox
 
@@ -539,14 +555,24 @@ class OpenLabel(BaseModel):
         current_annotator_data: AnnotatorData,
         confidence: float,
         current_confidence_data: ConfidenceData,
+        origin: Optional[str] = None,
+        vec: Optional[list] = None,
     ):
-        """Internal: Update annotator data for a bbox."""
+        """Internal: Update annotator data for a bbox, and its origin history when `vec` is given."""
         # Check if the annotator making the update is already
         # the latest annotator.
-        latest = current_annotator_data.val[0] if current_annotator_data.val else None
-        if annotater != latest:
+        annotators_before = list(current_annotator_data.val)
+        latest = annotators_before[0] if annotators_before else None
+        prepended = annotater != latest
+        if prepended:
             current_annotator_data.val.appendleft(annotater)
             current_confidence_data.val.appendleft(confidence)
+        if origin is not None and vec is not None:
+            entry = next((e for e in vec if e.name == ORIGIN_ENTRY), None)
+            if entry is None:
+                entry = VecEntry(name=ORIGIN_ENTRY, val=[])
+                vec.append(entry)
+            entry.val = updated_origins(annotators_before, entry.val, origin, prepended)
 
     def get_or_add_ontology_uid(self, namespace: str) -> str:
         """Return the ontologies key matching namespace, registering it under the next free key if absent."""

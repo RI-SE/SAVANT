@@ -53,6 +53,7 @@ The release binaries ship with the bundled assets used by the UI. When a new tag
 - **Interpolation & relationships**: **Fix Range** wizard (formerly "Interpolate") with three methods — *Linear interpolation*, *Re-track forward*, and *Re-track backward* — plus ontology-backed relationship creation, deletion, restoration, and overlay visualisation.
 - **Tagging**: ontology-powered frame tags with configurable default ranges, object tag discovery, tag toggles that surface as markers and status notes, and Delete to remove tags.
 - **Confidence controls**: configurable warning/error thresholds, seek-bar/overlay markers, sortable issue list with “Mark as resolved,” and playback issue summaries.
+- **Box origin**: every box edit records how the box came about (`manual`, `manual_interpolated`, `manual_tracked`, `reviewed`) next to the annotator history, and unknown per-box entries written by other tools are kept on save. If markit wrote box quality (`metadata.quality`), saving recomputes `sigma_px`/`p_exist` of the boxes you made or confirmed. See [box origin](../schema/README.md#box-origin).
 - **Saving & persistence**: quick save with validation, per-project settings snapshot (zoom, thresholds, tag toggles, bookmarks, ontology namespace), and automatic restoration on reopen.
 - **Settings & theming**: zoom defaults, movement/rotation sensitivity, bbox zoom padding, frame history depth, ontology namespace, action interval offset, tag toggles, and warning/error visibility toggles.
 - **Logging & error handling**: on-screen dialogs for user errors plus rotating log files for deeper troubleshooting.
@@ -140,7 +141,7 @@ Press **`M`** to toggle measure mode. The cursor changes to a crosshair and anno
 - Distances are reported in video pixels (`"1234 px"`). Measurements are ephemeral and are never saved to the project.
 
 ### 4.7 Confidence Issues
-- Confidence markers are drawn when a bounding box’s stored confidence value falls inside the Warning or Error range you configured. Warnings show amber icons, errors show red icons, and both ranges also appear under the seek bar.
+- Confidence markers are drawn when a bounding box’s confidence falls inside the Warning or Error range you configured. The value used is the newest one not written by markit's postprocessing (`markit_housekeeping`, a fixed 0.8888), so a low detector score is still flagged after markit adjusted the box. Once you edit or resolve a box, your 1.0 is used. Warnings show amber icons, errors show red icons, and both ranges also appear under the seek bar.
 - The **Confidence Issues** list in the sidebar shows every active warning/error near the current frame. Sort by frame or ID, multi-select rows, and right-click → *Mark as resolved* to confirm you have reviewed the issue.
 - The issue panel in the playback controls mirrors the same data and adds any enabled tag notes. Use the `Next/Previous issue` buttons to jump along the timeline.
 

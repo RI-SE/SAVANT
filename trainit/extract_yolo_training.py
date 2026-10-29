@@ -24,6 +24,8 @@ import logging
 import random
 import shutil
 import sys
+from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -33,7 +35,7 @@ import yaml
 
 from savant_common import read_ontology_classes
 from savant_common.geometry import bbox_to_corners
-from savant_common.openlabel import OpenLabel, load_openlabel
+from savant_common.openlabel import OpenLabel, load_openlabel, newest_origin
 from savant_common.resources import get_ontology_path
 from trainit import __version__
 
@@ -73,6 +75,12 @@ class ExtractionConfig:
         self.train_ratio: Optional[float] = args.train_ratio
         self.seed: int = args.seed
         self.verbose: bool = args.verbose
+        self.provenance: Optional[str] = args.provenance
+        self.arguments: str = ""  # reproducible CLI string for provenance
+        if self.provenance:
+            from savant_common.provenance import arguments_string
+
+            self.arguments = arguments_string(build_parser(), args)
         self._ontology_was_default: bool = args.ontology is None
 
         # Resolved paths (set during validation)
@@ -206,9 +214,11 @@ class YOLODatasetExtractor:
         self.frame_count: int = 0
         self.frame_width: int = 0
         self.frame_height: int = 0
+        self.origin_counts: Counter = Counter()  # exported boxes per newest origin
 
     def run(self) -> None:
         """Execute the extraction pipeline."""
+        start_time = datetime.now(timezone.utc)
         try:
             self._load_data()
             self._calculate_frame_indices()
@@ -218,6 +228,8 @@ class YOLODatasetExtractor:
             self._apply_train_val_split()
             self._generate_yaml_config()
             self._print_summary()
+            if self.config.provenance:
+                self._record_provenance(start_time)
         finally:
             if self.video_cap is not None:
                 self.video_cap.release()
@@ -385,6 +397,7 @@ class YOLODatasetExtractor:
 
             # Get annotations and convert to YOLO OBB format
             boxes = self.openlabel.get_boxes_with_ids_for_frame(frame_idx)
+            frame_objects = self.openlabel.frames[str(frame_idx)].objects if boxes else {}
             label_lines = []
 
             for obj_id, obj_type, x_center, y_center, width, height, rotation in boxes:
@@ -409,6 +422,7 @@ class YOLODatasetExtractor:
                     # Format: class_id x1 y1 x2 y2 x3 y3 x4 y4
                     line = f"{class_id} " + " ".join(f"{c:.6f}" for c in corners)
                     label_lines.append(line)
+                    self.origin_counts[newest_origin(frame_objects[obj_id].object_data.vec)] += 1
 
             # Save label file (even if empty)
             label_path = labels_dir / f"{frame_name}.txt"
@@ -552,6 +566,37 @@ class YOLODatasetExtractor:
 
         logger.info(f"YAML config saved: {yaml_path}")
 
+    def _record_provenance(self, start_time: datetime) -> None:
+        """Append this extraction to the --provenance chain, with the origins of the exported labels."""
+        from savant_common import provenance as savant_provenance
+
+        chain = savant_provenance.load_or_create_chain(
+            self.config.provenance,
+            entity_id="savant_yolo_training_data",
+            initial_source=str(self.config.openlabel_path),
+            description="SAVANT YOLO OBB training data extraction",
+        )
+        chain.add(
+            started_at=start_time.isoformat().replace("+00:00", "Z"),
+            ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            tool_name="extract_yolo_training",
+            tool_version=__version__,
+            operation="YOLO OBB training data extraction",
+            inputs=[str(self.config.openlabel_path), str(self.config.video_path)],
+            input_formats=["JSON", "MP4"],
+            outputs=[str(self.config.output_path / "dataset.yaml")],
+            output_formats=["YAML"],
+            output_roles=[savant_provenance.ROLE_PRIMARY],
+            arguments=self.config.arguments,
+            capture_agent=True,
+            agent_type="automated",
+            capture_environment=True,
+            custom_properties=savant_provenance.origin_properties(
+                self.origin_counts, source="extract_yolo_training"),
+        )
+        chain.save(self.config.provenance)
+        logger.info(f"Provenance recorded to {self.config.provenance}")
+
     def _print_summary(self) -> None:
         """Print extraction summary."""
         print("\n" + "=" * 60)
@@ -578,8 +623,8 @@ def setup_logging(verbose: bool = False) -> None:
     )
 
 
-def parse_arguments() -> argparse.Namespace:
-    """Parse command line arguments."""
+def build_parser() -> argparse.ArgumentParser:
+    """Command line parser."""
     parser = argparse.ArgumentParser(
         description="Extract YOLO OBB training data from video with OpenLabel annotations",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -672,8 +717,19 @@ Examples:
     output.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging"
     )
+    output.add_argument(
+        "--provenance",
+        type=str,
+        default=None,
+        help="Path to provenance chain file (will be created if not exists)",
+    )
 
-    return parser.parse_args()
+    return parser
+
+
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
+    return build_parser().parse_args()
 
 
 def main():

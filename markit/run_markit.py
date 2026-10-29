@@ -109,6 +109,7 @@ import argparse
 import json
 import logging
 import sys
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -640,22 +641,9 @@ SECRET_ARGUMENTS = {"vlm_api_key"}
 
 def build_arguments_string(args: argparse.Namespace) -> str:
     """Return every CLI option (defaults included) as a reproducible argument string."""
-    parts = []
-    for action in build_parser()._actions:
-        if not action.option_strings or action.dest in SECRET_ARGUMENTS or action.dest == "help":
-            continue
-        value = getattr(args, action.dest, None)
-        flag = action.option_strings[0]
-        if isinstance(action, argparse._StoreTrueAction):
-            if value:
-                parts.append(flag)
-        elif isinstance(action, argparse._StoreFalseAction):
-            if not value:
-                parts.append(flag)
-        elif value is not None:
-            values = value if isinstance(value, (list, tuple)) else [value]
-            parts.append(" ".join([flag, *map(str, values)]))
-    return " ".join(parts)
+    from savant_common.provenance import arguments_string
+
+    return arguments_string(build_parser(), args, secret=SECRET_ARGUMENTS)
 
 
 def provenance_inputs(args: argparse.Namespace) -> tuple[list, list]:
@@ -1001,6 +989,40 @@ def run_postprocessing(
     return postprocessing_pipeline.get_decision_log()
 
 
+def write_box_quality(config: MarkitConfig, openlabel_handler: OpenLabelHandler) -> dict:
+    """sigma_px/p_exist on every box and metadata.quality (SPEC P3), from the error model next to the weights."""
+    from savant_common import quality
+
+    model = None
+    if config.use_yolo and config.weights_path and Path(config.weights_path).exists():
+        model = quality.load_error_model(config.weights_path)
+    if model is None:
+        logger.warning(f"No error model for the weights ({quality.ERROR_MODEL_FILE}): box sigma uses defaults, "
+                       "no p_exist")
+    run = quality.run_quality(model, config.weights_path)
+    openlabel = openlabel_handler.openlabel_data["openlabel"]
+    done = quality.apply_box_quality(openlabel, run, (model or {}).get("score_calibration"))
+    # The origin rule is the SPEC P7 default until it is measured
+    run["defaults_used"] = (["sigma_px"] if model is None or done["default_sigma"] else []) + ["origin_rule"]
+    run.update(quality.origin_shares(quality.count_origins(openlabel), source="run_markit"))
+    openlabel.setdefault("metadata", {})["quality"] = run
+    return run
+
+
+def box_quality_warnings(run_quality: dict, use_yolo: bool) -> list:
+    """[su:*] warning lines for the provenance step."""
+    from scenario_uncertainty.provenance import WarningCode, warning_line
+
+    lines = []
+    if run_quality.get("defaults_used"):
+        lines.append(warning_line(WarningCode.DEFAULT_USED,
+                                  f"defaults used: {', '.join(run_quality['defaults_used'])}"))
+    if use_yolo and not run_quality.get("score_calibration"):
+        lines.append(warning_line(WarningCode.UNCALIBRATED_CONFIDENCE,
+                                  "no score calibration: boxes have the raw score only, no p_exist"))
+    return lines
+
+
 def write_decision_log(
     args: argparse.Namespace, video_processor: VideoProcessor, housekeeping_decision_log: list
 ) -> None:
@@ -1029,32 +1051,51 @@ def write_decision_log(
     )
 
 
-def record_provenance(args: argparse.Namespace, start_time, yolo_model_info) -> None:
+def record_provenance(args: argparse.Namespace, start_time, yolo_model_info, run_quality: dict) -> None:
     """Append this run to the --provenance chain."""
     from datetime import datetime, timezone
-    from dataprov import ProvenanceChain
+    from scenario_uncertainty.provenance import join_warnings
+    from savant_common import provenance as savant_provenance
+    from savant_common.quality import error_model_path
+    from savant_common.openlabel import load_openlabel
 
     end_time = datetime.now(timezone.utc)
 
-    chain = ProvenanceChain.load_or_create(
+    chain = savant_provenance.load_or_create_chain(
         args.provenance,
         entity_id="savant_markit_output",
         initial_source=args.input,
         description="SAVANT markit video processing",
-        custom_namespaces={"savant": "https://ri-se.github.io/SAVANT/ns#"},
     )
 
     # Build arguments string
     arguments = build_arguments_string(args)
 
     inputs, input_formats = provenance_inputs(args)
+    if run_quality.get("error_model"):
+        inputs.append(str(error_model_path(args.weights)))
+        input_formats.append(savant_provenance.ERROR_MODEL_FORMAT)
 
     # Collect outputs (JSON always, video if specified)
     outputs = [args.output_json]
     output_formats = ["JSON"]
+    output_roles = [savant_provenance.ROLE_PRIMARY]
     if args.output_video:
         outputs.append(args.output_video)
         output_formats.append("MP4")
+        output_roles.append(savant_provenance.ROLE_PRIMARY)
+    if args.decision_log:
+        outputs.append(args.decision_log)
+        output_formats.append(savant_provenance.DECISION_LOG_FORMAT)
+        output_roles.append(savant_provenance.ROLE_LOG)
+
+    custom_properties = {
+        f"activity:savant:{k}": v
+        for k, v in (yolo_model_info or {}).items()
+        if v is not None
+    }
+    origin_counts = load_openlabel(args.output_json).origin_counts()
+    custom_properties.update(savant_provenance.origin_properties(origin_counts, source="run_markit"))
 
     chain.add(
         started_at=start_time.isoformat().replace("+00:00", "Z"),
@@ -1066,16 +1107,13 @@ def record_provenance(args: argparse.Namespace, start_time, yolo_model_info) -> 
         input_formats=input_formats,
         outputs=outputs,
         output_formats=output_formats,
+        output_roles=output_roles,
         arguments=arguments,
+        warnings=join_warnings(box_quality_warnings(run_quality, args.detection_method in ["yolo", "both"])),
         capture_agent=True,
         agent_type="automated",
         capture_environment=True,
-        custom_properties={
-            f"activity:savant:{k}": v
-            for k, v in (yolo_model_info or {}).items()
-            if v is not None
-        }
-        or None,
+        custom_properties=custom_properties,
     )
 
     chain.save(args.provenance)
@@ -1121,13 +1159,15 @@ def main():
         # Capture YOLO model/library version info before cleanup releases the model
         yolo_model_info = video_processor.get_yolo_model_info()
 
+        run_quality = write_box_quality(config, openlabel_handler)
+
         # Cleanup and save results
         cleanup(video_processor, openlabel_handler, config)
 
         if args.decision_log:
             write_decision_log(args, video_processor, housekeeping_decision_log)
         if args.provenance:
-            record_provenance(args, start_time, yolo_model_info)
+            record_provenance(args, start_time, yolo_model_info, run_quality)
 
         logger.info("Multi-engine video processing completed successfully")
 

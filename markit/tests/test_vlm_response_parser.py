@@ -303,7 +303,7 @@ class TestCreateFieldContext:
 
     def test_value_without_class_gives_no_context(self):
         result = VLMResponseParser._create_field_context(
-            "precipitation", {"precipitation": "none"}, 0, 100, ONTOLOGY_UID
+            "precipitation", {"precipitation": "unknown"}, 0, 100, ONTOLOGY_UID
         )
         assert result is None
 
@@ -344,7 +344,22 @@ class TestToOpenlabelContexts:
         assert by_type["WeatherRain"] == {"frame_start": 50, "frame_end": 100}
         assert by_type["TrafficDensitySparse"] == {"frame_start": 0, "frame_end": 100}
 
-    def test_no_precipitation_segment_omitted(self):
+    def test_context_counts_samples_of_its_interval(self):
+        """A one-sample outlier merged into a segment lowers that segment's agreement."""
+        results = [
+            {"_frame_idx": 0, "weather": {"precipitation": "snow"}},
+            {"_frame_idx": 10, "weather": {"precipitation": "snow"}},
+            {"_frame_idx": 20, "weather": {"precipitation": "rain"}},
+            {"_frame_idx": 30, "weather": {"precipitation": "snow"}},
+        ]
+        contexts = _to_contexts(results, [{"frame_start": 0, "frame_end": 40}])
+
+        (snow,) = [c for c in contexts.values() if c["type"] == "WeatherSnow"]
+        num = {i["name"]: i["val"] for i in snow["context_data"]["num"]}
+        assert num["precipitation_n_samples"] == 4 and num["precipitation_agreement"] == 0.75
+
+    def test_no_precipitation_segment_is_explicit(self):
+        """'none' gets its own context, so dry frames differ from undeterminable ones (no context)."""
         results = [
             {"_frame_idx": 0, "weather": {"precipitation": "none"}},
             {"_frame_idx": 10, "weather": {"precipitation": "none"}},
@@ -353,8 +368,19 @@ class TestToOpenlabelContexts:
         ]
         contexts = _to_contexts(results, [{"frame_start": 0, "frame_end": 100}])
 
+        by_type = {c["type"]: c["frame_intervals"][0] for c in contexts.values()}
+        assert by_type == {"WeatherNoPrecipitation": {"frame_start": 0, "frame_end": 49},
+                           "WeatherRain": {"frame_start": 50, "frame_end": 100}}
+
+    def test_unknown_precipitation_segment_omitted(self):
+        results = [
+            {"_frame_idx": 0, "weather": {"precipitation": "unknown"}},
+            {"_frame_idx": 10, "weather": {"precipitation": "unknown"}},
+            {"_frame_idx": 50, "weather": {"precipitation": "rain"}},
+            {"_frame_idx": 60, "weather": {"precipitation": "rain"}},
+        ]
+        contexts = _to_contexts(results, [{"frame_start": 0, "frame_end": 100}])
         assert [c["type"] for c in contexts.values()] == ["WeatherRain"]
-        assert list(contexts) == ["0"]
 
     def test_empty_results_returns_empty(self):
         """Empty results return empty contexts dict."""
@@ -409,6 +435,7 @@ class TestToOpenlabelTags:
 
         assert {t["ontology_uid"] for t in tags.values()} == {ONTOLOGY_UID}
         assert {t["type"] for t in tags.values()} == {
+            "WeatherNoPrecipitation",
             "EnvironmentVisibility",
             "IlluminationDay",
             "SunPositionBehind",
@@ -436,7 +463,7 @@ class TestToOpenlabelTags:
         assert list(tags) == [str(i) for i in range(len(tags))]
 
     def test_classless_values_produce_no_tag(self, sample_comprehensive_response):
-        """'none', 'good', 'not_applicable' and False presence values yield no tags."""
+        """'none' (except precipitation), 'good', 'not_applicable' and False presence values yield no tags."""
         tags = _to_tags([sample_comprehensive_response])
         fields = {
             item["name"]
@@ -444,7 +471,7 @@ class TestToOpenlabelTags:
             for items in t["tag_data"].values()
             for item in items
         }
-        for absent in ("precipitation", "particulates", "surface_quality",
+        for absent in ("precipitation_intensity", "particulates", "surface_quality",
                        "roundabout_type", "bridge", "cyclists_present"):
             assert absent not in fields
 
@@ -452,7 +479,9 @@ class TestToOpenlabelTags:
         tags = _to_tags([sample_comprehensive_response])
         lane_tag = _tag_by_field(tags, "laneSpecificationLaneCountValue")
         assert lane_tag["tag_data"]["num"] == [
-            {"name": "laneSpecificationLaneCountValue", "val": 4}
+            {"name": "laneSpecificationLaneCountValue", "val": 4},
+            {"name": "laneSpecificationLaneCountValue_n_samples", "val": 1},
+            {"name": "laneSpecificationLaneCountValue_agreement", "val": 1.0},
         ]
 
     def test_agent_type_tag_has_openlabel_value(self, sample_comprehensive_response):
@@ -513,10 +542,30 @@ class TestAggregateResults:
     """Tests for aggregating multiple frame results."""
 
     def test_single_result_returned_unchanged(self, sample_comprehensive_response):
-        """Single result returned as-is."""
+        """Single result returned as-is, plus one agreeing sample per field."""
         results = [sample_comprehensive_response]
         aggregated = VLMResponseParser._aggregate_results(results)
-        assert aggregated == sample_comprehensive_response
+        for category, data in sample_comprehensive_response.items():
+            if not isinstance(data, dict):
+                assert aggregated[category] == data
+                continue
+            assert {k: v for k, v in aggregated[category].items() if k in data} == data
+            added = {k: v for k, v in aggregated[category].items() if k not in data}
+            assert set(added.values()) <= {1, 1.0} and all(k.endswith(("_n_samples", "_agreement")) for k in added)
+        assert aggregated["weather"]["precipitation_n_samples"] == 1
+
+    def test_sample_counts_and_agreement(self):
+        results = [
+            {"weather": {"precipitation": "none"}, "junction": {"pedestrian_crossing": False}},
+            {"weather": {"precipitation": "none"}, "junction": {"pedestrian_crossing": True}},
+            {"weather": {"precipitation": "rain"}, "junction": {"pedestrian_crossing": False}},
+        ]
+        aggregated = VLMResponseParser._aggregate_results(results)
+        assert aggregated["weather"]["precipitation_n_samples"] == 3
+        assert aggregated["weather"]["precipitation_agreement"] == pytest.approx(0.6667)
+        # Presence: seen once is enough; agreement says how often it was seen
+        assert aggregated["junction"]["pedestrian_crossing"] is True
+        assert aggregated["junction"]["pedestrian_crossing_agreement"] == pytest.approx(0.3333)
 
     def test_majority_voting_for_categorical(self):
         """Categorical fields use majority voting."""

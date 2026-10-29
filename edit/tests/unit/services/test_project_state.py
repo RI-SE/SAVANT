@@ -8,7 +8,10 @@ from src.edit.models.OpenLabel import (
 )
 from src.edit.services.project_state import ProjectState
 from pathlib import Path
+import json
 import shutil
+
+import pytest
 
 
 class TestProjectState:
@@ -209,3 +212,136 @@ def test_save_rebuilds_intervals_and_drops_boxless_objects(tmp_path):
     # The in-memory model is untouched, so undo can still restore the orphan's boxes
     assert orphan in state.annotation_config.objects
     assert not state.has_unsaved_changes()
+
+
+def _copied_asset(tmp_path):
+    source = Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json"
+    target = tmp_path / source.name
+    shutil.copy2(source, target)
+    return target
+
+
+def test_save_keeps_metadata_written_by_other_tools(tmp_path):
+    import json
+
+    target = _copied_asset(tmp_path)
+    data = read_json(str(target))
+    data["openlabel"]["metadata"].update(
+        {"name": "Kraklanda run", "comment": "markit comment", "tags": ["drone"], "quality": {"spec": "x"}})
+    target.write_text(json.dumps(data))
+    state = ProjectState()
+    state.load_openlabel_config(str(target))
+
+    state.save_openlabel_config()
+
+    saved = read_json(str(target))["openlabel"]["metadata"]
+    assert saved["name"] == "Kraklanda run"
+    assert saved["comment"] == "markit comment"
+    assert saved["tags"] == ["drone"]
+    assert saved["quality"] == {"spec": "x"}
+    assert saved["savant_edit"]["version"]  # names the edit that saved the file, for later provenance
+
+
+def _set_histories(state, annotators, confidences):
+    """Give every box the same annotator/confidence histories (newest first)."""
+    from collections import deque
+
+    from src.edit.models.OpenLabel import AnnotatorData, ConfidenceData
+
+    for frame in state.annotation_config.frames.values():
+        for frame_obj in frame.objects.values():
+            frame_obj.object_data.vec = [
+                AnnotatorData(val=deque(annotators)),
+                ConfidenceData(val=deque(confidences)),
+            ]
+
+
+def _issue_confidences(state):
+    issues = state.confidence_issues(warning_range=(0.4, 0.6), error_range=(0.0, 0.4))
+    return {issue.confidence for frame_issues in issues.values() for issue in frame_issues}
+
+
+def test_confidence_warning_sees_detector_score_under_housekeeping(tmp_path):
+    state = ProjectState()
+    state.load_openlabel_config(str(_copied_asset(tmp_path)))
+    _set_histories(state, ["markit_housekeeping(rot)", "markit_yolo"], [0.8888, 0.45])
+    assert _issue_confidences(state) == {0.45}
+
+
+def test_human_edit_resolves_low_detector_score(tmp_path):
+    state = ProjectState()
+    state.load_openlabel_config(str(_copied_asset(tmp_path)))
+    _set_histories(state, ["alice", "markit_housekeeping(rot)", "markit_yolo"], [1.0, 0.8888, 0.45])
+    assert _issue_confidences(state) == set()
+
+
+def test_save_keeps_unknown_per_box_entries_and_frame_properties(tmp_path):
+    import json
+
+    target = _copied_asset(tmp_path)
+    data = read_json(str(target))
+    frame_key = next(iter(data["openlabel"]["frames"]))
+    frame = data["openlabel"]["frames"][frame_key]
+    object_key = next(iter(frame["objects"]))
+    object_data = frame["objects"][object_key]["object_data"]
+    object_data["vec"] += [{"name": "origin", "val": ["detected"]},
+                           {"name": "sigma_px", "val": [1.5, 1.5, 2.0, 2.0, 0.03]},
+                           {"name": "quality_flags", "val": ["size_step", "jitter"]}]
+    object_data["num"] = [{"name": "p_exist", "val": 0.87}]
+    frame.setdefault("frame_properties", {})["stabilization_sigma_px"] = 0.4
+    target.write_text(json.dumps(data))
+
+    state = ProjectState()
+    state.load_openlabel_config(str(target))
+    state.save_openlabel_config()
+
+    saved = read_json(str(target))["openlabel"]["frames"][frame_key]
+    saved_data = saved["objects"][object_key]["object_data"]
+    by_name = {entry["name"]: entry["val"] for entry in saved_data["vec"]}
+    assert by_name["origin"] == ["detected"]
+    assert by_name["sigma_px"] == [1.5, 1.5, 2.0, 2.0, 0.03]
+    assert by_name["quality_flags"] == ["size_step", "jitter"]
+    assert saved_data["num"] == [{"name": "p_exist", "val": 0.87}]
+    assert saved["frame_properties"]["stabilization_sigma_px"] == 0.4
+
+
+def _asset_with_histories(tmp_path, annotators, confidences, quality=None):
+    """Copied asset whose boxes all have these histories (newest first), and optional metadata.quality."""
+    target = _copied_asset(tmp_path)
+    data = read_json(str(target))
+    for frame in data["openlabel"]["frames"].values():
+        for frame_obj in frame["objects"].values():
+            frame_obj["object_data"]["vec"] = [{"name": "annotator", "val": annotators},
+                                               {"name": "confidence", "val": confidences}]
+    if quality is not None:
+        data["openlabel"]["metadata"]["quality"] = quality
+    target.write_text(json.dumps(data))
+    return target
+
+
+def test_save_recomputes_quality_of_human_boxes(tmp_path):
+    from savant_common.quality import DEFAULT_LOCALIZATION
+
+    target = _asset_with_histories(tmp_path, ["alice", "markit_yolo"], [1.0, 0.45],
+                                   {"spec": "scenario-uncertainty/0.1", "localization": DEFAULT_LOCALIZATION})
+    state = ProjectState()
+    state.load_openlabel_config(str(target))
+
+    state.save_openlabel_config()
+
+    saved = read_json(str(target))["openlabel"]
+    box = next(iter(next(iter(saved["frames"].values()))["objects"].values()))["object_data"]
+    vec = {e["name"]: e["val"] for e in box["vec"]}
+    w, h = box["rbbox"][0]["val"][2:4]
+    # manual: half the detected default 0.02 * sqrt(w*h) for cx
+    assert vec["sigma_px"][0] == pytest.approx(0.5 * 0.02 * (w * h) ** 0.5, abs=1e-3)
+    assert vec["p_exist"] == [1.0]
+    assert saved["metadata"]["quality"]["share_reviewed"]["value"] == 1.0
+
+
+def test_save_without_quality_adds_no_sigma(tmp_path):
+    target = _asset_with_histories(tmp_path, ["alice", "markit_yolo"], [1.0, 0.45])
+    state = ProjectState()
+    state.load_openlabel_config(str(target))
+    state.save_openlabel_config()
+    assert "sigma_px" not in json.dumps(read_json(str(target)))

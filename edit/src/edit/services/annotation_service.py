@@ -25,6 +25,8 @@ from edit.models.OpenLabel import (
     RotatedBBox,
 )
 
+from savant_common.openlabel import Origin, tag_frames, tag_values
+
 from .exceptions import (
     BBoxNotFoundError,
     FrameNotFoundError,
@@ -78,7 +80,8 @@ class AnnotationService:
             raise InvalidInputError(f"Invalid input data: {errors}", e)
 
     def add_bbox_to_existing_object(
-        self, frame_number: int, coordinates: tuple, object_id: str, annotator: str
+        self, frame_number: int, coordinates: tuple, object_id: str, annotator: str,
+        origin: str = Origin.MANUAL,
     ) -> Optional[List[Tuple[int, FrameLevelObject]]]:
         """
         Handles adding a bbox for an existing object.
@@ -101,6 +104,7 @@ class AnnotationService:
                         bbox_coordinates=coordinates,
                         obj_id=object_id,
                         annotator=annotator,
+                        origin=origin,
                     )
                     created_bboxes.append((i, bbox))
             return created_bboxes
@@ -116,6 +120,7 @@ class AnnotationService:
                 bbox_coordinates=coordinates,
                 obj_id=object_id,
                 annotator=annotator,
+                origin=origin,
             )
             return [(frame_number, bbox)]
 
@@ -234,6 +239,7 @@ class AnnotationService:
         min_width: float = 1e-6,
         min_height: float = 1e-6,
         annotator: str,
+        origin: str = Origin.MANUAL,
     ) -> RotatedBBox:
         """
         Update bbox geometry in the model; return the updated RotatedBBox.
@@ -257,6 +263,7 @@ class AnnotationService:
                 min_width=min_width,
                 min_height=min_height,
                 annotator=annotator,
+                origin=origin,
             )
             # place for side-effects, e.g. mark project dirty, log, mirror, etc.
             return updated_bbox
@@ -564,7 +571,11 @@ class AnnotationService:
         for entry in secondary_vec:
             if entry.name in by_name:
                 target = by_name[entry.name]
-                merged = set(as_list(target.val)) | set(as_list(entry.val))
+                values = as_list(target.val) + as_list(entry.val)
+                if all(str(v).strip().isdigit() for v in values):  # frame tag: numbers, written as strings
+                    target.val = tag_values(tag_frames(values))
+                    continue
+                merged = set(values)
                 try:
                     target.val = sorted(merged)
                 except TypeError:  # mixed value types
@@ -621,7 +632,7 @@ class AnnotationService:
             confidence_entry.val[0] = 1.0
         else:
             openlabel_model.update_annotator(
-                annotator, annotator_entry, 1.0, confidence_entry
+                annotator, annotator_entry, 1.0, confidence_entry, origin=Origin.REVIEWED, vec=vec_entries
             )
 
     def _add_new_object(self, obj_type: str, obj_id: str) -> None:
@@ -630,7 +641,8 @@ class AnnotationService:
         )
 
     def _add_object_bbox(
-        self, frame_number: int, bbox_coordinates: dict, obj_id: str, annotator: str
+        self, frame_number: int, bbox_coordinates: dict, obj_id: str, annotator: str,
+        origin: str = Origin.MANUAL,
     ) -> FrameLevelObject:
         """
         Service function to add new annotations to the config.
@@ -643,6 +655,7 @@ class AnnotationService:
             obj_id=obj_id,
             annotator=annotator,
             fps=self.project_state.video_metadata.fps or None,
+            origin=origin,
         )
 
     def _does_object_exist_in_frame(self, frame_number: int, object_id: str) -> bool:
@@ -944,7 +957,7 @@ class AnnotationService:
         # Save interpolated bboxes
         for i, bbox in enumerate(interpolated_bboxes):
             frame_num = start_frame + i + 1
-            self._add_object_bbox(frame_num, bbox, object_id, annotator)
+            self._add_object_bbox(frame_num, bbox, object_id, annotator, origin=Origin.MANUAL_INTERPOLATED)
 
         # Store interpolation metadata for visual distinction
         for frame_num in range(start_frame + 1, end_frame):
@@ -1000,6 +1013,7 @@ class AnnotationService:
                 object_key=object_id,
                 rotation=angle,
                 annotator=annotator,
+                origin=Origin.MANUAL_INTERPOLATED,
             )
 
         return frames
@@ -1194,15 +1208,12 @@ class AnnotationService:
 
         for entry in metadata.object_data.vec:
             if entry.name == tag_name:
-                vals = list(entry.val) if isinstance(entry.val, list) else [entry.val]
-                if frame_index not in vals:
-                    vals.append(frame_index)
-                    vals.sort()
-                    entry.val = vals
+                # Rewritten as strings also when unchanged: older files hold ints (object-level vec is string-only)
+                entry.val = tag_values(tag_frames(entry.val) + [frame_index])
                 return
 
         metadata.object_data.vec.append(
-            ObjectMetadataVecEntry(name=tag_name, val=[frame_index])
+            ObjectMetadataVecEntry(name=tag_name, val=tag_values([frame_index]))
         )
 
     def remove_object_tag(
@@ -1223,12 +1234,12 @@ class AnnotationService:
         for i, entry in enumerate(vec):
             if entry.name != tag_name:
                 continue
-            vals = list(entry.val) if isinstance(entry.val, list) else [entry.val]
+            vals = tag_frames(entry.val)
             if frame_index not in vals:
                 return False
             vals.remove(frame_index)
             if vals:
-                entry.val = vals
+                entry.val = tag_values(vals)
             else:
                 del metadata.object_data.vec[i]
                 if not metadata.object_data.vec:

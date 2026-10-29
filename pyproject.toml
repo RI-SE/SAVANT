@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "savant"
-version = "2.5.0"
+version = "2.6.0"
 description = "SAVANT - Semi-automated video annotation toolkit for UAV object detection"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -32,12 +32,15 @@ markit = [
     "pydantic>=2.0",
     "rdflib",
     "httpx>=0.24.0",
-    "dataprov>=3.0.2",
+    "dataprov>=3.4.0",
+    "scenario-uncertainty",
     "PyQt6>=6.5.0",
     "matplotlib>=3.7.0",
 ]
 trainit = [
     "ultralytics",
+    "dataprov>=3.4.0",
+    "scenario-uncertainty",
     "pyyaml",
     "pydantic>=2.0",
     "matplotlib>=3.7.0",
@@ -69,6 +72,10 @@ all-apps = [
 
 
 
+[tool.uv.sources]
+# Released tag of scenario-uncertainty; bump the tag (and uv lock --upgrade-package scenario-uncertainty) for new versions
+scenario-uncertainty = { git = "https://github.com/das-rise/scenario-uncertainty.git", tag = "v0.1.0" }
+
 [tool.hatch.metadata]
 allow-direct-references = true
 
@@ -95,6 +102,7 @@ markit = "markit.run_markit:main"
 train-yolo-obb = "trainit.train_yolo_obb:main"
 split-train-val = "trainit.split_train_val:main"
 extract-yolo-training = "trainit.extract_yolo_training:main"
+fit-error-model = "trainit.fit_error_model:main"
 trainit = "trainit.trainit_gui.main:main"
 remap-classes-to-ontology = "utils.remap_classes_to_ontology:main"
 print-ontology = "utils.print_ontology:main"

@@ -509,11 +509,11 @@ wheels = [
 
 [[package]]
 name = "dataprov"
-version = "3.0.2"
+version = "3.4.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/7a/bb/bae18bbad6d75c09459255200b32cd5e25e4d9301314364f41b3ede0b077/dataprov-3.0.2.tar.gz", hash = "sha256:bc42479dcf0c5552cc9788590c34558e8d174e6802e4588db718f3d9d6277f12", size = 81939, upload-time = "2026-01-23T16:40:55.568Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/18/de/555bd14ead2050356974097c4ddfd7bee79b6e28874e55318103a55491ef/dataprov-3.4.0.tar.gz", hash = "sha256:2ddf910c7ed2629c319ef6902c8720a7d2bedca411068e295ea224799b74062a", size = 101115, upload-time = "2026-10-23T08:21:53.02Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e8/97/19e8be69bafa51af7049adaf6bc9e4d984d00384aed5d97ea59280915048/dataprov-3.0.2-py3-none-any.whl", hash = "sha256:ca6131989386527b2bf15894291061786e8426160154f5242a2af5cded7e8991", size = 44420, upload-time = "2026-01-23T16:40:54.008Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/c9/645342e4c77ebc7340a1e7ba4834f4fe7cb6a1bee814e26765da5d8d084f/dataprov-3.4.0-py3-none-any.whl", hash = "sha256:8c5aee86815bcaeedcc41c9386a2c8b7c99a6b5ebc100a9b6211324cb2824829", size = 53611, upload-time = "2026-10-23T08:21:51.714Z" },
 ]
 
 [[package]]
@@ -2143,7 +2143,7 @@ wheels = [
 
 [[package]]
 name = "savant"
-version = "2.5.0"
+version = "2.6.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
@@ -2167,6 +2167,7 @@ all-apps = [
     { name = "pyqt6" },
     { name = "pyyaml" },
     { name = "rdflib" },
+    { name = "scenario-uncertainty" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scipy", version = "1.16.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "ultralytics", version = "8.4.123", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' and sys_platform == 'darwin'" },
@@ -2202,12 +2203,14 @@ markit = [
     { name = "pyqt6" },
     { name = "pyyaml" },
     { name = "rdflib" },
+    { name = "scenario-uncertainty" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scipy", version = "1.16.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "ultralytics", version = "8.4.123", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' and sys_platform == 'darwin'" },
     { name = "ultralytics", version = "8.4.155", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' or sys_platform != 'darwin'" },
 ]
 trainit = [
+    { name = "dataprov" },
     { name = "matplotlib" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -2215,6 +2218,7 @@ trainit = [
     { name = "pyqt6" },
     { name = "pyyaml" },
     { name = "rdflib" },
+    { name = "scenario-uncertainty" },
     { name = "ultralytics", version = "8.4.123", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' and sys_platform == 'darwin'" },
     { name = "ultralytics", version = "8.4.155", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' or sys_platform != 'darwin'" },
 ]
@@ -2230,7 +2234,7 @@ provides-extras = ["dev"]
 [package.metadata.requires-dev]
 all-apps = [
     { name = "appdirs", specifier = ">=1.4.4" },
-    { name = "dataprov", specifier = ">=3.0.2" },
+    { name = "dataprov", specifier = ">=3.4.0" },
     { name = "httpx", specifier = ">=0.24.0" },
     { name = "lap", specifier = ">=0.5.12" },
     { name = "matplotlib", specifier = ">=3.7.0" },
@@ -2246,6 +2250,7 @@ all-apps = [
     { name = "rdflib" },
     { name = "rdflib", specifier = ">=7.0.0" },
     { name = "rdflib", specifier = ">=7.2.1" },
+    { name = "scenario-uncertainty", git = "https://github.com/das-rise/scenario-uncertainty.git?tag=v0.1.0" },
     { name = "scipy", specifier = ">=1.10.0" },
     { name = "ultralytics" },
 ]
@@ -2266,7 +2271,7 @@ edit = [
     { name = "scipy", specifier = ">=1.10.0" },
 ]
 markit = [
-    { name = "dataprov", specifier = ">=3.0.2" },
+    { name = "dataprov", specifier = ">=3.4.0" },
     { name = "httpx", specifier = ">=0.24.0" },
     { name = "lap", specifier = ">=0.5.12" },
     { name = "matplotlib", specifier = ">=3.7.0" },
@@ -2276,18 +2281,26 @@ markit = [
     { name = "pyqt6", specifier = ">=6.5.0" },
     { name = "pyyaml" },
     { name = "rdflib" },
+    { name = "scenario-uncertainty", git = "https://github.com/das-rise/scenario-uncertainty.git?tag=v0.1.0" },
     { name = "scipy", specifier = ">=1.10.0" },
     { name = "ultralytics" },
 ]
 trainit = [
+    { name = "dataprov", specifier = ">=3.4.0" },
     { name = "matplotlib", specifier = ">=3.7.0" },
     { name = "numpy" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pyqt6", specifier = ">=6.5.0" },
     { name = "pyyaml" },
     { name = "rdflib", specifier = ">=7.0.0" },
+    { name = "scenario-uncertainty", git = "https://github.com/das-rise/scenario-uncertainty.git?tag=v0.1.0" },
     { name = "ultralytics" },
 ]
+
+[[package]]
+name = "scenario-uncertainty"
+version = "0.1.0"
+source = { git = "https://github.com/das-rise/scenario-uncertainty.git?tag=v0.1.0#f0d59bc3946352437fe3982ae3c4b86da40451a1" }
 
 [[package]]
 name = "scipy"

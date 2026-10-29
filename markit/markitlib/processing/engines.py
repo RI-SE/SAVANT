@@ -1041,6 +1041,22 @@ class OpticalFlowEngine(BaseDetectionEngine):
         self._exclusion_mask_original = None
 
 
+# RTK accuracy columns of the marker CSVs (1 sigma, metres): survey exports use the long names, the README the short
+MARKER_SD_COLUMNS = {"sigma_h_m": ("horizontal SD", "horiz SD"), "sigma_v_m": ("vertical SD", "vert SD")}
+
+
+def parse_marker_sd(row: Dict[str, str]) -> Dict[str, float]:
+    """RTK accuracy of one CSV point, keyed like MARKER_SD_COLUMNS; missing or unparsable values are left out."""
+    sd = {}
+    for key, columns in MARKER_SD_COLUMNS.items():
+        raw = next((row[c] for c in columns if (row.get(c) or "").strip()), None)
+        try:
+            sd[key] = float(raw)
+        except (TypeError, ValueError):
+            continue
+    return sd
+
+
 class ArUcoGPSData:
     """Parses and stores ArUco marker GPS position data from CSV file."""
 
@@ -1124,6 +1140,7 @@ class ArUcoGPSData:
                         "lat": lat,
                         "lon": lon,
                         "alt": alt,
+                        **parse_marker_sd(row),
                     }
 
             logger.info(
@@ -1250,6 +1267,7 @@ class VisualMarkerGPSData:
                         "lat": lat,
                         "lon": lon,
                         "alt": alt,
+                        **parse_marker_sd(row),
                     }
 
             logger.info(

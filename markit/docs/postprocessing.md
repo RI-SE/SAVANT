@@ -53,7 +53,7 @@ AngleNormalization
 
 **Interpolated Parameters:** x, y, w, h, r (all five bbox parameters)
 
-**Annotator:** Gap-filled frames are marked with `markit_housekeeping(gap)` and confidence `0.6666`.
+**Annotator:** Gap-filled frames are marked with `markit_housekeeping(gap)` and confidence `0.8888`. They have no detector entry underneath.
 
 **Statistics:**
 - `gaps_filled`: Number of gaps filled
@@ -346,14 +346,21 @@ if normalized < 0:
 
 ## Annotator Markers
 
-Each pass that modifies data adds an annotator marker to track provenance:
+Each pass that modifies a frame adds a tag to a single housekeeping annotator entry, e.g.
+`markit_housekeeping(rot,smooth)`. The first housekeeping step on a frame puts that entry, with confidence
+`0.8888`, in front of the detector's entry. Later passes only add their tag; no new confidence is added.
+The detector's original score stays underneath, and edit's confidence warnings use that score.
 
-| Marker | Pass | Confidence |
-|--------|------|------------|
-| `markit_housekeeping(gap)` | GapFillingPass | 0.6666 |
-| `markit_housekeeping(smooth)` | BboxSmoothingPass | (unchanged) |
-| `markit_housekeeping(rot)` | RotationAdjustmentPass | 0.8888 |
-| `markit_housekeeping(spline)` | AngleSplineInterpolationPass | (unchanged) |
+| Tag | Pass |
+|-----|------|
+| `gap` | GapFillingPass (new frame; no detector entry underneath) |
+| `smooth` | BboxSmoothingPass |
+| `rot` | RotationAdjustmentPass |
+| `spline` | AngleSplineInterpolationPass |
+| `90fix` | Rotation90JumpFixPass |
+| `rotsmooth` | RotationTemporalSmoothingPass |
+| `outlier` | SizeOutlierFilterPass |
+| `jitter` | PositionalJitterPass (with `--jitter-mark`) |
 
 ---
 

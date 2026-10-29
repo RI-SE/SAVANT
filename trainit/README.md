@@ -32,6 +32,7 @@ This directory contains tools for training and preparing datasets for YOLO OBB m
     - [Examples](#examples)
     - [In-Depth Parameter Guide](#in-depth-parameter-guide)
   - [split_train_val.py](#split_train_valpy)
+  - [fit_error_model.py](#fit_error_modelpy)
 - [Running with uv](#running-with-uv)
 - [Complete Training Workflow](#complete-training-workflow)
 - [Notes](#notes)
@@ -199,7 +200,10 @@ extract-yolo-training -i input_folder -o output_dataset --interval-frames 30
 | `--train-ratio` | | None | Train/val split ratio (e.g., 0.9 for 90% train) |
 | `--seed` | | 42 | Random seed for train/val split |
 | `--verbose` | `-v` | False | Enable verbose logging |
+| `--provenance` | | None | Path to W3C PROV-JSON provenance chain file (created if missing) |
 | `--version` | | | Show version and exit |
+
+With `--provenance`, the step records the exported labels per box origin (`savant:origin_counts`) and the shares of interpolated and human-made labels (`su:share_interpolated`, `su:share_reviewed`). All boxes are exported whatever their origin; see [box origin](../schema/README.md#box-origin).
 
 **Input Requirements:**
 
@@ -280,6 +284,9 @@ train-yolo-obb --data dataset.yaml --model yolo11m-obb.pt --epochs 100
 | `--resume` | | False | Resume training from last checkpoint |
 | `--verbose` | `-v` | False | Enable verbose YOLO output |
 | `--provenance` | | None | Path to W3C PROV-JSON provenance chain file |
+| `--no-error-model` | | False | Do not fit `error_model.json` after training (see [fit_error_model.py](#fit_error_modelpy)) |
+
+After training, `error_model.json` is fitted for `best.pt` on the val split (skipped with a warning if the dataset has no separate val split) and listed as an output in provenance.
 
 #### Advanced Training Parameters
 
@@ -823,6 +830,27 @@ Moved images: 1000
 Moved labels: 1000
 ============================================================
 ```
+
+### fit_error_model.py
+
+Measures how wrong the model's boxes and scores are, on the val split, and writes `error_model.json` next to the weights ([scenario-uncertainty](https://github.com/das-rise/scenario-uncertainty) `model` profile). markit reads it to give every box a pixel σ (`sigma_px`) and a calibrated existence probability (`p_exist`). `train-yolo-obb` runs it automatically; use the CLI for existing weights:
+
+```bash
+fit-error-model --weights runs/obb/train/weights/best.pt --data datasets/my_dataset/dataset.yaml
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--weights` | (required) | Trained weights; `error_model.json` is written next to them |
+| `--data` | (required) | Dataset YAML with a val split |
+| `--imgsz` | model's | Inference image size |
+| `--device` | auto | e.g. `0` or `cpu` |
+| `--provenance` | None | Provenance chain file (created if missing) |
+
+- **Localization:** predictions are matched to ground truth (same class, rotated IoU > 0.5). The residuals of cx, cy, w, h and rotation are fitted as σ = a + b·√(w·h), per class with at least 30 matches and pooled (`_all`).
+- **Score calibration:** isotonic fit of P(true positive | score), from predictions down to conf 0.01; the file also gives the ECE of the raw score.
+- The val split must not overlap the training data (use the chunked split), or the errors are underestimated.
+- The file records the SHA-256 of the weights; markit ignores it for other weights (e.g. `last.pt`).
 
 ## Running with uv
 

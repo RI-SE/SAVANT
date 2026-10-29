@@ -5,6 +5,8 @@ _common - Shared constants and helper functions for postprocessing passes.
 import logging
 from typing import Any, Dict, List
 
+from savant_common.openlabel import HOUSEKEEPING_ANNOTATOR, ORIGIN_ENTRY, Origin, aligned_origins
+
 logger = logging.getLogger(__name__)
 
 # Confidence value used for all housekeeping operations
@@ -27,8 +29,9 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
     if not vec_list:
         # No vec list, create one with housekeeping entry
         obj_data.setdefault("object_data", {})["vec"] = [
-            {"name": "annotator", "val": [f"markit_housekeeping({tag})"]},
+            {"name": "annotator", "val": [f"{HOUSEKEEPING_ANNOTATOR}({tag})"]},
             {"name": "confidence", "val": [HOUSEKEEPING_CONFIDENCE]},
+            {"name": ORIGIN_ENTRY, "val": [Origin.DETECTED]},
         ]
         return
 
@@ -43,7 +46,8 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
 
     if annotator_item is None:
         # No annotator field, add new housekeeping entry at beginning
-        vec_list.insert(0, {"name": "annotator", "val": [f"markit_housekeeping({tag})"]})
+        vec_list.insert(0, {"name": "annotator", "val": [f"{HOUSEKEEPING_ANNOTATOR}({tag})"]})
+        _prepend_origin(vec_list, [])
         if confidence_item:
             confidence_item["val"].insert(0, HOUSEKEEPING_CONFIDENCE)
         else:
@@ -56,7 +60,7 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
     housekeeping_tags = []
 
     for i, val in enumerate(annotator_vals):
-        match = re.match(r"markit_housekeeping\(([^)]*)\)", val)
+        match = re.match(rf"{HOUSEKEEPING_ANNOTATOR}\(([^)]*)\)", val)
         if match:
             housekeeping_idx = i
             existing_tags = match.group(1)
@@ -68,11 +72,12 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
         # Found existing housekeeping entry - add tag if not present
         if tag not in housekeeping_tags:
             housekeeping_tags.append(tag)
-            annotator_vals[housekeeping_idx] = f"markit_housekeeping({','.join(housekeeping_tags)})"
+            annotator_vals[housekeeping_idx] = f"{HOUSEKEEPING_ANNOTATOR}({','.join(housekeeping_tags)})"
         # Don't add confidence - it was already added when housekeeping was created
     else:
         # No housekeeping entry yet - create one at position 0
-        annotator_vals.insert(0, f"markit_housekeeping({tag})")
+        _prepend_origin(vec_list, list(annotator_vals))
+        annotator_vals.insert(0, f"{HOUSEKEEPING_ANNOTATOR}({tag})")
         # Add corresponding confidence at position 0
         if confidence_item:
             confidence_item["val"].insert(0, HOUSEKEEPING_CONFIDENCE)
@@ -82,6 +87,33 @@ def update_housekeeping_annotator(obj_data: Dict[str, Any], tag: str) -> None:
                 if vec_item.get("name") == "annotator":
                     vec_list.insert(i + 1, {"name": "confidence", "val": [HOUSEKEEPING_CONFIDENCE]})
                     break
+
+
+def _prepend_origin(vec_list: List[Dict[str, Any]], annotators_before: List[str], origin: str = None) -> None:
+    """Keep the origin history aligned when an annotator entry is prepended.
+
+    Geometry adjustments keep the box's origin, so by default the newest origin is repeated.
+    """
+    entry = next((e for e in vec_list if e.get("name") == ORIGIN_ENTRY), None)
+    history = aligned_origins(annotators_before, entry["val"] if entry else None)
+    values = [origin or (history[0] if history else Origin.DETECTED)] + history
+    if entry is None:
+        vec_list.append({"name": ORIGIN_ENTRY, "val": values})
+    else:
+        entry["val"] = values
+
+
+def set_newest_origin(obj_data: Dict[str, Any], origin: str) -> None:
+    """Replace the newest origin of a box (aligned with its annotator history first)."""
+    vec_list = obj_data.get("object_data", {}).get("vec", [])
+    annotators = next((e.get("val", []) for e in vec_list if e.get("name") == "annotator"), [])
+    entry = next((e for e in vec_list if e.get("name") == ORIGIN_ENTRY), None)
+    history = aligned_origins(annotators, entry["val"] if entry else None) or [origin]
+    history[0] = origin
+    if entry is None:
+        vec_list.append({"name": ORIGIN_ENTRY, "val": history})
+    else:
+        entry["val"] = history
 
 
 def _get_object_source_engine(
@@ -117,8 +149,8 @@ def _get_object_source_engine(
                 if vec_item.get("name") == "annotator":
                     annotators = vec_item.get("val", [])
                     for ann in reversed(annotators):
-                        if "markit_housekeeping" in ann:
-                            match = re.match(r"markit_housekeeping\(([^)]*)\)", ann)
+                        if HOUSEKEEPING_ANNOTATOR in ann:
+                            match = re.match(rf"{HOUSEKEEPING_ANNOTATOR}\(([^)]*)\)", ann)
                             if match and match.group(1) == "gap":
                                 continue
                             continue

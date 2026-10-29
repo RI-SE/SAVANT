@@ -135,7 +135,8 @@ class TestFieldSpecs:
 
     def test_tag_class_for(self):
         assert tag_class_for("precipitation", "rain") == "WeatherRain"
-        assert tag_class_for("precipitation", "none") is None
+        assert tag_class_for("precipitation", "none") == "WeatherNoPrecipitation"
+        assert tag_class_for("precipitation", "unknown") is None
         assert tag_class_for("bridge", False) is None
         assert tag_class_for("lane_count", 3) == "LaneSpecificationLaneCount"
         assert tag_class_for("unknown_field", "x") is None

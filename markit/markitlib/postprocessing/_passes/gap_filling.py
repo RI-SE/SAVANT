@@ -10,6 +10,8 @@ from ..base import PostprocessingPass
 from ...utils import (
     normalize_angle_to_pi,
 )
+from savant_common.openlabel import GAP_DISTANCE_ENTRY, HOUSEKEEPING_ANNOTATOR, ORIGIN_ENTRY, Origin
+
 from ._common import HOUSEKEEPING_CONFIDENCE
 
 logger = logging.getLogger(__name__)
@@ -147,8 +149,11 @@ class GapFillingPass(PostprocessingPass):
                         }
                     ],
                     "vec": [
-                        {"name": "annotator", "val": ["markit_housekeeping(gap)"]},
+                        {"name": "annotator", "val": [f"{HOUSEKEEPING_ANNOTATOR}(gap)"]},
                         {"name": "confidence", "val": [HOUSEKEEPING_CONFIDENCE]},
+                        {"name": ORIGIN_ENTRY, "val": [Origin.INTERPOLATED]},
+                        # Frames to the nearest real detection; uncertainty grows with it
+                        {"name": GAP_DISTANCE_ENTRY, "val": [min(step, total_steps - step)]},
                     ],
                 }
             }

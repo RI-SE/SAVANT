@@ -278,7 +278,7 @@ With `--vlm-rationale`, the VLM provides brief explanations for weather classifi
 
 ### Output
 
-VLM analysis adds two sections to the OpenLabel output. Each detected field value becomes one entry whose `type` is a class in the SAVANT scenario ontology (`ontology/savant_scenario.ttl`), e.g. `RoadTypeDistributor`, `WeatherRain`. That ontology mirrors the subset of the ASAM OpenLABEL scenario tagging ontology that SAVANT uses, with identical class names and hierarchy, so it can be replaced by OpenLABEL 1:1. Values OpenLABEL lacks (e.g. dry surface, traffic density levels) use SAVANT extension subclasses. Values such as `none`, `unknown` or `false` produce no entry. The field-to-class mapping is in `savant_common/scenario_tags.py`.
+VLM analysis adds two sections to the OpenLabel output. Each detected field value becomes one entry whose `type` is a class in the SAVANT scenario ontology (`ontology/savant_scenario.ttl`), e.g. `RoadTypeDistributor`, `WeatherRain`. That ontology mirrors the subset of the ASAM OpenLABEL scenario tagging ontology that SAVANT uses, with identical class names and hierarchy, so it can be replaced by OpenLABEL 1:1. Values OpenLABEL lacks (e.g. dry surface, traffic density levels) use SAVANT extension subclasses. Values such as `none`, `unknown` or `false` produce no entry, except precipitation `none`, which becomes `WeatherNoPrecipitation` (a SAVANT extension class), so a dry scene differs from one where precipitation could not be determined. The field-to-class mapping is in `savant_common/scenario_tags.py`.
 
 The scenario ontology is added to the `ontologies` section, and each entry's `ontology_uid` refers to it.
 
@@ -336,6 +336,10 @@ Each VLM-generated field includes:
 - `*_confidence` - VLM's certainty for this classification (0.0-1.0)
 - `*_annotator` - Source identifier (`markit_vlm`)
 - `*_rationale` - Optional explanation when `--vlm-rationale` is enabled
+- `*_n_samples` (`num`) - Number of analysed frames that gave a value for the field (for a context: within its interval)
+- `*_agreement` (`num`) - Share of those samples that gave the chosen value (for presence fields: the share that saw it); not written for averaged numbers
+
+`*_confidence` is the model's self-reported certainty and is not calibrated; `*_agreement` is the more robust signal when several frames were analysed.
 
 ### Custom Prompts
 
@@ -461,7 +465,11 @@ Each detection includes annotator identification and a confidence score in the v
 | `markit_vlm` | VLM analysis confidence (0.0–1.0) |
 | Human | Always 1.0 (ground truth by convention) |
 
-See [Schema documentation](../schema/README.md#annotator-and-confidence-fields) for full details on multi-annotator tracking.
+Each box also gets an `origin` entry aligned with the annotator history (`detected`, `interpolated` for gap-filled boxes, `merged` for boxes moved over from a removed duplicate). Gap-filled boxes also get `gap_distance`, the number of frames to the nearest real box.
+
+Every box (except ArUco markers) also gets `sigma_px` = [σcx, σcy, σw, σh, σrot] (px, px, px, px, rad). YOLO detections also get `p_exist`, the calibrated probability that the detection is real; the raw `confidence` is kept. Both come from the `error_model.json` next to the weights (written by trainit's [fit-error-model](../trainit/README.md#fit_error_modelpy)). Without it, σ uses the scenario-uncertainty default (2 % of the box size for the centre) and there is no `p_exist`; markit logs a warning. σ is halved for boxes a person made and grows with `gap_distance` for interpolated ones. `metadata.quality` records which model and defaults were used and the shares of interpolated and human-made boxes.
+
+See [Schema documentation](../schema/README.md#annotator-and-confidence-fields) for full details on multi-annotator tracking and [box origin](../schema/README.md#box-origin).
 
 ### Output Video
 
@@ -483,6 +491,10 @@ The provenance file records inputs, outputs, parameters, and processing steps.
 When YOLO is used, it also records `ultralytics`/`torch` version, the YOLO task,
 and (read from the weights checkpoint itself) the architecture and `ultralytics`
 version the model was originally trained with, under the `savant:` namespace.
+It also records the box count per origin (`savant:origin_counts`) and the shares of
+interpolated and human-made boxes (`su:share_interpolated`, `su:share_reviewed`, as
+[scenario-uncertainty](https://github.com/das-rise/scenario-uncertainty) quality values).
+A `--decision-log` file is listed as an output of the step.
 
 ### Decision Log
 
@@ -506,20 +518,21 @@ ArUco markers can be used as ground control points with known GPS positions. Whe
 ### CSV Format
 
 ```csv
-ID,long,lat,alt,horiz SD,vert SD,Location name
-aruco_24a,47.3769,8.5417,410,0.02,0.03,Gothenburg
-aruco_24c,47.3771,8.5419,410,0.02,0.03,Gothenburg
+point_name,latitude,longitude,altitude,horizontal SD,vertical SD
+aruco_24a,57.48451,12.00977,72.75,0.0021,0.0035
+aruco_24c,57.48450,12.00974,72.54,0.0019,0.0033
 ```
 
 | Column | Description |
 |--------|-------------|
-| ID | Marker identifier in format `aruco_[num][a-d]` where letter indicates corner |
-| long | Longitude of the marker corner |
-| lat | Latitude of the marker corner |
-| alt | Altitude in meters |
-| horiz SD | Horizontal standard deviation (use `inf` if unknown) |
-| vert SD | Vertical standard deviation (use `inf` if unknown) |
-| Location name | Human-readable location identifier |
+| point_name | Marker identifier: `aruco_[num][a-d]` for ArUco markers, `<description>_[num][a-d]` for visual markers (e.g. `lamppost_1a`); the letter is the corner |
+| latitude | Latitude of the marker corner |
+| longitude | Longitude of the marker corner |
+| altitude | Altitude in meters |
+| horizontal SD | Optional: horizontal standard deviation of the RTK position in meters (`horiz SD` also accepted) |
+| vertical SD | Optional: vertical standard deviation in meters (`vert SD` also accepted) |
+
+Other columns (as in RTK survey exports) are ignored.
 
 ### Corner Notation
 
@@ -527,7 +540,7 @@ Each ArUco marker has 4 corners labeled a, b, c, d:
 
 ![ArUco coordinates](docs/coords_aruca.png)
 
-Marker position is included in the OpenLabel output as objects with additional object_data including longitude, latitude, and altitude from the corner(s) where position is measured (from the csv file):
+Marker position is included in the OpenLabel output as objects with additional object_data including longitude, latitude, and altitude from the corner(s) where position is measured (from the csv file). When the CSV has the SD columns, `sigma_h_m`/`sigma_v_m` hold the per-corner RTK accuracy (`inf` for a corner without a value):
 
 ```json
      "2000017": {
@@ -562,6 +575,20 @@ Marker position is included in the OpenLabel output as objects with additional o
               "val": [
                 "72.75258941650391",
                 "72.54821319580078"
+              ]
+            },
+            {
+              "name": "sigma_h_m",
+              "val": [
+                "0.0021",
+                "0.0019"
+              ]
+            },
+            {
+              "name": "sigma_v_m",
+              "val": [
+                "0.0035",
+                "0.0033"
               ]
             },
             {

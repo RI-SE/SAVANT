@@ -49,7 +49,7 @@ FIELD_SPECS: Dict[str, FieldSpec] = {
     # --- Environment: weather, particulates, illumination ---
     "precipitation": FieldSpec(
         "weather", "precipitation",
-        {"rain": "WeatherRain", "snow": "WeatherSnow"},
+        {"rain": "WeatherRain", "snow": "WeatherSnow", "none": "WeatherNoPrecipitation"},
         ("none", "rain", "snow", "unknown"),
     ),
     "precipitation_intensity": FieldSpec(
@@ -281,6 +281,10 @@ CONTEXT_FIELDS = ("precipitation", "density")
 # SAVANT-only tag types (not field-derived)
 NOTES_TAG = "NotesTag"
 VLM_ANALYSIS_TAG = "VLMAnalysisTag"
+# Per-field VLM sample statistics (scenario-uncertainty SPEC P3.5), num entries next to <field>_confidence
+N_SAMPLES_SUFFIX = "_n_samples"
+AGREEMENT_SUFFIX = "_agreement"
+SAMPLE_STAT_SUFFIXES = (N_SAMPLES_SUFFIX, AGREEMENT_SUFFIX)
 
 
 def tag_class_for(field_name: str, value: Any) -> Optional[str]:

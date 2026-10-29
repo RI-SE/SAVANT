@@ -19,13 +19,22 @@ import json
 import logging
 import math
 import os
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
-from pydantic import BaseModel, confloat, conint, model_serializer, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Tag,
+    confloat,
+    conint,
+    model_serializer,
+    model_validator,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +42,104 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Utility Functions
 # =============================================================================
+
+# Annotator prefix of markit's postprocessing steps (geometry adjustments, gap filling)
+HOUSEKEEPING_ANNOTATOR = "markit_housekeeping"
+
+
+# Per-box origin history (scenario-uncertainty SPEC P3.2/P3.4): aligned with the annotator history, newest first
+ORIGIN_ENTRY = "origin"
+GAP_DISTANCE_ENTRY = "gap_distance"
+# Newest origin of a box without annotator or origin history
+UNKNOWN_ORIGIN = "unknown"
+# metadata key edit writes on save: {"version": ...}, so later provenance can name the edit that saved the file
+EDIT_METADATA_KEY = "savant_edit"
+
+
+class Origin:
+    """How a box came about."""
+
+    DETECTED = "detected"
+    TRACKED = "tracked"
+    INTERPOLATED = "interpolated"
+    MERGED = "merged"
+    MANUAL = "manual"
+    MANUAL_INTERPOLATED = "manual_interpolated"
+    MANUAL_TRACKED = "manual_tracked"
+    REVIEWED = "reviewed"
+
+
+# Origins written by edit, i.e. by a person or on a person's request
+HUMAN_ORIGINS = (Origin.MANUAL, Origin.MANUAL_INTERPOLATED, Origin.MANUAL_TRACKED, Origin.REVIEWED)
+
+
+def infer_origin(annotator: str) -> str:
+    """Origin of an annotator entry in files written before origins were recorded."""
+    annotator = str(annotator)
+    if annotator.startswith(f"{HOUSEKEEPING_ANNOTATOR}(gap"):
+        return Origin.INTERPOLATED
+    if annotator.startswith("markit_"):
+        return Origin.DETECTED
+    return Origin.MANUAL
+
+
+def aligned_origins(annotators, origins) -> List[str]:
+    """Origin history with one entry per annotator entry; missing (older) entries are inferred."""
+    annotators, origins = list(annotators or []), list(origins or [])
+    return (origins + [infer_origin(a) for a in annotators[len(origins):]])[:len(annotators)]
+
+
+def updated_origins(annotators_before, origins_before, origin: str, prepended: bool) -> List[str]:
+    """Origin history after an annotator update.
+
+    A prepended annotator entry gets a new origin entry. An update by the latest annotator replaces its
+    origin, except that a review does not hide that the same annotator changed the box.
+    """
+    history = aligned_origins(annotators_before, origins_before)
+    if prepended or not history:
+        return [origin] + history
+    if not (origin == Origin.REVIEWED and history[0].startswith(Origin.MANUAL)):
+        history[0] = origin
+    return history
+
+
+def newest_origin(vec) -> str:
+    """Newest origin of a box from its vec entries; inferred in older files."""
+    values = {entry.name: list(entry.val) for entry in vec}
+    history = aligned_origins(values.get("annotator"), values.get(ORIGIN_ENTRY)) or values.get(ORIGIN_ENTRY)
+    return history[0] if history else UNKNOWN_ORIGIN
+
+
+def source_confidence(annotators, confidences) -> Optional[float]:
+    """Newest confidence not written by a markit housekeeping step; the newest one if there is none.
+
+    Housekeeping prepends a fixed confidence (0.8888) that would hide a low detector score.
+    Assumes the annotator and confidence histories are aligned, newest first, as markit and edit write them.
+    """
+    confidences = list(confidences or [])
+    if not confidences:
+        return None
+    for annotator, confidence in zip(annotators or [], confidences):
+        if not str(annotator).startswith(HOUSEKEEPING_ANNOTATOR):
+            return float(confidence)
+    return float(confidences[0])
+
+
+def tag_frames(val) -> List[int]:
+    """Frame numbers of an object-level frame tag (e.g. suddenappear); older files hold ints, newer strings."""
+    frames = set()
+    for item in val if isinstance(val, (list, tuple, deque)) else [val]:
+        try:
+            frames.add(int(str(item).strip()))
+        except ValueError:
+            continue
+    return sorted(f for f in frames if f >= 0)
+
+
+def tag_values(frames) -> List[str]:
+    """Object-level frame tag value: sorted frame numbers as strings (object-level vec values must be strings)."""
+    return [str(f) for f in sorted(set(int(f) for f in frames))]
+
 
 def contiguous_intervals(frame_indices) -> List[Dict[str, int]]:
     """One interval per run of consecutive frames, so absences are not reported as presence."""
@@ -119,23 +226,51 @@ class AnnotatorData(BaseModel):
     val: deque[str]
 
 
+class VecEntry(BaseModel):
+    """Any other per-box vec entry (e.g. origin, sigma_px, p_exist); kept as-is so other tools' data survives."""
+
+    name: str
+    val: List[Any]
+
+
+# Per-box vec entries with their own model; every other name is a VecEntry
+TYPED_VEC_NAMES = ("confidence", "annotator")
+
+
+def _vec_entry_kind(entry: Any) -> str:
+    name = entry.get("name") if isinstance(entry, dict) else getattr(entry, "name", None)
+    return name if name in TYPED_VEC_NAMES else "other"
+
+
+def per_box_vec_item(confidence_model: type, annotator_model: type) -> Any:
+    """Type of one per-box vec entry: the typed model for confidence/annotator, VecEntry for anything else."""
+    return Annotated[
+        Union[Annotated[confidence_model, Tag("confidence")], Annotated[annotator_model, Tag("annotator")],
+              Annotated[VecEntry, Tag("other")]],
+        Discriminator(_vec_entry_kind),
+    ]
+
+
 class ObjectData(BaseModel):
-    """Container for object's geometric and confidence data."""
+    """Container for object's geometric and confidence data (unknown keys are kept)."""
 
     rbbox: List[GeometryData]
-    vec: List[Union[ConfidenceData, AnnotatorData]]
+    vec: List[per_box_vec_item(ConfidenceData, AnnotatorData)]
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameLevelObject(BaseModel):
     """Represents an object's data within a specific frame."""
 
     object_data: ObjectData
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameProperties(BaseModel):
-    """Per-frame properties such as video timestamp."""
+    """Per-frame properties such as video timestamp (unknown keys are kept)."""
 
     timestamp: Optional[str] = None
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameObjects(BaseModel):
@@ -143,6 +278,7 @@ class FrameObjects(BaseModel):
 
     objects: Dict[str, FrameLevelObject]
     frame_properties: Optional[FrameProperties] = None
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameInterval(BaseModel):
@@ -170,6 +306,8 @@ class OpenLabelMetadata(BaseModel):
     name: Optional[str] = None
     comment: Optional[str] = None
     tags: Optional[List[str]] = None
+    # Keep keys written by other tools (quality summaries, edit's version)
+    model_config = ConfigDict(extra="allow")
 
 
 class ActionMetadata(BaseModel):
@@ -258,6 +396,23 @@ class OpenLabel(BaseModel):
                 results.append(bbox_info)
 
         return results
+
+    def origin_counts(self, frame_indices=None) -> Counter:
+        """Number of boxes per newest origin, in all frames or only the given ones."""
+        keys = self.frames if frame_indices is None else [str(f) for f in frame_indices]
+        return Counter(newest_origin(obj.object_data.vec)
+                       for key in keys if key in self.frames for obj in self.frames[key].objects.values())
+
+    def human_annotators(self) -> List[str]:
+        """Annotators of box versions whose origin is a human one (edit), sorted."""
+        names = set()
+        for frame in self.frames.values():
+            for obj in frame.objects.values():
+                values = {entry.name: list(entry.val) for entry in obj.object_data.vec}
+                annotators = values.get("annotator") or []
+                origins = aligned_origins(annotators, values.get(ORIGIN_ENTRY))
+                names.update(a for a, o in zip(annotators, origins) if o in HUMAN_ORIGINS)
+        return sorted(names)
 
     def get_frame_indices(self) -> List[int]:
         """Return sorted list of all frame indices in the annotation."""

@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Protocol, Sequence, runtime_checkable
 
+from savant_common.openlabel import Origin
+
 from .gateways import GatewayHolder, UndoGatewayError
 from .snapshots import (
     BBoxGeometrySnapshot,
@@ -853,6 +855,7 @@ class TrackObjectCommand:
                 bbox_info = {
                     "object_id": self.object_id,
                     "coordinates": (tf.center_x, tf.center_y, tf.width, tf.height, tf.theta),
+                    "origin": Origin.MANUAL_TRACKED,
                 }
                 snapshots = gateway.add_bbox_to_existing_object(
                     frame_number=tf.frame_idx,
@@ -908,7 +911,7 @@ class RetrackRangeCommand:
 
         for tf in self.tracked_frames:
             coordinates = (tf.center_x, tf.center_y, tf.width, tf.height, tf.theta)
-            bbox_info = {"object_id": self.object_id, "coordinates": coordinates}
+            bbox_info = {"object_id": self.object_id, "coordinates": coordinates, "origin": Origin.MANUAL_TRACKED}
             gateway.add_bbox_to_existing_object(
                 frame_number=tf.frame_idx,
                 bbox_info=bbox_info,

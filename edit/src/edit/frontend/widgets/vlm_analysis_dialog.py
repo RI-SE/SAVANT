@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from savant_common.scenario_tags import FIELD_SPECS, tag_class_for
+from savant_common.scenario_tags import FIELD_SPECS, SAMPLE_STAT_SUFFIXES, tag_class_for
 
 # Fields that support rationales
 RATIONALE_FIELDS = (
@@ -232,7 +232,7 @@ class VLMAnalysisDialog(QDialog):
         # Num fields
         for item in data.get("num", []):
             name = item.get("name", "")
-            if name in displayed_fields:
+            if name in displayed_fields or name.endswith(SAMPLE_STAT_SUFFIXES):  # VLM statistics, not values
                 continue
             val = item.get("val", 0)
             field_widget = self._create_field_row(
