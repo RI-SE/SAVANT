@@ -2143,7 +2143,7 @@ wheels = [
 
 [[package]]
 name = "savant"
-version = "2.5.0"
+version = "2.6.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
@@ -2250,7 +2250,7 @@ all-apps = [
     { name = "rdflib" },
     { name = "rdflib", specifier = ">=7.0.0" },
     { name = "rdflib", specifier = ">=7.2.1" },
-    { name = "scenario-uncertainty", git = "https://github.com/das-rise/scenario-uncertainty.git" },
+    { name = "scenario-uncertainty", git = "https://github.com/das-rise/scenario-uncertainty.git?tag=v0.1.0" },
     { name = "scipy", specifier = ">=1.10.0" },
     { name = "ultralytics" },
 ]
@@ -2281,7 +2281,7 @@ markit = [
     { name = "pyqt6", specifier = ">=6.5.0" },
     { name = "pyyaml" },
     { name = "rdflib" },
-    { name = "scenario-uncertainty", git = "https://github.com/das-rise/scenario-uncertainty.git" },
+    { name = "scenario-uncertainty", git = "https://github.com/das-rise/scenario-uncertainty.git?tag=v0.1.0" },
     { name = "scipy", specifier = ">=1.10.0" },
     { name = "ultralytics" },
 ]
@@ -2293,14 +2293,14 @@ trainit = [
     { name = "pyqt6", specifier = ">=6.5.0" },
     { name = "pyyaml" },
     { name = "rdflib", specifier = ">=7.0.0" },
-    { name = "scenario-uncertainty", git = "https://github.com/das-rise/scenario-uncertainty.git" },
+    { name = "scenario-uncertainty", git = "https://github.com/das-rise/scenario-uncertainty.git?tag=v0.1.0" },
     { name = "ultralytics" },
 ]
 
 [[package]]
 name = "scenario-uncertainty"
 version = "0.1.0"
-source = { git = "https://github.com/das-rise/scenario-uncertainty.git#6d417fdb79564e3ed3845ff9924afb18ce26e9bb" }
+source = { git = "https://github.com/das-rise/scenario-uncertainty.git?tag=v0.1.0#f0d59bc3946352437fe3982ae3c4b86da40451a1" }
 
 [[package]]
 name = "scipy"

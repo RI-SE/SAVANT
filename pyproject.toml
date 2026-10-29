@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "savant"
-version = "2.5.0"
+version = "2.6.0"
 description = "SAVANT - Semi-automated video annotation toolkit for UAV object detection"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -73,8 +73,8 @@ all-apps = [
 
 
 [tool.uv.sources]
-# Follows scenario-uncertainty main; pin a tag once the library is released
-scenario-uncertainty = { git = "https://github.com/das-rise/scenario-uncertainty.git" }
+# Released tag of scenario-uncertainty; bump the tag (and uv lock --upgrade-package scenario-uncertainty) for new versions
+scenario-uncertainty = { git = "https://github.com/das-rise/scenario-uncertainty.git", tag = "v0.1.0" }
 
 [tool.hatch.metadata]
 allow-direct-references = true
