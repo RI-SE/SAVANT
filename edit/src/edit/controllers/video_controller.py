@@ -12,6 +12,11 @@ class VideoController:
         self.reader: VideoReader = reader
 
     @error_handler
+    def check_video(self, path: str) -> None:
+        """Raise if the file cannot be loaded; the open video is left untouched."""
+        self.reader.check_video(path)
+
+    @error_handler
     def load_video(self, path: str) -> None:
         self.reader.load_video(path)
 

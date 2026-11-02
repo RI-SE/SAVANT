@@ -19,6 +19,11 @@ class ProjectStateController:
         self.project_state.load_openlabel_config(path)
 
     @error_handler
+    def check_openlabel_file(self, path: str) -> None:
+        """Raise if the file cannot be loaded; the open project is left untouched."""
+        self.project_state.parse_openlabel_file(path)
+
+    @error_handler
     def save_openlabel_config(self) -> None:
         self.project_state.save_openlabel_config()
 

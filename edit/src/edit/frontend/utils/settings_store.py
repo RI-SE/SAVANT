@@ -351,8 +351,9 @@ def _parse_bookmark_frame(value) -> int | None:
 
 
 def reset_project_scoped_settings() -> None:
-    """Clear settings that belong to one project's video and annotations."""
-    global _bookmarks, _tag_options, _tag_frames
+    """Clear settings that belong to one project rather than to the user."""
+    global _bookmarks, _tag_options, _tag_frames, _ontology_namespace
+    _ontology_namespace = _default_ontology_namespace
     _bookmarks = {}
     _tag_options = {"frame": {}, "object": {}}
     _tag_frames = {"frame": {}, "object": {}}

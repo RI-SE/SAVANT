@@ -259,7 +259,7 @@ def apply_project_settings(config: ProjectConfig | None) -> None:
         except InvalidFrameHistoryCountError:
             pass
 
-    namespace = settings.get("ontology_namespace", get_default_ontology_namespace())
+    namespace = settings.get("ontology_namespace")
     if isinstance(namespace, str) and namespace.strip():
         try:
             set_ontology_namespace(namespace.strip())

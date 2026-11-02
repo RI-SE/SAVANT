@@ -77,17 +77,15 @@ def test_persist_and_apply_round_trip(tmp_path):
 
 
 def test_apply_project_settings_ignores_invalid_values():
-    """Ensure invalid stored values do not override current settings."""
+    """Ensure invalid stored values do not override current preferences."""
     settings_store.set_zoom_rate(1.4)
     settings_store.set_frame_history_count(25)
-    settings_store.set_ontology_namespace("http://valid/ns#")
     settings_store.set_action_interval_offset(40)
 
     bad_config = project_config.ProjectConfig(
         settings={
             "zoom_rate": 0.05,  # below minimum
             "frame_history_count": 0,
-            "ontology_namespace": "",
             "action_interval_offset": -10,
         }
     )
@@ -96,8 +94,17 @@ def test_apply_project_settings_ignores_invalid_values():
 
     assert settings_store.get_zoom_rate() == pytest.approx(1.4)
     assert settings_store.get_frame_history_count() == 25
-    assert settings_store.get_ontology_namespace() == "http://valid/ns#"
     assert settings_store.get_action_interval_offset() == 40
+
+
+@pytest.mark.parametrize("stored", ["", "   ", "http://no-terminator/ns", 5, None])
+def test_invalid_stored_namespace_resets_to_default(stored):
+    """Verify an invalid namespace falls back to the default, not the previous project's."""
+    settings_store.set_ontology_namespace("http://project-a/ns#")
+
+    project_config.apply_project_settings(project_config.ProjectConfig(settings={"ontology_namespace": stored}))
+
+    assert settings_store.get_ontology_namespace() == settings_store.get_default_ontology_namespace()
 
 
 @pytest.mark.parametrize(

@@ -421,20 +421,22 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
     json_path = _prefer_openlabel_file(contents.openlabel_files)
     video_path = contents.video_files[0]
 
-    # Validate the ontology before touching any project state, so a failure leaves the
-    # previously open project intact
+    # Check everything that can fail before touching any project state, so a failure leaves
+    # the previously open project intact
     try:
         ontology_path, _ = resolve_ontology_path(contents.directory, json_path)
     except FrontendException as exc:
         QMessageBox.critical(main_window, "Ontology Error", str(exc))
         return
+    main_window.project_state_controller.check_openlabel_file(str(json_path))
+    main_window.video_controller.check_video(str(video_path))
+    config = ensure_project_config(contents.directory)
     try:
         set_ontology_path(ontology_path)
     except ValueError as exc:
         QMessageBox.critical(main_window, "Invalid Ontology", str(exc))
         return
 
-    config = ensure_project_config(contents.directory)
     set_active_project_dir(contents.directory)
     available_annotators = list(config.annotators or [])
     apply_project_settings(config)
