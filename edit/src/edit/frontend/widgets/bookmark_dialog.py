@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from edit.frontend.utils.project_config import persist_bookmarks
 from edit.frontend.utils.settings_store import (
     get_bookmark_notes,
     get_bookmarks,
@@ -22,13 +23,14 @@ from edit.frontend.utils.settings_store import (
 class BookmarkManagerDialog(QDialog):
     """Dialog for viewing, jumping to, editing notes, and deleting bookmarked frames."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, frame_count: int = 0):
         super().__init__(parent)
         self.setWindowTitle("Bookmarks")
         self.setModal(True)
         self.resize(400, 420)
 
         self._selected_frame: int | None = None
+        self._frame_count = frame_count
 
         layout = QVBoxLayout(self)
 
@@ -71,13 +73,19 @@ class BookmarkManagerDialog(QDialog):
 
         self._populate()
 
+    def _is_past_end(self, frame: int) -> bool:
+        """Return whether a stored bookmark lies beyond the open video's last frame."""
+        return frame >= self._frame_count
+
+    def _item_label(self, frame: int, note: str) -> str:
+        label = f"Frame {frame}" + (f"  —  {note}" if note else "")
+        return label + ("  (past end of video)" if self._is_past_end(frame) else "")
+
     def _populate(self):
         self.list_widget.clear()
         notes = get_bookmark_notes()
         for frame in get_bookmarks():
-            note = notes.get(frame, "")
-            label = f"Frame {frame}" + (f"  —  {note}" if note else "")
-            item = QListWidgetItem(label)
+            item = QListWidgetItem(self._item_label(frame, notes.get(frame, "")))
             item.setData(Qt.ItemDataRole.UserRole, frame)
             self.list_widget.addItem(item)
 
@@ -85,10 +93,12 @@ class BookmarkManagerDialog(QDialog):
         selected = self.list_widget.selectedItems()
         if len(selected) == 1:
             frame = selected[0].data(Qt.ItemDataRole.UserRole)
+            self.jump_button.setEnabled(not self._is_past_end(frame))
             notes = get_bookmark_notes()
             self.note_edit.setEnabled(True)
             self.note_edit.setText(notes.get(frame, ""))
         else:
+            self.jump_button.setEnabled(True)
             self.note_edit.setEnabled(False)
             self.note_edit.clear()
 
@@ -102,11 +112,13 @@ class BookmarkManagerDialog(QDialog):
         if len(selected) != 1:
             return
         frame = selected[0].data(Qt.ItemDataRole.UserRole)
-        set_bookmark_note(frame, self.note_edit.text().strip())
-        # Refresh the item label to reflect the new note
         note = self.note_edit.text().strip()
-        label = f"Frame {frame}" + (f"  —  {note}" if note else "")
-        selected[0].setText(label)
+        # editingFinished also fires on focus loss, so skip the write when nothing changed.
+        if note == get_bookmark_notes().get(frame):
+            return
+        set_bookmark_note(frame, note)
+        selected[0].setText(self._item_label(frame, note))
+        persist_bookmarks()
 
     def _on_delete(self):
         selected_items = self.list_widget.selectedItems()
@@ -119,12 +131,16 @@ class BookmarkManagerDialog(QDialog):
         remaining = {f: n for f, n in notes.items() if f not in frames_to_remove}
         set_bookmarks(remaining)
         self._populate()
+        persist_bookmarks()
 
     def _on_jump(self):
         selected_items = self.list_widget.selectedItems()
         if len(selected_items) != 1:
             return
-        self._selected_frame = selected_items[0].data(Qt.ItemDataRole.UserRole)
+        frame = selected_items[0].data(Qt.ItemDataRole.UserRole)
+        if self._is_past_end(frame):
+            return
+        self._selected_frame = frame
         self.accept()
 
     @property

@@ -1,6 +1,8 @@
 # edit/frontend/utils/_annotation_context_menu.py
 from __future__ import annotations
 
+import logging
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMenu, QMessageBox
 
@@ -24,6 +26,8 @@ from ._annotation_tracking_ops import (
 )
 from ._annotation_spline_ops import _open_spline_angle_dialog
 
+logger = logging.getLogger(__name__)
+
 
 def _mark_confidence_issue_resolved(
     main_window, object_id: str, annotator: str
@@ -32,6 +36,7 @@ def _mark_confidence_issue_resolved(
     try:
         frame_index = int(main_window.video_controller.current_index())
     except Exception:
+        logger.exception("Could not read current frame to resolve confidence issue")
         return
 
     if not object_id:
@@ -110,6 +115,7 @@ def _build_bbox_context_menu(main_window, obj_id, overlay_widget, current_frame)
                 if candidate_id != obj_id
             ]
         except Exception:
+            logger.exception("Could not list object IDs for the link menu")
             available_ids = []
     if obj_id and available_ids:
         link_ids_action = context_menu.addAction("Link object IDs")
@@ -218,8 +224,7 @@ def _on_overlay_context_menu(main_window, frontend_state, click_position):
         )
         return
 
-    overlay_widget._selected_idx = bbox_index
-    overlay_widget.update()
+    overlay_widget.select_box(bbox_index)
     obj_id = overlay_widget.selected_object_id()
     if obj_id:
         overlay_widget.bounding_box_selected.emit(obj_id)
@@ -257,6 +262,7 @@ def _on_overlay_empty_space_context_menu(
             current_frame
         )
     except Exception:
+        logger.exception("Could not read objects for frames %d and %d", current_frame - 1, current_frame)
         return
     cur_ids = {o["id"] for o in cur_objects}
     missing = [o for o in prev_objects if o["id"] not in cur_ids]

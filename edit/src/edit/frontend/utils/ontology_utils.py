@@ -16,7 +16,7 @@ CATEGORY_STATIC = "StaticObject"
 CATEGORY_RELATION = "Relation"
 ACTIONS_ROOT = "Behaviour"
 
-ontology_cache_key: Optional[Tuple[str, float]] = None
+ontology_cache_key: Optional[Tuple[str, float, str]] = None
 labels_by_category_cache: Optional[Dict[str, List[str]]] = None
 
 
@@ -72,7 +72,7 @@ def _get_ontology_path() -> Path:
 
 def _load_labels_by_category() -> Dict[str, List[str]]:
     """
-    Internal loader with caching (path + mtime). Returns categorized labels.
+    Internal loader with caching (path + mtime + namespace). Returns categorized labels.
 
     The ontology path always comes from Settings (get_ontology_path).
     """
@@ -83,7 +83,7 @@ def _load_labels_by_category() -> Dict[str, List[str]]:
         raise OntologyNotFound(f"Ontology file not found: {ontology_path}")
 
     ontology_modified_time = ontology_path.stat().st_mtime
-    cache_key = (str(ontology_path), float(ontology_modified_time))
+    cache_key = (str(ontology_path), float(ontology_modified_time), get_ontology_namespace())
 
     if ontology_cache_key == cache_key and labels_by_category_cache is not None:
         return labels_by_category_cache

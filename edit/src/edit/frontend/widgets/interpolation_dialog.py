@@ -1,3 +1,4 @@
+import logging
 from typing import Callable, Dict, List, Optional
 
 from PyQt6.QtWidgets import (
@@ -15,6 +16,8 @@ from PyQt6.QtWidgets import (
 )
 
 from edit.frontend.utils.formats import format_object_identity
+
+logger = logging.getLogger(__name__)
 
 
 class InterpolationDialog(QDialog):
@@ -199,6 +202,7 @@ class InterpolationDialog(QDialog):
         try:
             return self.parent().annotation_controller.frames_for_object(object_id)
         except Exception:
+            logger.warning("Could not read frames for object %r", object_id, exc_info=True)
             return []
 
     def _fill_first_frame(self):

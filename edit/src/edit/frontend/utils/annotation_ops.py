@@ -342,8 +342,7 @@ def _zoom_to_object(main_window, object_id: str):
     if bbox is None:
         return
     main_window.overlay.select_box_by_obj_id(object_id)
-    if hasattr(main_window, "zoom_to_bbox"):
-        main_window.zoom_to_bbox(bbox)
+    main_window.zoom_to_bbox(bbox)
 
 
 def _cycle_bbox(main_window, direction: int):
@@ -369,8 +368,7 @@ def _cycle_bbox(main_window, direction: int):
     overlay.select_box_by_obj_id(bbox.object_id)
     overlay.bounding_box_selected.emit(bbox.object_id)
 
-    if hasattr(main_window, "zoom_to_bbox"):
-        main_window.zoom_to_bbox(bbox)
+    main_window.zoom_to_bbox(bbox)
 
 
 def highlight_active_obj_list(main_window, object_id: str):

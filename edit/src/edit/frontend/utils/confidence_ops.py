@@ -50,8 +50,8 @@ def refresh_confidence_issues(main_window) -> None:
     try:
         render.refresh_frame(main_window)
     except Exception:
-        # Rendering can fail while the video controller is initialising; swallow errors.
-        pass
+        # Rendering can fail while the video controller is initialising, so this is not a warning.
+        logger.debug("Could not refresh frame after confidence update", exc_info=True)
 
 
 def apply_confidence_markers(main_window) -> None:
@@ -104,6 +104,7 @@ def update_issue_info(main_window) -> None:
     try:
         frame_idx = int(video_controller.current_index())
     except Exception:
+        logger.warning("Could not read current frame; using frame 0", exc_info=True)
         frame_idx = 0
 
     entries: list[dict] = []

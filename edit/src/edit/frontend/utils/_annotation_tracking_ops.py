@@ -17,6 +17,7 @@ from edit.frontend.utils.undo import (
 from ._annotation_helpers import (
     _apply_geometry_update,
     _frames_to_ranges,
+    _plain_question,
     _refresh_after_annotation_change,
 )
 
@@ -235,14 +236,11 @@ def _apply_to_all_empty_frames(
         return
 
     frame_ranges_str = _frames_to_ranges(missing_frame_indices)
-    user_choice = QMessageBox.question(
+    if not _plain_question(
         main_window,
         "Apply Static BBox",
         f"Apply this bounding box to frames: {frame_ranges_str} for object ID '{object_id}'?",
-        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        QMessageBox.StandardButton.No,
-    )
-    if user_choice != QMessageBox.StandardButton.Yes:
+    ):
         return
 
     bbox_info = {

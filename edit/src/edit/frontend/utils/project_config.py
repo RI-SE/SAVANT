@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -18,6 +19,7 @@ from edit.frontend.exceptions import (
 from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
     get_bookmark_notes,
+    get_default_ontology_namespace,
     get_error_range,
     get_frame_history_count,
     get_lock_to_center,
@@ -30,6 +32,7 @@ from edit.frontend.utils.settings_store import (
     get_warning_range,
     get_zoom_rate,
     set_action_interval_offset,
+    reset_project_scoped_settings,
     set_bookmarks,
     set_frame_history_count,
     set_lock_to_center,
@@ -86,7 +89,14 @@ def _config_path(project_dir: Path) -> Path:
 
 
 def _default_config() -> ProjectConfig:
-    return ProjectConfig(settings=_snapshot_settings(), annotators=[])
+    """Return a new project's config: current preferences, but nothing tied to another project."""
+    settings = {
+        **_snapshot_settings(),
+        "bookmarks": {},
+        "tag_options": {},
+        "ontology_namespace": get_default_ontology_namespace(),
+    }
+    return ProjectConfig(settings=settings, annotators=[])
 
 
 def _read_config(path: Path) -> ProjectConfig:
@@ -97,11 +107,15 @@ def _read_config(path: Path) -> ProjectConfig:
             raw = json.load(fh) or {}
     except (OSError, ValueError) as exc:
         raise FileOperationError(f"Failed to read project config '{path}': {exc}")
-    settings = raw.get("settings")
+    if not isinstance(raw, dict):
+        raise FileOperationError(f"Invalid project config '{path}': expected a JSON object")
+    settings = raw.get("settings") or {}
+    if not isinstance(settings, dict):
+        raise FileOperationError(f"Invalid project config '{path}': 'settings' must be an object")
     annotators = raw.get("annotators")
     last_annotator = raw.get("last_annotator", "")
     normalized = ProjectConfig(
-        settings=dict(settings or {}),
+        settings=settings,
         annotators=_normalize_annotators(annotators),
         last_annotator=str(last_annotator or "").strip(),
     )
@@ -109,9 +123,13 @@ def _read_config(path: Path) -> ProjectConfig:
 
 
 def _write_config(path: Path, config: ProjectConfig) -> None:
+    tmp_path = path.with_name(path.name + ".tmp")
     try:
-        with path.open("w", encoding="utf-8") as fh:
+        with tmp_path.open("w", encoding="utf-8") as fh:
             json.dump(config.to_dict(), fh, indent=2)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_path, path)
     except OSError as exc:
         raise FileOperationError(f"Failed to write project config '{path}': {exc}")
 
@@ -150,9 +168,13 @@ def _snapshot_settings() -> Dict[str, Any]:
         "show_warnings": get_show_warnings(),
         "error_range": tuple(get_error_range()),
         "show_errors": get_show_errors(),
-        "bookmarks": {str(k): v for k, v in get_bookmark_notes().items()},
+        "bookmarks": _serialized_bookmarks(),
         "lock_to_center": get_lock_to_center(),
     }
+
+
+def _serialized_bookmarks() -> Dict[str, str]:
+    return {str(k): v for k, v in get_bookmark_notes().items()}
 
 
 def _serialize_settings(settings: Dict[str, Any]) -> str:
@@ -194,11 +216,25 @@ def persist_current_settings(project_dir: Path | None = None) -> ProjectConfig:
     return config
 
 
+def persist_bookmarks(project_dir: Path | None = None) -> None:
+    """Save only the bookmarks; other settings stay behind the 'Save Settings?' prompt."""
+
+    if project_dir is None:
+        project_dir = _active_project_dir
+    if project_dir is None:
+        return
+    project_dir = Path(project_dir)
+    config = load_project_config(project_dir)
+    config.settings["bookmarks"] = _serialized_bookmarks()
+    _write_config(_config_path(project_dir), config)
+
+
 def apply_project_settings(config: ProjectConfig | None) -> None:
     """Apply stored settings to the global settings store."""
 
     if not isinstance(config, ProjectConfig):
         return
+    reset_project_scoped_settings()
     settings = config.settings or {}
 
     zoom_rate = settings.get("zoom_rate")
@@ -223,7 +259,7 @@ def apply_project_settings(config: ProjectConfig | None) -> None:
         except InvalidFrameHistoryCountError:
             pass
 
-    namespace = settings.get("ontology_namespace")
+    namespace = settings.get("ontology_namespace", get_default_ontology_namespace())
     if isinstance(namespace, str) and namespace.strip():
         try:
             set_ontology_namespace(namespace.strip())

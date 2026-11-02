@@ -347,6 +347,9 @@ def wire(main_window):
         lambda p, name: on_open_project_dir(main_window, p, name)
     )
     main_window.sidebar.quick_save.connect(lambda: quick_save(main_window))
+    main_window.sidebar.confirm_project_switch = lambda: main_window.resolve_unsaved_changes(
+        "Save before switching project?"
+    )
 
 
 def on_open_video(main_window, path: str):
@@ -370,6 +373,7 @@ def open_openlabel_config(main_window, path: str):
     main_window.project_state_controller.load_openlabel_config(path)
     if hasattr(main_window, "reset_undo_history"):
         main_window.reset_undo_history()
+    main_window.reset_bbox_edit_state()
     try:
         set_active_project_dir(Path(path).expanduser().resolve().parent)
     except OSError:
@@ -430,8 +434,8 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
         QMessageBox.critical(main_window, "Invalid Ontology", str(exc))
         return
 
-    set_active_project_dir(contents.directory)
     config = ensure_project_config(contents.directory)
+    set_active_project_dir(contents.directory)
     available_annotators = list(config.annotators or [])
     apply_project_settings(config)
     apply_bookmark_markers(main_window)

@@ -1,6 +1,8 @@
 # edit/frontend/utils/_annotation_relationship_ops.py
 from __future__ import annotations
 
+from html import escape
+
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -21,7 +23,12 @@ from edit.frontend.utils.undo import (
 )
 from edit.frontend.widgets.create_relationship_widget import RelationLinkerWidget
 
-from ._annotation_helpers import _frames_to_ranges, _refresh_after_annotation_change
+from ._annotation_helpers import (
+    _frames_to_ranges,
+    _plain_information,
+    _plain_question,
+    _refresh_after_annotation_change,
+)
 
 
 def _get_selected_object_relationships(
@@ -137,7 +144,8 @@ def _ask_link_conflict_resolution(
     layout = QVBoxLayout(dialog)
 
     info = QLabel(
-        f"<b>{n} frame(s)</b> already contain both '{primary_id}' and '{secondary_id}':"
+        f"<b>{n} frame(s)</b> already contain both "
+        f"'{escape(str(primary_id))}' and '{escape(str(secondary_id))}':"
         f"<br>{frame_summary}<br><br>"
         f"Choose how to resolve the conflict:"
     )
@@ -212,14 +220,7 @@ def _link_object_ids_interactive(
         )
     confirmation_text += "\nYou can undo this action if needed."
 
-    confirm = QMessageBox.question(
-        main_window,
-        "Link Object IDs",
-        confirmation_text,
-        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        QMessageBox.StandardButton.No,
-    )
-    if confirm != QMessageBox.StandardButton.Yes:
+    if not _plain_question(main_window, "Link Object IDs", confirmation_text):
         return
 
     command = LinkObjectIdsCommand(
@@ -239,7 +240,7 @@ def _link_object_ids_interactive(
         success_message += f": {result_summary}"
     else:
         success_message += "."
-    QMessageBox.information(main_window, "Link Object IDs", success_message)
+    _plain_information(main_window, "Link Object IDs", success_message)
 
     overlay = getattr(main_window, "overlay", None)
     if overlay is not None:

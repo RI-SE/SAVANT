@@ -331,7 +331,9 @@ class MainWindow(QMainWindow):
 
     def open_bookmark_manager(self):
         """Open dialog for viewing, jumping to, and deleting bookmarks."""
-        dialog = BookmarkManagerDialog(parent=self)
+        dialog = BookmarkManagerDialog(
+            parent=self, frame_count=self.project_state_controller.get_frame_count()
+        )
         dialog.exec()
         # Refresh seek bar markers regardless of how the dialog was closed,
         # since bookmarks may have been deleted.
@@ -596,32 +598,39 @@ class MainWindow(QMainWindow):
         self.undo_manager.clear()
         self._refresh_undo_actions()
 
+    def reset_bbox_edit_state(self):
+        """Drop repeat deltas and selection; they refer to the previous project's objects."""
+        self.last_bbox_deltas.clear()
+        self._delta_base.clear()
+        self.overlay.clear_selection()
+        self.sidebar.clear_object_selection()
+
     def _refresh_undo_actions(self):
         self.menu.undo_action.setEnabled(self.undo_manager.can_undo())
         self.menu.redo_action.setEnabled(self.undo_manager.can_redo())
 
+    def resolve_unsaved_changes(self, question: str) -> bool:
+        """Offer to save unsaved work; return whether the action replacing it may proceed."""
+        if not self.project_state_controller.has_unsaved_changes():
+            return True
+        reply = QMessageBox.question(
+            self,
+            "Unsaved Changes",
+            f"You have unsaved changes. {question}",
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
+        )
+        if reply == QMessageBox.StandardButton.Save:
+            self.quick_save_project()
+            # Stop if the save failed (the error was already reported)
+            return not self.project_state_controller.has_unsaved_changes()
+        return reply == QMessageBox.StandardButton.Discard
+
     def closeEvent(self, event):
         """Prompt to save unsaved work before exiting."""
-        if self.project_state_controller.has_unsaved_changes():
-            reply = QMessageBox.question(
-                self,
-                "Unsaved Changes",
-                "You have unsaved changes. Save before exiting?",
-                QMessageBox.StandardButton.Save
-                | QMessageBox.StandardButton.Discard
-                | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Save,
-            )
-            if reply == QMessageBox.StandardButton.Save:
-                self.quick_save_project()
-                # Stay open if the save failed (the error was already reported)
-                if self.project_state_controller.has_unsaved_changes():
-                    event.ignore()
-                else:
-                    event.accept()
-            elif reply == QMessageBox.StandardButton.Discard:
-                event.accept()
-            else:
-                event.ignore()
-        else:
+        if self.resolve_unsaved_changes("Save before exiting?"):
             event.accept()
+        else:
+            event.ignore()
