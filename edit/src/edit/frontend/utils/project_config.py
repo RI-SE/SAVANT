@@ -18,6 +18,7 @@ from edit.frontend.exceptions import (
 )
 from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
+    get_keyframe_interval,
     get_bookmark_notes,
     get_default_ontology_namespace,
     get_error_range,
@@ -32,6 +33,7 @@ from edit.frontend.utils.settings_store import (
     get_warning_range,
     get_zoom_rate,
     set_action_interval_offset,
+    set_keyframe_interval,
     reset_project_scoped_settings,
     set_bookmarks,
     set_frame_history_count,
@@ -163,6 +165,7 @@ def _snapshot_settings() -> Dict[str, Any]:
         "frame_history_count": get_frame_history_count(),
         "ontology_namespace": get_ontology_namespace(),
         "action_interval_offset": get_action_interval_offset(),
+        "keyframe_interval": get_keyframe_interval(),
         "tag_options": get_tag_options(),
         "warning_range": tuple(get_warning_range()),
         "show_warnings": get_show_warnings(),
@@ -265,6 +268,10 @@ def apply_project_settings(config: ProjectConfig | None) -> None:
             set_ontology_namespace(namespace.strip())
         except InvalidOntologyNamespaceError:
             pass
+
+    keyframe_interval = settings.get("keyframe_interval")
+    if isinstance(keyframe_interval, (int, float)) and keyframe_interval >= 1:
+        set_keyframe_interval(int(keyframe_interval))
 
     action_offset = settings.get("action_interval_offset")
     if isinstance(action_offset, (int, float)):

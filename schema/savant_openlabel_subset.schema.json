@@ -561,6 +561,22 @@
                     "timestamp": {
                       "type": "string",
                       "description": "Video timestamp for this frame (HH:MM:SS.ffffff)"
+                    },
+                    "review": {
+                      "type": "object",
+                      "description": "Key-frame review by edit: every box in the frame was checked by a person",
+                      "properties": {
+                        "annotator": {
+                          "type": "string"
+                        },
+                        "time": {
+                          "type": "string",
+                          "description": "ISO 8601"
+                        }
+                      },
+                      "required": [
+                        "annotator"
+                      ]
                     }
                   }
                 }

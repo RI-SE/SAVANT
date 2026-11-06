@@ -1,4 +1,5 @@
 from collections import deque
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -18,6 +19,8 @@ from edit.models.OpenLabel import (
     ConfidenceData,
     FrameInterval,
     FrameLevelObject,
+    FrameObjects,
+    FrameProperties,
     ObjectMetadata,
     ObjectMetadataData,
     ObjectMetadataVecEntry,
@@ -25,7 +28,14 @@ from edit.models.OpenLabel import (
     RotatedBBox,
 )
 
-from savant_common.openlabel import Origin, tag_frames, tag_values
+from savant_common.openlabel import (
+    FRAME_REVIEW_KEY,
+    HUMAN_ORIGINS,
+    Origin,
+    newest_origin,
+    tag_frames,
+    tag_values,
+)
 
 from .exceptions import (
     BBoxNotFoundError,
@@ -594,21 +604,65 @@ class AnnotationService:
         self, frame_number: int, object_id: str, annotator: str
     ) -> None:
         """Mark a warning/error as resolved by setting confidence to 1.0."""
-        openlabel_model: OpenLabel = self.project_state.annotation_config
-        if openlabel_model is None:
-            raise FrameNotFoundError("No annotation configuration loaded.")
-
-        frame_key = str(frame_number)
-        frame = openlabel_model.frames.get(frame_key)
-        if frame is None:
-            raise FrameNotFoundError(f"Frame {frame_number} not found.")
-
+        openlabel_model, frame = self._require_frame(frame_number)
         frame_obj = frame.objects.get(object_id)
         if frame_obj is None:
             raise ObjectNotFoundError(
                 f"Object ID {object_id} not found in frame {frame_number}."
             )
+        self._mark_reviewed(openlabel_model, frame_obj, annotator)
 
+    def confirm_frame(self, frame_number: int, annotator: str) -> int:
+        """Confirm that every box in a frame is checked (key-frame review); returns the number of boxes marked.
+
+        Assumes the reviewer has corrected all boxes and added missing ones. Boxes not already made or
+        confirmed by a person get origin `reviewed`; the frame gets a review entry in its frame_properties.
+        """
+        openlabel_model: OpenLabel = self.project_state.annotation_config
+        # An empty frame can be confirmed too: it then states that the frame has no objects.
+        frame = openlabel_model.frames.setdefault(str(frame_number), FrameObjects(objects={}))
+        marked = 0
+        for frame_obj in frame.objects.values():
+            if newest_origin(frame_obj.object_data.vec or []) in HUMAN_ORIGINS:
+                continue
+            self._mark_reviewed(openlabel_model, frame_obj, annotator)
+            marked += 1
+        review = {"annotator": annotator, "time": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+        self.set_frame_review(frame_number, review)
+        return marked
+
+    def get_frame_review(self, frame_number: int) -> Optional[dict]:
+        """Key-frame review entry of a frame, or None."""
+        frame = self.project_state.annotation_config.frames.get(str(frame_number))
+        props = getattr(frame, "frame_properties", None)
+        return getattr(props, FRAME_REVIEW_KEY, None)
+
+    def set_frame_review(self, frame_number: int, review: Optional[dict]) -> None:
+        """Set or clear (None) the key-frame review entry of a frame."""
+        _, frame = self._require_frame(frame_number)
+        if frame.frame_properties is None:
+            frame.frame_properties = FrameProperties()
+        setattr(frame.frame_properties, FRAME_REVIEW_KEY, review)
+        if not frame.frame_properties.model_dump(exclude_none=True):
+            frame.frame_properties = None  # keep frames without properties as they were
+
+    def reviewed_frames(self) -> List[int]:
+        """Frames confirmed in a key-frame review, sorted."""
+        frames = self.project_state.annotation_config.frames
+        return sorted(int(key) for key in frames if self.get_frame_review(int(key)))
+
+    def _require_frame(self, frame_number: int):
+        openlabel_model: OpenLabel = self.project_state.annotation_config
+        if openlabel_model is None:
+            raise FrameNotFoundError("No annotation configuration loaded.")
+        frame = openlabel_model.frames.get(str(frame_number))
+        if frame is None:
+            raise FrameNotFoundError(f"Frame {frame_number} not found.")
+        return openlabel_model, frame
+
+    @staticmethod
+    def _mark_reviewed(openlabel_model: OpenLabel, frame_obj: FrameLevelObject, annotator: str) -> None:
+        """Record that a person confirmed a box unchanged (confidence 1.0, origin `reviewed`)."""
         vec_entries = getattr(frame_obj.object_data, "vec", None)
         if vec_entries is None:
             vec_entries = []

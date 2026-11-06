@@ -127,6 +127,13 @@ Dynamic per-frame information, primarily bounding boxes for tracked objects.
 }
 ```
 
+A frame confirmed in edit's key-frame review carries a review entry: every box in the frame was checked by a person
+(unchanged boxes get origin `reviewed`, missing ones were added), so the frame can serve as ground truth for box errors:
+
+```json
+"frame_properties": { "timestamp": "00:00:01.000000", "review": { "annotator": "alice", "time": "2026-11-07T10:00:00+00:00" } }
+```
+
 ## Annotator and Confidence Fields
 
 SAVANT uses a multi-annotator tracking system that preserves the edit history for both bounding boxes and VLM tags. The `annotator` and `confidence` fields use the vec (list) format to support this history.

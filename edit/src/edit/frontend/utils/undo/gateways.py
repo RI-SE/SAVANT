@@ -120,6 +120,14 @@ class AnnotationGateway(Protocol):
         self, frame_number: int, object_id: str, annotator: str
     ) -> None: ...
 
+    def frame_object_ids(self, frame_number: int) -> List[str]: ...
+
+    def confirm_frame(self, frame_number: int, annotator: str) -> int: ...
+
+    def get_frame_review(self, frame_number: int) -> Optional[dict]: ...
+
+    def set_frame_review(self, frame_number: int, review: Optional[dict]) -> None: ...
+
     def create_object_relationship(
         self,
         relationship_type: str,
@@ -489,6 +497,19 @@ class ControllerAnnotationGateway:
             object_id,
             annotator,
         )
+
+    def frame_object_ids(self, frame_number: int) -> List[str]:
+        frame = getattr(self._annotation_config(), "frames", {}).get(str(frame_number))
+        return list(getattr(frame, "objects", None) or {})
+
+    def confirm_frame(self, frame_number: int, annotator: str) -> int:
+        return self.annotation_controller.confirm_frame(frame_number, annotator)
+
+    def get_frame_review(self, frame_number: int) -> Optional[dict]:
+        return self.annotation_controller.get_frame_review(frame_number)
+
+    def set_frame_review(self, frame_number: int, review: Optional[dict]) -> None:
+        self.annotation_controller.set_frame_review(frame_number, review)
 
     def create_object_relationship(
         self,

@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 _ontology_path: Optional[Path] = None
 _action_interval_offset: int = 50
+_keyframe_interval: int = 30  # frames between key frames in key-frame review
 _default_ontology_namespace = "https://ri-se.github.io/SAVANT/ontology/savant#"
 _ontology_namespace: str = _default_ontology_namespace
 _warning_range: tuple[float, float] = (0.4, 0.6)
@@ -61,6 +62,18 @@ def set_action_interval_offset(value: int) -> None:
     if interval < 0:
         raise InvalidActionIntervalOffsetError("Action interval offset must be >= 0.")
     _action_interval_offset = interval
+
+
+def get_keyframe_interval() -> int:
+    return int(_keyframe_interval)
+
+
+def set_keyframe_interval(value: int) -> None:
+    global _keyframe_interval
+    interval = int(value)
+    if interval < 1:
+        raise ValueError("Key-frame interval must be >= 1.")
+    _keyframe_interval = interval
 
 
 def get_ontology_namespace() -> str:

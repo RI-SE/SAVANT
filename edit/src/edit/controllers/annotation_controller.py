@@ -234,6 +234,22 @@ class AnnotationController:
         )
 
     @error_handler
+    def confirm_frame(self, frame_number: int, annotator: str) -> int:
+        return self.annotation_service.confirm_frame(frame_number, annotator)
+
+    @error_handler
+    def get_frame_review(self, frame_number: int) -> Optional[dict]:
+        return self.annotation_service.get_frame_review(frame_number)
+
+    @error_handler
+    def set_frame_review(self, frame_number: int, review: Optional[dict]) -> None:
+        self.annotation_service.set_frame_review(frame_number, review)
+
+    @error_handler
+    def reviewed_frames(self) -> list[int]:
+        return self.annotation_service.reviewed_frames()
+
+    @error_handler
     def allowed_frame_tags(self) -> list[str]:
         """Return the frame tag names from the service."""
         return self.annotation_service.get_frame_tags()
