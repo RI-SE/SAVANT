@@ -70,11 +70,11 @@ def load(path) -> dict:
     return json.loads(Path(path).read_text())["openlabel"]
 
 
-def gt_frames(gt: dict, all_frames: bool) -> List[str]:
-    """Frame keys usable as ground truth: confirmed in key-frame review, or all with --all-frames."""
+def gt_frames(gt: dict, all_frames: bool, every: int = 1) -> List[str]:
+    """Frame keys usable as ground truth: confirmed in key-frame review, or all with --all-frames; every n-th."""
     frames = gt.get("frames") or {}
     keys = [k for k, f in frames.items()
-            if all_frames or ((f.get("frame_properties") or {}).get(FRAME_REVIEW_KEY))]
+            if (all_frames or ((f.get("frame_properties") or {}).get(FRAME_REVIEW_KEY))) and int(k) % every == 0]
     return sorted(keys, key=int)
 
 
@@ -119,11 +119,11 @@ def baseline_sigma(data: dict, class_name: Optional[str], box: Box, localization
     return box_sigma(localization, class_name, box[2], box[3], history[0], gap)
 
 
-def residual_rows(gt: dict, auto: dict, recording: str, all_frames: bool = False) -> Iterator[Dict]:
+def residual_rows(gt: dict, auto: dict, recording: str, all_frames: bool = False, every: int = 1) -> Iterator[Dict]:
     """One row (COLUMNS) per matched auto/GT box pair in the GT frames."""
     localization = ((auto.get("metadata") or {}).get("quality") or {}).get("localization") or DEFAULT_LOCALIZATION
     gt_objects, auto_objects = gt.get("objects") or {}, auto.get("objects") or {}
-    for frame_key in gt_frames(gt, all_frames):
+    for frame_key in gt_frames(gt, all_frames, every):
         pairs = greedy_match(frame_boxes(auto, frame_key), frame_boxes(gt, frame_key))
         for (auto_id, data, box), (gt_id, _, truth), iou in pairs:
             auto_class = (auto_objects.get(auto_id) or {}).get("type")
@@ -187,6 +187,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Image size for position features when no --video is given")
     parser.add_argument("--all-frames", action="store_true",
                         help="Use every GT frame, not only frames confirmed in key-frame review")
+    parser.add_argument("--every", type=int, default=1,
+                        help="Use only frames whose number is a multiple of N (thins out correlated frames)")
     return parser
 
 
@@ -194,13 +196,14 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = build_parser().parse_args(argv)
     gt, auto = load(args.gt), load(args.auto)
-    if not gt_frames(gt, args.all_frames):
+    frames = gt_frames(gt, args.all_frames, args.every)
+    if not frames:
         logger.error(f"{args.gt}: no frames confirmed in key-frame review (use --all-frames for older files)")
         return 1
-    rows = list(residual_rows(gt, auto, args.recording or Path(args.gt).stem, args.all_frames))
+    rows = list(residual_rows(gt, auto, args.recording or Path(args.gt).stem, args.all_frames, args.every))
     add_features(rows, auto, args.video, args.image_size)
     write_csv(rows, Path(args.output), COLUMNS + FEATURE_COLUMNS)
-    logger.info(f"{len(rows)} matched boxes in {len(gt_frames(gt, args.all_frames))} GT frames -> {args.output}")
+    logger.info(f"{len(rows)} matched boxes in {len(frames)} GT frames -> {args.output}")
     return 0
 
 

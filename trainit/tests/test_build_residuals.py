@@ -30,6 +30,7 @@ def test_only_reviewed_frames_unless_all_frames():
     gt, _ = _files()
     assert gt_frames(gt, all_frames=False) == ["0"]
     assert gt_frames(gt, all_frames=True) == ["0", "1"]
+    assert gt_frames(gt, all_frames=True, every=2) == ["0"]
 
 
 def test_rows_have_residuals_and_baseline_sigma():

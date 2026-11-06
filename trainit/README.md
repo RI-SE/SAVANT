@@ -852,6 +852,33 @@ fit-error-model --weights runs/obb/train/weights/best.pt --data datasets/my_data
 - The val split must not overlap the training data (use the chunked split), or the errors are underestimated.
 - The file records the SHA-256 of the weights; markit ignores it for other weights (e.g. `last.pt`).
 
+### Box-uncertainty study (build-residuals, box-uncertainty-study)
+
+Tests whether a learned factor on the baseline box σ (`σ = a + b·√(w·h)`) gives better-calibrated uncertainty.
+See `development.md` ("Learned per-box uncertainty") for the design and the data it needs.
+
+1. Annotate ground truth in edit with key-frame review (`.` / `,` to jump, `K` to confirm a frame).
+2. Run markit on the same video with a detector that was not trained on it.
+3. Build a residual table per recording (one row per matched box, with features):
+
+```bash
+build-residuals --gt GT.json --auto markit.json --video video.mp4 --recording site_date_seq --output res.csv
+```
+
+`--all-frames` uses every GT frame of files without key-frame review (their unchanged boxes bias the errors towards
+0), and `--every N` thins out the frames. Without `--video`, image and optical-flow features are left empty; give
+`--image-size W H` for the position features.
+
+4. Compare the methods on held-out recordings (requires the `study` group: `uv sync --group trainit --group study`):
+
+```bash
+box-uncertainty-study res_*.csv --output-dir study/
+```
+
+It writes `report.txt`, `report.json` and `importance.png`. A method is better if `nll` is lower and `rho` is higher,
+with coverage `cov1`/`cov2` close to 0.683/0.954. With one recording the folds hold out objects instead, which says
+nothing about other recordings.
+
 ## Running with uv
 
 You can run these tools directly with uv without activating the virtual environment:
