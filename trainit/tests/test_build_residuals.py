@@ -4,7 +4,7 @@ import csv
 
 import pytest
 
-from trainit.build_residuals import COLUMNS, gt_frames, main, residual_rows
+from trainit.build_residuals import COLUMNS, FEATURE_COLUMNS, add_features, gt_frames, main, residual_rows
 
 
 def _box(cx, cy, w=40.0, h=20.0, r=0.0, vec=None):
@@ -51,4 +51,14 @@ def test_cli_writes_csv(tmp_path):
     out = tmp_path / "res.csv"
     assert main(["--gt", str(tmp_path / "gt.json"), "--auto", str(tmp_path / "auto.json"), "--output", str(out)]) == 0
     rows = list(csv.DictReader(out.open()))
-    assert len(rows) == 2 and list(rows[0]) == COLUMNS and rows[0]["recording"] == "gt"
+    assert len(rows) == 2 and list(rows[0]) == COLUMNS + FEATURE_COLUMNS and rows[0]["recording"] == "gt"
+
+
+def test_add_features_without_video():
+    gt, auto = _files()
+    rows = list(residual_rows(gt, auto, "rec"))
+    add_features(rows, auto, image_size=(640, 480))
+    row = next(r for r in rows if r["auto_id"] == "1")
+    assert row["size"] == pytest.approx((40 * 20) ** 0.5) and row["aspect"] == pytest.approx(2.0)
+    assert row["edge_dist"] == pytest.approx(99) and row["speed"] == pytest.approx(10 ** 0.5)  # (102, 99) -> (105, 100)
+    assert all(r["brightness"] != r["brightness"] for r in rows)  # NaN without video

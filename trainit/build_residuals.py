@@ -11,16 +11,34 @@ Input for the learned box-uncertainty study (development.md, "Learned per-box un
 Boxes are matched per frame, class-agnostic, greedily by rotated IoU (class errors are a separate question).
 The residual convention (auto - GT, w/h swap and angle wrap) is that of fit_error_model.residual.
 The baseline sigma is the auto box's sigma_px, or else box_sigma() from the run's metadata.quality.
+Feature columns (savant_common.features) are added for each auto box; image and optical-flow features need --video.
 """
 
 import argparse
 import csv
 import json
 import logging
+import math
 import sys
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Tuple
 
+from savant_common.features import (
+    BOX_FEATURES,
+    FLOW_FEATURES,
+    PATCH_FEATURES,
+    POSITION_FEATURES,
+    TRACK_FEATURES,
+    box_features,
+    flow_features,
+    iter_gray_frames,
+    patch_features,
+    position_features,
+    track_features,
+    track_index,
+    video_size,
+)
 from savant_common.openlabel import FRAME_REVIEW_KEY, GAP_DISTANCE_ENTRY, source_confidence
 from savant_common.quality import (
     DEFAULT_LOCALIZATION,
@@ -44,6 +62,7 @@ COLUMNS = (
     + [f"res_{c}" for c in SIGMA_COMPONENTS]
     + [f"sigma_{c}" for c in SIGMA_COMPONENTS]
 )
+FEATURE_COLUMNS = list(BOX_FEATURES + POSITION_FEATURES + TRACK_FEATURES + PATCH_FEATURES + FLOW_FEATURES)
 
 
 def load(path) -> dict:
@@ -126,6 +145,29 @@ def residual_rows(gt: dict, auto: dict, recording: str, all_frames: bool = False
             yield row
 
 
+def add_features(rows: List[Dict], auto: dict, video=None, image_size: Optional[Tuple[int, int]] = None) -> None:
+    """Add the FEATURE_COLUMNS of each row's auto box in place (NaN where an input is missing)."""
+    tracks = track_index(auto)
+    size = video_size(video) if video else image_size
+    for row in rows:
+        box = [row[c] for c in GEOMETRY]
+        row.update(box_features(box))
+        row.update(position_features(box, *size) if size else dict.fromkeys(POSITION_FEATURES, math.nan))
+        frames, boxes = tracks[row["auto_id"]]
+        row.update(track_features(frames, boxes, row["frame"]))
+        row.update(dict.fromkeys(PATCH_FEATURES + FLOW_FEATURES, math.nan))
+    if not video:
+        return
+    by_frame = defaultdict(list)
+    for row in rows:
+        by_frame[row["frame"]].append(row)
+    for frame, previous, gray in iter_gray_frames(video, list(by_frame)):
+        for row in by_frame[frame]:
+            box = [row[c] for c in GEOMETRY]
+            row.update(patch_features(gray, box))
+            row.update(flow_features(previous, gray, box))
+
+
 def write_csv(rows: List[Dict], path: Path, columns: List[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as f:
@@ -140,6 +182,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--auto", required=True, help="OpenLABEL markit output for the same video")
     parser.add_argument("--output", required=True, help="CSV file to write")
     parser.add_argument("--recording", help="Recording name for grouping in the study (default: GT file stem)")
+    parser.add_argument("--video", help="The video both files annotate; adds image and optical-flow features")
+    parser.add_argument("--image-size", type=int, nargs=2, metavar=("WIDTH", "HEIGHT"),
+                        help="Image size for position features when no --video is given")
     parser.add_argument("--all-frames", action="store_true",
                         help="Use every GT frame, not only frames confirmed in key-frame review")
     return parser
@@ -153,7 +198,8 @@ def main(argv=None) -> int:
         logger.error(f"{args.gt}: no frames confirmed in key-frame review (use --all-frames for older files)")
         return 1
     rows = list(residual_rows(gt, auto, args.recording or Path(args.gt).stem, args.all_frames))
-    write_csv(rows, Path(args.output), COLUMNS)
+    add_features(rows, auto, args.video, args.image_size)
+    write_csv(rows, Path(args.output), COLUMNS + FEATURE_COLUMNS)
     logger.info(f"{len(rows)} matched boxes in {len(gt_frames(gt, args.all_frames))} GT frames -> {args.output}")
     return 0
 
