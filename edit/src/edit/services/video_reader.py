@@ -32,6 +32,18 @@ class VideoReader:
         self._prefetch_result: tuple | None = None  # (chunk_start, frames_dict)
         self._prefetch_thread: threading.Thread | None = None
 
+    @staticmethod
+    def check_video(path: str) -> None:
+        """Raise if the file cannot be opened and decoded; the loaded video is left untouched."""
+        capture = cv2.VideoCapture(path)
+        try:
+            if not capture.isOpened():
+                raise VideoLoadError(f"Could not open video file from path: {path}")
+            if not capture.read()[0]:
+                raise VideoLoadError(f"Could not read any frames from video file: {path}")
+        finally:
+            capture.release()
+
     def load_video(self, path: str) -> None:
         self._cancel_prefetch()
         if self.capture and self.capture.isOpened():

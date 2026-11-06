@@ -6,7 +6,11 @@ from PyQt6.QtWidgets import QMessageBox
 from edit.frontend.exceptions import MissingObjectIDError
 from edit.frontend.utils.undo import CompositeCommand, DeleteBBoxCommand
 
-from ._annotation_helpers import _refresh_after_annotation_change
+from ._annotation_helpers import (
+    _plain_information,
+    _plain_question,
+    _refresh_after_annotation_change,
+)
 
 
 def _compress_frame_ranges(frame_indices):
@@ -42,19 +46,16 @@ def _cascade_delete_directional(main_window, object_id: str, direction: str):
         label = f"from frame {current_frame} backward"
 
     if not frames_to_delete:
-        QMessageBox.information(
+        _plain_information(
             main_window, "Cascade Delete", f"No bboxes found {label} for ID '{object_id}'."
         )
         return
 
-    user_choice = QMessageBox.question(
+    if not _plain_question(
         main_window,
         "Cascade Delete",
         f"Delete {len(frames_to_delete)} bbox(es) for ID '{object_id}' {label}?",
-        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        QMessageBox.StandardButton.No,
-    )
-    if user_choice != QMessageBox.StandardButton.Yes:
+    ):
         return
 
     delete_commands = [
@@ -66,7 +67,7 @@ def _cascade_delete_directional(main_window, object_id: str, direction: str):
         commands=delete_commands,
     )
     main_window.execute_undoable_command(batch)
-    QMessageBox.information(
+    _plain_information(
         main_window,
         "Cascade Delete",
         f"Deleted {len(frames_to_delete)} bbox(es) for ID '{object_id}' {label}.",
@@ -95,15 +96,12 @@ def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
     )
     total_bboxes = len(frames_with_object)
 
-    user_choice = QMessageBox.question(
+    if not _plain_question(
         main_window,
         "Cascade Delete",
         f"Delete all {total_bboxes} bboxes for ID '{object_id}' "
         f"across frames {frame_ranges_str}?",
-        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        QMessageBox.StandardButton.No,
-    )
-    if user_choice != QMessageBox.StandardButton.Yes:
+    ):
         return
 
     delete_commands = [
@@ -120,7 +118,7 @@ def _cascade_delete_same_id(main_window, overlay_bbox_index: int):
         commands=delete_commands,
     )
     main_window.execute_undoable_command(batch_command)
-    QMessageBox.information(
+    _plain_information(
         main_window,
         "Cascade Delete",
         f"Deleted {total_bboxes} bbox(es) for ID '{object_id}' across frames {frame_ranges_str}.",

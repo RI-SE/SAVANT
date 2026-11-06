@@ -347,6 +347,9 @@ def wire(main_window):
         lambda p, name: on_open_project_dir(main_window, p, name)
     )
     main_window.sidebar.quick_save.connect(lambda: quick_save(main_window))
+    main_window.sidebar.confirm_project_switch = lambda: main_window.resolve_unsaved_changes(
+        "Save before switching project?"
+    )
 
 
 def on_open_video(main_window, path: str):
@@ -370,6 +373,7 @@ def open_openlabel_config(main_window, path: str):
     main_window.project_state_controller.load_openlabel_config(path)
     if hasattr(main_window, "reset_undo_history"):
         main_window.reset_undo_history()
+    main_window.reset_bbox_edit_state()
     try:
         set_active_project_dir(Path(path).expanduser().resolve().parent)
     except OSError:
@@ -417,13 +421,16 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
     json_path = _prefer_openlabel_file(contents.openlabel_files)
     video_path = contents.video_files[0]
 
-    # Validate the ontology before touching any project state, so a failure leaves the
-    # previously open project intact
+    # Check everything that can fail before touching any project state, so a failure leaves
+    # the previously open project intact
     try:
         ontology_path, _ = resolve_ontology_path(contents.directory, json_path)
     except FrontendException as exc:
         QMessageBox.critical(main_window, "Ontology Error", str(exc))
         return
+    main_window.project_state_controller.check_openlabel_file(str(json_path))
+    main_window.video_controller.check_video(str(video_path))
+    config = ensure_project_config(contents.directory)
     try:
         set_ontology_path(ontology_path)
     except ValueError as exc:
@@ -431,7 +438,6 @@ def on_open_project_dir(main_window, dir_path: str, project_name: str | None = N
         return
 
     set_active_project_dir(contents.directory)
-    config = ensure_project_config(contents.directory)
     available_annotators = list(config.annotators or [])
     apply_project_settings(config)
     apply_bookmark_markers(main_window)

@@ -1,3 +1,5 @@
+import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from PyQt6.QtCore import (
@@ -84,6 +86,8 @@ from edit.frontend.widgets.new_project_dialog import NewProjectDialog
 from edit.frontend.widgets.settings import get_action_interval_offset
 from edit.services.exceptions import VideoLoadError
 
+logger = logging.getLogger(__name__)
+
 
 class Sidebar(QWidget):
     _ACTIVE_OBJECT_BASE_TEXT_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -144,6 +148,7 @@ class Sidebar(QWidget):
         self._confidence_sort_mode: str = "frame"
         self._confidence_sort_ascending: bool = True
         self._new_project_dialog: NewProjectDialog | None = None
+        self.confirm_project_switch: Callable[[], bool] = lambda: True
 
         # --- Horizontal layout for New / Load / Save ---
         top_buttons_layout = QHBoxLayout()
@@ -356,6 +361,7 @@ class Sidebar(QWidget):
         try:
             current_index = int(self.video_controller.current_index())
         except Exception:
+            logger.warning("Could not read current frame; using frame 0", exc_info=True)
             current_index = 0
         self.refresh_active_frame_tags(current_index)
 
@@ -374,6 +380,7 @@ class Sidebar(QWidget):
         try:
             frames = self.annotation_controller.frames_for_object(object_id)
         except Exception:
+            logger.warning("Could not read frames for object %r", object_id, exc_info=True)
             return "  Frames: n/a"
 
         if not frames:
@@ -386,6 +393,7 @@ class Sidebar(QWidget):
         try:
             frames = self.annotation_controller.frames_for_object(object_id)
         except Exception:
+            logger.warning("Could not read frames for object %r", object_id, exc_info=True)
             self._details_frame_links.setText("n/a")
             return
 
@@ -682,11 +690,15 @@ class Sidebar(QWidget):
 
     def open_project_folder_dialog(self) -> None:
         """Public entry point for selecting an existing project directory."""
-        self._choose_project_dir()
+        if self.confirm_project_switch():
+            self._choose_project_dir()
 
     def start_new_project_flow(self) -> None:
         """Entry point for the staged new-project creation flow."""
 
+        # Ask first: the dialog can replace the open project's annotation file in its folder
+        if not self.confirm_project_switch():
+            return
         directory_path = QFileDialog.getExistingDirectory(
             self, "Select Project Folder", ""
         )
@@ -981,15 +993,18 @@ class Sidebar(QWidget):
         try:
             total = max(0, int(self.project_state_controller.get_frame_count()))
         except Exception:
+            logger.warning("Could not read frame count; using 0", exc_info=True)
             total = 0
         try:
             current_index = max(0, int(self.video_controller.current_index()))
         except Exception:
+            logger.warning("Could not read current frame; using frame 0", exc_info=True)
             current_index = 0
 
         try:
             offset = max(0, int(get_action_interval_offset()))
         except Exception:
+            logger.warning("Could not read action interval offset; using 0", exc_info=True)
             offset = 0
 
         start_default = max(0, current_index - offset)
@@ -1073,6 +1088,7 @@ class Sidebar(QWidget):
         try:
             total = max(0, int(self.project_state_controller.get_frame_count()))
         except Exception:
+            logger.warning("Could not read frame count; using 0", exc_info=True)
             total = 0
 
         start_spin = QSpinBox(dlg)
@@ -1149,6 +1165,7 @@ class Sidebar(QWidget):
                 int(frame_index)
             )
         except Exception:
+            logger.warning("Could not read frame tags for frame %s", frame_index, exc_info=True)
             active_frame_tags = []
 
         try:
@@ -1161,6 +1178,7 @@ class Sidebar(QWidget):
                 if d.get("category") == "object_tag"
             ]
         except Exception:
+            logger.warning("Could not read object tags for frame %s", frame_index, exc_info=True)
             object_tags_at_frame = []
 
         # Preserve which top-level labels were expanded so we can restore state.
@@ -1639,6 +1657,7 @@ class Sidebar(QWidget):
         try:
             current_index = int(self.video_controller.current_index())
         except Exception:
+            logger.warning("Could not read current frame; using frame 0", exc_info=True)
             current_index = 0
         self.refresh_active_frame_tags(current_index)
         refresh_confidence_list = getattr(self, "refresh_confidence_issue_list", None)

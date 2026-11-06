@@ -77,17 +77,15 @@ def test_persist_and_apply_round_trip(tmp_path):
 
 
 def test_apply_project_settings_ignores_invalid_values():
-    """Ensure invalid stored values do not override current settings."""
+    """Ensure invalid stored values do not override current preferences."""
     settings_store.set_zoom_rate(1.4)
     settings_store.set_frame_history_count(25)
-    settings_store.set_ontology_namespace("http://valid/ns#")
     settings_store.set_action_interval_offset(40)
 
     bad_config = project_config.ProjectConfig(
         settings={
             "zoom_rate": 0.05,  # below minimum
             "frame_history_count": 0,
-            "ontology_namespace": "",
             "action_interval_offset": -10,
         }
     )
@@ -96,8 +94,132 @@ def test_apply_project_settings_ignores_invalid_values():
 
     assert settings_store.get_zoom_rate() == pytest.approx(1.4)
     assert settings_store.get_frame_history_count() == 25
-    assert settings_store.get_ontology_namespace() == "http://valid/ns#"
     assert settings_store.get_action_interval_offset() == 40
+
+
+@pytest.mark.parametrize("stored", ["", "   ", "http://no-terminator/ns", 5, None])
+def test_invalid_stored_namespace_resets_to_default(stored):
+    """Verify an invalid namespace falls back to the default, not the previous project's."""
+    settings_store.set_ontology_namespace("http://project-a/ns#")
+
+    project_config.apply_project_settings(project_config.ProjectConfig(settings={"ontology_namespace": stored}))
+
+    assert settings_store.get_ontology_namespace() == settings_store.get_default_ontology_namespace()
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ({"abc": "x", "5": "keep"}, {5: "keep"}),
+        ({"-1": "x", "5": None}, {5: ""}),
+        ([float("nan"), float("inf"), 3], {3: ""}),
+        (["7", None, 2], {2: ""}),
+    ],
+)
+def test_set_bookmarks_skips_malformed_entries(raw, expected):
+    """Verify malformed bookmark entries are dropped instead of aborting project load."""
+    settings_store.set_bookmarks(raw)
+    assert settings_store.get_bookmark_notes() == expected
+
+
+@pytest.mark.parametrize("raw", ["[1, 2]", '"text"', '{"settings": 5}', '{"settings": [1]}'])
+def test_wrong_shape_config_raises_file_error_and_is_not_overwritten(tmp_path, raw):
+    """Verify valid JSON of the wrong shape is reported as a config error and left on disk."""
+    config_path = tmp_path / project_config.PROJECT_CONFIG_FILENAME
+    config_path.write_text(raw, encoding="utf-8")
+
+    with pytest.raises(project_config.FileOperationError):
+        project_config.ensure_project_config(tmp_path)
+
+    assert config_path.read_text(encoding="utf-8") == raw
+
+
+def test_failed_config_write_keeps_existing_file(tmp_path, monkeypatch):
+    """Verify an interrupted save leaves the previous config intact."""
+    config_path = tmp_path / project_config.PROJECT_CONFIG_FILENAME
+    config_path.write_text('{"last_annotator": "original"}', encoding="utf-8")
+
+    def _partial_dump(_data, fh, **_kwargs):
+        fh.write('{"truncated')
+        raise OSError("disk full")
+
+    monkeypatch.setattr(project_config.json, "dump", _partial_dump)
+    with pytest.raises(project_config.FileOperationError):
+        project_config._write_config(config_path, project_config.ProjectConfig())
+
+    assert json.loads(config_path.read_text(encoding="utf-8")) == {"last_annotator": "original"}
+
+
+def test_new_project_config_keeps_preferences_but_not_project_scoped_settings(tmp_path):
+    """Verify a project without a config does not inherit another project's bookmarks or tag states."""
+    settings_store.set_zoom_rate(2.5)
+    settings_store.set_bookmarks({7: "from project A"})
+    settings_store.update_tag_options({"frame": {"rain": [1]}, "object": {}})
+    settings_store.set_tag_option_states({"frame": {"rain": True}})
+
+    config = project_config.ensure_project_config(tmp_path)
+
+    assert config.settings["bookmarks"] == {}
+    assert config.settings["tag_options"] == {}
+    assert config.settings["zoom_rate"] == pytest.approx(2.5)
+
+
+def test_apply_project_settings_clears_previous_project_state():
+    """Verify opening a project drops bookmarks and tag states left by the previous one."""
+    settings_store.set_bookmarks({7: "from project A"})
+    settings_store.update_tag_options({"frame": {"rain": [1]}, "object": {}})
+    settings_store.set_tag_option_states({"frame": {"rain": True}})
+
+    project_config.apply_project_settings(project_config.ProjectConfig(settings={}))
+    settings_store.update_tag_options({"frame": {"rain": [2]}, "object": {}})
+
+    assert settings_store.get_bookmarks() == []
+    assert settings_store.get_tag_options()["frame"]["rain"] is False
+
+
+def test_new_project_config_does_not_inherit_ontology_namespace(tmp_path):
+    """Verify a project without a config starts on the default namespace."""
+    settings_store.set_ontology_namespace("http://project-a/ns#")
+
+    config = project_config.ensure_project_config(tmp_path)
+    project_config.apply_project_settings(config)
+
+    assert settings_store.get_ontology_namespace() == settings_store.get_default_ontology_namespace()
+
+
+def test_config_without_namespace_key_resets_to_default():
+    """Verify an older config lacking the key does not keep the previous project's namespace."""
+    settings_store.set_ontology_namespace("http://project-a/ns#")
+
+    project_config.apply_project_settings(project_config.ProjectConfig(settings={"zoom_rate": 1.5}))
+
+    assert settings_store.get_ontology_namespace() == settings_store.get_default_ontology_namespace()
+
+
+def test_persist_bookmarks_saves_only_bookmarks(tmp_path):
+    """Verify bookmark saves leave other changed settings for the save prompt."""
+    project_config.set_active_project_dir(tmp_path)
+    settings_store.set_zoom_rate(1.5)
+    project_config.persist_current_settings()
+
+    settings_store.set_zoom_rate(3.0)
+    settings_store.set_bookmarks({4: "note"})
+    project_config.persist_bookmarks()
+
+    stored = project_config.load_project_config(tmp_path).settings
+    assert stored["bookmarks"] == {"4": "note"}
+    assert stored["zoom_rate"] == pytest.approx(1.5)
+    assert project_config.settings_changed_since_last_save() is True
+
+    settings_store.set_zoom_rate(1.5)
+    assert project_config.settings_changed_since_last_save() is False
+
+
+def test_persist_bookmarks_without_active_project_is_a_no_op(tmp_path):
+    """Verify no file is written when no project is open."""
+    settings_store.set_bookmarks({4: ""})
+    project_config.persist_bookmarks()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_bookmark_toggle():

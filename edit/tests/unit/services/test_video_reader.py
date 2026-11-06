@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import numpy as np
 from src.edit.services.video_reader import VideoReader
-from src.edit.services.exceptions import VideoFrameIndexError
+from src.edit.services.exceptions import VideoFrameIndexError, VideoLoadError
 from src.edit.services.types import VideoMetadata
 
 
@@ -38,6 +38,29 @@ def video_reader(test_video_path: str):
     vr.load_video(test_video_path)
     yield vr
     vr.release()
+
+
+def test_check_video_accepts_readable_file_and_keeps_loaded_video(video_reader: VideoReader, test_video_path: str):
+    """Verify checking a file does not disturb the video already open."""
+    frame_count = video_reader.project_state.video_metadata.frame_count
+
+    VideoReader.check_video(test_video_path)
+
+    assert video_reader.capture.isOpened()
+    assert video_reader.project_state.video_metadata.frame_count == frame_count
+
+
+@pytest.mark.parametrize("content", [None, b"not a video"])
+def test_check_video_rejects_missing_or_undecodable_file(video_reader: VideoReader, tmp_path, content):
+    """Verify a bad file raises and leaves the open video usable."""
+    path = tmp_path / "bad.mp4"
+    if content is not None:
+        path.write_bytes(content)
+
+    with pytest.raises(VideoLoadError):
+        VideoReader.check_video(str(path))
+
+    assert video_reader.capture.isOpened()
 
 
 def test_init_metadata_and_position(video_reader: VideoReader):

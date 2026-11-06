@@ -122,6 +122,20 @@ def test_cache_invalidation_on_mtime_change(monkeypatch, tmp_path):
     assert "TurnRight" in actions2  # new label should appear
 
 
+def test_cache_invalidation_on_namespace_change(monkeypatch, tmp_path):
+    """Verify labels are re-read when a project with another namespace uses the same ontology file."""
+    reset_cache()
+    ttl_file = tmp_path / "onto.ttl"
+    write_ttl(ttl_file, EX_NS)
+    monkeypatch.setattr(ou, "get_ontology_path", lambda: ttl_file)
+
+    monkeypatch.setattr(ou, "get_ontology_namespace", lambda: EX_NS)
+    assert "TurnLeft" in ou.get_action_labels()
+
+    monkeypatch.setattr(ou, "get_ontology_namespace", lambda: "http://other.org/ns#")
+    assert ou.get_action_labels() == []
+
+
 def test_missing_ontology_path_raises(monkeypatch, tmp_path):
     """
     If the configured ontology path doesn't exist, a FileNotFoundError should be raised.

@@ -6,6 +6,7 @@ from src.edit.models.OpenLabel import (
     ObjectMetadataData,
     ObjectMetadataVecEntry,
 )
+from src.edit.services.exceptions import OpenLabelFileNotValid
 from src.edit.services.project_state import ProjectState
 from pathlib import Path
 import json
@@ -162,6 +163,24 @@ def test_failed_save_keeps_original_file(tmp_path, monkeypatch):
 
     assert target.read_text() == original
     assert [p.name for p in tmp_path.iterdir()] == [target.name]
+
+
+@pytest.mark.parametrize("content", ["{not json", '{"other": 1}', '{"openlabel": {"objects": 5}}'])
+def test_parse_openlabel_file_rejects_bad_file_and_keeps_loaded_project(tmp_path, content):
+    """Verify a bad file raises while the loaded project and its save path stay in place."""
+    good = Path(__file__).parent.parent.parent / "assets" / "Kraklanda_short.json"
+    state = ProjectState()
+    state.load_openlabel_config(str(good))
+    loaded = state.annotation_config
+    bad = tmp_path / "bad.json"
+    bad.write_text(content, encoding="utf-8")
+
+    with pytest.raises(OpenLabelFileNotValid):
+        state.parse_openlabel_file(str(bad))
+
+    assert state.annotation_config is loaded
+    assert state.open_label_path == str(good)
+    assert not state.has_unsaved_changes()
 
 
 def test_unsaved_changes_tracks_edits_since_load_and_save(tmp_path):

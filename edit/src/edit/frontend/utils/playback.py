@@ -14,6 +14,7 @@ from edit.frontend.utils.settings_store import (
 )
 
 from .confidence_ops import apply_bookmark_markers
+from .project_config import persist_bookmarks
 from .render import show_frame
 
 logger = logging.getLogger(__name__)
@@ -215,6 +216,7 @@ def _jump_to_issue_frame(main_window, direction: int):
     try:
         current_index = int(main_window.video_controller.current_index())
     except Exception:
+        logger.warning("Could not read current frame; using frame 0", exc_info=True)
         current_index = 0
     target = _select_issue_frame(frames, current_index, direction)
     if target is None or target == current_index:
@@ -232,9 +234,11 @@ def _toggle_bookmark(main_window):
     try:
         frame = int(main_window.video_controller.current_index())
     except Exception:
+        logger.warning("Could not read current frame to toggle bookmark", exc_info=True)
         return
     toggle_bookmark(frame)
     apply_bookmark_markers(main_window)
+    persist_bookmarks()
 
 
 def _jump_to_bookmark(main_window, direction: int):
@@ -244,9 +248,13 @@ def _jump_to_bookmark(main_window, direction: int):
         return
     try:
         current = int(main_window.video_controller.current_index())
+        frame_count = int(main_window.project_state_controller.get_frame_count())
     except Exception:
+        logger.warning("Could not read playback position to jump to bookmark", exc_info=True)
         return
-    target = _select_issue_frame(bookmarks, current, direction)
+    # Bookmarks past the end stay stored but cannot be jumped to.
+    reachable = [frame for frame in bookmarks if frame < frame_count]
+    target = _select_issue_frame(reachable, current, direction)
     if target is None or target == current:
         return
     try:

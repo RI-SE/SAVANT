@@ -1,6 +1,7 @@
 """Dialog for viewing and editing VLM analysis data (contexts and tags)."""
 
 from copy import deepcopy
+from html import escape
 from typing import Any
 
 from PyQt6.QtCore import Qt
@@ -33,6 +34,13 @@ RATIONALE_FIELDS = (
     "pedestrians_present", "cyclists_present", "special_vehicles_present",
     "drivable_area_type", "surface_type", "surface_condition", "surface_quality",
 )
+
+
+def _plain_label(text: str) -> QLabel:
+    """Create a label showing text literally, since VLM values come from project files."""
+    label = QLabel(text)
+    label.setTextFormat(Qt.TextFormat.PlainText)
+    return label
 
 
 class VLMAnalysisDialog(QDialog):
@@ -188,7 +196,7 @@ class VLMAnalysisDialog(QDialog):
         vlayout.setSpacing(4)
 
         # Title
-        title_label = QLabel(f"<b>{title}</b>")
+        title_label = QLabel(f"<b>{escape(str(title))}</b>")
         vlayout.addWidget(title_label)
         self._tag_titles[tag_id] = title_label
 
@@ -288,7 +296,7 @@ class VLMAnalysisDialog(QDialog):
 
         # Value label (clickable)
         field_key = f"{tag_id}:{field_name}"
-        value_label = QLabel(f"  <b>{field_name}</b>: {display_val}")
+        value_label = QLabel(f"  <b>{escape(str(field_name))}</b>: {escape(display_val)}")
         value_label.setCursor(Qt.CursorShape.PointingHandCursor)
         if self._can_edit():
             # Look up current value/data at click time; both change on each edit
@@ -324,7 +332,7 @@ class VLMAnalysisDialog(QDialog):
         if has_rationale:
             vlm_rationale = self._get_field_value(data, f"{field_name}_rationale")
             if vlm_rationale:
-                rat_label = QLabel(f"    VLM: {vlm_rationale}")
+                rat_label = _plain_label(f"    VLM: {vlm_rationale}")
                 rat_label.setStyleSheet("font-style: italic; color: #666; font-size: 10px;")
                 rat_label.setWordWrap(True)
                 vlayout.addWidget(rat_label)
@@ -344,7 +352,7 @@ class VLMAnalysisDialog(QDialog):
             # Human rationale
             human_rationale = self._get_field_value(data, f"{field_name}_human_rationale")
             if human_rationale:
-                human_label = QLabel(f"    Human: {human_rationale}")
+                human_label = _plain_label(f"    Human: {human_rationale}")
                 human_label.setStyleSheet("font-style: italic; color: #484; font-size: 10px;")
                 human_label.setWordWrap(True)
                 vlayout.addWidget(human_label)
@@ -384,7 +392,7 @@ class VLMAnalysisDialog(QDialog):
         dlg_layout.setSpacing(8)
 
         # Field value editor
-        dlg_layout.addWidget(QLabel(f"<b>{field_name}</b>:"))
+        dlg_layout.addWidget(QLabel(f"<b>{escape(str(field_name))}</b>:"))
 
         spec = FIELD_SPECS.get(field_name)
         if field_type == "boolean":
@@ -594,7 +602,7 @@ class VLMAnalysisDialog(QDialog):
                 display_val = f"{new_val:.2f}"
             else:
                 display_val = str(new_val)
-            info["value_label"].setText(f"  <b>{field_name}</b>: {display_val}")
+            info["value_label"].setText(f"  <b>{escape(str(field_name))}</b>: {escape(display_val)}")
 
     def _retyped_tag(
         self, tag_id: str, field_name: str, new_val: Any, new_data: dict
@@ -638,7 +646,7 @@ class VLMAnalysisDialog(QDialog):
             self._tag_containers[tag_id].hide()
         else:
             self._tags[tag_id] = new_tag
-            self._tag_titles[tag_id].setText(f"<b>{new_tag['type']}</b>")
+            self._tag_titles[tag_id].setText(f"<b>{escape(str(new_tag['type']))}</b>")
             for info in self._field_widgets.values():
                 if info["tag_id"] == tag_id:
                     info["data"] = new_tag["tag_data"]
@@ -653,7 +661,7 @@ class VLMAnalysisDialog(QDialog):
         vlayout.setContentsMargins(10, 6, 10, 6)
         vlayout.setSpacing(2)
 
-        title_label = QLabel(f"<b>{title}</b>")
+        title_label = QLabel(f"<b>{escape(str(title))}</b>")
         vlayout.addWidget(title_label)
 
         # Simple field display for contexts (read-only)
@@ -662,17 +670,17 @@ class VLMAnalysisDialog(QDialog):
             if name.endswith("_rationale") or name.endswith("_rating"):
                 continue
             val = item.get("val") or ""
-            vlayout.addWidget(QLabel(f"  {name}: {val}"))
+            vlayout.addWidget(_plain_label(f"  {name}: {val}"))
 
         for item in data.get("num", []):
             name = item.get("name", "")
             val = item.get("val", 0)
             val_str = f"{val:.2f}" if isinstance(val, float) else str(val)
-            vlayout.addWidget(QLabel(f"  {name}: {val_str}"))
+            vlayout.addWidget(_plain_label(f"  {name}: {val_str}"))
 
         for item in data.get("boolean", []):
             name = item.get("name", "")
             val = "Yes" if item.get("val", False) else "No"
-            vlayout.addWidget(QLabel(f"  {name}: {val}"))
+            vlayout.addWidget(_plain_label(f"  {name}: {val}"))
 
         return widget

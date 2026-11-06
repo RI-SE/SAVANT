@@ -52,9 +52,9 @@ class AnnotationService:
         # This is a temporary cache for unsaved annotations.
         # It may hold several annotations for a given user session.
         self.cached_annotations: list[dict] = []
-        self._tag_cache_key: tuple[str, float] | None = None
+        self._tag_cache_key: tuple[str, float, str] | None = None
         self._tag_cache_vals: list[str] | None = None
-        self._bbox_cache_key: tuple[str, float] | None = None
+        self._bbox_cache_key: tuple[str, float, str] | None = None
         self._bbox_cache_vals: Dict[str, List[str]] | None = None
 
     def create_new_object_bbox(
@@ -689,7 +689,7 @@ class AnnotationService:
         """
         path = Path(str(get_ontology_path()))
         modified_time = path.stat().st_mtime
-        key = (str(path), float(modified_time))
+        key = (str(path), float(modified_time), get_ontology_namespace())
 
         if self._tag_cache_key == key and self._tag_cache_vals is not None:
             return self._tag_cache_vals
@@ -787,7 +787,7 @@ class AnnotationService:
         try:
             path = Path(str(get_ontology_path())).resolve()
             modified_time = path.stat().st_mtime
-            key = (str(path), float(modified_time))
+            key = (str(path), float(modified_time), get_ontology_namespace())
         except FileNotFoundError:
             raise OntologyNotFound(
                 "Ontology file not found, please select an ontology file in settings."

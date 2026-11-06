@@ -110,11 +110,16 @@ class ProjectState:
         Initializes:
             self.open_label: New OpenLabel instance with loaded configuration
         """
+        self.annotation_config = self.parse_openlabel_file(path)
+        self.open_label_path = path
+        self._saved_digest = self._config_digest()
+
+    @staticmethod
+    def parse_openlabel_file(path: str) -> OpenLabel:
+        """Read and validate an OpenLabel file without changing the loaded project."""
         try:
             config = read_json(path)
-            self.annotation_config = OpenLabel(**config["openlabel"])
-            self.open_label_path = path
-            self._saved_digest = self._config_digest()
+            return OpenLabel(**config["openlabel"])
         except KeyError as e:
             raise OpenLabelFileNotValid(
                 f"File does not appear to be a SAVANT OpenLabel file "

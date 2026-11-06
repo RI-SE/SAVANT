@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math as _math
+from html import escape
 
 from edit.frontend.utils.undo import UpdateBBoxGeometryCommand
 from edit.services.exceptions import VideoLoadError
@@ -84,11 +85,11 @@ def _confirm_cascade(main_window, object_id, property_desc, frame_range_str) -> 
     msg = QMessageBox(
         QMessageBox.Icon.Warning,
         "Cascade Operation",
-        f"This will overwrite the <b>{property_desc}</b> of object "
-        f"'{object_id}' on frames {frame_range_str} with values from "
-        f"the current frame.\n\n"
+        f"This will overwrite the <b>{escape(str(property_desc))}</b> of object "
+        f"'{escape(str(object_id))}' on frames {escape(str(frame_range_str))} with values from "
+        f"the current frame.<br><br>"
         f"Existing per-frame adjustments (e.g. from tracking) on those "
-        f"frames will be lost.\n\n"
+        f"frames will be lost.<br><br>"
         f"Continue?",
         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         main_window,
@@ -98,6 +99,34 @@ def _confirm_cascade(main_window, object_id, property_desc, frame_range_str) -> 
     msg.raise_()
     msg.activateWindow()
     return msg.exec() == QMessageBox.StandardButton.Yes
+
+
+def _plain_message_box(parent, icon, title: str, text: str, buttons, default_button):
+    """Run a message box showing text literally, since object IDs come from project files."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QMessageBox
+    box = QMessageBox(icon, title, text, buttons, parent)
+    box.setTextFormat(Qt.TextFormat.PlainText)
+    box.setDefaultButton(default_button)
+    return box.exec()
+
+
+def _plain_question(parent, title: str, text: str) -> bool:
+    """Ask a Yes/No question in plain text, defaulting to No."""
+    from PyQt6.QtWidgets import QMessageBox
+    no_button = QMessageBox.StandardButton.No
+    choice = _plain_message_box(
+        parent, QMessageBox.Icon.Question, title, text,
+        QMessageBox.StandardButton.Yes | no_button, no_button,
+    )
+    return choice == QMessageBox.StandardButton.Yes
+
+
+def _plain_information(parent, title: str, text: str) -> None:
+    """Show an information message in plain text."""
+    from PyQt6.QtWidgets import QMessageBox
+    ok_button = QMessageBox.StandardButton.Ok
+    _plain_message_box(parent, QMessageBox.Icon.Information, title, text, ok_button, ok_button)
 
 
 def _tool_information(parent, title: str, text: str) -> None:

@@ -1,6 +1,7 @@
 # edit/frontend/utils/settings_store.py
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -12,6 +13,8 @@ from edit.frontend.exceptions import (
     InvalidOntologyNamespaceError,
     InvalidZoomRateError,
 )
+
+logger = logging.getLogger(__name__)
 
 _ontology_path: Optional[Path] = None
 _action_interval_offset: int = 50
@@ -62,6 +65,10 @@ def set_action_interval_offset(value: int) -> None:
 
 def get_ontology_namespace() -> str:
     return _ontology_namespace
+
+
+def get_default_ontology_namespace() -> str:
+    return _default_ontology_namespace
 
 
 def set_ontology_namespace(ns: str) -> None:
@@ -321,17 +328,35 @@ def set_bookmarks(frames) -> None:
     """
     global _bookmarks
     if isinstance(frames, dict):
-        _bookmarks = {
-            int(f): str(n)
-            for f, n in frames.items()
-            if isinstance(f, (int, float, str)) and int(f) >= 0
-        }
+        entries = frames.items()
     else:
-        _bookmarks = {
-            int(f): ""
-            for f in (frames or [])
-            if isinstance(f, (int, float)) and int(f) >= 0
-        }
+        entries = [(f, "") for f in (frames or []) if isinstance(f, (int, float))]
+    parsed: dict[int, str] = {}
+    for raw_frame, note in entries:
+        frame = _parse_bookmark_frame(raw_frame)
+        if frame is None:
+            logger.warning("Ignoring invalid bookmark frame: %r", raw_frame)
+        else:
+            parsed[frame] = "" if note is None else str(note)
+    _bookmarks = parsed
+
+
+def _parse_bookmark_frame(value) -> int | None:
+    """Return a non-negative frame index, or None if the value is not one."""
+    try:
+        frame = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return frame if frame >= 0 else None
+
+
+def reset_project_scoped_settings() -> None:
+    """Clear settings that belong to one project rather than to the user."""
+    global _bookmarks, _tag_options, _tag_frames, _ontology_namespace
+    _ontology_namespace = _default_ontology_namespace
+    _bookmarks = {}
+    _tag_options = {"frame": {}, "object": {}}
+    _tag_frames = {"frame": {}, "object": {}}
 
 
 def set_bookmark_note(frame: int, note: str) -> None:
