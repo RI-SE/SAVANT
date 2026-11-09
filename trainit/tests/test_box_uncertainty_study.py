@@ -8,7 +8,14 @@ import pytest
 
 pytest.importorskip("sklearn")
 
-from trainit.box_uncertainty_study import ONE_SIGMA, folds, metrics, run, scale_for_coverage  # noqa: E402
+from trainit.box_uncertainty_study import (  # noqa: E402
+    ONE_SIGMA,
+    folds,
+    held_out_bias,
+    metrics,
+    run,
+    scale_for_coverage,
+)
 from trainit.build_residuals import COLUMNS, FEATURE_COLUMNS  # noqa: E402
 
 
@@ -28,7 +35,8 @@ def _table(path, recording, rng, n=1500):
             row["res_r"] = rng.normal(0, 0.02)
             row.update({f"sigma_{c}": 2.0 for c in ("cx", "cy", "w", "h")})
             row["sigma_r"] = 0.05
-            row.update({"contrast": contrast, "brightness": rng.uniform(50, 200), "size": rng.uniform(40, 120)})
+            row.update({"contrast": contrast, "brightness": rng.uniform(50, 200), "size": rng.uniform(40, 120),
+                        "w": 60.0, "h": 30.0})
             writer.writerow(row)
 
 
@@ -61,3 +69,19 @@ def test_rf_learns_contrast_dependence(tmp_path):
     assert max(cx["importance"], key=cx["importance"].get) == "contrast"
     assert json.loads((tmp_path / "out" / "report.json").read_text())["n_rows"] == 4500
     assert (tmp_path / "out" / "importance.png").exists()
+
+
+def test_held_out_bias_is_removed():
+    """Loose boxes: w is 10 % too large; the bias is fitted on the other folds and explains most of the error."""
+    rng = np.random.default_rng(2)
+    rows = []
+    for i in range(600):
+        w, h = rng.uniform(40, 200), rng.uniform(20, 80)
+        res = {f"res_{c}": rng.normal(0, 1.0) for c in ("cx", "cy", "w", "h", "r")}
+        res["res_w"] += 0.1 * (w * h) ** 0.5
+        rows.append({"recording": "a", "gt_id": str(i // 6), "auto_class": "Car", "w": w, "h": h, **res})
+    fold, _ = folds(rows)
+    bias = held_out_bias(rows, fold)
+    res_w = np.array([r["res_w"] for r in rows])
+    assert np.std(res_w - bias[:, 2]) == pytest.approx(1.0, abs=0.1)
+    assert np.abs(bias[:, 0]).max() < 0.5

@@ -7,6 +7,8 @@ Reads residual tables from build-residuals and compares, per component (cx, cy, 
 - baseline_scaled: the baseline times one scale fitted on the training folds (a fair reference: the RF gets one too);
 - rf: baseline x f(features), f a random forest fitted to |residual| / baseline on the training folds, then scaled.
 Each scale is set so that 68.3 % of the training residuals fall within +-1 sigma (out-of-bag RF predictions).
+The bias (mean = a + b*size per class, fit_error_model.fit_mean) is fitted on the training folds and removed from
+the held-out residuals first, so sigma models the spread only (--keep-bias: sigma also covers the bias).
 
 Folds hold out one recording at a time; with a single recording, objects (GT ids) are held out instead, which says
 nothing about other recordings. Rows of one object are strongly correlated, hence large leaves in the forest.
@@ -28,6 +30,7 @@ import numpy as np
 
 from savant_common.quality import SIGMA_COMPONENTS
 from trainit.build_residuals import FEATURE_COLUMNS
+from trainit.fit_error_model import MIN_CLASS_MATCHES, fit_mean, line
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +87,23 @@ def folds(rows: List[Dict[str, str]]) -> Tuple[np.ndarray, str]:
     return np.array([index[r["gt_id"]] for r in rows]), "object"
 
 
+def held_out_bias(rows: List[Dict[str, str]], fold: np.ndarray) -> np.ndarray:
+    """Bias per row and component (N x 5), fitted per class (else pooled) on the other folds."""
+    residuals = np.array([[float(r[f"res_{c}"]) for c in SIGMA_COMPONENTS] for r in rows])
+    sizes = np.array([math.sqrt(float(r["w"]) * float(r["h"])) for r in rows])
+    classes = np.array([r.get("auto_class") or "" for r in rows])
+    bias = np.zeros_like(residuals)
+    for k in np.unique(fold):
+        test, train = fold == k, fold != k
+        pooled = fit_mean(residuals[train], sizes[train])
+        for name in np.unique(classes[test]):
+            own = train & (classes == name)
+            mean = fit_mean(residuals[own], sizes[own]) if own.sum() >= MIN_CLASS_MATCHES else pooled
+            rows_k = test & (classes == name)
+            bias[rows_k] = np.column_stack([line(mean[c], sizes[rows_k]) for c in SIGMA_COMPONENTS])
+    return bias
+
+
 def scale_for_coverage(ratio: np.ndarray) -> float:
     """Factor on sigma so that ONE_SIGMA of |residual|/sigma fall within 1."""
     return float(np.quantile(ratio, ONE_SIGMA))
@@ -118,12 +138,13 @@ def importance(forest, x_test, ratio_test, names: List[str]) -> Dict[str, float]
     return dict(zip(names, result.importances_mean.tolist()))
 
 
-def study_component(component: str, rows, x, names, fold) -> Dict:
-    """Held-out metrics per method and mean feature importance for one sigma component."""
-    residual = np.array([float(r[f"res_{component}"]) for r in rows])
+def study_component(component: str, rows, x, names, fold, bias: np.ndarray) -> Dict:
+    """Held-out metrics per method and mean feature importance for one sigma component, after removing the bias."""
+    raw = np.array([float(r[f"res_{component}"]) for r in rows])
+    residual = raw - bias
     base = np.array([float(r[f"sigma_{component}"]) for r in rows])
     valid = base > 0
-    residual, base, x_c, fold_c = residual[valid], base[valid], x[valid], fold[valid]
+    raw, residual, base, x_c, fold_c = raw[valid], residual[valid], base[valid], x[valid], fold[valid]
     ratio = np.abs(residual) / base
     sigma = {m: np.empty_like(base) for m in METHODS}
     importances = []
@@ -138,6 +159,8 @@ def study_component(component: str, rows, x, names, fold) -> Dict:
                 for m in METHODS}
     return {
         "n": int(valid.sum()),
+        "bias": {"mean": float(np.mean(bias[valid])),
+                 "ms_share": float(1 - np.mean(residual ** 2) / max(np.mean(raw ** 2), 1e-12))},
         "pooled": {m: metrics(residual, sigma[m]) for m in METHODS},
         "per_fold": per_fold,
         "importance": {n: float(np.mean([imp[n] for imp in importances])) for n in names},
@@ -146,7 +169,13 @@ def study_component(component: str, rows, x, names, fold) -> Dict:
 
 def text_report(report: Dict) -> str:
     lines = [f"Folds by {report['folds']} ({report['n_folds']}), {report['n_rows']} boxes, "
-             f"{report['n_recordings']} recording(s). Ideal coverage: {ONE_SIGMA:.3f} / {TWO_SIGMA:.3f}.", ""]
+             f"{report['n_recordings']} recording(s). Ideal coverage: {ONE_SIGMA:.3f} / {TWO_SIGMA:.3f}.",
+             "Bias kept in the residuals." if report["keep_bias"] else
+             "Bias removed (fitted on the training folds); ms_share = share of the mean squared residual it explains.",
+             ""]
+    if not report["keep_bias"]:
+        lines += [f"  bias {c}: mean {r['bias']['mean']:.3f}, ms_share {r['bias']['ms_share']:.2f}"
+                  for c, r in report["components"].items()] + [""]
     header = f"{'comp':<5}{'method':<17}{'cov1':>7}{'cov2':>7}{'nll':>9}{'sharp':>9}{'rho':>7}"
     lines.append(header)
     for component, result in report["components"].items():
@@ -178,15 +207,17 @@ def plot_importance(report: Dict, path: Path) -> None:
     plt.close(fig)
 
 
-def run(paths: List[Path], output_dir: Path) -> Dict:
+def run(paths: List[Path], output_dir: Path, keep_bias: bool = False) -> Dict:
     rows = read_rows(paths)
     x, names = design_matrix(rows)
     fold, fold_kind = folds(rows)
+    bias = np.zeros((len(rows), len(SIGMA_COMPONENTS))) if keep_bias else held_out_bias(rows, fold)
     report = {
         "inputs": [str(p) for p in paths], "n_rows": len(rows), "folds": fold_kind,
         "n_folds": int(len(np.unique(fold))), "n_recordings": len({r["recording"] for r in rows}),
-        "features": names, "forest": {k: v for k, v in FOREST.items() if k != "n_jobs"},
-        "components": {c: study_component(c, rows, x, names, fold) for c in SIGMA_COMPONENTS},
+        "keep_bias": keep_bias, "features": names, "forest": {k: v for k, v in FOREST.items() if k != "n_jobs"},
+        "components": {c: study_component(c, rows, x, names, fold, bias[:, i])
+                       for i, c in enumerate(SIGMA_COMPONENTS)},
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "report.json").write_text(json.dumps(report, indent=2))
@@ -199,6 +230,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("tables", nargs="+", type=Path, help="CSV tables from build-residuals")
     parser.add_argument("--output-dir", type=Path, required=True, help="Where report.json/.txt and importance.png go")
+    parser.add_argument("--keep-bias", action="store_true", help="Do not remove the fitted bias (sigma covers it)")
     return parser
 
 
@@ -210,7 +242,7 @@ def main(argv=None) -> int:
     except ImportError:
         logger.error("scikit-learn is missing: uv sync --group trainit --group study")
         return 1
-    report = run(args.tables, args.output_dir)
+    report = run(args.tables, args.output_dir, args.keep_bias)
     print(text_report(report))
     return 0
 

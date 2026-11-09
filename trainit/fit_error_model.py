@@ -4,7 +4,8 @@ fit_error_model - Error model of trained YOLO OBB weights (scenario-uncertainty 
 
 Runs the weights on the dataset's val split and writes error_model.json next to them:
 - localization: residuals of matched predictions (same class, rotated IoU > 0.5) against ground truth,
-  fitted per class and pooled as sigma = a + b*size_px, size_px = sqrt(w*h);
+  fitted per class and pooled as a bias mean = a + b*size_px (e.g. loose boxes) and a spread around it,
+  sigma = a + b*size_px, size_px = sqrt(w*h);
 - score_calibration: isotonic fit of P(true positive | raw score), with the ECE of the raw score.
 
 The val split must not overlap the training data (trainit's chunked split), or the errors are underestimated.
@@ -25,6 +26,7 @@ import yaml
 from savant_common.quality import (
     ALL_CLASSES,
     ERROR_MODEL_FILE,
+    MEAN_FORM,
     MODEL_FORM,
     MODEL_SCHEMA,
     SIGMA_COMPONENTS,
@@ -114,19 +116,45 @@ def match_image(preds: Sequence[Tuple[int, float, Box]], truths: Sequence[Tuple[
     return matches, scored
 
 
-def fit_sigma(residuals: np.ndarray, sizes: np.ndarray) -> Dict[str, List[float]]:
-    """[a, b] per component for sigma = a + b*size, fitted to |r|*sqrt(pi/2); a, b >= 0."""
+def fit_mean(residuals: np.ndarray, sizes: np.ndarray) -> Dict[str, List[float]]:
+    """[a, b] per component for the bias mean = a + b*size (least squares, any sign)."""
     design = np.column_stack([np.ones_like(sizes), sizes])
     coefficients = {}
     for i, component in enumerate(SIGMA_COMPONENTS):
-        target = np.abs(residuals[:, i]) * GAUSSIAN_ABS_TO_SIGMA
+        (a, b), *_ = np.linalg.lstsq(design, residuals[:, i], rcond=None)
+        coefficients[component] = [round(float(a), 5), round(float(b), 6)]
+    return coefficients
+
+
+def line(coefficients: Sequence[float], sizes: np.ndarray) -> np.ndarray:
+    """a + b*size."""
+    return coefficients[0] + coefficients[1] * sizes
+
+
+def fit_sigma(residuals: np.ndarray, sizes: np.ndarray,
+              mean: Optional[Dict[str, List[float]]] = None) -> Dict[str, List[float]]:
+    """[a, b] per component for sigma = a + b*size around the bias mean, fitted to |r - mean|*sqrt(pi/2); a, b >= 0.
+
+    Without a mean, the bias is counted as spread (|r| of a biased residual is not Gaussian around 0).
+    """
+    design = np.column_stack([np.ones_like(sizes), sizes])
+    coefficients = {}
+    for i, component in enumerate(SIGMA_COMPONENTS):
+        spread = residuals[:, i] - (line(mean[component], sizes) if mean else 0.0)
+        target = np.abs(spread) * GAUSSIAN_ABS_TO_SIGMA
         (a, b), *_ = np.linalg.lstsq(design, target, rcond=None)
         if b < 0:  # no growth with size: constant RMS
-            a, b = math.sqrt(float(np.mean(residuals[:, i] ** 2))), 0.0
+            a, b = math.sqrt(float(np.mean(spread ** 2))), 0.0
         elif a < 0:  # proportional to size
             a, b = 0.0, float(target @ sizes / (sizes @ sizes))
         coefficients[component] = [round(float(a), 5), round(float(b), 6)]
     return coefficients
+
+
+def fit_class(residuals: np.ndarray, sizes: np.ndarray) -> dict:
+    """Bias and spread coefficients of one class (or of all classes pooled)."""
+    mean = fit_mean(residuals, sizes)
+    return {"mean": mean, "sigma": fit_sigma(residuals, sizes, mean), "n": len(residuals)}
 
 
 def isotonic(scores: np.ndarray, hits: np.ndarray) -> Tuple[List[float], List[float]]:
@@ -165,8 +193,9 @@ def localization(matches: list, names: Dict[int, str]) -> dict:
     for name, rows in groups.items():
         residuals = np.array([r for r, _ in rows], dtype=float)
         sizes = np.array([math.sqrt(t[2] * t[3]) for _, t in rows], dtype=float)
-        by_class[name] = {"sigma": fit_sigma(residuals, sizes), "n": len(rows)}
-    return {"by_class": by_class, "model_form": MODEL_FORM, "size_px": SIZE_PX, "iou_match": IOU_MATCH}
+        by_class[name] = fit_class(residuals, sizes)
+    return {"by_class": by_class, "model_form": MODEL_FORM, "mean_form": MEAN_FORM, "size_px": SIZE_PX,
+            "iou_match": IOU_MATCH}
 
 
 def score_calibration(scored: list) -> dict:

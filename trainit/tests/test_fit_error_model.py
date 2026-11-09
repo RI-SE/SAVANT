@@ -7,6 +7,7 @@ import pytest
 
 from trainit.fit_error_model import (
     expected_calibration_error,
+    fit_class,
     fit_sigma,
     isotonic,
     match_image,
@@ -36,6 +37,18 @@ def test_fit_sigma_recovers_size_dependence():
     residuals = rng.normal(0, 1, (5000, 5)) * (0.5 + 0.02 * sizes)[:, None]
     a, b = fit_sigma(residuals, sizes)["cx"]
     assert a == pytest.approx(0.5, abs=0.1) and b == pytest.approx(0.02, abs=0.003)
+
+
+def test_fit_class_separates_bias_from_spread():
+    """Loose boxes (w 5 px + 10 % too large) must not inflate sigma_w."""
+    rng = np.random.default_rng(3)
+    sizes = rng.uniform(10, 100, 5000)
+    residuals = rng.normal(0, 1, (5000, 5)) * (0.5 + 0.02 * sizes)[:, None]
+    residuals[:, 2] += 5 + 0.1 * sizes
+    fitted = fit_class(residuals, sizes)
+    assert fitted["mean"]["w"] == pytest.approx([5, 0.1], abs=0.2)
+    assert fitted["sigma"]["w"] == pytest.approx([0.5, 0.02], abs=0.15)
+    assert fitted["mean"]["cx"] == pytest.approx([0, 0], abs=0.2) and fitted["n"] == 5000
 
 
 def test_isotonic_is_monotone_and_calibrates():
