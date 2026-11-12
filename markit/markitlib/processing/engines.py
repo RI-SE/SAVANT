@@ -25,6 +25,10 @@ from ..geometry import BBoxOverlapCalculator
 
 logger = logging.getLogger(__name__)
 
+# Ultralytics tracker config used by markit. Named explicitly: Ultralytics 8.4.76 changed its default to
+# tracktrack.yaml, which drops about a quarter of the detections on drone traffic video.
+YOLO_TRACKER = "botsort.yaml"
+
 # Isolated per-frame errors are logged and skipped; this many in a row aborts the run
 MAX_CONSECUTIVE_FRAME_FAILURES = 10
 
@@ -203,7 +207,7 @@ class YOLOEngine(BaseDetectionEngine):
         """
         try:
             results = self.model.track(
-                frame, persist=True, verbose=False, conf=self.conf_threshold
+                frame, persist=True, verbose=False, conf=self.conf_threshold, tracker=YOLO_TRACKER
             )
             detection_results = []
 
@@ -368,6 +372,7 @@ class YOLOEngine(BaseDetectionEngine):
         info: Dict[str, Optional[str]] = {
             "ultralytics_version": ultralytics.__version__,
             "torch_version": torch.__version__,
+            "yolo_tracker": YOLO_TRACKER,
         }
         if self.model is not None:
             info["yolo_task"] = getattr(self.model, "task", None)

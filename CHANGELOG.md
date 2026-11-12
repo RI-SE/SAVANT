@@ -5,6 +5,14 @@
 >
 > **Versioning discontinuity:** versions `1.0.0`–`1.3.2` belong to an earlier, pre-monorepo project (a single `savant_app`, no root `pyproject.toml`). The restructure into today's `markit` / `edit` / `trainit` / `savant_common` layout (commit `acde3ea`, 2025-11-25) introduced the current root `pyproject.toml`, which restarted its own version count at `1.0.0` and then jumped straight to `2.0.0` twelve days later ("Bump versions", commit `1092f13`) to mark the restructure. So `2.0.0` is the first version of the project *as it exists today*; the `1.x` entries below describe the predecessor codebase.
 
+## [Unreleased]
+
+### Fixed
+- **markit lost ≈ 25 % of YOLO detections with Ultralytics ≥ 8.4.76.** That release changed the default tracker
+  from BoT-SORT to TrackTrack, and markit used the library default. markit now always uses `botsort.yaml` and
+  records it in provenance (`savant:yolo_tracker`). Re-run markit on output made with Ultralytics ≥ 8.4.76
+  (provenance `savant:ultralytics_version`); on BorasEkas 2025-11-19 recall dropped from 0.70 to 0.58.
+
 ## [2.6.0] - 2026-10-29
 _Uncertainty tracking, following [scenario-uncertainty](https://github.com/das-rise/scenario-uncertainty) 0.1.0 (`annotation` and `model` profiles). All additions are optional keys; older files are read as before._
 
