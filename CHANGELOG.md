@@ -5,6 +5,30 @@
 >
 > **Versioning discontinuity:** versions `1.0.0`–`1.3.2` belong to an earlier, pre-monorepo project (a single `savant_app`, no root `pyproject.toml`). The restructure into today's `markit` / `edit` / `trainit` / `savant_common` layout (commit `acde3ea`, 2025-11-25) introduced the current root `pyproject.toml`, which restarted its own version count at `1.0.0` and then jumped straight to `2.0.0` twelve days later ("Bump versions", commit `1092f13`) to mark the restructure. So `2.0.0` is the first version of the project *as it exists today*; the `1.x` entries below describe the predecessor codebase.
 
+## [2.6.2] - 2026-11-12
+
+### Fixed
+- **markit lost ≈ 25 % of YOLO detections with Ultralytics ≥ 8.4.76.** That release changed the default tracker
+  from BoT-SORT to TrackTrack, and markit used the library default. markit now always uses `botsort.yaml` and
+  records it in provenance (`savant:yolo_tracker`). Re-run markit on output made with Ultralytics ≥ 8.4.76
+  (provenance `savant:ultralytics_version`); on BorasEkas 2025-11-19 recall dropped from 0.70 to 0.58.
+
+## [2.6.1] - 2026-11-02
+_edit only._
+
+### Fixed
+- **Possible data loss when switching projects or when a save fails:**
+  - Declining to save on a project switch now stops the switch.
+  - A failed or invalid config write keeps the existing file.
+  - Opening a project changes nothing if its config, annotations or video can't be read.
+  - Settings from the previous project (bookmarks, tags, bbox edit state) no longer carry over.
+- **Ontology namespace:** a new project, or a config without a valid namespace, gets the default namespace instead
+  of the previous project's.
+- Bookmarks are saved at once and malformed entries are skipped. Bookmarks past the end of the video are flagged
+  and can't be jumped to.
+- Text from project files is escaped in dialogs (e.g. the VLM analysis and confirmation dialogs), so it can't
+  inject markup.
+
 ## [2.6.0] - 2026-10-29
 _Uncertainty tracking, following [scenario-uncertainty](https://github.com/das-rise/scenario-uncertainty) 0.1.0 (`annotation` and `model` profiles). All additions are optional keys; older files are read as before._
 
