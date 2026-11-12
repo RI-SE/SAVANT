@@ -11,7 +11,7 @@ pytest.importorskip("sklearn")
 from trainit.box_uncertainty_study import (  # noqa: E402
     ONE_SIGMA,
     folds,
-    held_out_bias,
+    held_out_models,
     metrics,
     run,
     scale_for_coverage,
@@ -66,6 +66,7 @@ def test_rf_learns_contrast_dependence(tmp_path):
     assert cx["pooled"]["rf"]["nll"] < cx["pooled"]["baseline_scaled"]["nll"]
     assert cx["pooled"]["rf"]["spearman"] > 0.2
     assert cx["pooled"]["rf"]["cov1"] == pytest.approx(ONE_SIGMA, abs=0.05)
+    assert cx["pooled"]["error_model"]["cov1"] == pytest.approx(ONE_SIGMA, abs=0.06)
     assert max(cx["importance"], key=cx["importance"].get) == "contrast"
     assert json.loads((tmp_path / "out" / "report.json").read_text())["n_rows"] == 4500
     assert (tmp_path / "out" / "importance.png").exists()
@@ -79,9 +80,13 @@ def test_held_out_bias_is_removed():
         w, h = rng.uniform(40, 200), rng.uniform(20, 80)
         res = {f"res_{c}": rng.normal(0, 1.0) for c in ("cx", "cy", "w", "h", "r")}
         res["res_w"] += 0.1 * (w * h) ** 0.5
-        rows.append({"recording": "a", "gt_id": str(i // 6), "auto_class": "Car", "w": w, "h": h, **res})
+        rows.append({"recording": "a", "gt_id": str(i // 6), "auto_class": "Car", "w": w, "h": h,
+                     "source": "markit_yolo", "origin": "detected", "gap_distance": "", **res})
     fold, _ = folds(rows)
-    bias = held_out_bias(rows, fold)
+    bias, sigma = held_out_models(rows, fold, keep_bias=False)
     res_w = np.array([r["res_w"] for r in rows])
     assert np.std(res_w - bias[:, 2]) == pytest.approx(1.0, abs=0.1)
     assert np.abs(bias[:, 0]).max() < 0.5
+    assert np.median(sigma[:, 2]) == pytest.approx(1.0, abs=0.15)  # spread only, not the 10 % bias
+    _, sigma_kept = held_out_models(rows, fold, keep_bias=True)
+    assert np.median(sigma_kept[:, 2]) > 3  # without a mean, sigma covers the bias

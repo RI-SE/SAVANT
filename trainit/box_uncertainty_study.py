@@ -5,10 +5,12 @@ box_uncertainty_study - Does a learned factor on the baseline box sigma give bet
 Reads residual tables from build-residuals and compares, per component (cx, cy, w, h, r), on held-out folds:
 - baseline: the box's sigma (sigma_px / box_sigma), as markit writes it;
 - baseline_scaled: the baseline times one scale fitted on the training folds (a fair reference: the RF gets one too);
+- error_model: what markit writes with an error_model.json fitted (fit-error-model --residuals) on the training folds;
 - rf: baseline x f(features), f a random forest fitted to |residual| / baseline on the training folds, then scaled.
 Each scale is set so that 68.3 % of the training residuals fall within +-1 sigma (out-of-bag RF predictions).
-The bias (mean = a + b*size per class, fit_error_model.fit_mean) is fitted on the training folds and removed from
-the held-out residuals first, so sigma models the spread only (--keep-bias: sigma also covers the bias).
+The bias (mean = a + b*size per class, as in error_model.json) is fitted on the detector boxes of the training folds
+and removed from the held-out residuals first, so sigma models the spread only (--keep-bias: sigma also covers the
+bias, and error_model is fitted without a mean).
 
 Folds hold out one recording at a time; with a single recording, objects (GT ids) are held out instead, which says
 nothing about other recordings. Rows of one object are strongly correlated, hence large leaves in the forest.
@@ -18,19 +20,18 @@ Requires scikit-learn (dependency group `study`).
 """
 
 import argparse
-import csv
 import json
 import logging
 import math
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from savant_common.quality import SIGMA_COMPONENTS
+from savant_common.quality import ALL_CLASSES, SIGMA_COMPONENTS, box_sigma
 from trainit.build_residuals import FEATURE_COLUMNS
-from trainit.fit_error_model import MIN_CLASS_MATCHES, fit_mean, line
+from trainit.fit_error_model import fit_localization, line, model_box, read_tables, table_arrays
 
 logger = logging.getLogger(__name__)
 
@@ -45,15 +46,7 @@ FOREST = {"n_estimators": 200, "min_samples_leaf": 50, "max_features": "sqrt", "
           "random_state": 0}
 IMPORTANCE_ROWS = 5000
 IMPORTANCE_REPEATS = 3
-METHODS = ("baseline", "baseline_scaled", "rf")
-
-
-def read_rows(paths: List[Path]) -> List[Dict[str, str]]:
-    rows = []
-    for path in paths:
-        with Path(path).open(newline="") as f:
-            rows.extend(csv.DictReader(f))
-    return rows
+METHODS = ("baseline", "baseline_scaled", "error_model", "rf")
 
 
 def _number(value) -> float:
@@ -87,21 +80,30 @@ def folds(rows: List[Dict[str, str]]) -> Tuple[np.ndarray, str]:
     return np.array([index[r["gt_id"]] for r in rows]), "object"
 
 
-def held_out_bias(rows: List[Dict[str, str]], fold: np.ndarray) -> np.ndarray:
-    """Bias per row and component (N x 5), fitted per class (else pooled) on the other folds."""
-    residuals = np.array([[float(r[f"res_{c}"]) for c in SIGMA_COMPONENTS] for r in rows])
-    sizes = np.array([math.sqrt(float(r["w"]) * float(r["h"])) for r in rows])
-    classes = np.array([r.get("auto_class") or "" for r in rows])
-    bias = np.zeros_like(residuals)
+def _gap(value) -> Optional[int]:
+    return int(float(value)) if value not in (None, "", "nan") else None
+
+
+def held_out_models(rows: List[Dict[str, str]], fold: np.ndarray, keep_bias: bool) -> Tuple[np.ndarray, np.ndarray]:
+    """(bias, error-model sigma), each N x 5, from an error model fitted on the detector boxes of the other folds.
+
+    The sigma is box_sigma() of that model, as markit would write it (origin rule included); the bias is zero with
+    keep_bias, and the model then has no mean, so its sigma covers the bias.
+    """
+    residuals, sizes, classes = table_arrays(rows)
+    fit_rows = np.array([model_box(r) for r in rows])
+    bias, sigma = np.zeros_like(residuals), np.zeros_like(residuals)
     for k in np.unique(fold):
-        test, train = fold == k, fold != k
-        pooled = fit_mean(residuals[train], sizes[train])
-        for name in np.unique(classes[test]):
-            own = train & (classes == name)
-            mean = fit_mean(residuals[own], sizes[own]) if own.sum() >= MIN_CLASS_MATCHES else pooled
-            rows_k = test & (classes == name)
-            bias[rows_k] = np.column_stack([line(mean[c], sizes[rows_k]) for c in SIGMA_COMPONENTS])
-    return bias
+        train = (fold != k) & fit_rows
+        localization = fit_localization(residuals[train], sizes[train], classes[train], with_mean=not keep_bias)
+        by_class = localization["by_class"]
+        for i in np.flatnonzero(fold == k):
+            row, coefficients = rows[i], by_class.get(classes[i]) or by_class[ALL_CLASSES]
+            sigma[i] = box_sigma(localization, classes[i], float(row["w"]), float(row["h"]), row.get("origin"),
+                                 _gap(row.get("gap_distance")))
+            if not keep_bias:
+                bias[i] = [line(coefficients["mean"][c], sizes[i]) for c in SIGMA_COMPONENTS]
+    return bias, sigma
 
 
 def scale_for_coverage(ratio: np.ndarray) -> float:
@@ -138,13 +140,14 @@ def importance(forest, x_test, ratio_test, names: List[str]) -> Dict[str, float]
     return dict(zip(names, result.importances_mean.tolist()))
 
 
-def study_component(component: str, rows, x, names, fold, bias: np.ndarray) -> Dict:
+def study_component(component: str, rows, x, names, fold, bias: np.ndarray, model_sigma: np.ndarray) -> Dict:
     """Held-out metrics per method and mean feature importance for one sigma component, after removing the bias."""
     raw = np.array([float(r[f"res_{component}"]) for r in rows])
     residual = raw - bias
     base = np.array([float(r[f"sigma_{component}"]) for r in rows])
     valid = base > 0
     raw, residual, base, x_c, fold_c = raw[valid], residual[valid], base[valid], x[valid], fold[valid]
+    model_sigma = model_sigma[valid]
     ratio = np.abs(residual) / base
     sigma = {m: np.empty_like(base) for m in METHODS}
     importances = []
@@ -152,6 +155,7 @@ def study_component(component: str, rows, x, names, fold, bias: np.ndarray) -> D
         test, train = fold_c == k, fold_c != k
         sigma["baseline"][test] = base[test]
         sigma["baseline_scaled"][test] = base[test] * scale_for_coverage(ratio[train])
+        sigma["error_model"][test] = model_sigma[test]
         factor, forest = fit_fold(x_c[train], ratio[train], x_c[test])
         sigma["rf"][test] = base[test] * factor
         importances.append(importance(forest, x_c[test], ratio[test], names))
@@ -208,15 +212,15 @@ def plot_importance(report: Dict, path: Path) -> None:
 
 
 def run(paths: List[Path], output_dir: Path, keep_bias: bool = False) -> Dict:
-    rows = read_rows(paths)
+    rows = read_tables(paths)
     x, names = design_matrix(rows)
     fold, fold_kind = folds(rows)
-    bias = np.zeros((len(rows), len(SIGMA_COMPONENTS))) if keep_bias else held_out_bias(rows, fold)
+    bias, model_sigma = held_out_models(rows, fold, keep_bias)
     report = {
         "inputs": [str(p) for p in paths], "n_rows": len(rows), "folds": fold_kind,
         "n_folds": int(len(np.unique(fold))), "n_recordings": len({r["recording"] for r in rows}),
         "keep_bias": keep_bias, "features": names, "forest": {k: v for k, v in FOREST.items() if k != "n_jobs"},
-        "components": {c: study_component(c, rows, x, names, fold, bias[:, i])
+        "components": {c: study_component(c, rows, x, names, fold, bias[:, i], model_sigma[:, i])
                        for i, c in enumerate(SIGMA_COMPONENTS)},
     }
     output_dir.mkdir(parents=True, exist_ok=True)

@@ -9,9 +9,12 @@ Runs the weights on the dataset's val split and writes error_model.json next to 
 - score_calibration: isotonic fit of P(true positive | raw score), with the ECE of the raw score.
 
 The val split must not overlap the training data (trainit's chunked split), or the errors are underestimated.
+With --residuals, the localization is fitted instead on residual tables from build-residuals (markit output against
+human GT of recordings the detector was not trained on); score calibration is then left out (no p_exist).
 """
 
 import argparse
+import csv
 import json
 import logging
 import math
@@ -29,6 +32,8 @@ from savant_common.quality import (
     MEAN_FORM,
     MODEL_FORM,
     MODEL_SCHEMA,
+    MODEL_SOURCES,
+    SCORED_ORIGINS,
     SIGMA_COMPONENTS,
     SIZE_PX,
     error_model_path,
@@ -151,10 +156,23 @@ def fit_sigma(residuals: np.ndarray, sizes: np.ndarray,
     return coefficients
 
 
-def fit_class(residuals: np.ndarray, sizes: np.ndarray) -> dict:
-    """Bias and spread coefficients of one class (or of all classes pooled)."""
+def fit_class(residuals: np.ndarray, sizes: np.ndarray, with_mean: bool = True) -> dict:
+    """Bias and spread coefficients of one class (or of all classes pooled); without a mean, sigma covers the bias."""
+    if not with_mean:
+        return {"sigma": fit_sigma(residuals, sizes), "n": len(residuals)}
     mean = fit_mean(residuals, sizes)
     return {"mean": mean, "sigma": fit_sigma(residuals, sizes, mean), "n": len(residuals)}
+
+
+def fit_localization(residuals: np.ndarray, sizes: np.ndarray, classes: np.ndarray, with_mean: bool = True) -> dict:
+    """Pooled (`_all`) and per-class coefficients, for classes with at least MIN_CLASS_MATCHES boxes."""
+    by_class = {ALL_CLASSES: fit_class(residuals, sizes, with_mean)}
+    for name in sorted(set(classes.tolist())):
+        own = classes == name
+        if own.sum() >= MIN_CLASS_MATCHES:
+            by_class[name] = fit_class(residuals[own], sizes[own], with_mean)
+    return {"by_class": by_class, "model_form": MODEL_FORM, "mean_form": MEAN_FORM, "size_px": SIZE_PX,
+            "iou_match": IOU_MATCH}
 
 
 def isotonic(scores: np.ndarray, hits: np.ndarray) -> Tuple[List[float], List[float]]:
@@ -183,19 +201,52 @@ def expected_calibration_error(probabilities: np.ndarray, hits: np.ndarray, bins
 
 
 def localization(matches: list, names: Dict[int, str]) -> dict:
-    """Per-class and pooled coefficients from all matches."""
-    by_class_rows: Dict[str, list] = {}
-    for cls, pred, truth in matches:
-        by_class_rows.setdefault(names.get(cls, str(cls)), []).append((residual(pred, truth), truth))
-    groups = {ALL_CLASSES: [row for rows in by_class_rows.values() for row in rows]}
-    groups.update({name: rows for name, rows in by_class_rows.items() if len(rows) >= MIN_CLASS_MATCHES})
-    by_class = {}
-    for name, rows in groups.items():
-        residuals = np.array([r for r, _ in rows], dtype=float)
-        sizes = np.array([math.sqrt(t[2] * t[3]) for _, t in rows], dtype=float)
-        by_class[name] = fit_class(residuals, sizes)
-    return {"by_class": by_class, "model_form": MODEL_FORM, "mean_form": MEAN_FORM, "size_px": SIZE_PX,
-            "iou_match": IOU_MATCH}
+    """Per-class and pooled coefficients from all matches (size of the true box)."""
+    residuals = np.array([residual(pred, truth) for _, pred, truth in matches], dtype=float)
+    sizes = np.array([math.sqrt(truth[2] * truth[3]) for _, _, truth in matches], dtype=float)
+    classes = np.array([names.get(cls, str(cls)) for cls, _, _ in matches])
+    return fit_localization(residuals, sizes, classes)
+
+
+def read_tables(paths) -> List[Dict[str, str]]:
+    """Rows of build-residuals CSV tables."""
+    rows = []
+    for path in paths:
+        with Path(path).open(newline="") as f:
+            rows.extend(csv.DictReader(f))
+    return rows
+
+
+def model_box(row: Dict[str, str]) -> bool:
+    """A box the error model describes: made by the detector itself (not oflow, not interpolated)."""
+    return row.get("source") in MODEL_SOURCES and row.get("origin") in SCORED_ORIGINS
+
+
+def table_arrays(rows: List[Dict[str, str]]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """(residuals N x 5, sizes sqrt(w*h) of the auto box, auto classes) of residual-table rows."""
+    residuals = np.array([[float(r[f"res_{c}"]) for c in SIGMA_COMPONENTS] for r in rows], dtype=float)
+    sizes = np.array([math.sqrt(float(r["w"]) * float(r["h"])) for r in rows], dtype=float)
+    classes = np.array([r.get("auto_class") or "" for r in rows])
+    return residuals, sizes, classes
+
+
+def fit_from_residuals(weights, tables: Sequence) -> dict:
+    """The error model document of these weights from residual tables of independent GT recordings."""
+    rows = [r for r in read_tables(tables) if model_box(r)]
+    if not rows:
+        raise ValueError(f"No detector boxes ({MODEL_SOURCES}, origin {SCORED_ORIGINS}) in {list(tables)}")
+    recordings = sorted({r["recording"] for r in rows})
+    logger.info(f"Error model: {len(rows)} matched detector boxes from {len(recordings)} recording(s)")
+    return {
+        "schema": MODEL_SCHEMA,
+        "tool": f"fit_error_model/{__version__}",
+        "model": {"file": Path(weights).name, "sha256": sha256_file(weights)},
+        "dataset": {"residual_tables": [str(t) for t in tables], "recordings": recordings, "boxes": len(rows),
+                    "split": "independent GT recordings (build-residuals); size of the detected box"},
+        "localization": fit_localization(*table_arrays(rows)),
+        "score_calibration": None,
+        "metrics": {},
+    }
 
 
 def score_calibration(scored: list) -> dict:
@@ -259,10 +310,15 @@ def write(document: dict, weights) -> Path:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=f"Fit {ERROR_MODEL_FILE} of YOLO OBB weights on a val split")
+    parser = argparse.ArgumentParser(description=f"Fit {ERROR_MODEL_FILE} of YOLO OBB weights on a val split "
+                                                 "or on residual tables")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--weights", required=True, help="Trained weights (.pt); the model is written next to them")
-    parser.add_argument("--data", required=True, help="Dataset YAML with a val split not used for training")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--data", help="Dataset YAML with a val split not used for training")
+    source.add_argument("--residuals", nargs="+", metavar="CSV",
+                        help="Instead of --data: build-residuals tables of recordings the detector was not trained on "
+                             "(localization only, no score calibration)")
     parser.add_argument("--imgsz", type=int, default=None, help="Inference image size (default: the model's)")
     parser.add_argument("--device", default=None, help="Device, e.g. 0 or cpu")
     parser.add_argument("--provenance", default=None,
@@ -282,7 +338,9 @@ def record_provenance(args: argparse.Namespace, started_at: str, model_path: Pat
                                  description="SAVANT trainit error model")
     chain.add(started_at=started_at, ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
               tool_name="fit_error_model", tool_version=__version__, operation="error model fit",
-              inputs=[args.weights, args.data], input_formats=["PT", "YAML"], outputs=[str(model_path)],
+              inputs=[args.weights] + ([args.data] if args.data else list(args.residuals)),
+              input_formats=["PT"] + (["YAML"] if args.data else ["CSV"] * len(args.residuals)),
+              outputs=[str(model_path)],
               output_formats=[provenance.output_format("model", 1)], output_roles=[ROLE_QUALITY],
               arguments=arguments_string(build_parser(), args), capture_agent=True, agent_type="automated",
               capture_environment=True)
@@ -296,7 +354,9 @@ def main():
     args = build_parser().parse_args()
     started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     try:
-        path = write(fit(args.weights, args.data, args.imgsz, args.device), args.weights)
+        document = (fit(args.weights, args.data, args.imgsz, args.device) if args.data
+                    else fit_from_residuals(args.weights, args.residuals))
+        path = write(document, args.weights)
     except (OSError, ValueError, KeyError) as e:
         logger.error(f"Error model fit failed: {e}")
         sys.exit(1)

@@ -8,7 +8,9 @@ import pytest
 from trainit.fit_error_model import (
     expected_calibration_error,
     fit_class,
+    fit_from_residuals,
     fit_sigma,
+    line,
     isotonic,
     match_image,
     residual,
@@ -65,3 +67,35 @@ def test_val_pairs_follow_yolo_layout(tmp_path):
     (tmp_path / "images" / "val" / "f1.jpg").write_bytes(b"")
     (tmp_path / "data.yaml").write_text(f"path: {tmp_path}\ntrain: images/train\nval: images/val\n")
     assert val_pairs(tmp_path / "data.yaml") == [(tmp_path / "images/val/f1.jpg", tmp_path / "labels/val/f1.txt")]
+
+
+def test_fit_from_residuals_uses_detector_boxes_only(tmp_path):
+    """Residual tables give a localization model (no score calibration), from detected markit_yolo boxes only."""
+    import csv
+
+    from savant_common.quality import load_error_model
+
+    rng = np.random.default_rng(4)
+    columns = ["recording", "auto_class", "source", "origin", "w", "h"] + [f"res_{c}" for c in "cx cy w h r".split()]
+    table = tmp_path / "res.csv"
+    with table.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=columns)
+        writer.writeheader()
+        for i in range(400):
+            w, h = rng.uniform(40, 200), rng.uniform(20, 80)
+            source, origin, spread = (("markit_oflow", "detected", 50.0) if i % 4 == 0 else
+                                      ("markit_yolo", "interpolated", 50.0) if i % 4 == 1 else
+                                      ("markit_yolo", "detected", 1.0))
+            row = {"recording": "a", "auto_class": "Car", "source": source, "origin": origin, "w": w, "h": h}
+            row.update({f"res_{c}": rng.normal(0, spread) for c in "cx cy w h r".split()})
+            row["res_w"] += 5.0
+            writer.writerow(row)
+    weights = tmp_path / "best.pt"
+    weights.write_bytes(b"weights")
+    document = fit_from_residuals(weights, [table])
+    (tmp_path / "error_model.json").write_text(__import__("json").dumps(document))
+    model = load_error_model(weights)
+    assert model is not None and model["score_calibration"] is None and model["dataset"]["boxes"] == 200
+    car = model["localization"]["by_class"]["Car"]
+    assert line(car["mean"]["w"], np.array([100.0]))[0] == pytest.approx(5.0, abs=0.5)
+    assert line(car["sigma"]["cx"], np.array([100.0]))[0] == pytest.approx(1.0, abs=0.3)
