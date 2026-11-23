@@ -1,0 +1,1895 @@
+{
+  "metadata": {
+    "input_video": "TestVids/Kraklanda_short/Kraklanda_short.mp4",
+    "output_json": "TestVids/Kraklanda_short/Kraklanda_short_2.6.4.json",
+    "yolo_conf_threshold": 0.25
+  },
+  "detection": [
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 1,
+      "reason": "IoU=0.38 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.3795,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 4,
+      "frame": 1,
+      "reason": "IoU=0.37 with yolo object 1 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 1,
+        "iou": 0.3687,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 1,
+      "reason": "IoU=0.46 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.457,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 2,
+      "reason": "IoU=0.36 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.3643,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 4,
+      "frame": 2,
+      "reason": "IoU=0.37 with yolo object 1 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 1,
+        "iou": 0.3707,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 2,
+      "reason": "IoU=0.43 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4315,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 3,
+      "reason": "IoU=0.36 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.355,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 4,
+      "frame": 3,
+      "reason": "IoU=0.33 with yolo object 1 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 1,
+        "iou": 0.3322,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 3,
+      "reason": "IoU=0.44 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.44,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 4,
+      "reason": "IoU=0.34 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.3443,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 4,
+      "frame": 4,
+      "reason": "IoU=0.31 with yolo object 1 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 1,
+        "iou": 0.3122,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 4,
+      "reason": "IoU=0.44 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4375,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 5,
+      "reason": "IoU=0.33 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.3263,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 5,
+      "reason": "IoU=0.43 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4295,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 6,
+      "reason": "IoU=0.32 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.3157,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 6,
+      "reason": "IoU=0.42 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4194,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 7,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3875,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 8,
+      "reason": "IoU=0.31 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.3145,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 6,
+      "frame": 8,
+      "reason": "IoU=0.49 with yolo object 7 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 7,
+        "iou": 0.4859,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 8,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3906,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 9,
+      "reason": "IoU=0.32 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.3157,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 6,
+      "frame": 9,
+      "reason": "IoU=0.37 with yolo object 7 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 7,
+        "iou": 0.3734,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 9,
+      "reason": "IoU=0.42 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4195,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 10,
+      "reason": "IoU=0.32 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.317,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 6,
+      "frame": 10,
+      "reason": "IoU=0.37 with yolo object 7 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 7,
+        "iou": 0.368,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 10,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4096,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 11,
+      "reason": "IoU=0.32 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.3216,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 8,
+      "frame": 11,
+      "reason": "IoU=0.39 with yolo object 7 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 7,
+        "iou": 0.3891,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 11,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4048,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 12,
+      "reason": "IoU=0.32 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.316,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 8,
+      "frame": 12,
+      "reason": "IoU=0.40 with yolo object 7 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 7,
+        "iou": 0.4008,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 12,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3867,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 3,
+      "frame": 13,
+      "reason": "IoU=0.31 with yolo object 2 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 2,
+        "iou": 0.3121,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 8,
+      "frame": 13,
+      "reason": "IoU=0.44 with yolo object 7 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 7,
+        "iou": 0.4445,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 13,
+      "reason": "IoU=0.38 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3776,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 8,
+      "frame": 14,
+      "reason": "IoU=0.43 with yolo object 7 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 7,
+        "iou": 0.4345,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 14,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3987,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 8,
+      "frame": 15,
+      "reason": "IoU=0.38 with yolo object 7 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 7,
+        "iou": 0.3835,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 15,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3884,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 8,
+      "frame": 16,
+      "reason": "IoU=0.35 with yolo object 7 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 7,
+        "iou": 0.3456,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 16,
+      "reason": "IoU=0.38 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3805,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 8,
+      "frame": 17,
+      "reason": "IoU=0.31 with yolo object 7 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 7,
+        "iou": 0.3054,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 17,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.392,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 4,
+      "frame": 18,
+      "reason": "IoU=0.31 with yolo object 1 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 1,
+        "iou": 0.3054,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 18,
+      "reason": "IoU=0.38 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3807,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 4,
+      "frame": 19,
+      "reason": "IoU=0.31 with yolo object 1 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 1,
+        "iou": 0.3068,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 19,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3954,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 20,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.407,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 21,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3902,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 4,
+      "frame": 22,
+      "reason": "IoU=0.30 with yolo object 1 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 1,
+        "iou": 0.3033,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 22,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3916,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 23,
+      "reason": "IoU=0.38 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3818,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 24,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.402,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 25,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4057,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 26,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4011,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 27,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3977,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 28,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3912,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 29,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4055,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 30,
+      "reason": "IoU=0.42 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4166,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 31,
+      "reason": "IoU=0.42 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4194,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 32,
+      "reason": "IoU=0.43 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4301,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 33,
+      "reason": "IoU=0.46 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.461,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 34,
+      "reason": "IoU=0.47 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4655,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 35,
+      "reason": "IoU=0.45 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4453,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 36,
+      "reason": "IoU=0.44 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4399,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 37,
+      "reason": "IoU=0.45 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4513,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 38,
+      "reason": "IoU=0.44 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.441,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 39,
+      "reason": "IoU=0.43 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4322,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 40,
+      "reason": "IoU=0.43 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4319,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 41,
+      "reason": "IoU=0.37 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3686,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 42,
+      "reason": "IoU=0.35 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3524,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 43,
+      "reason": "IoU=0.37 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3651,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 44,
+      "reason": "IoU=0.37 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3655,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 45,
+      "reason": "IoU=0.35 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3541,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 46,
+      "reason": "IoU=0.37 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3715,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 47,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3862,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 48,
+      "reason": "IoU=0.37 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.367,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 49,
+      "reason": "IoU=0.38 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3849,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 50,
+      "reason": "IoU=0.36 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3635,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 51,
+      "reason": "IoU=0.37 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3683,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 52,
+      "reason": "IoU=0.38 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3817,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 53,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4036,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 54,
+      "reason": "IoU=0.45 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4502,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 55,
+      "reason": "IoU=0.45 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4475,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 56,
+      "reason": "IoU=0.45 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.447,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 57,
+      "reason": "IoU=0.44 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4389,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 58,
+      "reason": "IoU=0.43 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4349,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 59,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4135,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 60,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3968,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 61,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4081,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 62,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4029,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 63,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4076,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 64,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4047,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 65,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4101,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 66,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4105,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 67,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4094,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 68,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4048,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 69,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.394,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 70,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3908,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 71,
+      "reason": "IoU=0.42 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4164,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 72,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.415,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 73,
+      "reason": "IoU=0.43 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4274,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 74,
+      "reason": "IoU=0.42 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4193,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 75,
+      "reason": "IoU=0.43 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4292,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 76,
+      "reason": "IoU=0.41 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.4128,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 77,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3969,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 78,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3923,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 79,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3885,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 80,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3887,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 81,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3999,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 82,
+      "reason": "IoU=0.40 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3961,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 83,
+      "reason": "IoU=0.38 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3846,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 84,
+      "reason": "IoU=0.37 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3717,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 85,
+      "reason": "IoU=0.38 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3821,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 86,
+      "reason": "IoU=0.38 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.38,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 87,
+      "reason": "IoU=0.39 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3864,
+        "iou_threshold": 0.3
+      }
+    },
+    {
+      "stage": "detection",
+      "source": "conflict_resolution",
+      "action": "drop_detection",
+      "object_id": 5,
+      "frame": 88,
+      "reason": "IoU=0.37 with yolo object 0 >= threshold 0.3",
+      "details": {
+        "losing_engine": "optical_flow",
+        "winning_engine": "yolo",
+        "winning_object_id": 0,
+        "iou": 0.3691,
+        "iou_threshold": 0.3
+      }
+    }
+  ],
+  "housekeeping": [
+    {
+      "action": "gap_detected",
+      "object_id": "4",
+      "frame_range": {
+        "start": 17,
+        "end": 20
+      },
+      "reason": "missing 2 frame(s) between 17 and 20",
+      "details": {
+        "gap_size": 2
+      },
+      "stage": "housekeeping",
+      "source": "GapDetectionPass"
+    },
+    {
+      "action": "gap_detected",
+      "object_id": "4",
+      "frame_range": {
+        "start": 21,
+        "end": 23
+      },
+      "reason": "missing 1 frame(s) between 21 and 23",
+      "details": {
+        "gap_size": 1
+      },
+      "stage": "housekeeping",
+      "source": "GapDetectionPass"
+    },
+    {
+      "action": "gap_detected",
+      "object_id": "3",
+      "frame_range": {
+        "start": 7,
+        "end": 14
+      },
+      "reason": "missing 6 frame(s) between 7 and 14",
+      "details": {
+        "gap_size": 6
+      },
+      "stage": "housekeeping",
+      "source": "GapDetectionPass"
+    },
+    {
+      "action": "remove_object",
+      "object_id": "6",
+      "reason": "frame_count 1 < min_frames 15",
+      "details": {
+        "type": "DynamicObject",
+        "frame_count": 1,
+        "min_frames": 15
+      },
+      "stage": "housekeeping",
+      "source": "ShortDurationPass"
+    },
+    {
+      "action": "merge_objects",
+      "object_ids": [
+        "4",
+        "1"
+      ],
+      "frame_range": {
+        "start": 5,
+        "end": 88
+      },
+      "reason": "avg_iomin=0.97 > 0.7",
+      "details": {
+        "deleted_object": "4",
+        "kept_object": "1",
+        "deleted_engine": "oflow",
+        "kept_engine": "yolo",
+        "shared_ratio": 1.0,
+        "avg_iou": 0.2277,
+        "min_iou": 0.1696,
+        "avg_iomin": 0.9661,
+        "matched_by": "iomin"
+      },
+      "stage": "housekeeping",
+      "source": "DuplicateRemovalPass"
+    },
+    {
+      "action": "merge_objects",
+      "object_ids": [
+        "3",
+        "2"
+      ],
+      "frame_range": {
+        "start": 7,
+        "end": 23
+      },
+      "reason": "avg_iou=0.30 > 0.3 and min_iou=0.27 > 0.2",
+      "details": {
+        "deleted_object": "3",
+        "kept_object": "2",
+        "deleted_engine": "oflow",
+        "kept_engine": "yolo",
+        "shared_ratio": 0.7059,
+        "avg_iou": 0.3007,
+        "min_iou": 0.2703,
+        "avg_iomin": 0.8521,
+        "matched_by": "iou"
+      },
+      "stage": "housekeeping",
+      "source": "DuplicateRemovalPass"
+    },
+    {
+      "action": "merge_objects",
+      "object_ids": [
+        "8",
+        "7"
+      ],
+      "frame_range": {
+        "start": 18,
+        "end": 88
+      },
+      "reason": "avg_iou=0.45 > 0.3 and min_iou=0.32 > 0.2",
+      "details": {
+        "deleted_object": "8",
+        "kept_object": "7",
+        "deleted_engine": "oflow",
+        "kept_engine": "yolo",
+        "shared_ratio": 1.0,
+        "avg_iou": 0.4526,
+        "min_iou": 0.3239,
+        "avg_iomin": 0.9731,
+        "matched_by": "iou"
+      },
+      "stage": "housekeeping",
+      "source": "DuplicateRemovalPass"
+    }
+  ]
+}

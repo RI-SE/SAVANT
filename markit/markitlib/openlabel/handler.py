@@ -48,7 +48,7 @@ def marker_gps_vec(id_name: str, marker_id: int, corners: Dict[str, Dict], descr
     for key in MARKER_SD_KEYS:
         if any(key in corners[corner] for corner in ordered):
             vec.append({"name": key, "val": [str(corners[corner].get(key, UNKNOWN_SD)) for corner in ordered]})
-    vec.append({"name": "description", "val": description})
+    vec.append({"name": "description", "val": [description]})  # OpenLABEL vec values are lists
     return vec
 
 

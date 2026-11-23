@@ -5,6 +5,18 @@
 >
 > **Versioning discontinuity:** versions `1.0.0`–`1.3.2` belong to an earlier, pre-monorepo project (a single `savant_app`, no root `pyproject.toml`). The restructure into today's `markit` / `edit` / `trainit` / `savant_common` layout (commit `acde3ea`, 2025-11-25) introduced the current root `pyproject.toml`, which restarted its own version count at `1.0.0` and then jumped straight to `2.0.0` twelve days later ("Bump versions", commit `1092f13`) to mark the restructure. So `2.0.0` is the first version of the project *as it exists today*; the `1.x` entries below describe the predecessor codebase.
 
+## [2.6.5] - 2026-11-24
+_OpenLABEL schema 1.2.0 (strict subset of ASAM OpenLABEL); error model for the default weights; TestVids re-run._
+
+### Added
+- markit: `markit/error_model.json` for the default `markit_yolo.pt` (fitted on BorasEkas ground truth, 1075 boxes). markit, and FieldDataLab's orchestrator through it, now writes measured box σ (and offsets in `metadata.quality`) instead of the default σ when the default weights are used.
+- TestVids: re-run with markit 2.6.4 (all features, VLM), new Ekas_T example, `run_markit_testvids.sh` to reproduce; provenance files scrubbed of user, host, home paths and VLM URL (`<redacted>`).
+
+### Changed
+- **OpenLABEL schema 1.2.0** (`metadata.schema_version`, was `1.1`): the SAVANT subset is now a strict subset of ASAM OpenLABEL 1.0.0 apart from the version string. Object-level `vec` values are lists of numbers or strings (housekeeping `size_step`/`staticdynamic` frame lists were rejected before, a bare string is no longer allowed), `rbbox.val` is exactly 5 numbers, tags require `ontology_uid`, and keys OpenLABEL does not allow are rejected (`additionalProperties: false` where OpenLABEL has it).
+- markit and edit write `schema_version` `1.2.0` (one constant, `savant_common.openlabel.SCHEMA_VERSION`); edit sets it on every save and on new templates (was `1.0.0`).
+- markit writes the marker `description` vec as a list; edit converts the old scalar form to a list on load, so saved files follow the schema.
+
 ## [2.6.4] - 2026-11-23
 _edit autosave; app dependencies published as extras; Ultralytics ≥ 8.4.155 (YOLO26)._
 

@@ -1,0 +1,247 @@
+{
+  "prefix": {
+    "dataprov": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#",
+    "prov": "http://www.w3.org/ns/prov#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "savant": "https://ri-se.github.io/SAVANT/ns#",
+    "su": "https://das-rise.github.io/scenario-uncertainty/ns#"
+  },
+  "dataprov:metadata": {
+    "version": "3.0",
+    "created": "2026-11-23T21:18:11.129104Z",
+    "lastModified": "2026-11-23T21:18:11.126147Z",
+    "rootEntityId": "savant_markit_output",
+    "description": "SAVANT markit video processing",
+    "initialSource": "TestVids/Kraklanda_short/Kraklanda_short.mp4",
+    "tags": []
+  },
+  "entity": {
+    "savant_markit_output": {
+      "prov:type": "dataprov:RootEntity",
+      "prov:atLocation": "TestVids/Kraklanda_short/Kraklanda_short.mp4"
+    },
+    "entity:TestVids/Kraklanda_short/Kraklanda_short.mp4": {
+      "prov:type": "dataprov:DataFile",
+      "dataprov:format": "MP4",
+      "dataprov:checksum": "sha256:fc75288b0b13aa79a86c43d206c8b34a0acd18723553fc457cb0261150dc8c1f",
+      "dataprov:sizeBytes": 12351864
+    },
+    "entity:<redacted>/fwrise/SAVANT/schema/savant_openlabel_subset.schema.json": {
+      "prov:type": "dataprov:DataFile",
+      "dataprov:format": "JSON",
+      "dataprov:checksum": "sha256:2d573f2ac70cbe279b5b91fd8826a5dde5d43c46d9db037c38d52b4eb7edd4c0",
+      "dataprov:sizeBytes": 19684
+    },
+    "entity:<redacted>/fwrise/SAVANT/ontology/savant.ttl": {
+      "prov:type": "dataprov:DataFile",
+      "dataprov:format": "TTL",
+      "dataprov:checksum": "sha256:ec51b47b4989c9f26bf1ac767627100c1254dd4aeed35cdde8085c9e44e52e4d",
+      "dataprov:sizeBytes": 5408
+    },
+    "entity:<redacted>/fwrise/work/ekas1119/weights/markit_yolo.pt": {
+      "prov:type": "dataprov:DataFile",
+      "dataprov:format": "PT",
+      "dataprov:checksum": "sha256:a8f4b89dec934052a790592b2b1151f011f97ff67d6dd264e95f753466f9d03f",
+      "dataprov:sizeBytes": 84190748
+    },
+    "entity:<redacted>/fwrise/work/ekas1119/weights/error_model.json": {
+      "prov:type": "dataprov:DataFile",
+      "dataprov:format": "scenario-uncertainty/model/1",
+      "dataprov:checksum": "sha256:854e671ed088fc16213b1dddea0a840995debe485a2be2d20860f6f15fd885d8",
+      "dataprov:sizeBytes": 2316
+    },
+    "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.json": {
+      "prov:type": "dataprov:DataFile",
+      "dataprov:format": "JSON",
+      "dataprov:checksum": "sha256:406111e967f78fe1358df44b668fde9c01c1bafd0d42902b777c0bdee27d1cb2",
+      "dataprov:sizeBytes": 389563
+    },
+    "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.mp4": {
+      "prov:type": "dataprov:DataFile",
+      "dataprov:format": "MP4",
+      "dataprov:checksum": "sha256:2ec92b6dca23cd0f2027d35cc6d17e7b50dcf6c76b9d92be4dfb401766c534a7",
+      "dataprov:sizeBytes": 10204001
+    },
+    "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.decisions.json": {
+      "prov:type": "dataprov:DataFile",
+      "dataprov:format": "JSON",
+      "dataprov:checksum": "sha256:ab090265c662c6140f1561aa2ab51137f6a3839648f348eaccb88dd71f30e96d",
+      "dataprov:sizeBytes": 50590
+    }
+  },
+  "activity": {
+    "activity:step_1": {
+      "prov:startedAtTime": "2026-11-23T21:06:37.292682Z",
+      "dataprov:operation": "object detection and tracking",
+      "prov:endedAtTime": "2026-11-23T21:18:11.126147Z",
+      "dataprov:arguments": "--input TestVids/Kraklanda_short/Kraklanda_short.mp4 --output_json TestVids/Kraklanda_short/Kraklanda_short_2.6.4.json --weights <redacted>/fwrise/work/ekas1119/weights/markit_yolo.pt --schema <redacted>/fwrise/SAVANT/schema/savant_openlabel_subset.schema.json --ontology <redacted>/fwrise/SAVANT/ontology/savant.ttl --output_video TestVids/Kraklanda_short/Kraklanda_short_2.6.4.mp4 --provenance TestVids/Kraklanda_short/Kraklanda_short_2.6.4.prov.json --decision-log TestVids/Kraklanda_short/Kraklanda_short_2.6.4.decisions.json --detection-method both --conf 0.25 --motion-threshold 2.0 --min-object-area 2000 --max-object-area 30000 --track-max-age 5 --flow-algorithm dis --flow-temporal-smoothing 0.3 --flow-pyramid-levels 7 --flow-window-size 25 --flow-iterations 5 --flow-median-filter 5 --flow-scale 0.5 --aruco-dict DICT_4X4_50 --flow-mask-mode flow_only --flow-dilate-size 0 --flow-morph-close 3 --flow-morph-open 9 --iou-threshold 0.3 --housekeeping --duplicate-avg-iou 0.3 --duplicate-min-iou 0.2 --duplicate-min-shared-ratio 0.5 --duplicate-iomin 0.7 --rotation-threshold 0.1 --min-movement-pixels 5.0 --rotation-smoothing 0.5 --min-total-movement 30.0 --max-rotation-change 0.524 --edge-distance 200 --static-threshold 20 --static-mark --min-duration 15 --jitter-angle-threshold 100.0 --jitter-min-run 3 --jitter-min-speed 3.0 --jitter-mark --max-gap-size 30 --vlm --vlm-model qwen38next-medium --vlm-url <redacted> --vlm-sampling uniform --vlm-interval 15 --vlm-max-frames 6 --vlm-timeout 600 --vlm-max-resolution 1080 --vlm-delay 0.0 --vlm-rationale",
+      "dataprov:warnings": "[su:default_used] defaults used: sigma_px, origin_rule\n[su:uncalibrated_confidence] no score calibration: boxes have the raw score only, no p_exist",
+      "savant:ultralytics_version": "8.4.216",
+      "savant:torch_version": "2.9.1+cu128",
+      "savant:yolo_tracker": "botsort.yaml",
+      "savant:yolo_task": "obb",
+      "savant:trained_from_architecture": "yolo11m-obb.pt",
+      "savant:trained_with_ultralytics_version": "8.3.204",
+      "su:share_interpolated": {
+        "value": 0.0,
+        "unit": "1",
+        "stat": "ratio",
+        "level": "none",
+        "basis": "measured",
+        "n": 283,
+        "source": "run_markit"
+      },
+      "su:share_reviewed": {
+        "value": 0.0,
+        "unit": "1",
+        "stat": "ratio",
+        "level": "none",
+        "basis": "measured",
+        "n": 283,
+        "source": "run_markit"
+      },
+      "savant:origin_counts": {
+        "detected": 278,
+        "merged": 5
+      }
+    }
+  },
+  "agent": {
+    "agent:tool_run_markit_2.6.4_<redacted>": {
+      "prov:type": "prov:SoftwareAgent",
+      "dataprov:toolName": "run_markit",
+      "dataprov:toolVersion": "2.6.4",
+      "dataprov:runtime": "CPython",
+      "dataprov:runtimeVersion": "3.12.4",
+      "dataprov:platform": "Linux-7.0.0-44-generic-x86_64-with-glibc2.43",
+      "dataprov:machine": "x86_64",
+      "dataprov:processor": "unknown",
+      "dataprov:user": "<redacted>",
+      "dataprov:hostname": "<redacted>",
+      "dataprov:agentType": "automated"
+    }
+  },
+  "used": {
+    "_:u_1_0": {
+      "prov:activity": "activity:step_1",
+      "prov:entity": "entity:TestVids/Kraklanda_short/Kraklanda_short.mp4"
+    },
+    "_:u_1_1": {
+      "prov:activity": "activity:step_1",
+      "prov:entity": "entity:<redacted>/fwrise/SAVANT/schema/savant_openlabel_subset.schema.json"
+    },
+    "_:u_1_2": {
+      "prov:activity": "activity:step_1",
+      "prov:entity": "entity:<redacted>/fwrise/SAVANT/ontology/savant.ttl"
+    },
+    "_:u_1_3": {
+      "prov:activity": "activity:step_1",
+      "prov:entity": "entity:<redacted>/fwrise/work/ekas1119/weights/markit_yolo.pt"
+    },
+    "_:u_1_4": {
+      "prov:activity": "activity:step_1",
+      "prov:entity": "entity:<redacted>/fwrise/work/ekas1119/weights/error_model.json"
+    }
+  },
+  "wasGeneratedBy": {
+    "_:g_1_0": {
+      "prov:entity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.json",
+      "prov:activity": "activity:step_1",
+      "prov:role": "dataprov:PrimaryOutput"
+    },
+    "_:g_1_1": {
+      "prov:entity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.mp4",
+      "prov:activity": "activity:step_1",
+      "prov:role": "dataprov:PrimaryOutput"
+    },
+    "_:g_1_2": {
+      "prov:entity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.decisions.json",
+      "prov:activity": "activity:step_1",
+      "prov:role": "dataprov:LogOutput"
+    }
+  },
+  "wasDerivedFrom": {
+    "_:d_1_0_0": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.json",
+      "prov:usedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short.mp4",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_0_1": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.json",
+      "prov:usedEntity": "entity:<redacted>/fwrise/SAVANT/schema/savant_openlabel_subset.schema.json",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_0_2": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.json",
+      "prov:usedEntity": "entity:<redacted>/fwrise/SAVANT/ontology/savant.ttl",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_0_3": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.json",
+      "prov:usedEntity": "entity:<redacted>/fwrise/work/ekas1119/weights/markit_yolo.pt",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_0_4": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.json",
+      "prov:usedEntity": "entity:<redacted>/fwrise/work/ekas1119/weights/error_model.json",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_1_0": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.mp4",
+      "prov:usedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short.mp4",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_1_1": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.mp4",
+      "prov:usedEntity": "entity:<redacted>/fwrise/SAVANT/schema/savant_openlabel_subset.schema.json",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_1_2": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.mp4",
+      "prov:usedEntity": "entity:<redacted>/fwrise/SAVANT/ontology/savant.ttl",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_1_3": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.mp4",
+      "prov:usedEntity": "entity:<redacted>/fwrise/work/ekas1119/weights/markit_yolo.pt",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_1_4": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.mp4",
+      "prov:usedEntity": "entity:<redacted>/fwrise/work/ekas1119/weights/error_model.json",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_2_0": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.decisions.json",
+      "prov:usedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short.mp4",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_2_1": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.decisions.json",
+      "prov:usedEntity": "entity:<redacted>/fwrise/SAVANT/schema/savant_openlabel_subset.schema.json",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_2_2": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.decisions.json",
+      "prov:usedEntity": "entity:<redacted>/fwrise/SAVANT/ontology/savant.ttl",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_2_3": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.decisions.json",
+      "prov:usedEntity": "entity:<redacted>/fwrise/work/ekas1119/weights/markit_yolo.pt",
+      "prov:activity": "activity:step_1"
+    },
+    "_:d_1_2_4": {
+      "prov:generatedEntity": "entity:TestVids/Kraklanda_short/Kraklanda_short_2.6.4.decisions.json",
+      "prov:usedEntity": "entity:<redacted>/fwrise/work/ekas1119/weights/error_model.json",
+      "prov:activity": "activity:step_1"
+    }
+  },
+  "wasAssociatedWith": {
+    "_:assoc_1": {
+      "prov:activity": "activity:step_1",
+      "prov:agent": "agent:tool_run_markit_2.6.4_<redacted>"
+    }
+  },
+  "wasAttributedTo": {}
+}

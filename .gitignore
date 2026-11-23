@@ -216,3 +216,6 @@ uncertainty.md
 
 # ASAM OpenLABEL ontology (third-party, not redistributed)
 ontology/openlabel_ontology_scenario_tags.ttl
+
+# Per-folder settings written by edit when a project folder is opened
+savant_project_config.json

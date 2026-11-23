@@ -40,6 +40,7 @@ from .confidence_ops import apply_bookmark_markers
 from .playback import _stop as stop
 from .render import show_frame
 from edit.utils import read_json
+from savant_common.openlabel import SCHEMA_VERSION
 
 
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".mpg", ".mpeg", ".m4v"}
@@ -171,7 +172,7 @@ def create_openlabel_template(
     template_payload = {
         "openlabel": {
             "metadata": {
-                "schema_version": "1.0.0",
+                "schema_version": SCHEMA_VERSION,
                 "tagged_file": video_filename or "",
                 "annotator": "",
             },

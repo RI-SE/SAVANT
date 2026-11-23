@@ -1,0 +1,122 @@
+{
+  "schema": "scenario-uncertainty/model/1",
+  "tool": "fit_error_model/2.6.1",
+  "model": {
+    "file": "markit_yolo.pt",
+    "sha256": "a8f4b89dec934052a790592b2b1151f011f97ff67d6dd264e95f753466f9d03f"
+  },
+  "dataset": {
+    "residual_tables": [
+      "<redacted>/fwrise/work/ekas1119/res.csv"
+    ],
+    "recordings": [
+      "BorasEkas"
+    ],
+    "boxes": 1075,
+    "split": "independent GT recordings (build-residuals); size of the detected box"
+  },
+  "localization": {
+    "by_class": {
+      "_all": {
+        "mean": {
+          "cx": [
+            -1.09498,
+            0.00056
+          ],
+          "cy": [
+            -6.01127,
+            -0.00184
+          ],
+          "w": [
+            -17.68213,
+            0.360539
+          ],
+          "h": [
+            -15.67834,
+            0.319385
+          ],
+          "r": [
+            0.00939,
+            -0.000126
+          ]
+        },
+        "sigma": {
+          "cx": [
+            3.39426,
+            0.0
+          ],
+          "cy": [
+            0.0,
+            0.032376
+          ],
+          "w": [
+            0.0,
+            0.065115
+          ],
+          "h": [
+            0.0,
+            0.039353
+          ],
+          "r": [
+            0.00375,
+            0.000239
+          ]
+        },
+        "n": 1075
+      },
+      "Car": {
+        "mean": {
+          "cx": [
+            0.06783,
+            -0.013197
+          ],
+          "cy": [
+            -6.82945,
+            0.007838
+          ],
+          "w": [
+            -20.05396,
+            0.388603
+          ],
+          "h": [
+            -19.77454,
+            0.367854
+          ],
+          "r": [
+            0.01319,
+            -0.000171
+          ]
+        },
+        "sigma": {
+          "cx": [
+            3.37848,
+            0.0
+          ],
+          "cy": [
+            0.0,
+            0.032289
+          ],
+          "w": [
+            0.0,
+            0.064528
+          ],
+          "h": [
+            0.0,
+            0.037432
+          ],
+          "r": [
+            0.00191,
+            0.000261
+          ]
+        },
+        "n": 1072
+      }
+    },
+    "model_form": "sigma = a + b*size_px",
+    "mean_form": "mean = a + b*size_px",
+    "size_px": "sqrt(w*h)",
+    "iou_match": 0.5
+  },
+  "score_calibration": null,
+  "metrics": {}
+}

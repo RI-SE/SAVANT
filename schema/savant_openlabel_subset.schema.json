@@ -11,7 +11,7 @@
           "properties": {
             "schema_version": {
               "type": "string",
-              "const": "1.1"
+              "const": "1.2.0"
             },
             "tagged_file": {
               "type": "string"
@@ -33,7 +33,8 @@
               "type": "string",
               "format": "uri"
             }
-          }
+          },
+          "additionalProperties": false
         },
         "objects": {
           "type": "object",
@@ -65,7 +66,8 @@
                     "required": [
                       "frame_start",
                       "frame_end"
-                    ]
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "object_data": {
@@ -80,17 +82,13 @@
                             "type": "string"
                           },
                           "val": {
-                            "oneOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "array",
-                                "items": {
-                                  "type": "string"
-                                }
-                              }
-                            ]
+                            "type": "array",
+                            "items": {
+                              "type": [
+                                "number",
+                                "string"
+                              ]
+                            }
                           }
                         },
                         "required": [
@@ -99,16 +97,19 @@
                         ]
                       }
                     }
-                  }
+                  },
+                  "additionalProperties": false
                 }
               },
               "required": [
                 "name",
                 "type",
                 "ontology_uid"
-              ]
+              ],
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "actions": {
           "type": "object",
@@ -140,7 +141,8 @@
                     "required": [
                       "frame_start",
                       "frame_end"
-                    ]
+                    ],
+                    "additionalProperties": false
                   }
                 }
               },
@@ -148,9 +150,11 @@
                 "name",
                 "type",
                 "ontology_uid"
-              ]
+              ],
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "relations": {
           "type": "object",
@@ -182,7 +186,8 @@
                     "required": [
                       "frame_start",
                       "frame_end"
-                    ]
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "rdf_subjects": {
@@ -240,9 +245,11 @@
                 "ontology_uid",
                 "rdf_subjects",
                 "rdf_objects"
-              ]
+              ],
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "contexts": {
           "type": "object",
@@ -275,7 +282,8 @@
                     "required": [
                       "frame_start",
                       "frame_end"
-                    ]
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "context_data": {
@@ -359,15 +367,18 @@
                         ]
                       }
                     }
-                  }
+                  },
+                  "additionalProperties": false
                 }
               },
               "required": [
                 "name",
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "tags": {
           "type": "object",
@@ -465,7 +476,8 @@
                             ]
                           }
                         }
-                      }
+                      },
+                      "additionalProperties": false
                     },
                     {
                       "type": "string"
@@ -474,10 +486,12 @@
                 }
               },
               "required": [
+                "ontology_uid",
                 "type"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         },
         "frames": {
           "type": "object",
@@ -505,11 +519,10 @@
                                   "val": {
                                     "type": "array",
                                     "items": {
-                                      "type": [
-                                        "number",
-                                        "string"
-                                      ]
-                                    }
+                                      "type": "number"
+                                    },
+                                    "minItems": 5,
+                                    "maxItems": 5
                                   }
                                 },
                                 "required": [
@@ -546,14 +559,17 @@
                           "required": [
                             "rbbox",
                             "vec"
-                          ]
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
                         "object_data"
-                      ]
+                      ],
+                      "additionalProperties": false
                     }
-                  }
+                  },
+                  "additionalProperties": false
                 },
                 "frame_properties": {
                   "type": "object",
@@ -583,9 +599,11 @@
               },
               "required": [
                 "objects"
-              ]
+              ],
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "streams": {
           "type": "object",
@@ -605,7 +623,8 @@
               "stream_properties": {
                 "type": "object"
               }
-            }
+            },
+            "additionalProperties": false
           }
         }
       },
@@ -616,10 +635,12 @@
         "actions",
         "relations",
         "frames"
-      ]
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
     "openlabel"
-  ]
+  ],
+  "additionalProperties": false
 }

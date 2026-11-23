@@ -362,7 +362,7 @@ Markit exports detections in OpenLabel (subset) JSON format, including informati
 {
   "openlabel": {
     "metadata": {
-      "schema_version": "1.1",
+      "schema_version": "1.2.0",
       "tagged_file": "Saro_roundabout.mp4",
       "annotator": "SAVANT Markit 2.0.3",
       "name": "SAVANT Markit 2.0.3 Analysis",
@@ -467,7 +467,7 @@ Each detection includes annotator identification and a confidence score in the v
 
 Each box also gets an `origin` entry aligned with the annotator history (`detected`, `interpolated` for gap-filled boxes, `merged` for boxes moved over from a removed duplicate). Gap-filled boxes also get `gap_distance`, the number of frames to the nearest real box.
 
-Every box (except ArUco markers) also gets `sigma_px` = [σcx, σcy, σw, σh, σrot] (px, px, px, px, rad). YOLO detections also get `p_exist`, the calibrated probability that the detection is real; the raw `confidence` is kept. Both come from the `error_model.json` next to the weights (written by trainit's [fit-error-model](../trainit/README.md#fit_error_modelpy)). Without it, σ uses the scenario-uncertainty default (2 % of the box size for the centre) and there is no `p_exist`; markit logs a warning. σ is halved for boxes a person made and grows with `gap_distance` for interpolated ones. `metadata.quality` records which model and defaults were used and the shares of interpolated and human-made boxes.
+Every box (except ArUco markers) also gets `sigma_px` = [σcx, σcy, σw, σh, σrot] (px, px, px, px, rad). YOLO detections also get `p_exist`, the calibrated probability that the detection is real; the raw `confidence` is kept. Both come from the `error_model.json` next to the weights (written by trainit's [fit-error-model](../trainit/README.md#fit_error_modelpy)). The default `markit_yolo.pt` ships with one (fitted on BorasEkas ground truth); it is ignored with a warning if the weights file is replaced, since it records the weights' sha256. Without it, σ uses the scenario-uncertainty default (2 % of the box size for the centre) and there is no `p_exist`; markit logs a warning. σ is halved for boxes a person made and grows with `gap_distance` for interpolated ones. `metadata.quality` records which model and defaults were used and the shares of interpolated and human-made boxes.
 
 See [Schema documentation](../schema/README.md#annotator-and-confidence-fields) for full details on multi-annotator tracking and [box origin](../schema/README.md#box-origin).
 

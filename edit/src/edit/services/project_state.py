@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Dict, List, Literal, Tuple
 
 from edit.models.OpenLabel import OpenLabel
-from savant_common.openlabel import EDIT_METADATA_KEY, HUMAN_ORIGINS, contiguous_intervals, source_confidence
+from savant_common.openlabel import (
+    EDIT_METADATA_KEY, HUMAN_ORIGINS, SCHEMA_VERSION, contiguous_intervals, source_confidence,
+)
 from savant_common.quality import apply_box_quality, count_origins, origin_shares
 from edit.services.autosave_service import delete_autosave
 from edit.utils import read_json, write_atomic
@@ -154,6 +156,7 @@ class ProjectState:
         """
         data = self.annotation_config.model_dump(mode="json")
         data["metadata"][EDIT_METADATA_KEY] = {"version": get_version()}
+        data["metadata"]["schema_version"] = SCHEMA_VERSION  # the export follows the current schema
         self._refresh_box_quality(data)
         frames_by_object = defaultdict(list)
         for frame_key, frame in (data.get("frames") or {}).items():
