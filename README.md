@@ -26,7 +26,7 @@ Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/).
 ```bash
 git clone git@github.com:RI-SE/SAVANT.git
 cd SAVANT
-uv sync
+uv sync --extra all-apps
 ```
 
 ## Repository Structure

@@ -24,7 +24,7 @@ jobs:
 
       - name: Sync dependencies (prod only)
         working-directory: ./edit/
-        run: uv sync --group edit
+        run: uv sync --extra edit
 
 
       - name: Build

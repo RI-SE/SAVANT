@@ -24,7 +24,7 @@ jobs:
           enable-cache: true
 
       - name: Sync dependencies
-        run: uv sync --group trainit
+        run: uv sync --extra trainit
 
       - name: Verify Trainit sources
         run: uv run python -m compileall trainit

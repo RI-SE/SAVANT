@@ -130,10 +130,9 @@ The package is automatically installed when you install the SAVANT toolkit:
 
 ```bash
 # Install in development mode from repository root
-pip install -e .
+uv sync --extra all-apps
 
-# Or install with dev dependencies
-pip install -e ".[dev]"
+# Development tools (pytest, flake8, …) are in the dev group, installed by uv sync by default
 ```
 
 ## Dependencies

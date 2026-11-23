@@ -5,6 +5,16 @@
 >
 > **Versioning discontinuity:** versions `1.0.0`–`1.3.2` belong to an earlier, pre-monorepo project (a single `savant_app`, no root `pyproject.toml`). The restructure into today's `markit` / `edit` / `trainit` / `savant_common` layout (commit `acde3ea`, 2025-11-25) introduced the current root `pyproject.toml`, which restarted its own version count at `1.0.0` and then jumped straight to `2.0.0` twelve days later ("Bump versions", commit `1092f13`) to mark the restructure. So `2.0.0` is the first version of the project *as it exists today*; the `1.x` entries below describe the predecessor codebase.
 
+## [Unreleased]
+
+### Changed
+- **Packaging: app dependencies are now extras** (`[project.optional-dependencies]`: `markit`, `trainit`, `study`,
+  `edit`, `all-apps`) instead of dependency groups. Groups are not published, so projects installing SAVANT got
+  none of markit's dependencies and had to list Ultralytics etc. themselves. Install with `savant[markit]` or
+  `uv sync --extra markit` (was `--group markit`); CI and READMEs updated. The `dev` group stays a group and now
+  includes `jsonschema` (the old `dev` extra is removed).
+- `ultralytics>=8.4.155` (YOLO26) for markit and trainit; lock at 8.4.216.
+
 ## [2.6.3] - 2026-11-23
 _Box-error study tools and a separate box bias in the error model. Includes 2.6.1 and 2.6.2._
 

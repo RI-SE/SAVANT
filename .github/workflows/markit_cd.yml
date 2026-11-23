@@ -24,7 +24,7 @@ jobs:
           enable-cache: true
 
       - name: Sync dependencies
-        run: uv sync --group markit
+        run: uv sync --extra markit
 
       - name: Build Markit distributions
         run: |

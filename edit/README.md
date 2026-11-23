@@ -14,7 +14,7 @@ Savant Edit is the desktop reviewer/annotator that lets you inspect OpenLabel da
    ```bash
    git clone git@github.com:RI-SE/SAVANT.git
    cd SAVANT/edit
-   uv sync --group edit --group dev
+   uv sync --extra edit --group dev
    ```
    The `edit` dependency group installs the PyQt6, OpenCV, numpy, rdflib, and appdirs packages that the GUI uses, while `dev` adds the optional tooling (flake8, black, pytest).
 3. **Launch the application** from the package source directory so Python can import `edit`:
@@ -182,7 +182,7 @@ Saving a project gives you the option to store the session’s configuration in 
 - **Application logs** are stored in two places:
   - `edit.log` in the directory where you launched the app (useful for quick checks).
   - A rotating log named `edit.log` under your OS’s application log folder (for example `~/.local/share/SAVANT/log/` on Linux). These files keep the last few sessions so you can share them when reporting bugs.
-- **Crashes or unexpected behavior**: reopen Savant Edit, load the project, and review the log file for detailed messages. Most issues can be resolved by reinstalling dependencies (`uv sync --group edit --group dev`) or double-checking that the OpenLabel JSON still has the expected structure.
+- **Crashes or unexpected behavior**: reopen Savant Edit, load the project, and review the log file for detailed messages. Most issues can be resolved by reinstalling dependencies (`uv sync --extra edit --group dev`) or double-checking that the OpenLabel JSON still has the expected structure.
 
 With these essentials you can install Savant Edit, open a project, review annotations, and keep everything in sync without needing to know the internal code layout.
 
