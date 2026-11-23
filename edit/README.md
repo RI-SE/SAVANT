@@ -14,7 +14,7 @@ Savant Edit is the desktop reviewer/annotator that lets you inspect OpenLabel da
    ```bash
    git clone git@github.com:RI-SE/SAVANT.git
    cd SAVANT/edit
-   uv sync --group edit --group dev
+   uv sync --extra edit --group dev
    ```
    The `edit` dependency group installs the PyQt6, OpenCV, numpy, rdflib, and appdirs packages that the GUI uses, while `dev` adds the optional tooling (flake8, black, pytest).
 3. **Launch the application** from the package source directory so Python can import `edit`:
@@ -154,6 +154,7 @@ Open `Help → Keyboard Shortcuts` to see a table of all available keyboard shor
 ### 4.9 Saving Projects
 - `Ctrl+S`, `File → Save project`, or the Save toolbar icon writes the OpenLabel JSON back to disk. Before saving, the app validates action tags to ensure each interval has a valid start/end.
 - After saving annotations you are asked whether to store the current settings (zoom, warning ranges, tag toggles, namespace, bookmarks, etc.) inside `savant_project_config.json`. Choosing "Yes" means next time the project opens it will look exactly the same without further tweaks.
+- **Autosave:** unsaved changes are written every few minutes (Settings → *Autosave interval*, default 5, 0 = off) to `.autosave/` in the project folder. If edit closes without saving (e.g. a crash), opening the file again offers to continue from the autosave; *Yes* restores it as unsaved changes (save to keep them), *No* deletes it. A manual save also deletes it. Autosave never replaces the project file.
 
 ---
 
@@ -182,7 +183,7 @@ Saving a project gives you the option to store the session’s configuration in 
 - **Application logs** are stored in two places:
   - `edit.log` in the directory where you launched the app (useful for quick checks).
   - A rotating log named `edit.log` under your OS’s application log folder (for example `~/.local/share/SAVANT/log/` on Linux). These files keep the last few sessions so you can share them when reporting bugs.
-- **Crashes or unexpected behavior**: reopen Savant Edit, load the project, and review the log file for detailed messages. Most issues can be resolved by reinstalling dependencies (`uv sync --group edit --group dev`) or double-checking that the OpenLabel JSON still has the expected structure.
+- **Crashes or unexpected behavior**: reopen Savant Edit, load the project, and review the log file for detailed messages. Most issues can be resolved by reinstalling dependencies (`uv sync --extra edit --group dev`) or double-checking that the OpenLabel JSON still has the expected structure.
 
 With these essentials you can install Savant Edit, open a project, review annotations, and keep everything in sync without needing to know the internal code layout.
 

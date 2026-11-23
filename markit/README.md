@@ -40,10 +40,10 @@ Markit is part of the SAVANT repository. Install from the repository root:
 # Clone and install with uv (recommended)
 git clone git@github.com:RI-SE/SAVANT.git
 cd SAVANT
-uv sync
+uv sync --extra markit
 
 # Or with pip
-pip install -e .
+pip install -e ".[markit]"
 ```
 
 Verify installation:

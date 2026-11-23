@@ -43,7 +43,7 @@ These tools are installed as part of the SAVANT package:
 
 ```bash
 # From repository root
-uv sync --dev
+uv sync --extra trainit
 
 # The tools are available as CLI commands
 trainit              # Launch the GUI application
@@ -869,7 +869,7 @@ build-residuals --gt GT.json --auto markit.json --video video.mp4 --recording si
 0), and `--every N` thins out the frames. Without `--video`, image and optical-flow features are left empty; give
 `--image-size W H` for the position features.
 
-4. Compare the methods on held-out recordings (requires the `study` group: `uv sync --group trainit --group study`):
+4. Compare the methods on held-out recordings (requires the `study` extra: `uv sync --extra trainit --extra study`):
 
 ```bash
 box-uncertainty-study res_*.csv --output-dir study/

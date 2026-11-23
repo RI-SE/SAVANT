@@ -5,6 +5,7 @@ The purpose of this controller is to facilitate frontend<->project_state
 communication while maintaining separation of concerns, and a decoupled frontend.
 """
 
+from edit.services.autosave_service import delete_autosave, pending_autosave
 from edit.services.project_state import ProjectState
 from .error_handler_middleware import error_handler
 
@@ -29,6 +30,16 @@ class ProjectStateController:
 
     def has_unsaved_changes(self) -> bool:
         return self.project_state.has_unsaved_changes()
+
+    def pending_autosave(self):
+        """Autosave newer than the loaded file and different from it, or None."""
+        return pending_autosave(self.project_state)
+
+    def restore_config(self, config) -> None:
+        self.project_state.restore_config(config)
+
+    def discard_autosave(self) -> None:
+        delete_autosave(self.project_state.open_label_path)
 
     @error_handler
     def boxes_for_frame(self, frame_idx: int):

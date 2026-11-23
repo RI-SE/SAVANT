@@ -10,6 +10,7 @@ from edit.frontend.theme.forms import style_checkbox
 from edit.frontend.utils.settings_store import (
     get_action_interval_offset,
     get_keyframe_interval,
+    get_autosave_minutes,
     get_bbox_zoom_padding,
     get_movement_sensitivity,
     get_ontology_namespace,
@@ -18,6 +19,7 @@ from edit.frontend.utils.settings_store import (
     get_zoom_rate,
     set_action_interval_offset,
     set_keyframe_interval,
+    set_autosave_minutes,
     set_movement_sensitivity,
     set_ontology_namespace,
     set_rotation_sensitivity,
@@ -215,6 +217,14 @@ class SettingsDialog(QDialog):
         self._keyframe_spin.setToolTip("Key-frame review: frames between key frames ('.' / ',' to jump, K to confirm)")
         self._keyframe_spin.valueChanged.connect(lambda value: set_keyframe_interval(int(value)))
         ontology_form.addRow("Key-frame interval (frames):", self._keyframe_spin)
+
+        self._autosave_spin = QSpinBox(self)
+        self._autosave_spin.setRange(0, 240)
+        self._autosave_spin.setValue(get_autosave_minutes())
+        self._autosave_spin.setSpecialValueText("Off")
+        self._autosave_spin.setToolTip("Save unsaved changes to .autosave/ in the project folder; offered on the next open")
+        self._autosave_spin.valueChanged.connect(lambda value: set_autosave_minutes(int(value)))
+        ontology_form.addRow("Autosave interval (minutes):", self._autosave_spin)
 
         form.addRow(ontology_group)
 

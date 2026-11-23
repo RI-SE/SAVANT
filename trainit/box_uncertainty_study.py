@@ -244,7 +244,7 @@ def main(argv=None) -> int:
     try:
         import sklearn  # noqa: F401
     except ImportError:
-        logger.error("scikit-learn is missing: uv sync --group trainit --group study")
+        logger.error("scikit-learn is missing: uv sync --extra trainit --extra study")
         return 1
     report = run(args.tables, args.output_dir, args.keep_bias)
     print(text_report(report))

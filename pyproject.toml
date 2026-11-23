@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "savant"
-version = "2.6.3"
+version = "2.6.4"
 description = "SAVANT - Semi-automated video annotation toolkit for UAV object detection"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,15 +15,10 @@ authors = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "jsonschema>=4.0.0",
-]
-
-[dependency-groups]
+# Runtime dependencies per app, published so that projects installing SAVANT get them: savant[markit] etc.
+# Use the extras here, not [dependency-groups]: groups are not part of the package metadata.
 markit = [
-    "ultralytics",
+    "ultralytics>=8.4.155",  # YOLO26
     "lap>=0.5.12",
     "opencv-contrib-python>=4.5.0",
     "numpy",
@@ -38,7 +33,7 @@ markit = [
     "matplotlib>=3.7.0",
 ]
 trainit = [
-    "ultralytics",
+    "ultralytics>=8.4.155",  # YOLO26
     "dataprov>=3.4.0",
     "scenario-uncertainty",
     "pyyaml",
@@ -62,20 +57,18 @@ edit = [
     "rdflib>=7.2.1",
     "scipy>=1.10.0",
 ]
+all-apps = ["savant[markit,trainit,edit]"]
+
+[dependency-groups]
+# Development only (not published)
 dev = [
     "flake8>=7.3.0",
     "black>=25.1.0",
     "pytest>=8.4.1",
     "pytest-mock>=3.14.1",
     "pytest-cov>=7.0.0",
+    "jsonschema>=4.0.0",
 ]
-all-apps = [
-    {include-group = "markit"},
-    {include-group = "trainit"},
-    {include-group = "edit"},
-]
-
-
 
 [tool.uv.sources]
 # Released tag of scenario-uncertainty; bump the tag (and uv lock --upgrade-package scenario-uncertainty) for new versions

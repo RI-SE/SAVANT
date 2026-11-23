@@ -8,12 +8,12 @@ Uses `uv` (not pip directly). Python 3.12 in CI, requires >=3.10.
 
 ```bash
 # Full install (all apps)
-uv sync --group all-apps --group dev
+uv sync --extra all-apps --group dev
 
 # Per-component installs
-uv sync --group markit --group dev
-uv sync --group edit --group dev
-uv sync --group trainit --group dev
+uv sync --extra markit --group dev
+uv sync --extra edit --group dev
+uv sync --extra trainit --group dev
 ```
 
 ## Test Commands

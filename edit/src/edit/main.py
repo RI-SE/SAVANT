@@ -1,15 +1,18 @@
 import sys
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 from edit.frontend.main_window import MainWindow
 from edit.controllers.project_state_controller import ProjectStateController
 from edit.controllers.annotation_controller import AnnotationController
 from edit.services.annotation_service import AnnotationService
+from edit.services.autosave_service import TICK_SECONDS, AutosaveService
 from edit.services.project_state import ProjectState
 from edit.controllers.video_controller import VideoController
 from edit.services.video_reader import VideoReader
 from edit.global_exception_handler import exception_hook
 from edit.frontend.theme.menu_styler import install_menu_styler
 from edit.logger_config import setup_logger
+from edit.frontend.utils.settings_store import get_autosave_minutes
 
 
 def main():
@@ -42,6 +45,11 @@ def main():
     )
     window.show()
 
+    autosave = AutosaveService(project_state, get_autosave_minutes)
+    autosave_timer = QTimer(window)
+    autosave_timer.timeout.connect(autosave.tick)
+    autosave_timer.start(TICK_SECONDS * 1000)
+
     sys.excepthook = exception_hook
 
     exit_code = app.exec()
@@ -50,6 +58,8 @@ def main():
     # queue while the event loop machinery is still alive, so child QObject wrappers
     # are cleaned up here instead of being orphaned during QApplication destruction
     # at interpreter shutdown (which segfaults).
+    autosave_timer.stop()
+    autosave.wait()
     window.deleteLater()
     app.processEvents()
 
