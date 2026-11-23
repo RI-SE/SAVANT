@@ -31,7 +31,7 @@ Schema version is required. We use `tagged_file` for the source video and `annot
 
 ```json
 "metadata": {
-    "schema_version": "1.1.0",
+    "schema_version": "1.2.0",
     "tagged_file": "filename.mp4",
     "annotator": "SAVANT markit v0.3.2"
 }

@@ -6,6 +6,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     confloat,
+    field_validator,
     conint,
     model_serializer,
     model_validator,
@@ -119,6 +120,12 @@ class ObjectMetadataVecEntry(BaseModel):
 
     name: str
     val: MetadataVecValue
+
+    @field_validator("val", mode="after")
+    @classmethod
+    def _as_list(cls, val):
+        """OpenLABEL vec values are lists; older markit files wrote some (marker description) as a scalar."""
+        return val if isinstance(val, list) else [val]
 
 
 class ObjectMetadataData(BaseModel):

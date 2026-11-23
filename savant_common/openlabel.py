@@ -46,6 +46,8 @@ logger = logging.getLogger(__name__)
 # Annotator prefix of markit's postprocessing steps (geometry adjustments, gap filling)
 HOUSEKEEPING_ANNOTATOR = "markit_housekeeping"
 
+# metadata.schema_version markit and edit write: version of schema/savant_openlabel_subset.schema.json (its const)
+SCHEMA_VERSION = "1.2.0"
 
 # Per-box origin history (scenario-uncertainty SPEC P3.2/P3.4): aligned with the annotator history, newest first
 ORIGIN_ENTRY = "origin"
@@ -563,7 +565,7 @@ class OpenLabelWriter:
         self,
         video_path: str,
         annotator: str,
-        schema_version: str = "1.0",
+        schema_version: str = SCHEMA_VERSION,
         name: Optional[str] = None,
         comment: Optional[str] = None,
         tags: Optional[List[str]] = None

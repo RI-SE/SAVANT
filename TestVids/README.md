@@ -2,20 +2,19 @@
 
 Test videos for SAVANT (OpenLabel files created by *markit* and can be loaded in *edit*).
 
+All OpenLABEL files were made with markit 2.6.4 by `run_markit_testvids.sh` (see the script for the exact
+options): YOLO + optical flow, housekeeping, static/jitter marking, measured error model (box σ), and VLM
+scene tags. Per video: `<name>_2.6.4_openlabel.json` (edit prefers JSON names containing "openlabel"),
+`.prov.json` (provenance) and `.decisions.json` (housekeeping/detection decision log).
+
 ## Contents
 
 ### Kraklanda_short/
-Short test clip for basic YOLO detection testing.
-
-Processed with:
-```bash
-./run_markit --input ../TestVids/Kraklanda_short/Kraklanda_short.mp4 --output_json ../TestVids/Kraklanda_short/Kraklanda_short.json
-```
+Short clip (89 frames) for basic detection testing.
 
 ### Saro_roundabout/
-Roundabout scene with ArUco markers and visual markers for GPS coordinate testing.
+Roundabout scene (300 frames) with ArUco markers and visual markers for GPS coordinate testing
+(`Saro_aruco.csv`, `Saro_visualmarkers.csv`) and an exclusion mask.
 
-Processed with:
-```bash
-./run_markit --input ../TestVids/Saro_roundabout/Saro_roundabout.mp4 --output_json ../TestVids/Saro_roundabout/Saro_roundabout.json --aruco-csv ../TestVids/Saro_roundabout/Saro_aruco.csv --visual-markers ../TestVids/Saro_roundabout/Saro_visualmarkers.csv --housekeeping --static-mark
-```
+### Ekas_T/
+T-junction (300 frames) with an exclusion mask; cars in tree shadow are found by optical flow only.

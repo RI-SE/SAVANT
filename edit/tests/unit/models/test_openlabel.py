@@ -48,7 +48,7 @@ class TestOpenLabel:
                                 {"name": "arucoID", "val": ["24a", "24c"]},
                                 {"name": "long", "val": ["47.3769", "47.3771"]},
                                 {"name": "lat", "val": ["8.5417", "8.5419"]},
-                                {"name": "description", "val": "Zurich"},
+                                {"name": "description", "val": ["Zurich"]},
                             ]
                         },
                     },
@@ -240,6 +240,13 @@ class TestOpenLabel:
             dumped_objects["2"]["object_data"]
             == self.expected_output["openlabel"]["objects"]["2"]["object_data"]
         )
+
+    def test_scalar_object_vec_value_becomes_list(self):
+        """Older markit files wrote the marker description as a scalar; edit saves it as an OpenLABEL list."""
+        data = copy.deepcopy(self.expected_output["openlabel"])
+        data["objects"]["2"]["object_data"]["vec"][-1]["val"] = "Zurich"
+        dumped = OpenLabel(**data).model_dump()["objects"]["2"]["object_data"]["vec"][-1]
+        assert dumped == {"name": "description", "val": ["Zurich"]}
 
     def test_append_new_object_bbox(self):
         """Test appending a new bounding box to a frame"""

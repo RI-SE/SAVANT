@@ -138,6 +138,23 @@ class TestOpenLabelHandler:
                 f"Generated OpenLabel JSON does not validate against schema: {e}"
             )
 
+    @pytest.mark.skipif(not JSONSCHEMA_AVAILABLE, reason="jsonschema not installed")
+    def test_object_level_vecs_validate(self, schema_path, sample_detection, sample_class_map):
+        """Marker vecs and housekeeping frame lists (numbers) at object level validate against the schema."""
+        from markit.markitlib.openlabel.handler import marker_gps_vec
+
+        handler = OpenLabelHandler(schema_path)
+        handler.add_metadata("test_video.mp4")
+        handler.add_frame_objects(0, [sample_detection], sample_class_map)
+        obj = next(iter(handler.openlabel_data["openlabel"]["objects"].values()))
+        corners = {"a": {"lat": 57.48, "lon": 12.0, "alt": 72.7}}
+        obj.setdefault("object_data", {}).setdefault("vec", []).extend(
+            marker_gps_vec("markerID", 1, corners, "Saro")
+            + [{"name": "size_step", "val": [10, 13]}, {"name": "staticdynamic", "val": [0]}]
+        )
+        with open(schema_path, "r") as f:
+            jsonschema.validate(handler.openlabel_data, json.load(f))
+
     def test_multiple_objects_in_frame(self, schema_path, sample_class_map):
         """Test adding multiple objects to a single frame."""
         handler = OpenLabelHandler(schema_path)

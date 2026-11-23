@@ -14,6 +14,8 @@ import shutil
 
 import pytest
 
+from savant_common.openlabel import SCHEMA_VERSION
+
 
 class TestProjectState:
 
@@ -259,6 +261,7 @@ def test_save_keeps_metadata_written_by_other_tools(tmp_path):
     assert saved["tags"] == ["drone"]
     assert saved["quality"] == {"spec": "x"}
     assert saved["savant_edit"]["version"]  # names the edit that saved the file, for later provenance
+    assert saved["schema_version"] == SCHEMA_VERSION  # the saved file follows the current schema
 
 
 def _set_histories(state, annotators, confidences):

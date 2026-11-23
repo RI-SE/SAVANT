@@ -13,6 +13,7 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 
 from savant_common.ontology import create_class_map, extract_namespace_uri
+from savant_common.openlabel import SCHEMA_VERSION
 
 from . import __version__
 
@@ -21,7 +22,7 @@ class Constants:
     """Constants used throughout the application."""
 
     MP4V_FOURCC = "mp4v"  # MPEG-4 Part 2 (widely supported; H.264 tried first if available)
-    SCHEMA_VERSION = "1.1"
+    SCHEMA_VERSION = SCHEMA_VERSION
     ANNOTATOR_NAME = f"SAVANT markit v{__version__}"
     # Fallback class map used when ontology file cannot be loaded
     # In normal operation, class_map is loaded dynamically from the ontology

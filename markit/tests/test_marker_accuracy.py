@@ -49,3 +49,4 @@ def test_csv_without_sd_columns_gives_the_old_vec(tmp_path):
     csv = _write(tmp_path, "Gbg_aruco.csv", "point_name,latitude,longitude,altitude\naruco_7a,57.48,12.00,72.7\n")
     vec = marker_gps_vec("arucoID", 7, ArUcoGPSData(csv).get_gps_data(7), "Gbg")
     assert [entry["name"] for entry in vec] == ["arucoID", "long", "lat", "alt", "description"]
+    assert vec[-1]["val"] == ["Gbg"]  # OpenLABEL vec values are lists
