@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "savant"
-version = "2.6.2"
+version = "2.6.3"
 description = "SAVANT - Semi-automated video annotation toolkit for UAV object detection"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -47,6 +47,11 @@ trainit = [
     "numpy",
     "PyQt6>=6.5.0",
     "rdflib>=7.0.0",
+]
+# box-uncertainty-study (trainit), not needed at run time
+study = [
+    "scikit-learn>=1.4",
+    "scipy>=1.10.0",
 ]
 edit = [
     "pyqt6<=6.9.1",
@@ -103,6 +108,8 @@ train-yolo-obb = "trainit.train_yolo_obb:main"
 split-train-val = "trainit.split_train_val:main"
 extract-yolo-training = "trainit.extract_yolo_training:main"
 fit-error-model = "trainit.fit_error_model:main"
+build-residuals = "trainit.build_residuals:main"
+box-uncertainty-study = "trainit.box_uncertainty_study:main"
 trainit = "trainit.trainit_gui.main:main"
 remap-classes-to-ontology = "utils.remap_classes_to_ontology:main"
 print-ontology = "utils.print_ontology:main"

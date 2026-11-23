@@ -34,6 +34,7 @@ P_EXIST_ENTRY = "p_exist"
 SIGMA_COMPONENTS = ("cx", "cy", "w", "h", "r")  # px, px, px, px, rad
 ALL_CLASSES = "_all"  # pooled coefficients, used for classes without their own
 MODEL_FORM = "sigma = a + b*size_px"
+MEAN_FORM = "mean = a + b*size_px"  # bias (residual = box - truth); sigma is the spread around it
 SIZE_PX = "sqrt(w*h)"
 
 # SPEC P7 default [a, b] per component for detected boxes, until a measured error model exists

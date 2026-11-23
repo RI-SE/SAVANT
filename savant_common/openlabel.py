@@ -54,6 +54,9 @@ GAP_DISTANCE_ENTRY = "gap_distance"
 UNKNOWN_ORIGIN = "unknown"
 # metadata key edit writes on save: {"version": ...}, so later provenance can name the edit that saved the file
 EDIT_METADATA_KEY = "savant_edit"
+# frame_properties key edit writes when a person confirms that every box in a frame is checked (key-frame review):
+# {"annotator": ..., "time": ISO 8601}. Such frames can serve as ground truth for box errors.
+FRAME_REVIEW_KEY = "review"
 
 
 class Origin:

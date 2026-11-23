@@ -5,6 +5,26 @@
 >
 > **Versioning discontinuity:** versions `1.0.0`–`1.3.2` belong to an earlier, pre-monorepo project (a single `savant_app`, no root `pyproject.toml`). The restructure into today's `markit` / `edit` / `trainit` / `savant_common` layout (commit `acde3ea`, 2025-11-25) introduced the current root `pyproject.toml`, which restarted its own version count at `1.0.0` and then jumped straight to `2.0.0` twelve days later ("Bump versions", commit `1092f13`) to mark the restructure. So `2.0.0` is the first version of the project *as it exists today*; the `1.x` entries below describe the predecessor codebase.
 
+## [2.6.3] - 2026-11-23
+_Box-error study tools and a separate box bias in the error model. Includes 2.6.1 and 2.6.2._
+
+### Added
+- **edit key-frame review:** `K` confirms the current frame. Boxes not already made or confirmed by a person get
+  origin `reviewed`, and the frame gets `frame_properties.review` = {annotator, time} (also in the schema).
+  `.` / `,` jump between key frames (interval in Settings, default 30, saved per project). Undoable. Confirm a
+  frame only when every box on it is correct; confirmed frames are the ground truth for box errors.
+- **trainit `build-residuals`:** box errors of automatic annotations against key-frame ground truth, as a CSV
+  with per-box features (`savant_common.features`).
+- **trainit `box-uncertainty-study` (experimental):** random-forest factor on the baseline σ, with one site held out
+  per fold. Needs the optional `study` dependency group (scikit-learn, scipy).
+- **`fit-error-model --residuals`:** fits the localisation on `build-residuals` tables (recordings the detector was
+  not trained on) instead of the val split; no score calibration then.
+
+### Changed
+- **`fit-error-model` fits the box bias separately:** per class `mean = a + b*size_px` (e.g. boxes that are too
+  large), and σ as the spread around it. σ from new fits is smaller than before for biased detectors. markit
+  copies `mean` into `metadata.quality.localization`, but nothing applies or propagates the bias yet.
+
 ## [2.6.2] - 2026-11-12
 
 ### Fixed

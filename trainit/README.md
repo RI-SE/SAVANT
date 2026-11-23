@@ -847,10 +847,39 @@ fit-error-model --weights runs/obb/train/weights/best.pt --data datasets/my_data
 | `--device` | auto | e.g. `0` or `cpu` |
 | `--provenance` | None | Provenance chain file (created if missing) |
 
-- **Localization:** predictions are matched to ground truth (same class, rotated IoU > 0.5). The residuals of cx, cy, w, h and rotation are fitted as σ = a + b·√(w·h), per class with at least 30 matches and pooled (`_all`).
+- **Localization:** predictions are matched to ground truth (same class, rotated IoU > 0.5). The residuals (prediction − truth) of cx, cy, w, h and rotation are fitted per class with at least 30 matches and pooled (`_all`), in two parts: the bias `mean` = a + b·√(w·h) (e.g. YOLO boxes that are systematically too large), and the spread around it, σ = a + b·√(w·h). markit's `sigma_px` is the spread only; the bias is not applied to the boxes. It is measured against the val labels, so it shows the detector's offset from its own training labels, not from another labelling convention.
 - **Score calibration:** isotonic fit of P(true positive | score), from predictions down to conf 0.01; the file also gives the ECE of the raw score.
 - The val split must not overlap the training data (use the chunked split), or the errors are underestimated.
 - The file records the SHA-256 of the weights; markit ignores it for other weights (e.g. `last.pt`).
+
+### Box-uncertainty study (build-residuals, box-uncertainty-study)
+
+Tests whether a learned factor on the baseline box σ (`σ = a + b·√(w·h)`) gives better-calibrated uncertainty.
+See `development.md` ("Learned per-box uncertainty") for the design and the data it needs.
+
+1. Annotate ground truth in edit with key-frame review (`.` / `,` to jump, `K` to confirm a frame).
+2. Run markit on the same video with a detector that was not trained on it.
+3. Build a residual table per recording (one row per matched box, with features):
+
+```bash
+build-residuals --gt GT.json --auto markit.json --video video.mp4 --recording site_date_seq --output res.csv
+```
+
+`--all-frames` uses every GT frame of files without key-frame review (their unchanged boxes bias the errors towards
+0), and `--every N` thins out the frames. Without `--video`, image and optical-flow features are left empty; give
+`--image-size W H` for the position features.
+
+4. Compare the methods on held-out recordings (requires the `study` group: `uv sync --group trainit --group study`):
+
+```bash
+box-uncertainty-study res_*.csv --output-dir study/
+```
+
+It writes `report.txt`, `report.json` and `importance.png`. A method is better if `nll` is lower and `rho` is higher,
+with coverage `cov1`/`cov2` close to 0.683/0.954. With one recording the folds hold out objects instead, which says
+nothing about other recordings. The bias (mean = a + b·√(w·h) per class) is fitted on the training folds and removed
+from the held-out residuals first, so σ models the spread only; `ms_share` in the report is the share of the mean
+squared residual the bias explains. `--keep-bias` leaves it in (σ then also covers the bias).
 
 ## Running with uv
 

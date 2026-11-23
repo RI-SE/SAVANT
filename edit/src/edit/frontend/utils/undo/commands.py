@@ -723,6 +723,44 @@ class ResolveConfidenceCommand:
 
 
 @dataclass
+class ConfirmFrameCommand:
+    """Key-frame review: mark all boxes of a frame checked and the frame confirmed."""
+
+    frame_number: int
+    annotator: str
+    description: str = "Confirm frame"
+    marked: int = field(default=0, init=False)
+    _before: List[FrameObjectSnapshot] = field(default_factory=list, init=False, repr=False)
+    _after: List[FrameObjectSnapshot] = field(default_factory=list, init=False, repr=False)
+    _review_before: Optional[dict] = field(default=None, init=False, repr=False)
+    _review_after: Optional[dict] = field(default=None, init=False, repr=False)
+
+    def _capture(self, gateway) -> List[FrameObjectSnapshot]:
+        snapshots = (gateway.capture_frame_object(self.frame_number, object_id)
+                     for object_id in gateway.frame_object_ids(self.frame_number))
+        return [snapshot for snapshot in snapshots if snapshot is not None]
+
+    def do(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+        if self._review_after is None:
+            self._before = self._capture(gateway)
+            self._review_before = gateway.get_frame_review(self.frame_number)
+            self.marked = gateway.confirm_frame(self.frame_number, self.annotator)
+            self._after = self._capture(gateway)
+            self._review_after = gateway.get_frame_review(self.frame_number)
+            return
+        for snapshot in self._after:
+            gateway.restore_bbox(snapshot.clone())
+        gateway.set_frame_review(self.frame_number, self._review_after)
+
+    def undo(self, context: GatewayHolder) -> None:
+        gateway = context.annotation_gateway
+        for snapshot in self._before:
+            gateway.restore_bbox(snapshot.clone())
+        gateway.set_frame_review(self.frame_number, self._review_before)
+
+
+@dataclass
 class CreateObjectRelationshipCommand:
     relationship_type: str
     ontology_uid: str

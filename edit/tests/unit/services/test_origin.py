@@ -73,3 +73,32 @@ def test_interpolated_boxes_are_manual_interpolated(tmp_path):
         return
     service.interpolate_annotations(object_id, start, end, "alice")
     assert _vec(openlabel, start + 1, object_id)["origin"] == ["manual_interpolated"]
+
+
+def test_confirm_frame_marks_unchecked_boxes_reviewed(tmp_path):
+    service, openlabel = _service(tmp_path)
+    frame, object_id = _first_box(openlabel)
+    marked = service.confirm_frame(frame, "alice")
+    assert marked >= 1
+    assert _vec(openlabel, frame, object_id)["origin"][0] == "reviewed"
+    assert service.get_frame_review(frame)["annotator"] == "alice"
+    assert frame in service.reviewed_frames()
+    dumped = openlabel.model_dump(mode="json")
+    assert dumped["frames"][str(frame)]["frame_properties"]["review"]["annotator"] == "alice"
+
+
+def test_confirm_frame_keeps_manual_boxes(tmp_path):
+    service, openlabel = _service(tmp_path)
+    frame, object_id = _first_box(openlabel)
+    service.move_resize_bbox(frame, object_id, delta_x=2.0, annotator="alice")
+    service.confirm_frame(frame, "bob")
+    assert _vec(openlabel, frame, object_id)["origin"][0] == "manual"
+
+
+def test_confirm_empty_frame_and_clear_review(tmp_path):
+    service, openlabel = _service(tmp_path)
+    assert service.confirm_frame(123456, "alice") == 0
+    assert service.get_frame_review(123456) is not None
+    service.set_frame_review(123456, None)
+    assert service.get_frame_review(123456) is None
+    assert "review" not in (openlabel.model_dump(mode="json")["frames"]["123456"].get("frame_properties") or {})
