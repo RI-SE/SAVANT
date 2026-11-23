@@ -3,9 +3,6 @@
 import hashlib
 import json
 import logging
-import os
-import shutil
-import tempfile
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,7 +11,8 @@ from typing import Dict, List, Literal, Tuple
 from edit.models.OpenLabel import OpenLabel
 from savant_common.openlabel import EDIT_METADATA_KEY, HUMAN_ORIGINS, contiguous_intervals, source_confidence
 from savant_common.quality import apply_box_quality, count_origins, origin_shares
-from edit.utils import read_json
+from edit.services.autosave_service import delete_autosave
+from edit.utils import read_json, write_atomic
 from edit.version import get_version
 from pydantic import ValidationError
 
@@ -137,18 +135,14 @@ class ProjectState:
     def save_openlabel_config(self) -> None:
         """Save the OpenLabel configuration; the file is replaced only after a complete write."""
         payload = {"openlabel": self._export_config()}
-        target = Path(self.open_label_path)
-        fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(payload, f, indent=2)
-            if target.exists():
-                shutil.copymode(target, tmp_name)
-            os.replace(tmp_name, target)
-        except BaseException:
-            Path(tmp_name).unlink(missing_ok=True)
-            raise
+        write_atomic(Path(self.open_label_path), lambda f: json.dump(payload, f, indent=2))
         self._saved_digest = self._config_digest()
+        delete_autosave(self.open_label_path)
+
+    def restore_config(self, config: OpenLabel) -> None:
+        """Replace the annotations (e.g. with an autosave) but keep the file and its saved state, so they
+        count as unsaved changes and the next save writes them to the original file."""
+        self.annotation_config = config
 
     def _export_config(self) -> dict:
         """Serialize the config with object frame_intervals rebuilt from the boxes.
@@ -202,10 +196,18 @@ class ProjectState:
         apply_box_quality(data, quality, only_origins=HUMAN_ORIGINS)
         quality.update(origin_shares(count_origins(data), source="savant_edit"))
 
+    @staticmethod
+    def digest_of(config: OpenLabel) -> str:
+        return hashlib.sha256(config.model_dump_json().encode()).hexdigest()
+
     def _config_digest(self) -> str | None:
         if self.annotation_config is None:
             return None
-        return hashlib.sha256(self.annotation_config.model_dump_json().encode()).hexdigest()
+        return self.digest_of(self.annotation_config)
+
+    def is_saved_digest(self, digest: str) -> bool:
+        """Whether a digest (of model_dump_json) matches the config as last loaded/saved."""
+        return digest == self._saved_digest
 
     def has_unsaved_changes(self) -> bool:
         """Compare against the last load/save, so edits made outside the undo stack count too."""

@@ -154,6 +154,7 @@ Open `Help → Keyboard Shortcuts` to see a table of all available keyboard shor
 ### 4.9 Saving Projects
 - `Ctrl+S`, `File → Save project`, or the Save toolbar icon writes the OpenLabel JSON back to disk. Before saving, the app validates action tags to ensure each interval has a valid start/end.
 - After saving annotations you are asked whether to store the current settings (zoom, warning ranges, tag toggles, namespace, bookmarks, etc.) inside `savant_project_config.json`. Choosing "Yes" means next time the project opens it will look exactly the same without further tweaks.
+- **Autosave:** unsaved changes are written every few minutes (Settings → *Autosave interval*, default 5, 0 = off) to `.autosave/` in the project folder. If edit closes without saving (e.g. a crash), opening the file again offers to continue from the autosave; *Yes* restores it as unsaved changes (save to keep them), *No* deletes it. A manual save also deletes it. Autosave never replaces the project file.
 
 ---
 

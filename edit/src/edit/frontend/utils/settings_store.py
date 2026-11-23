@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 _ontology_path: Optional[Path] = None
 _action_interval_offset: int = 50
 _keyframe_interval: int = 30  # frames between key frames in key-frame review
+_autosave_minutes: int = 5  # 0 = off
 _default_ontology_namespace = "https://ri-se.github.io/SAVANT/ontology/savant#"
 _ontology_namespace: str = _default_ontology_namespace
 _warning_range: tuple[float, float] = (0.4, 0.6)
@@ -74,6 +75,18 @@ def set_keyframe_interval(value: int) -> None:
     if interval < 1:
         raise ValueError("Key-frame interval must be >= 1.")
     _keyframe_interval = interval
+
+
+def get_autosave_minutes() -> int:
+    return int(_autosave_minutes)
+
+
+def set_autosave_minutes(value: int) -> None:
+    global _autosave_minutes
+    minutes = int(value)
+    if minutes < 0:
+        raise ValueError("Autosave interval must be >= 0 (0 turns autosave off).")
+    _autosave_minutes = minutes
 
 
 def get_ontology_namespace() -> str:

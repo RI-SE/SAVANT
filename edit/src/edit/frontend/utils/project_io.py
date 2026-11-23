@@ -369,8 +369,30 @@ def on_open_video(main_window, path: str):
     stop(main_window)
 
 
+def _offer_autosave_restore(main_window) -> None:
+    """If the loaded file has a newer, different autosave, ask whether to continue from it."""
+    controller = main_window.project_state_controller
+    autosaved = controller.pending_autosave()
+    if autosaved is None:
+        return
+    answer = QMessageBox.question(
+        main_window,
+        "Restore Autosave?",
+        "This file has an autosave with changes that were never saved (e.g. after a crash).\n\n"
+        "Yes: continue from the autosave (save to keep it).\n"
+        "No: open the saved file and delete the autosave.",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.Yes,
+    )
+    if answer == QMessageBox.StandardButton.Yes:
+        controller.restore_config(autosaved)
+    else:
+        controller.discard_autosave()
+
+
 def open_openlabel_config(main_window, path: str):
     main_window.project_state_controller.load_openlabel_config(path)
+    _offer_autosave_restore(main_window)
     if hasattr(main_window, "reset_undo_history"):
         main_window.reset_undo_history()
     main_window.reset_bbox_edit_state()

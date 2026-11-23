@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+### Added
+- **edit autosave:** unsaved changes are written every N minutes (Settings, default 5, 0 = off) to
+  `.autosave/<file>.json` in the project folder, atomically and in the background. When a file is opened and its
+  autosave is newer and different, edit offers to continue from it; the restored annotations count as unsaved and
+  are saved to the original file. A manual save, or declining the restore, deletes the autosave. Re-implemented from
+  the unmerged `dev-autosave` branch (2026-08), which saved a restored autosave into `.autosave/` instead of the
+  project file.
+
 ### Changed
 - **Packaging: app dependencies are now extras** (`[project.optional-dependencies]`: `markit`, `trainit`, `study`,
   `edit`, `all-apps`) instead of dependency groups. Groups are not published, so projects installing SAVANT got

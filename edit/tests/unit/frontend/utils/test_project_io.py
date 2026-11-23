@@ -18,12 +18,34 @@ def test_open_openlabel_config_resets_undo_history(monkeypatch, tmp_path):
     main_window = MagicMock()
     main_window.project_state_controller.get_tag_categories.return_value = {}
     main_window.project_state_controller.get_tag_frame_details.return_value = {}
+    main_window.project_state_controller.pending_autosave.return_value = None
 
     project_io.open_openlabel_config(main_window, str(tmp_path / "a.json"))
 
     main_window.project_state_controller.load_openlabel_config.assert_called_once()
     main_window.reset_undo_history.assert_called_once()
     main_window.reset_bbox_edit_state.assert_called_once()
+
+
+def _answer_autosave_prompt(monkeypatch, answer):
+    main_window = MagicMock()
+    autosaved = object()
+    main_window.project_state_controller.pending_autosave.return_value = autosaved
+    monkeypatch.setattr(project_io.QMessageBox, "question", MagicMock(return_value=answer))
+    project_io._offer_autosave_restore(main_window)
+    return main_window.project_state_controller, autosaved
+
+
+def test_accepted_autosave_is_restored(monkeypatch):
+    controller, autosaved = _answer_autosave_prompt(monkeypatch, project_io.QMessageBox.StandardButton.Yes)
+    controller.restore_config.assert_called_once_with(autosaved)
+    controller.discard_autosave.assert_not_called()
+
+
+def test_declined_autosave_is_deleted(monkeypatch):
+    controller, _ = _answer_autosave_prompt(monkeypatch, project_io.QMessageBox.StandardButton.No)
+    controller.discard_autosave.assert_called_once()
+    controller.restore_config.assert_not_called()
 
 
 def _patch_project_open(monkeypatch, tmp_path):
