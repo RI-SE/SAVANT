@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 HOUSEKEEPING_ANNOTATOR = "markit_housekeeping"
 
 # metadata.schema_version markit and edit write: version of schema/savant_openlabel_subset.schema.json (its const)
-SCHEMA_VERSION = "1.2.0"
+SCHEMA_VERSION = "1.3.0"
 
 # Per-box origin history (scenario-uncertainty SPEC P3.2/P3.4): aligned with the annotator history, newest first
 ORIGIN_ENTRY = "origin"
