@@ -2163,7 +2163,7 @@ wheels = [
 
 [[package]]
 name = "savant"
-version = "2.6.5"
+version = "2.6.6"
 source = { editable = "." }
 
 [package.optional-dependencies]

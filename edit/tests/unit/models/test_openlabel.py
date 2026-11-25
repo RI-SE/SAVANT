@@ -248,6 +248,16 @@ class TestOpenLabel:
         dumped = OpenLabel(**data).model_dump()["objects"]["2"]["object_data"]["vec"][-1]
         assert dumped == {"name": "description", "val": ["Zurich"]}
 
+    def test_coordinate_systems_and_numeric_timestamp_are_kept(self):
+        """COSMO's corrected files (coordinate systems, timestamps in seconds) keep these on load/save."""
+        data = copy.deepcopy(self.expected_output["openlabel"])
+        data["coordinate_systems"] = {"world": {"type": "geo", "parent": ""}}
+        frame_key = next(iter(data["frames"]))
+        data["frames"][frame_key]["frame_properties"] = {"timestamp": 0.1}
+        dumped = OpenLabel(**data).model_dump()
+        assert dumped["coordinate_systems"] == {"world": {"type": "geo", "parent": ""}}
+        assert dumped["frames"][frame_key]["frame_properties"]["timestamp"] == 0.1
+
     def test_append_new_object_bbox(self):
         """Test appending a new bounding box to a frame"""
         ol = OpenLabel(**self.expected_output["openlabel"])

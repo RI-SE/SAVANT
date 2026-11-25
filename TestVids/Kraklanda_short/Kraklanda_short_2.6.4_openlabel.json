@@ -1,7 +1,7 @@
 {
   "openlabel": {
     "metadata": {
-      "schema_version": "1.2.0",
+      "schema_version": "1.3.0",
       "tagged_file": "Kraklanda_short.mp4",
       "annotator": "SAVANT markit v2.6.4",
       "name": "SAVANT Markit 2.6.4 Analysis",

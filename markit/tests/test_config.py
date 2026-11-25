@@ -20,7 +20,7 @@ class TestConstants:
     def test_constants_have_expected_values(self):
         """Verify constants have expected values."""
         assert Constants.MP4V_FOURCC == "mp4v"  # Fallback codec (H.264 tried first)
-        assert Constants.SCHEMA_VERSION == "1.2.0"
+        assert Constants.SCHEMA_VERSION == "1.3.0"
         assert "SAVANT markit" in Constants.ANNOTATOR_NAME
 
     def test_default_class_map_exists(self):

@@ -5,6 +5,14 @@
 >
 > **Versioning discontinuity:** versions `1.0.0`–`1.3.2` belong to an earlier, pre-monorepo project (a single `savant_app`, no root `pyproject.toml`). The restructure into today's `markit` / `edit` / `trainit` / `savant_common` layout (commit `acde3ea`, 2025-11-25) introduced the current root `pyproject.toml`, which restarted its own version count at `1.0.0` and then jumped straight to `2.0.0` twelve days later ("Bump versions", commit `1092f13`) to mark the restructure. So `2.0.0` is the first version of the project *as it exists today*; the `1.x` entries below describe the predecessor codebase.
 
+## [2.6.6] - 2026-11-24
+_OpenLABEL schema 1.3.0: one schema for SAVANT and COSMO output._
+
+### Changed
+- **OpenLABEL schema 1.3.0** (was 1.2.0), still a strict subset of ASAM OpenLABEL 1.0.0 apart from the version string, now also covering COSMO's output (COSMO ≥ 0.8.0 writes 1.3.0 instead of its own versions): `coordinate_systems` at the root, `cuboid` in frame objects (a frame object needs an `rbbox` or a `cuboid`), `coordinate_system` on boxes, object-level `num` and `text`, and `frame_properties.timestamp` as a string (markit) or seconds (COSMO). markit and edit write `1.3.0`.
+- edit keeps `coordinate_systems` and numeric frame timestamps on save.
+- TestVids OpenLABEL files updated to 1.3.0 (content unchanged).
+
 ## [2.6.5] - 2026-11-24
 _OpenLABEL schema 1.2.0 (strict subset of ASAM OpenLABEL); error model for the default weights; TestVids re-run._
 

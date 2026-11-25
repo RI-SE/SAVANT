@@ -92,7 +92,7 @@ class FrameLevelObject(BaseModel):
 class FrameProperties(BaseModel):
     """Per-frame properties such as video timestamp (unknown keys are kept)."""
 
-    timestamp: Optional[str] = None
+    timestamp: Optional[Union[str, float]] = None  # HH:MM:SS.ffffff (markit) or seconds (COSMO)
     model_config = ConfigDict(extra="allow")
 
 
@@ -211,6 +211,8 @@ class OpenLabel(BaseModel):
     frames: Dict[str, FrameObjects]
     # Recording stream metadata (e.g. from --drone-info in markit)
     streams: Optional[Dict[str, Any]] = None
+    # Coordinate systems of cuboids (COSMO's corrected geo output); kept on save
+    coordinate_systems: Optional[Dict[str, Dict[str, Any]]] = None
 
     def model_dump(self, *args, **kwargs) -> dict:
         """ "

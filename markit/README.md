@@ -362,7 +362,7 @@ Markit exports detections in OpenLabel (subset) JSON format, including informati
 {
   "openlabel": {
     "metadata": {
-      "schema_version": "1.2.0",
+      "schema_version": "1.3.0",
       "tagged_file": "Saro_roundabout.mp4",
       "annotator": "SAVANT Markit 2.0.3",
       "name": "SAVANT Markit 2.0.3 Analysis",

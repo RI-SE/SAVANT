@@ -155,6 +155,29 @@ class TestOpenLabelHandler:
         with open(schema_path, "r") as f:
             jsonschema.validate(handler.openlabel_data, json.load(f))
 
+    @pytest.mark.skipif(not JSONSCHEMA_AVAILABLE, reason="jsonschema not installed")
+    def test_cosmo_world_output_validates(self, schema_path, sample_detection, sample_class_map):
+        """COSMO's world output (cuboid instead of rbbox, coordinate system, object num/text) fits the schema."""
+        handler = OpenLabelHandler(schema_path)
+        handler.add_metadata("test_video.mp4")
+        handler.add_frame_objects(0, [sample_detection], sample_class_map)
+        root = handler.openlabel_data["openlabel"]
+        root["coordinate_systems"] = {"world": {"type": "geo", "parent": "", "proj_string": "+proj=utm +zone=33"}}
+        oid, obj = next(iter(root["objects"].items()))
+        obj.setdefault("object_data", {}).update(
+            {"num": [{"name": "n_frames", "val": 10}], "text": [{"name": "osi_type", "val": "VEHICLE"}]})
+        frame = root["frames"]["0"]
+        frame["frame_properties"] = {"timestamp": 0.1}
+        od = frame["objects"][oid]["object_data"]
+        od.pop("rbbox")
+        od["cuboid"] = [{"name": "shape", "val": [1.0, 2.0, 0.0, 0.0, 0.0, 0.5, 4.5, 1.8, 1.5], "coordinate_system": "world"}]
+        with open(schema_path, "r") as f:
+            schema = json.load(f)
+        jsonschema.validate(handler.openlabel_data, schema)
+        od.pop("cuboid")  # a frame object needs an rbbox or a cuboid
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(handler.openlabel_data, schema)
+
     def test_multiple_objects_in_frame(self, schema_path, sample_class_map):
         """Test adding multiple objects to a single frame."""
         handler = OpenLabelHandler(schema_path)
